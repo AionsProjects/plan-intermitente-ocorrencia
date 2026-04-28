@@ -268,12 +268,7 @@
   animation: fade-up 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* ─── Extra-day tile (animated dashed border) ─── */
-@keyframes marching-ants {
-  0%   { background-position: 0 0, 100% 0, 0 100%, 0 0; }
-  100% { background-position: 20px 0, calc(100% - 20px) 0, 0 calc(100% - 20px), 0 20px; }
-}
-
+/* ─── Extra-day tile (animated dashed border via SVG) ─── */
 .glass-tile-extra {
   background-color: rgba(255, 255, 255, 0.03);
   border: none !important;
@@ -281,25 +276,32 @@
   -webkit-backdrop-filter: blur(12px);
   transition: background-color 220ms ease, transform 220ms ease;
   position: relative;
-
-  /* Animated dashed borders via background gradients (top, bottom, left, right) */
-  background-image:
-    repeating-linear-gradient(90deg,  rgba(110, 160, 255, 0.45) 0, rgba(110, 160, 255, 0.45) 7px, transparent 7px, transparent 13px),
-    repeating-linear-gradient(90deg,  rgba(110, 160, 255, 0.45) 0, rgba(110, 160, 255, 0.45) 7px, transparent 7px, transparent 13px),
-    repeating-linear-gradient(180deg, rgba(110, 160, 255, 0.45) 0, rgba(110, 160, 255, 0.45) 7px, transparent 7px, transparent 13px),
-    repeating-linear-gradient(180deg, rgba(110, 160, 255, 0.45) 0, rgba(110, 160, 255, 0.45) 7px, transparent 7px, transparent 13px);
-  background-size:
-    100% 2.5px,
-    100% 2.5px,
-    2.5px 100%,
-    2.5px 100%;
-  background-position: 0 0, 0 100%, 0 0, 100% 0;
-  background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
-  animation: marching-ants 0.8s linear infinite;
 }
 
 .glass-tile-extra:hover {
   background-color: rgba(110, 160, 255, 0.08);
+}
+
+.extra-dash-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+  border-radius: inherit;
+}
+
+.extra-dash-svg rect {
+  fill: none;
+  stroke: rgba(110, 160, 255, 0.6);
+  stroke-width: 1.25;
+  stroke-dasharray: 6 5;
+  animation: dash-walk-left 30s linear infinite;
+}
+
+@keyframes dash-walk-left {
+  to { stroke-dashoffset: -1100; }
 }
 
 /* ─── Disabled tile (standard day deactivated) ─── */
@@ -338,30 +340,25 @@
 /* ─── Shake / tremble mode ─── */
 @keyframes shake-tremble {
   0%, 100% { transform: rotate(0deg) translate(0, 0); }
-  10%      { transform: rotate(-0.6deg) translate(-0.5px, 0.3px); }
-  20%      { transform: rotate(0.4deg) translate(0.4px, -0.3px); }
-  30%      { transform: rotate(-0.5deg) translate(-0.3px, 0.2px); }
-  40%      { transform: rotate(0.3deg) translate(0.3px, -0.2px); }
-  50%      { transform: rotate(-0.4deg) translate(-0.2px, 0.4px); }
-  60%      { transform: rotate(0.5deg) translate(0.2px, -0.3px); }
-  70%      { transform: rotate(-0.3deg) translate(-0.4px, 0.2px); }
-  80%      { transform: rotate(0.4deg) translate(0.3px, -0.4px); }
-  90%      { transform: rotate(-0.2deg) translate(-0.3px, 0.3px); }
+  20%      { transform: rotate(-0.25deg) translate(-0.3px, 0.15px); }
+  40%      { transform: rotate(0.22deg) translate(0.25px, -0.15px); }
+  60%      { transform: rotate(-0.22deg) translate(-0.2px, 0.2px); }
+  80%      { transform: rotate(0.25deg) translate(0.2px, -0.18px); }
 }
 
 .shake-mode {
-  animation: shake-tremble 0.45s ease-in-out infinite;
+  animation: shake-tremble 0.75s ease-in-out infinite !important;
   cursor: pointer;
 }
 
 .shake-mode:nth-child(even) {
-  animation-delay: 0.06s;
-  animation-duration: 0.5s;
+  animation-delay: 0.1s !important;
+  animation-duration: 0.85s !important;
 }
 
 .shake-mode:nth-child(3n) {
-  animation-delay: 0.12s;
-  animation-duration: 0.42s;
+  animation-delay: 0.18s !important;
+  animation-duration: 0.7s !important;
 }
 
 /* ─── Expandable action button ─── */

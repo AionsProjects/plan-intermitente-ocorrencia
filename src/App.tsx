@@ -1,7 +1,8 @@
 import { Link, Route, Routes } from "react-router-dom"
-import { ArrowUpRight } from "lucide-react"
+import { ArrowUpRight, KeyRound } from "lucide-react"
 
 import { AuroraBackground } from "@/components/AuroraBackground"
+import { CorrecaoPage } from "@/features/correcao/CorrecaoPage"
 import { PreencherPage } from "@/features/preencher/PreencherPage"
 
 function DevIndex() {
@@ -10,6 +11,7 @@ function DevIndex() {
   const exemplos = [
     { uuid: "mock-aguardando", titulo: "Aguardando preenchimento", desc: "Convocação com 6 dias úteis." },
     { uuid: "mock-concluido", titulo: "Já concluído", desc: "Tela de agradecimento pós-envio." },
+    { uuid: "mock-correcao", titulo: "Concluído (rico, p/ correção)", desc: "Faltas, atrasos e dia extra. Protocolo PROT-TEST-DEMO." },
     { uuid: "mock-expirado", titulo: "Link expirado", desc: "Estado de erro por expiração." },
     { uuid: "uuid-inexistente", titulo: "Link inválido", desc: "Estado 404 / não encontrado." },
   ]
@@ -51,6 +53,36 @@ function DevIndex() {
             </Link>
           ))}
         </div>
+
+        <div className="mt-6 border-t border-white/10 pt-6">
+          <Link
+            to="/corrigir"
+            className="glass-tile group flex items-center justify-between rounded-2xl px-5 py-4"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex size-9 items-center justify-center rounded-full bg-[#e8c275]/12 ring-1 ring-[#e8c275]/30">
+                <KeyRound className="size-4 text-[#e8c275]" />
+              </div>
+              <div>
+                <p className="text-[15px] font-medium text-white/95">
+                  Corrigir um registro
+                </p>
+                <p className="mt-0.5 text-xs text-white/55">
+                  Use o código de protocolo para reabrir e ajustar.
+                </p>
+              </div>
+            </div>
+            <ArrowUpRight className="size-4 text-white/55 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-white" />
+          </Link>
+
+          {usandoMock && (
+            <p className="mt-3 px-1 text-[11px] leading-relaxed text-white/50">
+              Protocolos de teste:{" "}
+              <code className="text-[#e8c275]">PROT-TEST-DEMO</code> ·{" "}
+              <code className="text-[#e8c275]">PROT-DEMO-1234</code>
+            </p>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -63,6 +95,7 @@ function App() {
       <Routes>
         <Route path="/" element={<DevIndex />} />
         <Route path="/preencher/:uuid" element={<PreencherPage />} />
+        <Route path="/corrigir" element={<CorrecaoPage />} />
       </Routes>
     </>
   )

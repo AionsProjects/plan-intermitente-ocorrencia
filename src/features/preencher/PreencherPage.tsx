@@ -1,4 +1,5 @@
-import { useParams } from "react-router-dom"
+import { useState } from "react"
+import { useParams, useSearchParams } from "react-router-dom"
 
 import { FormularioWizard } from "./FormularioWizard"
 import { TelaCarregando } from "./TelaCarregando"
@@ -8,6 +9,10 @@ import { useProcessamento } from "./useProcessamento"
 
 export function PreencherPage() {
   const { uuid } = useParams<{ uuid: string }>()
+  const [searchParams] = useSearchParams()
+  const ehCorrecao = searchParams.get("modo") === "correcao"
+  const [acabouEditar, setAcabouEditar] = useState(false)
+
   const { data, isLoading, isError, error } = useProcessamento(uuid)
 
   if (!uuid) {
@@ -50,9 +55,22 @@ export function PreencherPage() {
     )
   }
 
+  // Correction mode: open the form again with prior responses
+  if (data.status === "concluido" && ehCorrecao && !acabouEditar) {
+    return (
+      <FormularioWizard
+        dados={data}
+        ehCorrecao
+        onFinalizado={() => setAcabouEditar(true)}
+      />
+    )
+  }
+
   if (data.status === "concluido") {
     return <TelaObrigado dados={data} />
   }
 
-  return <FormularioWizard dados={data} />
+  return (
+    <FormularioWizard dados={data} onFinalizado={() => setAcabouEditar(true)} />
+  )
 }

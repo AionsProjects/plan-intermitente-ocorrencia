@@ -11,6 +11,12 @@ export type ProcessamentoDados = {
   dias: string[]
   status: StatusProcessamento
   concluidoEm: string | null
+  protocolo: string | null
+  editado: boolean
+  editadoEm: string | null
+  respostasAnteriores?: RespostaDia[]
+  diasExtras?: string[]
+  diasDesativados?: string[]
 }
 
 export type RespostaDia = {
@@ -21,6 +27,10 @@ export type RespostaDia = {
 
 export type PayloadFinalizar = {
   respostas: RespostaDia[]
+  protocolo: string
+  diasExtras?: string[]
+  diasDesativados?: string[]
+  ehCorrecao?: boolean
 }
 
 export type DiaInfo = {

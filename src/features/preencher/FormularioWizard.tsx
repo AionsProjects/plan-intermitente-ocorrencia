@@ -28,9 +28,15 @@ import { Label } from "@/components/ui/label"
 
 import { useFinalizarProcessamento } from "./useProcessamento"
 import type { DiaInfo, ProcessamentoDados, RespostaDia } from "./types"
+import {
+  gerarProtocolo,
+  salvarProtocolo,
+} from "@/features/correcao/protocoloStorage"
 
 type Props = {
   dados: ProcessamentoDados
+  ehCorrecao?: boolean
+  onFinalizado?: (protocolo: string) => void
 }
 
 function formatarDia(iso: string): string {
@@ -41,24 +47,40 @@ function formatarDiaCurto(iso: string): string {
   return format(parseISO(iso), "dd/MM", { locale: ptBR })
 }
 
-function respostasIniciais(dias: string[]): Record<string, RespostaDia> {
+function respostasIniciais(
+  dias: string[],
+  prev: RespostaDia[] | undefined,
+): Record<string, RespostaDia> {
   const base: Record<string, RespostaDia> = {}
+  const prevMap = new Map((prev ?? []).map((r) => [r.data, r]))
   for (const dia of dias) {
-    base[dia] = { data: dia, tipo: "sem_ocorrencia" }
+    base[dia] = prevMap.get(dia) ?? { data: dia, tipo: "sem_ocorrencia" }
+  }
+  for (const r of prev ?? []) {
+    if (!base[r.data]) base[r.data] = r
   }
   return base
 }
 
-function diasInfoIniciais(dias: string[]): DiaInfo[] {
-  return dias.map((d) => ({ data: d, tipo: "padrao", ativo: true }))
+function diasInfoIniciais(dados: ProcessamentoDados): DiaInfo[] {
+  const extras = new Set(dados.diasExtras ?? [])
+  const desativados = new Set(dados.diasDesativados ?? [])
+  const todos = new Set<string>([...dados.dias, ...(dados.diasExtras ?? [])])
+  return [...todos]
+    .sort()
+    .map((d) => ({
+      data: d,
+      tipo: extras.has(d) ? "extra" : "padrao",
+      ativo: !desativados.has(d),
+    }))
 }
 
-export function FormularioWizard({ dados }: Props) {
+export function FormularioWizard({ dados, ehCorrecao, onFinalizado }: Props) {
   const [respostas, setRespostas] = useState<Record<string, RespostaDia>>(() =>
-    respostasIniciais(dados.dias),
+    respostasIniciais(dados.dias, dados.respostasAnteriores),
   )
   const [diasInfo, setDiasInfo] = useState<DiaInfo[]>(() =>
-    diasInfoIniciais(dados.dias),
+    diasInfoIniciais(dados),
   )
   const [diaEditando, setDiaEditando] = useState<string | null>(null)
   const [modoApagar, setModoApagar] = useState(false)
@@ -151,12 +173,29 @@ export function FormularioWizard({ dados }: Props) {
   )
 
   async function enviar() {
+    const protocolo = dados.protocolo ?? gerarProtocolo()
     const payload = {
       respostas: diasAtivos.map(
         (d) => respostas[d.data] ?? { data: d.data, tipo: "sem_ocorrencia" },
       ),
+      protocolo,
+      diasExtras: diasInfo.filter((d) => d.tipo === "extra").map((d) => d.data),
+      diasDesativados: diasInfo
+        .filter((d) => d.tipo === "padrao" && !d.ativo)
+        .map((d) => d.data),
+      ehCorrecao: !!ehCorrecao,
     }
-    await finalizar.mutateAsync(payload)
+    const resultado = await finalizar.mutateAsync(payload)
+    salvarProtocolo({
+      protocolo: resultado.protocolo,
+      uuid: dados.uuid,
+      nome: dados.nome,
+      dataInicio: dados.dataInicio,
+      dataFim: dados.dataFim,
+      concluidoEm: dados.concluidoEm ?? new Date().toISOString(),
+      editadoEm: resultado.editado ? new Date().toISOString() : null,
+    })
+    onFinalizado?.(resultado.protocolo)
   }
 
   return (
@@ -361,17 +400,23 @@ function DiaItem({
         className={`${tileBase} ${tileStyle}`}
         onClick={handleClick}
       >
+        {isExtra && diaInfo.ativo && (
+          <svg className="extra-dash-svg" aria-hidden="true">
+            <rect
+              x="0"
+              y="0"
+              width="100%"
+              height="100%"
+              rx="14"
+              ry="14"
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
+        )}
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <p className={`text-[15px] font-medium capitalize ${isDisabled ? "text-white/35 line-through" : "text-white/95"}`}>
-              {formatarDia(diaInfo.data)}
-            </p>
-            {isExtra && diaInfo.ativo && (
-              <span className="inline-flex items-center rounded-full border border-[#6ea0ff]/25 bg-[#6ea0ff]/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-[#6ea0ff]/80">
-                Extra
-              </span>
-            )}
-          </div>
+          <p className={`text-[15px] font-medium capitalize ${isDisabled ? "text-white/35 line-through" : "text-white/95"}`}>
+            {formatarDia(diaInfo.data)}
+          </p>
           <div className="mt-1 text-sm text-white/60">
             {isDisabled ? (
               <span className="inline-flex items-center gap-2 text-white/30">
