@@ -1,0 +1,102 @@
+{
+  "name": "Intermitente — 2. Ler",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "intermitente-ler",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [-320, 32],
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567001",
+      "name": "Webhook",
+      "webhookId": "07b92cd6-de6c-482c-ab96-69fe9ad99568"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "processamentos",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.query.uuid }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [-96, 32],
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567002",
+      "name": "Buscar processamento",
+      "credentials": {
+        "supabaseApi": {
+          "id": "CONFIGURAR_AO_IMPORTAR",
+          "name": "Supabase"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ==============================================================\n// WF2 - Moldar resposta para o frontend\n// ==============================================================\n\nconst items = $input.all();\nconst uuid = $('Webhook').first().json.query?.uuid;\n\n// Nenhum registro encontrado\nif (!items.length || !items[0].json || !items[0].json.id) {\n  return [{\n    json: {\n      _statusCode: 404,\n      erro: 'nao_encontrado',\n      mensagem: 'Link inválido ou expirado.'\n    }\n  }];\n}\n\nconst row = items[0].json;\n\n// Checar expiração\nconst agora = new Date();\nconst expiraEm = row.expira_em ? new Date(row.expira_em) : null;\nlet status = row.status;\n\nif (status === 'aguardando' && expiraEm && agora > expiraEm) {\n  status = 'expirado';\n}\n\n// Montar lista de dias (inclusive)\nconst dias = [];\nif (row.data_inicio && row.data_fim) {\n  const atual = new Date(row.data_inicio + 'T00:00:00Z');\n  const fim = new Date(row.data_fim + 'T00:00:00Z');\n  while (atual <= fim) {\n    dias.push(atual.toISOString().slice(0, 10));\n    atual.setUTCDate(atual.getUTCDate() + 1);\n  }\n}\n\nreturn [{\n  json: {\n    _statusCode: 200,\n    uuid: row.id,\n    status,\n    nome: row.nome,\n    contrato: row.contrato,\n    data_inicio: row.data_inicio,\n    data_fim: row.data_fim,\n    dias,\n    expira_em: row.expira_em,\n    concluido_em: row.concluido_em\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [128, 32],
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567003",
+      "name": "Moldar resposta"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": "={{ $json._statusCode || 200 }}",
+          "responseHeaders": {
+            "entries": [
+              { "name": "Access-Control-Allow-Origin", "value": "*" },
+              { "name": "Content-Type", "value": "application/json" }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [352, 32],
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567004",
+      "name": "Responder"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Buscar processamento", "type": "main", "index": 0 }]]
+    },
+    "Buscar processamento": {
+      "main": [[{ "node": "Moldar resposta", "type": "main", "index": 0 }]]
+    },
+    "Moldar resposta": {
+      "main": [[{ "node": "Responder", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "wf2-ler-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "WHtIQDf8oOWinGyx",
+  "tags": []
+}

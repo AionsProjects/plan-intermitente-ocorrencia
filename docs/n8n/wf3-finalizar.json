@@ -1,0 +1,304 @@
+{
+  "name": "Intermitente — 3. Finalizar",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "intermitente-finalizar",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [-640, 32],
+      "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567101",
+      "name": "Webhook",
+      "webhookId": "eb331f4e-864f-4b0d-94b6-b17d6d50ca9f"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "processamentos",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.query.uuid || $json.body.uuid }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [-432, 32],
+      "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567102",
+      "name": "Buscar processamento",
+      "credentials": {
+        "supabaseApi": {
+          "id": "CONFIGURAR_AO_IMPORTAR",
+          "name": "Supabase"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ==============================================================\n// WF3 - Validar estado e preparar payloads\n// ==============================================================\n\nconst webhook = $('Webhook').first().json;\nconst body = webhook.body || {};\nconst uuid = webhook.query?.uuid || body.uuid;\nconst respostas = Array.isArray(body.respostas) ? body.respostas : [];\n\nconst found = $input.all();\nconst row = found[0]?.json;\n\nif (!row || !row.id) {\n  return [{\n    json: {\n      _statusCode: 404,\n      _erro: 'nao_encontrado',\n      mensagem: 'Processamento não encontrado.'\n    }\n  }];\n}\n\nconst agora = new Date();\nconst expiraEm = row.expira_em ? new Date(row.expira_em) : null;\n\nif (row.status === 'concluido') {\n  return [{\n    json: {\n      _statusCode: 409,\n      _erro: 'ja_concluido',\n      mensagem: 'Este formulário já foi finalizado.'\n    }\n  }];\n}\n\nif (row.status === 'expirado' || (expiraEm && agora > expiraEm)) {\n  return [{\n    json: {\n      _statusCode: 410,\n      _erro: 'expirado',\n      mensagem: 'Link expirado.'\n    }\n  }];\n}\n\n// Validar respostas: esperamos uma por dia\nconst dias = [];\nconst atual = new Date(row.data_inicio + 'T00:00:00Z');\nconst fim = new Date(row.data_fim + 'T00:00:00Z');\nwhile (atual <= fim) {\n  dias.push(atual.toISOString().slice(0, 10));\n  atual.setUTCDate(atual.getUTCDate() + 1);\n}\n\nconst mapaRespostas = new Map(respostas.map(r => [r.data, r]));\nconst ocorrencias = [];\nfor (const dia of dias) {\n  const r = mapaRespostas.get(dia);\n  if (!r || !r.tipo) {\n    return [{\n      json: {\n        _statusCode: 400,\n        _erro: 'resposta_faltando',\n        mensagem: `Resposta faltando para o dia ${dia}.`\n      }\n    }];\n  }\n  if (!['sem_ocorrencia','falta','atraso'].includes(r.tipo)) {\n    return [{\n      json: {\n        _statusCode: 400,\n        _erro: 'tipo_invalido',\n        mensagem: `Tipo inválido em ${dia}: ${r.tipo}`\n      }\n    }];\n  }\n  if (r.tipo === 'atraso' && (!Number.isInteger(r.minutos_atraso) || r.minutos_atraso <= 0)) {\n    return [{\n      json: {\n        _statusCode: 400,\n        _erro: 'minutos_invalidos',\n        mensagem: `Minutos de atraso inválidos em ${dia}.`\n      }\n    }];\n  }\n  ocorrencias.push({\n    processamento_id: row.id,\n    data: dia,\n    tipo: r.tipo,\n    minutos_atraso: r.tipo === 'atraso' ? r.minutos_atraso : null\n  });\n}\n\nreturn [{\n  json: {\n    _statusCode: 200,\n    uuid: row.id,\n    monday_item_id: row.monday_item_id,\n    nome: row.nome,\n    contrato: row.contrato,\n    data_inicio: row.data_inicio,\n    data_fim: row.data_fim,\n    concluido_em: agora.toISOString(),\n    ocorrencias\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-224, 32],
+      "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567103",
+      "name": "Validar e preparar"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json._statusCode }}",
+              "rightValue": 200,
+              "operator": { "type": "number", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [0, 32],
+      "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567104",
+      "name": "Se OK"
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "tableId": "ocorrencias_dia",
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "processamento_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Validar e preparar').first().json.uuid }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [112, -64],
+      "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567115",
+      "name": "Limpar ocorrências antigas",
+      "credentials": {
+        "supabaseApi": {
+          "id": "CONFIGURAR_AO_IMPORTAR",
+          "name": "Supabase"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Reinjeta a lista de ocorrências depois do delete\nconst validar = $('Validar e preparar').first().json;\nreturn [{ json: { ocorrencias: validar.ocorrencias } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [208, -64],
+      "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567116",
+      "name": "Reinjetar ocorrências"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "ocorrencias",
+        "options": {
+          "includeBinary": false,
+          "destinationFieldName": "ocorrencia"
+        }
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [320, -64],
+      "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567105",
+      "name": "Split ocorrências"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "tableId": "ocorrencias_dia",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "processamento_id", "fieldValue": "={{ $json.ocorrencia.processamento_id }}" },
+            { "fieldId": "data", "fieldValue": "={{ $json.ocorrencia.data }}" },
+            { "fieldId": "tipo", "fieldValue": "={{ $json.ocorrencia.tipo }}" },
+            { "fieldId": "minutos_atraso", "fieldValue": "={{ $json.ocorrencia.minutos_atraso }}" }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [448, -64],
+      "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567106",
+      "name": "Insert ocorrência",
+      "credentials": {
+        "supabaseApi": {
+          "id": "CONFIGURAR_AO_IMPORTAR",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Colapsa os N items em 1 para o fluxo seguir uma única vez\nreturn [{\n  json: {\n    ok: true,\n    inseridas: $input.all().length\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [672, -64],
+      "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567107",
+      "name": "Consolidar inserts"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "processamentos",
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Validar e preparar').first().json.uuid }}"
+            }
+          ]
+        },
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "status", "fieldValue": "concluido" },
+            { "fieldId": "concluido_em", "fieldValue": "={{ $('Validar e preparar').first().json.concluido_em }}" }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [896, -64],
+      "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567108",
+      "name": "Marcar concluído",
+      "credentials": {
+        "supabaseApi": {
+          "id": "CONFIGURAR_AO_IMPORTAR",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ==============================================================\n// TODO: Criar item no board de destino do monday.\n// Preencha BOARD_DESTINO_ID e mapeie as colunas conforme o board.\n// Deixe este node como no-op enquanto o board não estiver definido.\n// ==============================================================\nreturn [$input.first()];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, -64],
+      "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567109",
+      "name": "TODO Monday destino"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, uuid: $('Validar e preparar').first().json.uuid, concluido_em: $('Validar e preparar').first().json.concluido_em }) }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              { "name": "Access-Control-Allow-Origin", "value": "*" },
+              { "name": "Content-Type", "value": "application/json" }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1344, -64],
+      "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567110",
+      "name": "Responder OK"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, erro: $json._erro, mensagem: $json.mensagem }) }}",
+        "options": {
+          "responseCode": "={{ $json._statusCode }}",
+          "responseHeaders": {
+            "entries": [
+              { "name": "Access-Control-Allow-Origin", "value": "*" },
+              { "name": "Content-Type", "value": "application/json" }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [224, 160],
+      "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567111",
+      "name": "Responder Erro"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Buscar processamento", "type": "main", "index": 0 }]]
+    },
+    "Buscar processamento": {
+      "main": [[{ "node": "Validar e preparar", "type": "main", "index": 0 }]]
+    },
+    "Validar e preparar": {
+      "main": [[{ "node": "Se OK", "type": "main", "index": 0 }]]
+    },
+    "Se OK": {
+      "main": [
+        [{ "node": "Limpar ocorrências antigas", "type": "main", "index": 0 }],
+        [{ "node": "Responder Erro", "type": "main", "index": 0 }]
+      ]
+    },
+    "Limpar ocorrências antigas": {
+      "main": [[{ "node": "Reinjetar ocorrências", "type": "main", "index": 0 }]]
+    },
+    "Reinjetar ocorrências": {
+      "main": [[{ "node": "Split ocorrências", "type": "main", "index": 0 }]]
+    },
+    "Split ocorrências": {
+      "main": [[{ "node": "Insert ocorrência", "type": "main", "index": 0 }]]
+    },
+    "Insert ocorrência": {
+      "main": [[{ "node": "Consolidar inserts", "type": "main", "index": 0 }]]
+    },
+    "Consolidar inserts": {
+      "main": [[{ "node": "Marcar concluído", "type": "main", "index": 0 }]]
+    },
+    "Marcar concluído": {
+      "main": [[{ "node": "TODO Monday destino", "type": "main", "index": 0 }]]
+    },
+    "TODO Monday destino": {
+      "main": [[{ "node": "Responder OK", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "wf3-finalizar-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "SFIXUWLNNyTpaBfv",
+  "tags": []
+}

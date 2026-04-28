@@ -1,0 +1,544 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@import url("https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600;700&display=swap");
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --radius: 1.25rem;
+
+  /* Midnight + gold palette */
+  --aurora-bg-1: #03060f;
+  --aurora-bg-2: #07101f;
+  --aurora-bg-3: #0d1a36;
+
+  --aurora-blue: #4a7dff;
+  --aurora-blue-soft: #6ea0ff;
+  --aurora-blue-deep: #1e3a8a;
+  --aurora-gold: #e8c275;
+  --aurora-gold-deep: #b8862e;
+  --aurora-steel: #94a3b8;
+
+  /* Status */
+  --status-red: #f87171;
+  --status-yellow: #facc15;
+  --status-green: #4ade80;
+
+  /* Glass tokens */
+  --glass-bg: rgba(255, 255, 255, 0.07);
+  --glass-bg-strong: rgba(255, 255, 255, 0.12);
+  --glass-border: rgba(255, 255, 255, 0.18);
+  --glass-border-strong: rgba(255, 255, 255, 0.28);
+  --glass-shadow: 0 20px 60px -10px rgba(8, 5, 30, 0.55), 0 8px 24px -8px rgba(8, 5, 30, 0.35);
+
+  /* Semantic */
+  --background: transparent;
+  --foreground: #f5f3ff;
+  --card: transparent;
+  --card-foreground: #f5f3ff;
+  --popover: rgba(10, 18, 38, 0.9);
+  --popover-foreground: #eef2ff;
+  --primary: #eef2ff;
+  --primary-foreground: #050912;
+  --secondary: rgba(255, 255, 255, 0.06);
+  --secondary-foreground: #eef2ff;
+  --muted: rgba(255, 255, 255, 0.05);
+  --muted-foreground: rgba(226, 232, 240, 0.6);
+  --accent: rgba(232, 194, 117, 0.12);
+  --accent-foreground: #eef2ff;
+  --destructive: #f87171;
+  --border: rgba(232, 240, 255, 0.12);
+  --input: rgba(232, 240, 255, 0.1);
+  --ring: rgba(232, 194, 117, 0.55);
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 8px);
+  --radius-md: calc(var(--radius) - 4px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Instrument Serif", ui-serif, Georgia, serif;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100svh;
+  }
+
+  body {
+    color: var(--foreground);
+    font-family: "Geist", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    font-feature-settings: "ss01", "cv11";
+    background:
+      radial-gradient(1200px 800px at 85% -10%, rgba(74, 125, 255, 0.28), transparent 60%),
+      radial-gradient(1000px 700px at -10% 110%, rgba(232, 194, 117, 0.18), transparent 55%),
+      radial-gradient(900px 600px at 50% 60%, rgba(110, 160, 255, 0.1), transparent 70%),
+      linear-gradient(165deg, var(--aurora-bg-1) 0%, var(--aurora-bg-2) 55%, var(--aurora-bg-3) 100%);
+    background-attachment: fixed;
+    overflow-x: hidden;
+  }
+
+  /* Subtle film grain for that "real glass over print" feel */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.06;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+}
+
+@layer components {
+  .glass {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(28px) saturate(160%);
+    -webkit-backdrop-filter: blur(28px) saturate(160%);
+    box-shadow:
+      var(--glass-shadow),
+      inset 1px 1px 0 0 rgba(255, 255, 255, 0.22),
+      inset -1px -1px 0 0 rgba(255, 255, 255, 0.04);
+    border-radius: var(--radius);
+  }
+
+  .glass-strong {
+    background: var(--glass-bg-strong);
+    border: 1px solid var(--glass-border-strong);
+    backdrop-filter: blur(40px) saturate(180%);
+    -webkit-backdrop-filter: blur(40px) saturate(180%);
+    box-shadow:
+      0 30px 80px -20px rgba(8, 5, 30, 0.7),
+      inset 1px 1px 0 0 rgba(255, 255, 255, 0.28),
+      inset -1px -1px 0 0 rgba(255, 255, 255, 0.05);
+    border-radius: var(--radius);
+  }
+
+  .glass-modal {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    backdrop-filter: blur(50px) saturate(180%) brightness(1.05);
+    -webkit-backdrop-filter: blur(50px) saturate(180%) brightness(1.05);
+    box-shadow:
+      0 40px 100px -20px rgba(0, 0, 0, 0.65),
+      inset 1px 1px 0 0 rgba(255, 255, 255, 0.3),
+      inset -1px -1px 0 0 rgba(255, 255, 255, 0.05);
+    border-radius: var(--radius);
+  }
+
+  .glass-tile {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    transition: background 220ms ease, border-color 220ms ease, transform 220ms ease;
+  }
+
+  .glass-tile:hover {
+    background: rgba(255, 255, 255, 0.09);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  .text-display {
+    font-family: "Instrument Serif", ui-serif, Georgia, serif;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+  }
+
+  .glow-gold {
+    box-shadow: 0 0 0 1px rgba(232, 194, 117, 0.4), 0 18px 50px -10px rgba(232, 194, 117, 0.45);
+  }
+
+  .glow-blue {
+    box-shadow: 0 0 0 1px rgba(74, 125, 255, 0.35), 0 18px 50px -10px rgba(74, 125, 255, 0.5);
+  }
+}
+
+/* Aurora orbs animation */
+@keyframes orb-drift-1 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(40px, -30px, 0) scale(1.08); }
+}
+@keyframes orb-drift-2 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-50px, 30px, 0) scale(0.95); }
+}
+@keyframes orb-drift-3 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(30px, 40px, 0) scale(1.05); }
+}
+@keyframes orb-drift-4 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-30px, -40px, 0) scale(1.1); }
+}
+
+.aurora-orb {
+  position: fixed;
+  border-radius: 9999px;
+  filter: blur(70px);
+  opacity: 0.7;
+  pointer-events: none;
+  z-index: 0;
+  will-change: transform;
+}
+
+/* Lamp indicators */
+.lamp {
+  position: relative;
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.lamp-on-green {
+  background: #4ade80;
+  box-shadow:
+    0 0 8px 2px rgba(74, 222, 128, 0.6),
+    inset 0 0 2px rgba(255, 255, 255, 0.6);
+}
+
+.lamp-off {
+  background: radial-gradient(circle at 35% 30%, #2a3346 0%, #0c1322 70%);
+  box-shadow:
+    inset 0 0 3px rgba(0, 0, 0, 0.7),
+    inset 1px 1px 0 rgba(255, 255, 255, 0.05),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.lamp-flicker-yellow {
+  background: #facc15;
+  box-shadow:
+    0 0 8px 2px rgba(250, 204, 21, 0.65),
+    inset 0 0 2px rgba(255, 255, 255, 0.55);
+  animation: lamp-flicker 2.6s linear infinite;
+}
+
+@keyframes lamp-flicker {
+  0%, 100%   { opacity: 1;    box-shadow: 0 0 8px 2px rgba(250, 204, 21, 0.65), inset 0 0 2px rgba(255, 255, 255, 0.55); }
+  4%         { opacity: 0.25; box-shadow: 0 0 0 0 rgba(250, 204, 21, 0), inset 0 0 2px rgba(0, 0, 0, 0.4); }
+  6%         { opacity: 1;    box-shadow: 0 0 8px 2px rgba(250, 204, 21, 0.65), inset 0 0 2px rgba(255, 255, 255, 0.55); }
+  8%         { opacity: 0.3;  box-shadow: 0 0 0 0 rgba(250, 204, 21, 0), inset 0 0 2px rgba(0, 0, 0, 0.4); }
+  10%        { opacity: 1;    box-shadow: 0 0 8px 2px rgba(250, 204, 21, 0.65), inset 0 0 2px rgba(255, 255, 255, 0.55); }
+  48%        { opacity: 1;    box-shadow: 0 0 8px 2px rgba(250, 204, 21, 0.65), inset 0 0 2px rgba(255, 255, 255, 0.55); }
+  50%        { opacity: 0.2;  box-shadow: 0 0 0 0 rgba(250, 204, 21, 0), inset 0 0 2px rgba(0, 0, 0, 0.4); }
+  53%        { opacity: 1;    box-shadow: 0 0 8px 2px rgba(250, 204, 21, 0.65), inset 0 0 2px rgba(255, 255, 255, 0.55); }
+  85%        { opacity: 1;    box-shadow: 0 0 8px 2px rgba(250, 204, 21, 0.65), inset 0 0 2px rgba(255, 255, 255, 0.55); }
+  87%        { opacity: 0.35; box-shadow: 0 0 0 0 rgba(250, 204, 21, 0), inset 0 0 2px rgba(0, 0, 0, 0.4); }
+  90%        { opacity: 1;    box-shadow: 0 0 8px 2px rgba(250, 204, 21, 0.65), inset 0 0 2px rgba(255, 255, 255, 0.55); }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-up {
+  animation: fade-up 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ─── Extra-day tile (animated dashed border) ─── */
+@keyframes marching-ants {
+  0%   { background-position: 0 0, 100% 0, 0 100%, 0 0; }
+  100% { background-position: 20px 0, calc(100% - 20px) 0, 0 calc(100% - 20px), 0 20px; }
+}
+
+.glass-tile-extra {
+  background-color: rgba(255, 255, 255, 0.03);
+  border: none !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: background-color 220ms ease, transform 220ms ease;
+  position: relative;
+
+  /* Animated dashed borders via background gradients (top, bottom, left, right) */
+  background-image:
+    repeating-linear-gradient(90deg,  rgba(110, 160, 255, 0.45) 0, rgba(110, 160, 255, 0.45) 7px, transparent 7px, transparent 13px),
+    repeating-linear-gradient(90deg,  rgba(110, 160, 255, 0.45) 0, rgba(110, 160, 255, 0.45) 7px, transparent 7px, transparent 13px),
+    repeating-linear-gradient(180deg, rgba(110, 160, 255, 0.45) 0, rgba(110, 160, 255, 0.45) 7px, transparent 7px, transparent 13px),
+    repeating-linear-gradient(180deg, rgba(110, 160, 255, 0.45) 0, rgba(110, 160, 255, 0.45) 7px, transparent 7px, transparent 13px);
+  background-size:
+    100% 2.5px,
+    100% 2.5px,
+    2.5px 100%,
+    2.5px 100%;
+  background-position: 0 0, 0 100%, 0 0, 100% 0;
+  background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
+  animation: marching-ants 0.8s linear infinite;
+}
+
+.glass-tile-extra:hover {
+  background-color: rgba(110, 160, 255, 0.08);
+}
+
+/* ─── Disabled tile (standard day deactivated) ─── */
+.glass-tile-disabled {
+  background: rgba(0, 0, 0, 0.25) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  opacity: 0.5;
+  transition: opacity 300ms ease, background 300ms ease;
+  position: relative;
+}
+
+.glass-tile-disabled:hover {
+  opacity: 0.75;
+}
+
+.glass-tile-disabled .disabled-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 250ms ease;
+  pointer-events: none;
+}
+
+.glass-tile-disabled:hover .disabled-overlay {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ─── Shake / tremble mode ─── */
+@keyframes shake-tremble {
+  0%, 100% { transform: rotate(0deg) translate(0, 0); }
+  10%      { transform: rotate(-0.6deg) translate(-0.5px, 0.3px); }
+  20%      { transform: rotate(0.4deg) translate(0.4px, -0.3px); }
+  30%      { transform: rotate(-0.5deg) translate(-0.3px, 0.2px); }
+  40%      { transform: rotate(0.3deg) translate(0.3px, -0.2px); }
+  50%      { transform: rotate(-0.4deg) translate(-0.2px, 0.4px); }
+  60%      { transform: rotate(0.5deg) translate(0.2px, -0.3px); }
+  70%      { transform: rotate(-0.3deg) translate(-0.4px, 0.2px); }
+  80%      { transform: rotate(0.4deg) translate(0.3px, -0.4px); }
+  90%      { transform: rotate(-0.2deg) translate(-0.3px, 0.3px); }
+}
+
+.shake-mode {
+  animation: shake-tremble 0.45s ease-in-out infinite;
+  cursor: pointer;
+}
+
+.shake-mode:nth-child(even) {
+  animation-delay: 0.06s;
+  animation-duration: 0.5s;
+}
+
+.shake-mode:nth-child(3n) {
+  animation-delay: 0.12s;
+  animation-duration: 0.42s;
+}
+
+/* ─── Expandable action button ─── */
+.btn-action-expand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  height: 2.25rem;
+  width: 2.25rem;
+  border-radius: 9999px;
+  backdrop-filter: blur(12px);
+  transition: width 350ms cubic-bezier(0.22, 1, 0.36, 1),
+              gap 350ms cubic-bezier(0.22, 1, 0.36, 1),
+              background 220ms ease,
+              border-color 220ms ease,
+              box-shadow 220ms ease;
+  overflow: hidden;
+  white-space: nowrap;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.btn-action-expand .btn-label {
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-width 350ms cubic-bezier(0.22, 1, 0.36, 1),
+              opacity 250ms ease 80ms;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.btn-action-expand:hover {
+  width: auto;
+  gap: 0.375rem;
+  padding-left: 0.75rem;
+  padding-right: 0.875rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.btn-action-expand:hover .btn-label {
+  max-width: 10rem;
+  opacity: 1;
+}
+
+.btn-action-expand.btn-add:hover {
+  background: rgba(110, 160, 255, 0.12);
+  border-color: rgba(110, 160, 255, 0.35);
+  box-shadow: 0 0 16px -4px rgba(110, 160, 255, 0.3);
+}
+
+.btn-action-expand.btn-delete:hover {
+  background: rgba(248, 113, 113, 0.12);
+  border-color: rgba(248, 113, 113, 0.35);
+  box-shadow: 0 0 16px -4px rgba(248, 113, 113, 0.3);
+}
+
+.btn-action-expand.btn-delete-active {
+  background: rgba(248, 113, 113, 0.15);
+  border-color: rgba(248, 113, 113, 0.4);
+  box-shadow: 0 0 20px -4px rgba(248, 113, 113, 0.35);
+  width: auto;
+  gap: 0.375rem;
+  padding-left: 0.75rem;
+  padding-right: 0.875rem;
+}
+
+.btn-action-expand.btn-delete-active .btn-label {
+  max-width: 10rem;
+  opacity: 1;
+}
+
+/* ─── Calendar (react-day-picker inside glass modal) ─── */
+.rdp-root {
+  --rdp-accent-color: var(--aurora-blue-soft);
+  --rdp-accent-background-color: rgba(110, 160, 255, 0.18);
+  --rdp-day_button-height: 2.5rem;
+  --rdp-day_button-width: 2.5rem;
+  --rdp-day_button-border-radius: 0.75rem;
+  font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.rdp-root .rdp-month_caption {
+  font-family: "Instrument Serif", ui-serif, Georgia, serif;
+  font-size: 1.25rem;
+  color: white;
+  padding: 0.5rem 0;
+}
+
+.rdp-root .rdp-weekday {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 500;
+}
+
+.rdp-root .rdp-day_button {
+  border-radius: 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 400;
+  transition: background 180ms ease, color 180ms ease, transform 150ms ease;
+}
+
+.rdp-root .rdp-day_button:hover:not([disabled]) {
+  background: rgba(255, 255, 255, 0.08);
+  transform: scale(1.08);
+}
+
+.rdp-root .rdp-selected .rdp-day_button {
+  background: rgba(110, 160, 255, 0.22) !important;
+  color: white !important;
+  box-shadow: 0 0 12px -2px rgba(110, 160, 255, 0.4);
+  font-weight: 600;
+}
+
+.rdp-root .rdp-disabled .rdp-day_button {
+  color: rgba(255, 255, 255, 0.18);
+  cursor: not-allowed;
+}
+
+.rdp-root .rdp-today:not(.rdp-selected) .rdp-day_button {
+  border: 1px solid rgba(232, 194, 117, 0.4);
+  color: var(--aurora-gold);
+}
+
+.rdp-root .rdp-nav .rdp-button_previous,
+.rdp-root .rdp-nav .rdp-button_next {
+  color: rgba(255, 255, 255, 0.6);
+  border-radius: 0.5rem;
+  transition: background 180ms ease, color 180ms ease;
+}
+
+.rdp-root .rdp-nav .rdp-button_previous:hover,
+.rdp-root .rdp-nav .rdp-button_next:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+/* ─── Slide-in animation for extra days ─── */
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.slide-in-right {
+  animation: slide-in-right 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ─── Fade-out for removed days ─── */
+@keyframes shrink-out {
+  from {
+    opacity: 1;
+    max-height: 5rem;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    max-height: 0;
+    transform: scale(0.85);
+    padding: 0;
+    margin: 0;
+  }
+}
+
+.shrink-out {
+  animation: shrink-out 350ms cubic-bezier(0.55, 0, 1, 0.45) forwards;
+  overflow: hidden;
+}

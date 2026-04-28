@@ -1,0 +1,120 @@
+{
+  "name": "Intermitente — 1. Preparar",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "Intermitentehaha",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [-320, 32],
+      "id": "af789ace-b82e-4da7-a951-d7a91e12248f",
+      "name": "Webhook",
+      "webhookId": "9920a692-0005-461e-bca6-b63126a46cf3"
+    },
+    {
+      "parameters": {
+        "resource": "boardItem",
+        "operation": "get",
+        "itemId": "={{ $json.body.event.pulseId.toString() }}"
+      },
+      "type": "n8n-nodes-base.mondayCom",
+      "typeVersion": 1,
+      "position": [-96, 32],
+      "id": "0d3aedf2-a9b2-490a-9b8b-bb4d63882dbd",
+      "name": "Get an item",
+      "credentials": {
+        "mondayComApi": {
+          "id": "6I0ycSr6PQJkBYpc",
+          "name": "Ray0"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ==============================================================\n// WF1 - Extrair dados do item do monday, gerar UUID e lista de dias\n// ==============================================================\n\n// Troque pelo domínio real do app quando estiver publicado.\nconst APP_BASE_URL = 'http://localhost:5173';\n\n// IDs técnicos das colunas do board \"Plano Intermitentes\"\nconst COL_CONTRATO   = 'color_mktcnxwn';\nconst COL_DATA_INI   = 'date_mktayxhb';\nconst COL_DATA_FIM   = 'date_mktasnwq';\nconst COL_NOME       = 'dropdown_mktadatt';\n\n// O node \"Get an item\" retorna o item direto como o primeiro input.\n// A depender da versão, ele pode estar embrulhado em .data ou .item.\nconst raw = $input.first().json;\nconst item = raw.data?.item ?? raw.item ?? raw;\n\nconst columnValues = item.column_values ?? [];\nconst getCol = (id) => columnValues.find(c => c.id === id);\n\nconst contrato   = getCol(COL_CONTRATO)?.text || null;\nconst dataInicio = getCol(COL_DATA_INI)?.text || null;\nconst dataFim    = getCol(COL_DATA_FIM)?.text || null;\nconst nomeCol    = getCol(COL_NOME);\nconst nome       = nomeCol?.text || item.name || 'Sem nome';\n\nif (!dataInicio || !dataFim) {\n  throw new Error(`Item ${item.id} sem data_inicio (${dataInicio}) ou data_fim (${dataFim}). Cheque as colunas ${COL_DATA_INI} e ${COL_DATA_FIM}.`);\n}\n\n// Gerar UUID v4 (o task runner do n8n Cloud não expõe `crypto` global)\nfunction uuidv4() {\n  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {\n    const r = Math.random() * 16 | 0;\n    const v = c === 'x' ? r : (r & 0x3 | 0x8);\n    return v.toString(16);\n  });\n}\nconst uuid = uuidv4();\n\n// Montar lista de dias (inclusive início e fim)\nconst dias = [];\nconst atual = new Date(dataInicio + 'T00:00:00Z');\nconst fim = new Date(dataFim + 'T00:00:00Z');\nwhile (atual <= fim) {\n  dias.push(atual.toISOString().slice(0, 10));\n  atual.setUTCDate(atual.getUTCDate() + 1);\n}\n\nconst link = `${APP_BASE_URL}/preencher/${uuid}`;\n\nreturn [{\n  json: {\n    uuid,\n    monday_item_id: String(item.id),\n    nome,\n    contrato,\n    data_inicio: dataInicio,\n    data_fim: dataFim,\n    dias,\n    link,\n    link_text: 'Abrir formulário'\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [128, 32],
+      "id": "c1a2b3d4-e5f6-7890-abcd-ef1234567890",
+      "name": "Preparar dados"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "tableId": "processamentos",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "id", "fieldValue": "={{ $json.uuid }}" },
+            { "fieldId": "monday_item_id", "fieldValue": "={{ $json.monday_item_id }}" },
+            { "fieldId": "nome", "fieldValue": "={{ $json.nome }}" },
+            { "fieldId": "contrato", "fieldValue": "={{ $json.contrato }}" },
+            { "fieldId": "data_inicio", "fieldValue": "={{ $json.data_inicio }}" },
+            { "fieldId": "data_fim", "fieldValue": "={{ $json.data_fim }}" }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [352, 32],
+      "id": "d2e3f4a5-b6c7-8901-2345-6789abcdef01",
+      "name": "Insert processamento",
+      "credentials": {
+        "supabaseApi": {
+          "id": "CONFIGURAR_AO_IMPORTAR",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "boardItemColumn",
+        "operation": "changeMultiple",
+        "boardId": 18408773953,
+        "itemId": "={{ $('Preparar dados').first().json.monday_item_id }}",
+        "columnValues": "={{ JSON.stringify({ link_mm2pn9kg: { url: $('Preparar dados').first().json.link, text: $('Preparar dados').first().json.link_text } }) }}"
+      },
+      "type": "n8n-nodes-base.mondayCom",
+      "typeVersion": 1,
+      "position": [576, 32],
+      "id": "e3f4a5b6-c7d8-9012-3456-7890abcdef12",
+      "name": "Atualizar Link Column",
+      "credentials": {
+        "mondayComApi": {
+          "id": "6I0ycSr6PQJkBYpc",
+          "name": "Ray0"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Get an item", "type": "main", "index": 0 }]]
+    },
+    "Get an item": {
+      "main": [[{ "node": "Preparar dados", "type": "main", "index": 0 }]]
+    },
+    "Preparar dados": {
+      "main": [[{ "node": "Insert processamento", "type": "main", "index": 0 }]]
+    },
+    "Insert processamento": {
+      "main": [[{ "node": "Atualizar Link Column", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "wf1-preparar-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "dSCt3YwcvhaAySQi",
+  "tags": []
+}
