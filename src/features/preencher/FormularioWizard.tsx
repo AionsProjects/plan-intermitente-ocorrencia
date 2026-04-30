@@ -63,14 +63,15 @@ function respostasIniciais(
 }
 
 function diasInfoIniciais(dados: ProcessamentoDados): DiaInfo[] {
-  const extras = new Set(dados.diasExtras ?? [])
   const desativados = new Set(dados.diasDesativados ?? [])
   const todos = new Set<string>([...dados.dias, ...(dados.diasExtras ?? [])])
+  // Loaded days (base + previously-saved extras) all start as 'padrao'.
+  // Only days added in the CURRENT session get tipo: "extra" (dashed border).
   return [...todos]
     .sort()
     .map((d) => ({
       data: d,
-      tipo: extras.has(d) ? "extra" : "padrao",
+      tipo: "padrao",
       ativo: !desativados.has(d),
     }))
 }
@@ -85,6 +86,7 @@ export function FormularioWizard({ dados, ehCorrecao, onFinalizado }: Props) {
   const [diaEditando, setDiaEditando] = useState<string | null>(null)
   const [modoApagar, setModoApagar] = useState(false)
   const [mostrarCalendario, setMostrarCalendario] = useState(false)
+  const [estourando, setEstourando] = useState<Set<string>>(() => new Set())
 
   const finalizar = useFinalizarProcessamento(dados.uuid)
 
@@ -133,15 +135,23 @@ export function FormularioWizard({ dados, ehCorrecao, onFinalizado }: Props) {
       if (!modoApagar) return
 
       if (diaInfo.tipo === "extra") {
-        // Extra days: remove completely
-        setDiasInfo((prev) => prev.filter((d) => d.data !== diaInfo.data))
-        setRespostas((prev) => {
-          const next = { ...prev }
-          delete next[diaInfo.data]
-          return next
-        })
+        // In-session extras: bubble-pop animation, then remove
+        setEstourando((prev) => new Set(prev).add(diaInfo.data))
+        setTimeout(() => {
+          setDiasInfo((prev) => prev.filter((d) => d.data !== diaInfo.data))
+          setRespostas((prev) => {
+            const next = { ...prev }
+            delete next[diaInfo.data]
+            return next
+          })
+          setEstourando((prev) => {
+            const next = new Set(prev)
+            next.delete(diaInfo.data)
+            return next
+          })
+        }, 480)
       } else {
-        // Standard days: toggle active
+        // Loaded days (base or previously-saved extras): toggle active
         setDiasInfo((prev) =>
           prev.map((d) =>
             d.data === diaInfo.data ? { ...d, ativo: false } : d,
@@ -174,15 +184,19 @@ export function FormularioWizard({ dados, ehCorrecao, onFinalizado }: Props) {
 
   async function enviar() {
     const protocolo = dados.protocolo ?? gerarProtocolo()
+    const datasOriginais = new Set(dados.dias)
+    // diasExtras = everything outside the original convocation window
+    // (covers both previously-saved extras and new in-session adds).
+    const todasExtras = diasInfo
+      .filter((d) => !datasOriginais.has(d.data))
+      .map((d) => d.data)
     const payload = {
       respostas: diasAtivos.map(
         (d) => respostas[d.data] ?? { data: d.data, tipo: "sem_ocorrencia" },
       ),
       protocolo,
-      diasExtras: diasInfo.filter((d) => d.tipo === "extra").map((d) => d.data),
-      diasDesativados: diasInfo
-        .filter((d) => d.tipo === "padrao" && !d.ativo)
-        .map((d) => d.data),
+      diasExtras: todasExtras,
+      diasDesativados: diasInfo.filter((d) => !d.ativo).map((d) => d.data),
       ehCorrecao: !!ehCorrecao,
     }
     const resultado = await finalizar.mutateAsync(payload)
@@ -266,6 +280,7 @@ export function FormularioWizard({ dados, ehCorrecao, onFinalizado }: Props) {
                 resposta={respostas[diaInfo.data]}
                 index={i}
                 modoApagar={modoApagar}
+                estourando={estourando.has(diaInfo.data)}
                 onEdit={() => {
                   if (!modoApagar && diaInfo.ativo) setDiaEditando(diaInfo.data)
                 }}
@@ -351,6 +366,7 @@ type DiaItemProps = {
   resposta: RespostaDia | undefined
   index: number
   modoApagar: boolean
+  estourando: boolean
   onEdit: () => void
   onApagar: () => void
   onReativar: () => void
@@ -361,6 +377,7 @@ function DiaItem({
   resposta,
   index,
   modoApagar,
+  estourando,
   onEdit,
   onApagar,
   onReativar,
@@ -376,10 +393,12 @@ function DiaItem({
       ? "glass-tile glass-tile-extra"
       : "glass-tile"
 
-  const shakeClass = modoApagar && diaInfo.ativo ? "shake-mode" : ""
+  const shakeClass = !estourando && modoApagar && diaInfo.ativo ? "shake-mode" : ""
   const slideClass = isExtra ? "slide-in-right" : "fade-up"
+  const popClass = estourando ? "bubble-pop" : ""
 
   function handleClick() {
+    if (estourando) return
     if (modoApagar && diaInfo.ativo) {
       onApagar()
     } else if (isDisabled) {
@@ -392,8 +411,8 @@ function DiaItem({
 
   return (
     <li
-      className={`${slideClass} ${shakeClass}`}
-      style={!isExtra ? { animationDelay: `${200 + index * 60}ms` } : undefined}
+      className={`${popClass || slideClass} ${shakeClass}`.trim()}
+      style={!isExtra && !estourando ? { animationDelay: `${200 + index * 60}ms` } : undefined}
     >
       <button
         type="button"
@@ -618,19 +637,21 @@ function DialogDia({ dia, respostaAtual, onClose, onSalvar }: DialogDiaProps) {
 
   if (!dia) return null
 
-  function handleFaltou(v: boolean) {
+  // "Foi trabalhar?" — Sim avança, Não vira falta
+  function handleFoiTrabalhar(v: boolean) {
     if (v) {
-      onSalvar({ data: dia!, tipo: "falta" })
-    } else {
       setPasso("atraso")
+    } else {
+      onSalvar({ data: dia!, tipo: "falta" })
     }
   }
 
-  function handleAtrasou(v: boolean) {
+  // "Chegou no horário?" — Sim finaliza sem ocorrência, Não pede minutos
+  function handleChegouNoHorario(v: boolean) {
     if (v) {
-      setPasso("minutos")
-    } else {
       onSalvar({ data: dia!, tipo: "sem_ocorrencia" })
+    } else {
+      setPasso("minutos")
     }
   }
 
@@ -665,14 +686,20 @@ function DialogDia({ dia, respostaAtual, onClose, onSalvar }: DialogDiaProps) {
         {passo === "faltou" ? (
           <div className="space-y-4">
             <h3 className="text-[15px] font-medium text-white/90">
-              O intermitente faltou neste dia?
+              O intermitente foi trabalhar neste dia?
             </h3>
             <div className="grid grid-cols-2 gap-3">
-              <ChoiceButton onClick={() => handleFaltou(false)} variant="ghost">
-                Não
+              <ChoiceButton
+                onClick={() => handleFoiTrabalhar(false)}
+                variant="ghost"
+              >
+                Não, faltou
               </ChoiceButton>
-              <ChoiceButton onClick={() => handleFaltou(true)} variant="primary">
-                Sim, faltou
+              <ChoiceButton
+                onClick={() => handleFoiTrabalhar(true)}
+                variant="primary"
+              >
+                Sim
               </ChoiceButton>
             </div>
           </div>
@@ -681,13 +708,19 @@ function DialogDia({ dia, respostaAtual, onClose, onSalvar }: DialogDiaProps) {
         {passo === "atraso" ? (
           <div className="space-y-4">
             <h3 className="text-[15px] font-medium text-white/90">
-              Atrasou ou saiu mais cedo?
+              Chegou no horário e cumpriu o expediente?
             </h3>
             <div className="grid grid-cols-2 gap-3">
-              <ChoiceButton onClick={() => handleAtrasou(false)} variant="ghost">
+              <ChoiceButton
+                onClick={() => handleChegouNoHorario(false)}
+                variant="ghost"
+              >
                 Não
               </ChoiceButton>
-              <ChoiceButton onClick={() => handleAtrasou(true)} variant="primary">
+              <ChoiceButton
+                onClick={() => handleChegouNoHorario(true)}
+                variant="primary"
+              >
                 Sim
               </ChoiceButton>
             </div>
