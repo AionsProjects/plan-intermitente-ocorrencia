@@ -5,16 +5,18 @@ App web que o RH acessa via **link único** para registrar, dia a dia, se um int
 ## Estado atual do projeto
 
 **Funcionando end-to-end (mock + real):**
-- WF1 (Preparar) — n8n recebe webhook do monday quando RH muda status, gera UUID, cria item no board histórico (status=Aguardando), preenche Link Column do item de origem.
+- WF1 (Preparar) — n8n recebe webhook do monday quando RH muda status, gera UUID, cria item no board histórico (status=Aguardando), preenche Link Column do item de origem. **APP_BASE_URL no node "Preparar dados" aponta para `http://192.168.0.40` (IP intranet da VM, sem domínio).**
 - WF2 (Ler) — n8n responde `GET /intermitente-ler?uuid=…`, busca item por UUID via `getByColumnValue`, parseia `respostas_json`/`dias_extras`/`dias_desativados`, retorna shape esperado.
 - WF3 (Finalizar) — n8n responde `POST /intermitente-finalizar`, calcula agregados (qtd_faltas, qtd_atrasos, total_minutos), marca status=Concluído, grava `respostas_json`. Idempotente por natureza (1 item, `change_multiple_column_values`).
 - WF4 (Buscar protocolo) — n8n responde `GET /intermitente-buscar-protocolo?protocolo=…`, retorna UUID+nome para o fluxo de correção.
-- Frontend: painel com **modal por dia**, perguntas no positivo ("foi trabalhar?", "chegou no horário?"), adicionar/apagar dias com bolha estourando, fluxo de correção via protocolo `PROT-XXXX-XXXX`.
+- Frontend: painel com **modal por dia**, perguntas no positivo ("foi trabalhar?", "chegou no horário?"), adicionar/apagar dias com bolha estourando, fluxo de correção via protocolo `PROT-XXXX-XXXX`. Botão "Copiar protocolo" tem fallback `document.execCommand('copy')` para funcionar em HTTP puro (intranet).
+- **Deploy via Docker preparado** — `Dockerfile` multi-stage (node build → nginx alpine), `docker-compose.yml` e `docker/nginx.conf`. Sobe com `docker compose up -d --build`. `VITE_N8N_BASE_URL` injetada como build arg. Documentado em [DEPLOY.md](DEPLOY.md).
 
-**Pendente (operacional):**
-- Importar os 4 JSONs novos no n8n cloud (`docs/n8n/wf*.json`) e reconectar a credencial monday "Ray0" em cada node (ao importar JSON, credenciais ficam órfãs).
-- Configurar job de expiração: pode ser n8n cron diário (lista itens com Status=Aguardando e Expira Em < hoje, muda para Expirado) **ou** monday Automation no próprio board.
-- Se houver dados em produção no Supabase, migrar via WF one-shot que lê CSV exportado e cria items no board novo.
+**Pendente:**
+- **Subir o container na VM `192.168.0.40`** — bloqueado no momento por falta de senha `sudo` do usuário Linux da VM. Steps documentados em [DEPLOY.md](DEPLOY.md): instalar Docker, clonar repo, criar `.env` com `VITE_N8N_BASE_URL`, parar nginx do sistema (se existir) pra liberar porta 80, `docker compose up -d --build`.
+- **Mergear branch `feat/session-extras-positive-questions` em `main`** — toda a migração Supabase→monday + setup Docker está nessa branch. PR ainda não aberto.
+- Configurar **job de expiração**: pode ser n8n cron diário (lista itens com Status=Aguardando e Expira Em < hoje, muda para Expirado) **ou** monday Automation no próprio board ("When Expira Em arrives → Change Status to Expirado"). Recomendado: monday Automation, mais simples.
+- (Futuro, se houver dados em produção no Supabase) migrar via WF one-shot que lê CSV exportado e cria items no board novo.
 
 ## Fluxo resumido
 
@@ -69,6 +71,8 @@ Fluxo de correção:
 - `npm run build` — `tsc -b && vite build`
 - `npm run lint` — ESLint
 - `npx tsc -b` — só typecheck, sem build
+- `docker compose up -d --build` — sobe o container (na VM ou local). Lê `.env` ao lado do compose pra `VITE_N8N_BASE_URL`.
+- `docker compose logs -f app` — logs do nginx do container.
 
 ## Variáveis de ambiente
 
@@ -77,6 +81,8 @@ Fluxo de correção:
 VITE_N8N_BASE_URL=https://aionscorp-n8n.cloudfy.live/webhook
 ```
 Vazio = modo mock (UUIDs `mock-aguardando`, `mock-concluido`, `mock-expirado`).
+
+> No deploy via Docker, esse mesmo `.env` (na raiz do projeto, ao lado do `docker-compose.yml`) é lido pelo compose e passado como `--build-arg` pro Vite. Mudou? Tem que `docker compose up -d --build` (sem `--build` o bundle antigo continua).
 
 **Credenciais no n8n:**
 - **Monday API**: nome "Ray0" (id `6I0ycSr6PQJkBYpc`), token API v2 — única credencial necessária após a migração.
@@ -113,9 +119,16 @@ docs/
                                   IF → Monday change_multiple_column_values → Respond OK / Erro
    └─ wf4-buscar-protocolo.json  Webhook GET → Monday getByColumnValue (Protocolo) → Code → Respond {uuid, nome}
 
+docker/
+└─ nginx.conf                     config nginx do container (catch-all server_name, SPA fallback, gzip, cache)
+
+Dockerfile                        multi-stage: node:20-alpine (build) → nginx:alpine (runtime)
+docker-compose.yml                serviço único, restart unless-stopped, porta 80, build arg VITE_N8N_BASE_URL
+.dockerignore
+
 .claude/skills/frontend-design/SKILL.md   skill instalado a nível de projeto
 
-CLAUDE.md, README.md, .env, .env.example, components.json, package.json, tsconfig.*.json
+CLAUDE.md, README.md, DEPLOY.md, .env, .env.example, components.json, package.json, tsconfig.*.json
 ```
 
 ## Schema do board monday (Histórico)
@@ -231,6 +244,8 @@ WF4 retorna:
 - **Datas com hora no monday** exigem objeto `{date: "YYYY-MM-DD", time: "HH:mm:ss"}` (UTC). Sem `time` é só `{date: "..."}`.
 - **Concluído Em é preservado** em re-edições (correção) — apenas `Editado Em` é atualizado.
 - Em modo mock, `buscarProcessamento` deve retornar **cópia** do objeto pro React Query detectar mudanças após `finalizarProcessamento` mutar o original.
+- **`VITE_N8N_BASE_URL` é "baked" no bundle no build** — Vite resolve `import.meta.env.*` em build-time, não runtime. No Docker, isso significa que mudar `.env` exige `--build` no `docker compose up`.
+- **Sem domínio + IP privado (`192.168.0.40`)** — Let's Encrypt não emite cert pra IP privado; ficamos em HTTP puro na intranet. Botão Copiar usa fallback `execCommand` pra funcionar sem HTTPS.
 
 ## Segurança
 
