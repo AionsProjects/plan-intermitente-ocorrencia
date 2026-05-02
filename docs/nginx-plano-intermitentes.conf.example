@@ -3,18 +3,18 @@
 # Como usar:
 #   sudo cp docs/nginx-plano-intermitentes.conf.example \
 #       /etc/nginx/sites-available/plano-intermitentes
-#   sudo nano /etc/nginx/sites-available/plano-intermitentes
-#       # trocar SEU_DOMINIO_AQUI pelo domínio real
 #   sudo ln -s /etc/nginx/sites-available/plano-intermitentes \
 #       /etc/nginx/sites-enabled/
 #   sudo nginx -t && sudo systemctl reload nginx
 #
-# Depois rode `sudo certbot --nginx -d SEU_DOMINIO_AQUI` para HTTPS.
+# server_name "_" é catch-all: aceita acesso por IP (ex http://192.168.0.40)
+# ou por qualquer hostname. Se for usar domínio, troque para o domínio real
+# e rode `sudo certbot --nginx -d SEU_DOMINIO`.
 
 server {
-    listen 80;
-    listen [::]:80;
-    server_name SEU_DOMINIO_AQUI;
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
 
     root /var/www/plano-intermitentes/dist;
     index index.html;

@@ -54,49 +54,67 @@ Saída em `dist/`. Toda vez que atualizar o código, repita o build.
 
 ## Configurar nginx
 
-Copie o template e ajuste o `server_name`:
+O template já vem com `server_name _;` (catch-all), então funciona tanto
+por IP da VM quanto por qualquer hostname:
 
 ```bash
 sudo cp docs/nginx-plano-intermitentes.conf.example /etc/nginx/sites-available/plano-intermitentes
-sudo nano /etc/nginx/sites-available/plano-intermitentes
-# trocar "SEU_DOMINIO_AQUI" pelo domínio real
-```
-
-Ativar:
-
-```bash
 sudo ln -s /etc/nginx/sites-available/plano-intermitentes /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-## HTTPS com Let's Encrypt
+> Se houver outro site default no nginx (ex: `/etc/nginx/sites-enabled/default`),
+> remova o symlink dele para evitar conflito de `default_server`.
 
-A clipboard API (botão "Copiar protocolo") só funciona em contexto seguro.
-HTTPS é obrigatório.
+## HTTPS
+
+### Caso A — sem domínio, acesso por IP intranet (cenário atual)
+
+VM `192.168.0.40` é IP **privado**. Let's Encrypt **não emite cert** pra
+IP privado (não consegue validar pelo lado de fora). Ficamos em HTTP puro.
+
+Implicações já tratadas no código:
+
+- O botão **"Copiar protocolo"** tem fallback `document.execCommand('copy')`
+  que funciona em HTTP — não depende da Clipboard API moderna.
+- O protocolo também é mostrado em fonte grande e selecionável (clique seleciona
+  o texto inteiro pra Ctrl+C manual).
+- O protocolo também fica salvo no board monday histórico (`18411141462`,
+  coluna `Protocolo`) — backup natural caso a cópia falhe.
+
+Browsers vão exibir aviso "Não seguro" na barra de endereço — é esperado em
+HTTP. Se isso incomodar, ver Caso B.
+
+### Caso B — com domínio (futuro)
 
 ```bash
 sudo certbot --nginx -d intermitentes.aionscorp.com
 ```
 
-O certbot edita o nginx config sozinho (adiciona bloco `listen 443 ssl`
-e redirect 80→443). Renovação automática vem por padrão via
-`systemctl status certbot.timer`.
+O certbot edita o nginx (adiciona `listen 443 ssl` e redirect 80→443).
+Renovação automática via `systemctl status certbot.timer`.
 
 ## Atualizar `APP_BASE_URL` no n8n WF1
 
 No n8n cloud, abra o workflow `Intermitente — 1. Preparar (monday)` →
-node "Preparar dados" → primeira linha do código:
+node "Preparar dados" → primeira linha do código.
 
+**Cenário atual (IP intranet):**
+```js
+const APP_BASE_URL = 'http://192.168.0.40';
+```
+
+**Caso B (com domínio):**
 ```js
 const APP_BASE_URL = 'https://intermitentes.aionscorp.com';
 ```
 
 Salve e ative o WF.
 
-> Itens já criados pelo WF1 com `localhost` ficam com link quebrado.
-> Apague-os no board histórico (`18411141462`) ou re-dispare o WF1
-> pra cada um após atualizar o domínio.
+> Itens já criados pelo WF1 antes da atualização ficam com link apontando
+> pro valor antigo. Apague-os no board histórico (`18411141462`) ou
+> re-dispare o WF1 a partir do board origem.
 
 ## Atualizações futuras
 
@@ -116,7 +134,7 @@ npm run build
 | 404 em rotas internas (`/preencher/uuid`, `/corrigir`) | Faltou o `try_files ... /index.html` no nginx — ver template |
 | "Link não encontrado" no app | `.env` apontando errado ou `.env.local` na VM |
 | Erro CORS no console | Os WFs já incluem `Access-Control-Allow-Origin: *`; se aparecer, conferir o "Respond" node no n8n |
-| Botão "Copiar protocolo" não faz nada | Site em HTTP — clipboard API exige HTTPS |
+| Botão "Copiar protocolo" não faz nada em HTTP | Fallback `execCommand` está implementado, mas alguns browsers desabilitam tudo. Workaround: clicar no protocolo seleciona o texto, daí Ctrl+C |
 | `npm install` falha em binários nativos | Apagou `node_modules` e `package-lock.json`? Refazer do zero |
 
 ## Configurar expiração de links

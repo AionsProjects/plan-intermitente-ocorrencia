@@ -23,12 +23,40 @@ export function TelaObrigado({ dados }: { dados: ProcessamentoDados }) {
 
   async function copiar() {
     if (!dados.protocolo) return
-    try {
-      await navigator.clipboard.writeText(dados.protocolo)
+    const texto = dados.protocolo
+    // navigator.clipboard só existe em contextos seguros (HTTPS ou localhost).
+    // Em HTTP puro (acesso por IP intranet) caímos no fallback execCommand.
+    const viaClipboardApi = async () => {
+      if (!navigator.clipboard?.writeText) return false
+      try {
+        await navigator.clipboard.writeText(texto)
+        return true
+      } catch {
+        return false
+      }
+    }
+    const viaExecCommand = () => {
+      try {
+        const ta = document.createElement("textarea")
+        ta.value = texto
+        ta.setAttribute("readonly", "")
+        ta.style.position = "fixed"
+        ta.style.top = "-1000px"
+        ta.style.opacity = "0"
+        document.body.appendChild(ta)
+        ta.select()
+        ta.setSelectionRange(0, texto.length)
+        const ok = document.execCommand("copy")
+        document.body.removeChild(ta)
+        return ok
+      } catch {
+        return false
+      }
+    }
+    const ok = (await viaClipboardApi()) || viaExecCommand()
+    if (ok) {
       setCopiado(true)
       setTimeout(() => setCopiado(false), 1500)
-    } catch {
-      // ignore
     }
   }
 
@@ -69,7 +97,16 @@ export function TelaObrigado({ dados }: { dados: ProcessamentoDados }) {
               Protocolo
             </p>
             <div className="mt-2 flex items-center justify-between gap-3">
-              <p className="text-display text-2xl text-white tracking-wide">
+              <p
+                className="text-display text-2xl text-white tracking-wide select-all"
+                onClick={(e) => {
+                  const range = document.createRange()
+                  range.selectNodeContents(e.currentTarget)
+                  const sel = window.getSelection()
+                  sel?.removeAllRanges()
+                  sel?.addRange(range)
+                }}
+              >
                 {dados.protocolo}
               </p>
               <button
@@ -92,7 +129,8 @@ export function TelaObrigado({ dados }: { dados: ProcessamentoDados }) {
             </div>
             <p className="mt-3 text-[11px] leading-relaxed text-white/55">
               Guarde este código. Ele permite editar este registro caso seja
-              necessário corrigir alguma informação.
+              necessário corrigir alguma informação. Também fica registrado
+              no monday, na coluna <span className="text-white/75">Protocolo</span>.
             </p>
           </div>
         )}
