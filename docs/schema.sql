@@ -1,4 +1,9 @@
 -- =============================================================
+-- [OBSOLETO — abril/2026] Storage migrado para board monday.
+-- Ver: docs/monday-board-schema.md (board id 18411141462).
+-- Este SQL fica aqui apenas como referência do schema antigo.
+-- =============================================================
+--
 -- Schema para o app "Registro de Ocorrências de Intermitentes"
 -- Rode este SQL uma única vez no SQL Editor do Supabase.
 -- Acesso ao banco é exclusivo via n8n (service_role key).

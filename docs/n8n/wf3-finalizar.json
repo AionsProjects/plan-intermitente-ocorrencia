@@ -1,5 +1,5 @@
 {
-  "name": "Intermitente — 3. Finalizar",
+  "name": "Intermitente — 3. Finalizar (monday)",
   "nodes": [
     {
       "parameters": {
@@ -10,48 +10,40 @@
       },
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
-      "position": [-640, 32],
+      "position": [-720, 32],
       "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567101",
       "name": "Webhook",
       "webhookId": "eb331f4e-864f-4b0d-94b6-b17d6d50ca9f"
     },
     {
       "parameters": {
-        "operation": "getAll",
-        "tableId": "processamentos",
-        "returnAll": true,
-        "filterType": "manual",
-        "matchType": "allFilters",
-        "filters": {
-          "conditions": [
-            {
-              "keyName": "id",
-              "condition": "eq",
-              "keyValue": "={{ $json.query.uuid || $json.body.uuid }}"
-            }
-          ]
-        }
+        "resource": "boardItem",
+        "operation": "getByColumnValue",
+        "boardId": 18411141462,
+        "columnId": "text_mm2xjend",
+        "columnValue": "={{ $json.query.uuid || $json.body.uuid }}",
+        "additionalFields": {}
       },
-      "type": "n8n-nodes-base.supabase",
+      "type": "n8n-nodes-base.mondayCom",
       "typeVersion": 1,
-      "position": [-432, 32],
+      "position": [-496, 32],
       "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567102",
-      "name": "Buscar processamento",
+      "name": "Buscar por UUID",
       "credentials": {
-        "supabaseApi": {
-          "id": "CONFIGURAR_AO_IMPORTAR",
-          "name": "Supabase"
+        "mondayComApi": {
+          "id": "6I0ycSr6PQJkBYpc",
+          "name": "Ray0"
         }
       },
       "alwaysOutputData": true
     },
     {
       "parameters": {
-        "jsCode": "// ==============================================================\n// WF3 - Validar estado e preparar payloads\n// ==============================================================\n\nconst webhook = $('Webhook').first().json;\nconst body = webhook.body || {};\nconst uuid = webhook.query?.uuid || body.uuid;\nconst respostas = Array.isArray(body.respostas) ? body.respostas : [];\n\nconst found = $input.all();\nconst row = found[0]?.json;\n\nif (!row || !row.id) {\n  return [{\n    json: {\n      _statusCode: 404,\n      _erro: 'nao_encontrado',\n      mensagem: 'Processamento não encontrado.'\n    }\n  }];\n}\n\nconst agora = new Date();\nconst expiraEm = row.expira_em ? new Date(row.expira_em) : null;\n\nif (row.status === 'concluido') {\n  return [{\n    json: {\n      _statusCode: 409,\n      _erro: 'ja_concluido',\n      mensagem: 'Este formulário já foi finalizado.'\n    }\n  }];\n}\n\nif (row.status === 'expirado' || (expiraEm && agora > expiraEm)) {\n  return [{\n    json: {\n      _statusCode: 410,\n      _erro: 'expirado',\n      mensagem: 'Link expirado.'\n    }\n  }];\n}\n\n// Validar respostas: esperamos uma por dia\nconst dias = [];\nconst atual = new Date(row.data_inicio + 'T00:00:00Z');\nconst fim = new Date(row.data_fim + 'T00:00:00Z');\nwhile (atual <= fim) {\n  dias.push(atual.toISOString().slice(0, 10));\n  atual.setUTCDate(atual.getUTCDate() + 1);\n}\n\nconst mapaRespostas = new Map(respostas.map(r => [r.data, r]));\nconst ocorrencias = [];\nfor (const dia of dias) {\n  const r = mapaRespostas.get(dia);\n  if (!r || !r.tipo) {\n    return [{\n      json: {\n        _statusCode: 400,\n        _erro: 'resposta_faltando',\n        mensagem: `Resposta faltando para o dia ${dia}.`\n      }\n    }];\n  }\n  if (!['sem_ocorrencia','falta','atraso'].includes(r.tipo)) {\n    return [{\n      json: {\n        _statusCode: 400,\n        _erro: 'tipo_invalido',\n        mensagem: `Tipo inválido em ${dia}: ${r.tipo}`\n      }\n    }];\n  }\n  if (r.tipo === 'atraso' && (!Number.isInteger(r.minutos_atraso) || r.minutos_atraso <= 0)) {\n    return [{\n      json: {\n        _statusCode: 400,\n        _erro: 'minutos_invalidos',\n        mensagem: `Minutos de atraso inválidos em ${dia}.`\n      }\n    }];\n  }\n  ocorrencias.push({\n    processamento_id: row.id,\n    data: dia,\n    tipo: r.tipo,\n    minutos_atraso: r.tipo === 'atraso' ? r.minutos_atraso : null\n  });\n}\n\nreturn [{\n  json: {\n    _statusCode: 200,\n    uuid: row.id,\n    monday_item_id: row.monday_item_id,\n    nome: row.nome,\n    contrato: row.contrato,\n    data_inicio: row.data_inicio,\n    data_fim: row.data_fim,\n    concluido_em: agora.toISOString(),\n    ocorrencias\n  }\n}];\n"
+        "jsCode": "// ==============================================================\n// WF3 — Validar e preparar (monday)\n// Lê o item encontrado, valida o payload e calcula:\n//   - estado novo (concluido) e timestamps\n//   - agregados (qtd_faltas, qtd_atrasos, total_minutos_atraso)\n//   - flag editado se já estava concluido OU eh_correcao=true\n// Saída: column_values_json para o change_multiple no item.\n// ==============================================================\n\nconst COL_UUID         = 'text_mm2xjend';\nconst COL_PROTOCOLO    = 'text_mm2xsvg6';\nconst COL_DATA_INICIO  = 'date_mm2xtp93';\nconst COL_DATA_FIM     = 'date_mm2xrr5q';\nconst COL_EXPIRA_EM    = 'date_mm2xrvt4';\nconst COL_CONCLUIDO_EM = 'date_mm2xh1vm';\nconst COL_EDITADO_EM   = 'date_mm2x62fq';\nconst COL_STATUS       = 'color_mm2xkqpc';\nconst COL_EDITADO      = 'boolean_mm2x1aa4';\nconst COL_QTD_FALTAS   = 'numeric_mm2xe2zk';\nconst COL_QTD_ATRASOS  = 'numeric_mm2x18hh';\nconst COL_TOTAL_MIN    = 'numeric_mm2x4fjj';\nconst COL_DIAS_EXTRAS  = 'long_text_mm2x73w6';\nconst COL_DIAS_DESATIV = 'long_text_mm2xm820';\nconst COL_RESPOSTAS    = 'long_text_mm2xtcpw';\n\nconst webhook = $('Webhook').first().json;\nconst body = webhook.body || {};\nconst uuid = webhook.query?.uuid || body.uuid;\nconst respostas = Array.isArray(body.respostas) ? body.respostas : [];\nconst protocolo = body.protocolo || null;\nconst diasExtras = Array.isArray(body.dias_extras) ? body.dias_extras : [];\nconst diasDesativ = Array.isArray(body.dias_desativados) ? body.dias_desativados : [];\nconst ehCorrecaoFlag = !!body.eh_correcao;\n\nconst all = $input.all();\nfunction firstRealItem() {\n  for (const it of all) {\n    const j = it.json;\n    if (j && j.id && (j.column_values || j.name)) return j;\n  }\n  return null;\n}\nconst item = firstRealItem();\n\nif (!item) {\n  return [{ json: { _statusCode: 404, _erro: 'nao_encontrado', mensagem: 'Processamento não encontrado.' } }];\n}\n\nconst columnValues = item.column_values ?? [];\nconst getCol = (id) => columnValues.find(c => c.id === id);\nconst text = (id) => getCol(id)?.text ?? null;\nconst rawValue = (id) => getCol(id)?.value ?? null;\n\nfunction parseCheckbox(id) {\n  const v = rawValue(id);\n  if (!v) return false;\n  try {\n    const parsed = typeof v === 'string' ? JSON.parse(v) : v;\n    return parsed?.checked === true || parsed?.checked === 'true';\n  } catch { return false; }\n}\n\nconst statusLabel = text(COL_STATUS);\nconst dataInicio  = text(COL_DATA_INICIO);\nconst dataFim     = text(COL_DATA_FIM);\nconst expiraEm    = text(COL_EXPIRA_EM);\nconst concluidoEmAtual = text(COL_CONCLUIDO_EM);\nconst jaEstavaEditado = parseCheckbox(COL_EDITADO);\n\nconst agora = new Date();\n\n// 410 expirado\nif (statusLabel === 'Expirado' || (expiraEm && agora > new Date(expiraEm + 'T23:59:59Z') && statusLabel !== 'Concluído')) {\n  return [{ json: { _statusCode: 410, _erro: 'expirado', mensagem: 'Link expirado.' } }];\n}\n\n// 409 já concluído (se NÃO for correção)\nif ((statusLabel === 'Concluído' || statusLabel === 'Concluido') && !ehCorrecaoFlag) {\n  return [{ json: { _statusCode: 409, _erro: 'ja_concluido', mensagem: 'Este formulário já foi finalizado.' } }];\n}\n\n// Validar protocolo\nif (!protocolo || !/^PROT-[A-Z0-9-]+$/i.test(protocolo)) {\n  return [{ json: { _statusCode: 400, _erro: 'protocolo_invalido', mensagem: 'Protocolo ausente ou inválido.' } }];\n}\n\n// Conjunto de dias \"válidos\" = [periodo base] ∪ extras − desativados\nconst diasBase = [];\nif (dataInicio && dataFim) {\n  const cur = new Date(dataInicio + 'T00:00:00Z');\n  const fim = new Date(dataFim + 'T00:00:00Z');\n  while (cur <= fim) {\n    diasBase.push(cur.toISOString().slice(0, 10));\n    cur.setUTCDate(cur.getUTCDate() + 1);\n  }\n}\nconst desativ = new Set(diasDesativ);\nconst diasValidos = [...new Set([...diasBase, ...diasExtras])].filter(d => !desativ.has(d)).sort();\n\n// Validar respostas: 1 por dia válido\nconst mapaRespostas = new Map(respostas.map(r => [r.data, r]));\nconst respostasFinal = [];\nfor (const dia of diasValidos) {\n  const r = mapaRespostas.get(dia);\n  if (!r || !r.tipo) {\n    return [{ json: { _statusCode: 400, _erro: 'resposta_faltando', mensagem: `Resposta faltando para o dia ${dia}.` } }];\n  }\n  if (!['sem_ocorrencia','falta','atraso'].includes(r.tipo)) {\n    return [{ json: { _statusCode: 400, _erro: 'tipo_invalido', mensagem: `Tipo inválido em ${dia}: ${r.tipo}` } }];\n  }\n  const minutos = r.minutos_atraso;\n  if (r.tipo === 'atraso' && (!Number.isInteger(minutos) || minutos <= 0)) {\n    return [{ json: { _statusCode: 400, _erro: 'minutos_invalidos', mensagem: `Minutos de atraso inválidos em ${dia}.` } }];\n  }\n  respostasFinal.push({\n    data: dia,\n    tipo: r.tipo,\n    minutos_atraso: r.tipo === 'atraso' ? minutos : null\n  });\n}\n\n// Agregados\nconst qtdFaltas  = respostasFinal.filter(r => r.tipo === 'falta').length;\nconst qtdAtrasos = respostasFinal.filter(r => r.tipo === 'atraso').length;\nconst totalMin   = respostasFinal.reduce((acc, r) => acc + (r.tipo === 'atraso' ? (r.minutos_atraso || 0) : 0), 0);\n\n// Flag editado: se já estava concluído OU body.eh_correcao\nconst ehReedicao = (statusLabel === 'Concluído' || statusLabel === 'Concluido') || ehCorrecaoFlag;\nconst editadoFlag = ehReedicao || jaEstavaEditado;\n\nfunction dateValue(d, withTime) {\n  if (!d) return null;\n  const x = d instanceof Date ? d : new Date(d);\n  if (Number.isNaN(x.getTime())) return null;\n  const yyyy = x.getUTCFullYear();\n  const mm = String(x.getUTCMonth() + 1).padStart(2, '0');\n  const dd = String(x.getUTCDate()).padStart(2, '0');\n  if (!withTime) return { date: `${yyyy}-${mm}-${dd}` };\n  const hh = String(x.getUTCHours()).padStart(2, '0');\n  const mi = String(x.getUTCMinutes()).padStart(2, '0');\n  const ss = String(x.getUTCSeconds()).padStart(2, '0');\n  return { date: `${yyyy}-${mm}-${dd}`, time: `${hh}:${mi}:${ss}` };\n}\n\n// Concluido_em: preserva se já existia\nconst concluidoEmFinal = concluidoEmAtual || `${agora.toISOString().slice(0, 19).replace('T', ' ')}`;\n\nconst columnValuesUpdate = {\n  [COL_STATUS]:        { label: 'Concluído' },\n  [COL_PROTOCOLO]:     protocolo,\n  [COL_CONCLUIDO_EM]:  dateValue(concluidoEmAtual ? concluidoEmAtual : agora.toISOString(), true),\n  [COL_EDITADO]:       { checked: editadoFlag ? 'true' : 'false' },\n  [COL_EDITADO_EM]:    ehReedicao ? dateValue(agora.toISOString(), true) : null,\n  [COL_QTD_FALTAS]:    String(qtdFaltas),\n  [COL_QTD_ATRASOS]:   String(qtdAtrasos),\n  [COL_TOTAL_MIN]:     String(totalMin),\n  [COL_DIAS_EXTRAS]:   { text: JSON.stringify(diasExtras) },\n  [COL_DIAS_DESATIV]:  { text: JSON.stringify(diasDesativ) },\n  [COL_RESPOSTAS]:     { text: JSON.stringify(respostasFinal) }\n};\n\n// Remover chaves null para não sobrescrever data com vazio (caso ehReedicao=false)\nfor (const k of Object.keys(columnValuesUpdate)) {\n  if (columnValuesUpdate[k] === null || columnValuesUpdate[k] === undefined) {\n    delete columnValuesUpdate[k];\n  }\n}\n\nreturn [{\n  json: {\n    _statusCode: 200,\n    item_id: String(item.id),\n    uuid,\n    protocolo,\n    editado: editadoFlag,\n    eh_reedicao: ehReedicao,\n    concluido_em_final: concluidoEmFinal,\n    column_values_json: JSON.stringify(columnValuesUpdate)\n  }\n}];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-224, 32],
+      "position": [-272, 32],
       "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567103",
       "name": "Validar e preparar"
     },
@@ -72,148 +64,34 @@
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [0, 32],
+      "position": [-48, 32],
       "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567104",
       "name": "Se OK"
     },
     {
       "parameters": {
-        "operation": "delete",
-        "tableId": "ocorrencias_dia",
-        "filterType": "manual",
-        "matchType": "allFilters",
-        "filters": {
-          "conditions": [
-            {
-              "keyName": "processamento_id",
-              "condition": "eq",
-              "keyValue": "={{ $('Validar e preparar').first().json.uuid }}"
-            }
-          ]
-        }
+        "resource": "boardItemColumn",
+        "operation": "changeMultiple",
+        "boardId": 18411141462,
+        "itemId": "={{ $('Validar e preparar').first().json.item_id }}",
+        "columnValues": "={{ $('Validar e preparar').first().json.column_values_json }}"
       },
-      "type": "n8n-nodes-base.supabase",
+      "type": "n8n-nodes-base.mondayCom",
       "typeVersion": 1,
-      "position": [112, -64],
-      "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567115",
-      "name": "Limpar ocorrências antigas",
-      "credentials": {
-        "supabaseApi": {
-          "id": "CONFIGURAR_AO_IMPORTAR",
-          "name": "Supabase"
-        }
-      },
-      "alwaysOutputData": true
-    },
-    {
-      "parameters": {
-        "jsCode": "// Reinjeta a lista de ocorrências depois do delete\nconst validar = $('Validar e preparar').first().json;\nreturn [{ json: { ocorrencias: validar.ocorrencias } }];\n"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [208, -64],
-      "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567116",
-      "name": "Reinjetar ocorrências"
-    },
-    {
-      "parameters": {
-        "fieldToSplitOut": "ocorrencias",
-        "options": {
-          "includeBinary": false,
-          "destinationFieldName": "ocorrencia"
-        }
-      },
-      "type": "n8n-nodes-base.splitOut",
-      "typeVersion": 1,
-      "position": [320, -64],
-      "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567105",
-      "name": "Split ocorrências"
-    },
-    {
-      "parameters": {
-        "operation": "create",
-        "tableId": "ocorrencias_dia",
-        "dataToSend": "defineBelow",
-        "fieldsUi": {
-          "fieldValues": [
-            { "fieldId": "processamento_id", "fieldValue": "={{ $json.ocorrencia.processamento_id }}" },
-            { "fieldId": "data", "fieldValue": "={{ $json.ocorrencia.data }}" },
-            { "fieldId": "tipo", "fieldValue": "={{ $json.ocorrencia.tipo }}" },
-            { "fieldId": "minutos_atraso", "fieldValue": "={{ $json.ocorrencia.minutos_atraso }}" }
-          ]
-        }
-      },
-      "type": "n8n-nodes-base.supabase",
-      "typeVersion": 1,
-      "position": [448, -64],
-      "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567106",
-      "name": "Insert ocorrência",
-      "credentials": {
-        "supabaseApi": {
-          "id": "CONFIGURAR_AO_IMPORTAR",
-          "name": "Supabase"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "jsCode": "// Colapsa os N items em 1 para o fluxo seguir uma única vez\nreturn [{\n  json: {\n    ok: true,\n    inseridas: $input.all().length\n  }\n}];\n"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [672, -64],
-      "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567107",
-      "name": "Consolidar inserts"
-    },
-    {
-      "parameters": {
-        "operation": "update",
-        "tableId": "processamentos",
-        "filterType": "manual",
-        "matchType": "allFilters",
-        "filters": {
-          "conditions": [
-            {
-              "keyName": "id",
-              "condition": "eq",
-              "keyValue": "={{ $('Validar e preparar').first().json.uuid }}"
-            }
-          ]
-        },
-        "dataToSend": "defineBelow",
-        "fieldsUi": {
-          "fieldValues": [
-            { "fieldId": "status", "fieldValue": "concluido" },
-            { "fieldId": "concluido_em", "fieldValue": "={{ $('Validar e preparar').first().json.concluido_em }}" }
-          ]
-        }
-      },
-      "type": "n8n-nodes-base.supabase",
-      "typeVersion": 1,
-      "position": [896, -64],
+      "position": [192, -64],
       "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567108",
-      "name": "Marcar concluído",
+      "name": "Atualizar item",
       "credentials": {
-        "supabaseApi": {
-          "id": "CONFIGURAR_AO_IMPORTAR",
-          "name": "Supabase"
+        "mondayComApi": {
+          "id": "6I0ycSr6PQJkBYpc",
+          "name": "Ray0"
         }
       }
-    },
-    {
-      "parameters": {
-        "jsCode": "// ==============================================================\n// TODO: Criar item no board de destino do monday.\n// Preencha BOARD_DESTINO_ID e mapeie as colunas conforme o board.\n// Deixe este node como no-op enquanto o board não estiver definido.\n// ==============================================================\nreturn [$input.first()];\n"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1120, -64],
-      "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567109",
-      "name": "TODO Monday destino"
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ ok: true, uuid: $('Validar e preparar').first().json.uuid, concluido_em: $('Validar e preparar').first().json.concluido_em }) }}",
+        "responseBody": "={{ JSON.stringify({ ok: true, uuid: $('Validar e preparar').first().json.uuid, protocolo: $('Validar e preparar').first().json.protocolo, editado: $('Validar e preparar').first().json.editado, concluido_em: $('Validar e preparar').first().json.concluido_em_final }) }}",
         "options": {
           "responseCode": 200,
           "responseHeaders": {
@@ -226,7 +104,7 @@
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [1344, -64],
+      "position": [432, -64],
       "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567110",
       "name": "Responder OK"
     },
@@ -246,7 +124,7 @@
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [224, 160],
+      "position": [192, 160],
       "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567111",
       "name": "Responder Erro"
     }
@@ -254,9 +132,9 @@
   "pinData": {},
   "connections": {
     "Webhook": {
-      "main": [[{ "node": "Buscar processamento", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "Buscar por UUID", "type": "main", "index": 0 }]]
     },
-    "Buscar processamento": {
+    "Buscar por UUID": {
       "main": [[{ "node": "Validar e preparar", "type": "main", "index": 0 }]]
     },
     "Validar e preparar": {
@@ -264,29 +142,11 @@
     },
     "Se OK": {
       "main": [
-        [{ "node": "Limpar ocorrências antigas", "type": "main", "index": 0 }],
+        [{ "node": "Atualizar item", "type": "main", "index": 0 }],
         [{ "node": "Responder Erro", "type": "main", "index": 0 }]
       ]
     },
-    "Limpar ocorrências antigas": {
-      "main": [[{ "node": "Reinjetar ocorrências", "type": "main", "index": 0 }]]
-    },
-    "Reinjetar ocorrências": {
-      "main": [[{ "node": "Split ocorrências", "type": "main", "index": 0 }]]
-    },
-    "Split ocorrências": {
-      "main": [[{ "node": "Insert ocorrência", "type": "main", "index": 0 }]]
-    },
-    "Insert ocorrência": {
-      "main": [[{ "node": "Consolidar inserts", "type": "main", "index": 0 }]]
-    },
-    "Consolidar inserts": {
-      "main": [[{ "node": "Marcar concluído", "type": "main", "index": 0 }]]
-    },
-    "Marcar concluído": {
-      "main": [[{ "node": "TODO Monday destino", "type": "main", "index": 0 }]]
-    },
-    "TODO Monday destino": {
+    "Atualizar item": {
       "main": [[{ "node": "Responder OK", "type": "main", "index": 0 }]]
     }
   },
@@ -295,7 +155,7 @@
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "versionId": "wf3-finalizar-v1",
+  "versionId": "wf3-finalizar-monday-v1",
   "meta": {
     "templateCredsSetupCompleted": false
   },
