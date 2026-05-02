@@ -1,0 +1,66 @@
+# nginx — Plano de Intermitentes (frontend estático)
+#
+# Como usar:
+#   sudo cp docs/nginx-plano-intermitentes.conf.example \
+#       /etc/nginx/sites-available/plano-intermitentes
+#   sudo nano /etc/nginx/sites-available/plano-intermitentes
+#       # trocar SEU_DOMINIO_AQUI pelo domínio real
+#   sudo ln -s /etc/nginx/sites-available/plano-intermitentes \
+#       /etc/nginx/sites-enabled/
+#   sudo nginx -t && sudo systemctl reload nginx
+#
+# Depois rode `sudo certbot --nginx -d SEU_DOMINIO_AQUI` para HTTPS.
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name SEU_DOMINIO_AQUI;
+
+    root /var/www/plano-intermitentes/dist;
+    index index.html;
+
+    # Compressão
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types
+        text/plain
+        text/css
+        text/javascript
+        application/javascript
+        application/json
+        application/xml+rss
+        application/wasm
+        font/woff2
+        image/svg+xml;
+
+    # Cache agressivo para assets do Vite (têm hash no nome)
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+    }
+
+    # Sem cache no index.html (pra atualização chegar rápido)
+    location = /index.html {
+        expires off;
+        add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
+        try_files $uri =404;
+    }
+
+    # SPA fallback — qualquer rota não-arquivo cai no index.html
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Headers de segurança básicos
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # Bloquear acesso a arquivos sensíveis (caso vazem no dist)
+    location ~ /\.(env|git|gitignore) {
+        deny all;
+        return 404;
+    }
+}

@@ -1,73 +1,33 @@
-# React + TypeScript + Vite
+# Plano de Intermitentes — Registro de Ocorrências
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+App web acessado por **link único** que o RH usa pra registrar dia a dia
+se um intermitente faltou, atrasou ou cumpriu o expediente normalmente.
 
-Currently, two official plugins are available:
+- **Frontend**: Vite + React 19 + TypeScript + Tailwind v4 + shadcn/ui
+- **Storage**: board monday (`Plan. de Intermitentes — Histórico de Ocorrências`)
+- **Orquestração**: n8n Cloud (4 workflows)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Documentação
 
-## React Compiler
+- [`CLAUDE.md`](CLAUDE.md) — visão geral, stack, contratos das APIs, decisões.
+- [`DEPLOY.md`](DEPLOY.md) — passo a passo pra subir o frontend numa VM.
+- [`docs/n8n/monday-board-schema.md`](docs/n8n/monday-board-schema.md) — schema completo do board com column IDs e payload templates.
+- [`docs/especificacao.md`](docs/especificacao.md) — especificação funcional original.
+- [`docs/n8n/wf*.json`](docs/n8n/) — workflows do n8n (importáveis no n8n cloud).
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Comandos
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install        # instalar dependências
+npm run dev        # dev server na porta 5173
+npm run build      # build de produção (saída em dist/)
+npm run lint       # eslint
+npx tsc -b         # só typecheck, sem build
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Modo mock vs real
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- `.env` vazio (`VITE_N8N_BASE_URL=`) → modo mock (UUIDs `mock-aguardando`, `mock-concluido`, `mock-correcao`, `mock-expirado`).
+- `.env` apontando pro n8n → backend real.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+Crie um `.env.local` (ignorado pelo git) pra forçar modo mock em dev sem mexer no `.env`.
