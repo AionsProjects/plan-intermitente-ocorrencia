@@ -1,0 +1,17 @@
+.git
+.github
+.gitignore
+node_modules
+dist
+dist-ssr
+.env
+.env.local
+.env.*.local
+.vscode
+.idea
+.DS_Store
+.claude
+*.log
+README.md
+DEPLOY.md
+docs

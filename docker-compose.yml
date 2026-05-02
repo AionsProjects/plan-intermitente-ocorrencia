@@ -1,0 +1,13 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # URL do n8n é "baked" no bundle no build. Mude e rode `docker compose build`.
+        VITE_N8N_BASE_URL: ${VITE_N8N_BASE_URL:-https://aionscorp-n8n.cloudfy.live/webhook}
+    image: plano-intermitentes:latest
+    container_name: plano-intermitentes
+    restart: unless-stopped
+    ports:
+      - "80:80"

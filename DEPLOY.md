@@ -1,9 +1,104 @@
 # Deploy
 
-Guia de deploy do app frontend numa VM Linux (Ubuntu/Debian) servindo via
-nginx, atrás de HTTPS via Let's Encrypt.
+Há **duas formas** de subir o frontend numa VM Linux:
+
+- **[Docker](#deploy-com-docker-recomendado) (recomendado)** — uma imagem
+  com node+nginx, sobe com `docker compose up -d`. Não precisa instalar
+  Node, nginx, nem certbot na VM.
+- **[Bare-metal](#deploy-sem-docker-bare-metal)** — clone do repo, `npm
+  run build`, nginx do sistema servindo `dist/`.
 
 > O backend (n8n + monday) já roda separado; aqui é só o site estático.
+
+---
+
+## Deploy com Docker (recomendado)
+
+### Pré-requisitos na VM
+
+- Docker Engine e Docker Compose plugin instalados
+- Porta 80 livre no host (se já tem nginx do sistema, pare ou mude porta)
+
+Instalar Docker no Ubuntu/Debian:
+
+```bash
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker $USER   # logout/login depois pra valer
+```
+
+### Clonar e configurar
+
+```bash
+sudo mkdir -p /opt
+sudo chown -R $USER:$USER /opt
+cd /opt
+git clone https://github.com/AionsProjects/plan-intermitente-ocorrencia.git plano-intermitentes
+cd plano-intermitentes
+```
+
+Crie um `.env` ao lado do `docker-compose.yml` apontando pro n8n:
+
+```bash
+cat > .env <<'EOF'
+VITE_N8N_BASE_URL=https://aionscorp-n8n.cloudfy.live/webhook
+EOF
+```
+
+> Esse `.env` é lido pelo docker compose só pra passar como `--build-arg`
+> ao Vite. **Não confunda com o `.env` do dev local** — é a mesma chave
+> mas o uso é diferente.
+
+### Subir
+
+```bash
+docker compose up -d --build
+```
+
+Pronto. App acessível em `http://192.168.0.40` (porta 80 do host).
+
+### Comandos úteis
+
+```bash
+docker compose logs -f app          # ver logs do nginx
+docker compose ps                   # status do container
+docker compose restart app          # reiniciar
+docker compose down                 # parar e remover container
+```
+
+### Atualizar para nova versão do código
+
+```bash
+cd /opt/plano-intermitentes
+git pull
+docker compose up -d --build        # rebuilda imagem e troca container
+```
+
+> O `--build` é importante porque a `VITE_N8N_BASE_URL` é "baked" no bundle
+> JS no momento do build. Mudou o `.env`? Tem que rebuildar.
+
+### Trocar a porta do host
+
+Se já tem algo na porta 80, edite o [docker-compose.yml](docker-compose.yml):
+
+```yaml
+ports:
+  - "8080:80"   # acesso vira http://192.168.0.40:8080
+```
+
+E ajuste o `APP_BASE_URL` no WF1 do n8n pra incluir a porta.
+
+### Diagnóstico Docker
+
+| Sintoma | Causa provável |
+|---|---|
+| `Error response from daemon: ports are not available` | Algo já usa porta 80 (`sudo lsof -i :80`) — pare o serviço ou mude a porta no compose |
+| App carrega mas "Link não encontrado" em tudo | `VITE_N8N_BASE_URL` ficou vazia no build → entrou em modo mock. Confira o `.env` e rebuilde |
+| Mudei o `.env`, subi de novo, mas não pegou | Faltou `--build`. Rode `docker compose up -d --build` |
+| `permission denied while trying to connect to Docker daemon` | Faltou `sudo usermod -aG docker $USER` + relogar, ou usar `sudo docker compose ...` |
+
+---
+
+## Deploy sem Docker (bare-metal)
 
 ## Pré-requisitos
 
