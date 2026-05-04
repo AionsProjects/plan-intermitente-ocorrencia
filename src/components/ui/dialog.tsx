@@ -29,6 +29,11 @@ function DialogClose({
   return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
 }
 
+/**
+ * Overlay "transparente" — só captura clique-fora pra fechar o modal.
+ * O efeito visual (escurecer + blur) vem das 4 peças renderizadas no
+ * DialogContent, que recortam a região do modal.
+ */
 const DialogOverlay = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<typeof DialogPrimitive.Overlay>
@@ -38,13 +43,46 @@ const DialogOverlay = React.forwardRef<
       ref={ref}
       data-slot="dialog-overlay"
       className={cn(
-        "dialog-overlay-cutout fixed inset-0 z-50 bg-[#03060f]/25 backdrop-blur-[14px] data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",
+        "fixed inset-0 z-50 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",
         className
       )}
       {...props}
     />
   )
 })
+
+/**
+ * Renderiza 4 retângulos com blur ao redor do modal, deixando a área do
+ * modal intocada (sem overlay = sem blur). Posições são CSS vars que
+ * vêm do DialogContent via ref.
+ */
+function BlurPieces({
+  containerRef,
+}: {
+  containerRef: React.RefObject<HTMLDivElement | null>
+}) {
+  return (
+    <div
+      ref={containerRef}
+      aria-hidden
+      data-slot="dialog-blur-pieces"
+      className="pointer-events-none fixed inset-0 z-40"
+      style={
+        {
+          "--hole-x": "50vw",
+          "--hole-y": "50vh",
+          "--hole-w": "0px",
+          "--hole-h": "0px",
+        } as React.CSSProperties
+      }
+    >
+      <div className="dlg-blur-piece dlg-blur-piece--top" />
+      <div className="dlg-blur-piece dlg-blur-piece--bottom" />
+      <div className="dlg-blur-piece dlg-blur-piece--left" />
+      <div className="dlg-blur-piece dlg-blur-piece--right" />
+    </div>
+  )
+}
 
 function DialogContent({
   className,
@@ -54,28 +92,24 @@ function DialogContent({
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
-  const overlayRef = React.useRef<HTMLDivElement>(null)
+  const piecesRef = React.useRef<HTMLDivElement>(null)
   const contentRef = React.useRef<HTMLDivElement>(null)
 
-  // Sincroniza posição/tamanho do modal com CSS vars no overlay,
-  // pra que a mask do overlay recorte um buraco no lugar exato.
+  // Mede o modal e atualiza CSS vars no container das 4 peças blur.
   React.useLayoutEffect(() => {
-    const overlay = overlayRef.current
+    const pieces = piecesRef.current
     const content = contentRef.current
-    if (!overlay || !content) return
+    if (!pieces || !content) return
 
     let raf = 0
     const update = () => {
       raf = 0
       const r = content.getBoundingClientRect()
-      // padding extra de 8px ao redor do modal pra "halo" sem blur
-      const pad = 8
-      overlay.style.setProperty("--hole-x", `${r.left - pad}px`)
-      overlay.style.setProperty("--hole-y", `${r.top - pad}px`)
-      overlay.style.setProperty("--hole-w", `${r.width + pad * 2}px`)
-      overlay.style.setProperty("--hole-h", `${r.height + pad * 2}px`)
-      // só ativa a mask depois que medimos pelo menos uma vez
-      overlay.dataset.holeReady = "1"
+      const pad = 8 // halo sem blur ao redor do modal
+      pieces.style.setProperty("--hole-x", `${r.left - pad}px`)
+      pieces.style.setProperty("--hole-y", `${r.top - pad}px`)
+      pieces.style.setProperty("--hole-w", `${r.width + pad * 2}px`)
+      pieces.style.setProperty("--hole-h", `${r.height + pad * 2}px`)
     }
     const schedule = () => {
       if (raf) return
@@ -97,7 +131,8 @@ function DialogContent({
 
   return (
     <DialogPortal data-slot="dialog-portal">
-      <DialogOverlay ref={overlayRef} />
+      <DialogOverlay />
+      <BlurPieces containerRef={piecesRef} />
       <DialogPrimitive.Content
         ref={contentRef}
         data-slot="dialog-content"
