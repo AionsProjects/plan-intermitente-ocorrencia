@@ -30,57 +30,22 @@ function DialogClose({
 }
 
 /**
- * Overlay "transparente" — só captura clique-fora pra fechar o modal.
- * O efeito visual (escurecer + blur) vem das 4 peças renderizadas no
- * DialogContent, que recortam a região do modal.
+ * Overlay simples: só escurece o fundo (sem blur). Quem dá o efeito
+ * de vidro/lente é o próprio .glass-modal via backdrop-filter SVG.
  */
-const DialogOverlay = React.forwardRef<
-  HTMLDivElement,
-  React.ComponentProps<typeof DialogPrimitive.Overlay>
->(function DialogOverlay({ className, ...props }, ref) {
+function DialogOverlay({
+  className,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
   return (
     <DialogPrimitive.Overlay
-      ref={ref}
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 z-50 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",
+        "fixed inset-0 z-50 bg-[#03060f]/55 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",
         className
       )}
       {...props}
     />
-  )
-})
-
-/**
- * Renderiza 4 retângulos com blur ao redor do modal, deixando a área do
- * modal intocada (sem overlay = sem blur). Posições são CSS vars que
- * vêm do DialogContent via ref.
- */
-function BlurPieces({
-  containerRef,
-}: {
-  containerRef: React.RefObject<HTMLDivElement | null>
-}) {
-  return (
-    <div
-      ref={containerRef}
-      aria-hidden
-      data-slot="dialog-blur-pieces"
-      className="pointer-events-none fixed inset-0 z-40"
-      style={
-        {
-          "--hole-x": "50vw",
-          "--hole-y": "50vh",
-          "--hole-w": "0px",
-          "--hole-h": "0px",
-        } as React.CSSProperties
-      }
-    >
-      <div className="dlg-blur-piece dlg-blur-piece--top" />
-      <div className="dlg-blur-piece dlg-blur-piece--bottom" />
-      <div className="dlg-blur-piece dlg-blur-piece--left" />
-      <div className="dlg-blur-piece dlg-blur-piece--right" />
-    </div>
   )
 }
 
@@ -92,49 +57,10 @@ function DialogContent({
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
-  const piecesRef = React.useRef<HTMLDivElement>(null)
-  const contentRef = React.useRef<HTMLDivElement>(null)
-
-  // Mede o modal e atualiza CSS vars no container das 4 peças blur.
-  React.useLayoutEffect(() => {
-    const pieces = piecesRef.current
-    const content = contentRef.current
-    if (!pieces || !content) return
-
-    let raf = 0
-    const update = () => {
-      raf = 0
-      const r = content.getBoundingClientRect()
-      const pad = 8 // halo sem blur ao redor do modal
-      pieces.style.setProperty("--hole-x", `${r.left - pad}px`)
-      pieces.style.setProperty("--hole-y", `${r.top - pad}px`)
-      pieces.style.setProperty("--hole-w", `${r.width + pad * 2}px`)
-      pieces.style.setProperty("--hole-h", `${r.height + pad * 2}px`)
-    }
-    const schedule = () => {
-      if (raf) return
-      raf = requestAnimationFrame(update)
-    }
-
-    update()
-    const ro = new ResizeObserver(schedule)
-    ro.observe(content)
-    window.addEventListener("resize", schedule)
-    window.addEventListener("scroll", schedule, true)
-    return () => {
-      ro.disconnect()
-      window.removeEventListener("resize", schedule)
-      window.removeEventListener("scroll", schedule, true)
-      if (raf) cancelAnimationFrame(raf)
-    }
-  }, [])
-
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
-      <BlurPieces containerRef={piecesRef} />
       <DialogPrimitive.Content
-        ref={contentRef}
         data-slot="dialog-content"
         className={cn(
           "fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border bg-background p-6 shadow-lg duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg",

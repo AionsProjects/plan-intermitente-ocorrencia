@@ -246,43 +246,6 @@
     }
   }
 
-  /* ─── 4 peças de blur ao redor do modal ───
-     Cada peça é um retângulo com backdrop-blur posicionado fora da área
-     do modal. As vars --hole-x/y/w/h vêm do DialogContent via JS. */
-  .dlg-blur-piece {
-    position: absolute;
-    background: rgba(3, 6, 15, 0.28);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-  }
-  /* Topo: do topo da tela até o topo do modal */
-  .dlg-blur-piece--top {
-    top: 0;
-    left: 0;
-    right: 0;
-    height: var(--hole-y, 50vh);
-  }
-  /* Base: do final do modal até o final da tela */
-  .dlg-blur-piece--bottom {
-    top: calc(var(--hole-y, 50vh) + var(--hole-h, 0px));
-    left: 0;
-    right: 0;
-    bottom: 0;
-  }
-  /* Esquerda: do canto esquerdo até a esquerda do modal (na altura dele) */
-  .dlg-blur-piece--left {
-    top: var(--hole-y, 50vh);
-    left: 0;
-    width: var(--hole-x, 50vw);
-    height: var(--hole-h, 0px);
-  }
-  /* Direita: do final direito do modal até a borda direita (na altura dele) */
-  .dlg-blur-piece--right {
-    top: var(--hole-y, 50vh);
-    left: calc(var(--hole-x, 50vw) + var(--hole-w, 0px));
-    right: 0;
-    height: var(--hole-h, 0px);
-  }
 
   /* highlight curvo no topo — simula a borda iluminada de uma lente */
   .glass-modal::before {
