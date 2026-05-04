@@ -691,7 +691,7 @@ function DialogDia({ dia, respostaAtual, onClose, onSalvar }: DialogDiaProps) {
             <div className="grid grid-cols-2 gap-3">
               <ChoiceButton
                 onClick={() => handleFoiTrabalhar(false)}
-                variant="ghost"
+                variant="danger"
               >
                 Não, faltou
               </ChoiceButton>
@@ -713,7 +713,7 @@ function DialogDia({ dia, respostaAtual, onClose, onSalvar }: DialogDiaProps) {
             <div className="grid grid-cols-2 gap-3">
               <ChoiceButton
                 onClick={() => handleChegouNoHorario(false)}
-                variant="ghost"
+                variant="danger"
               >
                 Não
               </ChoiceButton>
@@ -793,25 +793,39 @@ function ChoiceButton({
   children,
   variant = "ghost",
   className = "",
+  onMouseMove,
+  onMouseLeave,
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "ghost" | "primary"
+  variant?: "ghost" | "primary" | "danger"
 }) {
-  const base =
-    "inline-flex h-14 items-center justify-center rounded-2xl px-5 text-[15px] font-medium tracking-wide transition-all disabled:opacity-50 disabled:pointer-events-none active:scale-[0.98]"
-  const styles =
+  // Tilt 3D segue o cursor: --mx, --my (0..100%) consumidos pelo CSS .choice-btn
+  function handleMove(e: React.MouseEvent<HTMLButtonElement>) {
+    const r = e.currentTarget.getBoundingClientRect()
+    const mx = ((e.clientX - r.left) / r.width) * 100
+    const my = ((e.clientY - r.top) / r.height) * 100
+    e.currentTarget.style.setProperty("--mx", String(mx))
+    e.currentTarget.style.setProperty("--my", String(my))
+    onMouseMove?.(e)
+  }
+  function handleLeave(e: React.MouseEvent<HTMLButtonElement>) {
+    e.currentTarget.style.setProperty("--mx", "50")
+    e.currentTarget.style.setProperty("--my", "50")
+    onMouseLeave?.(e)
+  }
+  const variantClass =
     variant === "primary"
-      ? "border border-amber-100/40 text-[#0a1224] shadow-[0_10px_30px_-8px_rgba(232,194,117,0.55)]"
-      : "border border-white/15 bg-white/5 text-white/85 backdrop-blur hover:bg-white/10 hover:text-white"
-  const primaryBg =
-    variant === "primary"
-      ? {
-          background:
-            "linear-gradient(135deg, #e8c275 0%, #d4a64a 60%, #6ea0ff 140%)",
-        }
-      : undefined
+      ? "choice-btn--primary"
+      : variant === "danger"
+        ? "choice-btn--danger"
+        : ""
   return (
-    <button {...props} className={`${base} ${styles} ${className}`} style={primaryBg}>
+    <button
+      {...props}
+      onMouseMove={handleMove}
+      onMouseLeave={handleLeave}
+      className={`choice-btn ${variantClass} ${className}`}
+    >
       {children}
     </button>
   )

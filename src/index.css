@@ -238,6 +238,62 @@
     box-shadow: 0 0 0 1px rgba(74, 125, 255, 0.35), 0 18px 50px -10px rgba(74, 125, 255, 0.5);
   }
 
+  /* ─── Glass edge — borda biselada visível em todas as caixas ───
+     Aplica via ::after um halo sobreposto que mistura highlights nos cantos
+     e um leve "ring" pra dar a sensação de espessura de vidro.
+     Aplicado automaticamente em todas as classes glass conhecidas + a
+     utility .glass-edge pra elementos avulsos. */
+  .glass-edge,
+  .glass-tile,
+  .glass-tile-extra,
+  .glass-banner-danger,
+  .btn-action-expand {
+    position: relative;
+  }
+  .glass-edge::after,
+  .glass-tile::after,
+  .glass-tile-extra::after,
+  .glass-banner-danger::after,
+  .btn-action-expand::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: 2;
+    background:
+      /* canto superior esquerdo: reflexo principal */
+      radial-gradient(ellipse 70% 45% at 0% 0%, rgba(255, 255, 255, 0.22), transparent 55%),
+      /* canto inferior direito: gleam menor */
+      radial-gradient(ellipse 35% 30% at 100% 100%, rgba(255, 255, 255, 0.12), transparent 60%),
+      /* topo: linha fina de luz */
+      linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, transparent 1.5px),
+      /* base: leve sombra interna pra "fechar" o vidro */
+      linear-gradient(0deg, rgba(0, 0, 0, 0.18) 0%, transparent 2px);
+    mix-blend-mode: overlay;
+    opacity: 0.85;
+  }
+  /* No modal usamos ::after pra o edge — mas glass-modal já tem ::before (topo);
+     adicionar ::after sem conflito */
+  .glass-modal {
+    position: relative;
+  }
+  .glass-modal::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: 2;
+    background:
+      radial-gradient(ellipse 70% 45% at 0% 0%, rgba(255, 255, 255, 0.22), transparent 55%),
+      radial-gradient(ellipse 35% 30% at 100% 100%, rgba(255, 255, 255, 0.12), transparent 60%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, transparent 1.5px),
+      linear-gradient(0deg, rgba(0, 0, 0, 0.18) 0%, transparent 2px);
+    mix-blend-mode: overlay;
+    opacity: 0.85;
+  }
+
   /* Banner de modo apagar — liquid glass com tint vermelho */
   .glass-banner-danger {
     background: rgba(248, 113, 113, 0.06);
@@ -529,6 +585,150 @@
 .btn-action-expand.btn-delete-active .btn-label {
   max-width: 10rem;
   opacity: 1;
+}
+
+/* ─── Choice button — vidro 3D que afunda seguindo o cursor ───
+   --mx e --my (0..100) são setados via JS no mousemove.
+   Default 50/50 = sem tilt, sem highlight de pressão. */
+.choice-btn {
+  --mx: 50;
+  --my: 50;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 3.5rem;
+  border-radius: 1rem;
+  padding: 0 1.25rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  overflow: hidden;
+  isolation: isolate;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.9);
+  backdrop-filter: url(#liquid-glass-soft) blur(8px) saturate(140%);
+  -webkit-backdrop-filter: url(#liquid-glass-soft) blur(8px) saturate(140%);
+  box-shadow:
+    0 10px 30px -8px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.25),
+    inset 0 -1px 0 0 rgba(255, 255, 255, 0.06);
+  /* tilt 3D: cursor mais à direita → eixo Y rotaciona positivo (lado direito recua) */
+  transform:
+    perspective(700px)
+    rotateY(calc((var(--mx) - 50) * 0.16deg))
+    rotateX(calc((50 - var(--my)) * 0.16deg))
+    translateZ(0);
+  transition: transform 90ms ease-out,
+              background 200ms ease,
+              border-color 200ms ease,
+              box-shadow 200ms ease,
+              color 200ms ease;
+  transform-style: preserve-3d;
+}
+
+@supports not (backdrop-filter: url(#liquid-glass-soft)) {
+  .choice-btn {
+    backdrop-filter: blur(14px) saturate(160%);
+    -webkit-backdrop-filter: blur(14px) saturate(160%);
+  }
+}
+
+/* "Polegar" de pressão — escurece um halo radial no ponto do cursor */
+.choice-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at calc(var(--mx) * 1%) calc(var(--my) * 1%),
+    rgba(0, 0, 0, 0.22) 0%,
+    transparent 38%
+  );
+  opacity: 0;
+  transition: opacity 220ms ease;
+  z-index: 1;
+}
+
+/* "Salto" oposto — clareia o canto contrário pra parecer que pulou pra cima */
+.choice-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at calc((100 - var(--mx)) * 1%) calc((100 - var(--my)) * 1%),
+    rgba(255, 255, 255, 0.12) 0%,
+    transparent 35%
+  );
+  opacity: 0;
+  transition: opacity 220ms ease;
+  z-index: 1;
+}
+
+.choice-btn:hover::before,
+.choice-btn:hover::after {
+  opacity: 1;
+}
+
+.choice-btn > * {
+  position: relative;
+  z-index: 2;
+}
+
+/* Variante "primary" — gradiente dourado, mantém o tilt */
+.choice-btn--primary {
+  background: linear-gradient(135deg, #e8c275 0%, #d4a64a 60%, #6ea0ff 140%);
+  border: 1px solid rgba(255, 236, 194, 0.5);
+  color: #0a1224;
+  box-shadow:
+    0 12px 32px -8px rgba(232, 194, 117, 0.55),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.4);
+}
+
+/* Variante "danger" — começa neutro, vermelho escuro no hover, vermelho vivo no active */
+.choice-btn--danger:hover {
+  background: rgba(127, 29, 29, 0.55); /* red-900/55 */
+  border-color: rgba(220, 38, 38, 0.65);
+  color: rgba(254, 226, 226, 0.95);
+  box-shadow:
+    0 14px 36px -8px rgba(127, 29, 29, 0.55),
+    inset 0 1px 0 0 rgba(255, 200, 200, 0.2);
+}
+
+.choice-btn--danger:active {
+  background: rgba(220, 38, 38, 0.85); /* red-600 vivo */
+  border-color: rgba(248, 113, 113, 0.85);
+  color: white;
+  box-shadow:
+    0 4px 12px -2px rgba(220, 38, 38, 0.5),
+    inset 0 6px 14px rgba(0, 0, 0, 0.35); /* depressão interna */
+}
+
+/* Click "afunda" — vale pra todas as variantes */
+.choice-btn:active {
+  transform:
+    perspective(700px)
+    rotateY(calc((var(--mx) - 50) * 0.08deg))
+    rotateX(calc((50 - var(--my)) * 0.08deg))
+    translateZ(-4px)
+    scale(0.97);
+  box-shadow:
+    0 4px 10px -2px rgba(0, 0, 0, 0.45),
+    inset 0 6px 14px rgba(0, 0, 0, 0.3);
+}
+
+.choice-btn--primary:active {
+  background: linear-gradient(135deg, #d4a64a 0%, #b8862a 60%, #4a7dff 140%);
+}
+
+.choice-btn:disabled {
+  opacity: 0.5;
+  pointer-events: none;
 }
 
 /* ─── Calendar (react-day-picker inside glass modal) ─── */
