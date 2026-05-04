@@ -4,6 +4,8 @@ import { ptBR } from "date-fns/locale"
 import {
   CalendarDays,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Loader2,
   Plus,
   RotateCcw,
@@ -23,7 +25,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
 import { useFinalizarProcessamento } from "./useProcessamento"
@@ -734,17 +735,15 @@ function DialogDia({ dia, respostaAtual, onClose, onSalvar }: DialogDiaProps) {
                 Quantos minutos fora do expediente?
               </Label>
               <div className="flex items-center gap-3">
-                <Input
+                <NumStepper
                   id="minutos"
-                  type="number"
-                  inputMode="numeric"
-                  min={1}
-                  step={1}
-                  placeholder="Ex: 30"
-                  className="h-12 border-white/15 bg-white/5 text-white placeholder:text-white/35 backdrop-blur focus-visible:ring-white/40"
                   value={minutos}
-                  onChange={(e) => setMinutos(e.target.value)}
+                  onChange={setMinutos}
+                  min={1}
+                  step={5}
+                  placeholder="Ex: 30"
                   autoFocus
+                  className="flex-1"
                 />
                 <span className="text-sm text-white/60">minutos</span>
               </div>
@@ -788,6 +787,82 @@ function DialogDia({ dia, respostaAtual, onClose, onSalvar }: DialogDiaProps) {
 }
 
 /* ─── Shared components ─── */
+
+type NumStepperProps = {
+  id?: string
+  value: string
+  onChange: (v: string) => void
+  min?: number
+  max?: number
+  step?: number
+  placeholder?: string
+  autoFocus?: boolean
+  className?: string
+}
+
+function NumStepper({
+  id,
+  value,
+  onChange,
+  min,
+  max,
+  step = 1,
+  placeholder,
+  autoFocus,
+  className = "",
+}: NumStepperProps) {
+  const num = Number(value)
+  const safeNum = Number.isFinite(num) ? num : 0
+  const canDec = min === undefined || safeNum > min
+  const canInc = max === undefined || safeNum < max
+
+  function bump(delta: number) {
+    const base = Number.isFinite(num) ? num : (min ?? 0)
+    let next = base + delta
+    if (min !== undefined && next < min) next = min
+    if (max !== undefined && next > max) next = max
+    onChange(String(next))
+  }
+
+  return (
+    <div className={`num-stepper ${className}`}>
+      <input
+        id={id}
+        type="number"
+        inputMode="numeric"
+        min={min}
+        max={max}
+        step={step}
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        autoFocus={autoFocus}
+      />
+      <div className="num-stepper-controls" aria-hidden>
+        <button
+          type="button"
+          className="num-stepper-btn"
+          onClick={() => bump(step)}
+          disabled={!canInc}
+          tabIndex={-1}
+          aria-label="Aumentar"
+        >
+          <ChevronUp className="size-4" />
+        </button>
+        <button
+          type="button"
+          className="num-stepper-btn"
+          onClick={() => bump(-step)}
+          disabled={!canDec}
+          tabIndex={-1}
+          aria-label="Diminuir"
+        >
+          <ChevronDown className="size-4" />
+        </button>
+      </div>
+    </div>
+  )
+}
 
 function ChoiceButton({
   children,
