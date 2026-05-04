@@ -145,19 +145,58 @@
   }
 
   .glass-modal {
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.22);
-    backdrop-filter: blur(50px) saturate(180%) brightness(1.05);
-    -webkit-backdrop-filter: blur(50px) saturate(180%) brightness(1.05);
-    /* sombra mais densa e em todas as direções pra delimitar bem o modal */
+    /* tint quase nada — pra ver o fundo passar pelo "vidro" */
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    /* blur leve = vê as formas atrás. saturate moderado pra cor não estourar.
+       url(#liquid-glass) aplica deslocamento real (refração tipo lente). */
+    backdrop-filter: url(#liquid-glass) blur(8px) saturate(140%) brightness(1.05);
+    -webkit-backdrop-filter: url(#liquid-glass) blur(8px) saturate(140%) brightness(1.05);
     box-shadow:
-      0 50px 120px -20px rgba(0, 0, 0, 0.8),
-      0 0 80px 12px rgba(0, 0, 0, 0.45),
-      0 0 0 1px rgba(255, 255, 255, 0.08),
-      0 0 120px 0 rgba(232, 194, 117, 0.08),
-      inset 1px 1px 0 0 rgba(255, 255, 255, 0.3),
-      inset -1px -1px 0 0 rgba(255, 255, 255, 0.05);
+      /* sombra projetada profunda */
+      0 35px 80px -10px rgba(0, 0, 0, 0.85),
+      /* halo escuro ao redor — destaca a divisória do vidro com o fundo */
+      0 0 70px 12px rgba(0, 0, 0, 0.55),
+      /* ring de vidro (borda externa) */
+      0 0 0 1px rgba(255, 255, 255, 0.14),
+      /* highlights internos: luz batendo no canto sup-esq como uma lente */
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.45),
+      inset 1px 0 0 0 rgba(255, 255, 255, 0.25),
+      inset -1px 0 0 0 rgba(255, 255, 255, 0.08),
+      inset 0 -1px 0 0 rgba(255, 255, 255, 0.06);
     border-radius: var(--radius);
+    position: relative;
+    isolation: isolate;
+  }
+
+  /* fallback elegante pra browsers que não suportam url() em backdrop-filter:
+     reforça blur/saturate via @supports negativo */
+  @supports not (backdrop-filter: url(#liquid-glass)) {
+    .glass-modal {
+      backdrop-filter: blur(18px) saturate(180%) contrast(1.05);
+      -webkit-backdrop-filter: blur(18px) saturate(180%) contrast(1.05);
+    }
+  }
+
+  /* highlight curvo no topo — simula a borda iluminada de uma lente */
+  .glass-modal::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: radial-gradient(
+      120% 60% at 50% 0%,
+      rgba(255, 255, 255, 0.18) 0%,
+      rgba(255, 255, 255, 0.04) 35%,
+      transparent 70%
+    );
+    z-index: 0;
+  }
+
+  .glass-modal > * {
+    position: relative;
+    z-index: 1;
   }
 
   .glass-tile {

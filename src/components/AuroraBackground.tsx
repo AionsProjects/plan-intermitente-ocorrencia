@@ -1,19 +1,46 @@
 export function AuroraBackground() {
   return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-      <div
-        className="aurora-orb"
-        style={{
-          width: 540,
-          height: 540,
-          top: "-130px",
-          right: "-90px",
-          background:
-            "radial-gradient(circle at 30% 30%, #6ea0ff 0%, #2a4fd0 45%, transparent 70%)",
-          opacity: 0.6,
-          animation: "orb-drift-1 14s ease-in-out infinite",
-        }}
-      />
+    <>
+      {/* Filtro SVG global pra distorção tipo lente/liquid glass.
+          Referenciado em CSS via backdrop-filter: url(#liquid-glass) */}
+      <svg
+        aria-hidden
+        style={{ position: "absolute", width: 0, height: 0, pointerEvents: "none" }}
+      >
+        <defs>
+          <filter id="liquid-glass" x="-20%" y="-20%" width="140%" height="140%">
+            <feTurbulence
+              type="fractalNoise"
+              baseFrequency="0.012 0.018"
+              numOctaves="2"
+              seed="7"
+              result="turb"
+            />
+            <feGaussianBlur in="turb" stdDeviation="2" result="softTurb" />
+            <feDisplacementMap
+              in="SourceGraphic"
+              in2="softTurb"
+              scale="22"
+              xChannelSelector="R"
+              yChannelSelector="G"
+            />
+          </filter>
+        </defs>
+      </svg>
+      <div aria-hidden className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+        <div
+          className="aurora-orb"
+          style={{
+            width: 540,
+            height: 540,
+            top: "-130px",
+            right: "-90px",
+            background:
+              "radial-gradient(circle at 30% 30%, #6ea0ff 0%, #2a4fd0 45%, transparent 70%)",
+            opacity: 0.6,
+            animation: "orb-drift-1 14s ease-in-out infinite",
+          }}
+        />
       <div
         className="aurora-orb"
         style={{
@@ -53,6 +80,7 @@ export function AuroraBackground() {
           animation: "orb-drift-4 20s ease-in-out infinite",
         }}
       />
-    </div>
+      </div>
+    </>
   )
 }
