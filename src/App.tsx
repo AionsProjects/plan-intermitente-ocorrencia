@@ -8,6 +8,9 @@ import { PreencherPage } from "@/features/preencher/PreencherPage"
 function DevIndex() {
   const usandoMock = !import.meta.env.VITE_N8N_BASE_URL
 
+  // Estes UUIDs/protocolos têm tratamento especial no api.ts: sempre
+  // resolvem pra mock local, mesmo com n8n real configurado. Isso permite
+  // testar telas a qualquer momento, sem mexer em .env.
   const exemplos = [
     { uuid: "mock-aguardando", titulo: "Aguardando preenchimento", desc: "Convocação com 6 dias úteis." },
     { uuid: "mock-concluido", titulo: "Já concluído", desc: "Tela de agradecimento pós-envio." },
@@ -30,12 +33,20 @@ function DevIndex() {
           Use os atalhos abaixo para testar o fluxo com dados mockados.
         </p>
 
-        {usandoMock ? (
-          <div className="mt-6 flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-[11px] text-white/65 backdrop-blur w-fit">
-            <span className="size-1.5 rounded-full bg-emerald-300 shadow-[0_0_10px_2px_rgba(127,231,196,0.6)]" />
-            modo mock ativo · defina <code className="text-white/85">VITE_N8N_BASE_URL</code>
-          </div>
-        ) : null}
+        <div className="mt-6 flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-[11px] text-white/65 backdrop-blur w-fit">
+          <span
+            className={`size-1.5 rounded-full ${
+              usandoMock
+                ? "bg-emerald-300 shadow-[0_0_10px_2px_rgba(127,231,196,0.6)]"
+                : "bg-[#e8c275] shadow-[0_0_10px_2px_rgba(232,194,117,0.55)]"
+            }`}
+          />
+          {usandoMock ? (
+            <>modo mock ativo · defina <code className="text-white/85">VITE_N8N_BASE_URL</code></>
+          ) : (
+            <>n8n real conectado · chaves de teste abaixo continuam funcionando</>
+          )}
+        </div>
 
         <div className="mt-8 grid gap-2.5">
           {exemplos.map((ex, i) => (
@@ -75,13 +86,11 @@ function DevIndex() {
             <ArrowUpRight className="size-4 text-white/55 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-white" />
           </Link>
 
-          {usandoMock && (
-            <p className="mt-3 px-1 text-[11px] leading-relaxed text-white/50">
-              Protocolos de teste:{" "}
-              <code className="text-[#e8c275]">PROT-TEST-DEMO</code> ·{" "}
-              <code className="text-[#e8c275]">PROT-DEMO-1234</code>
-            </p>
-          )}
+          <p className="mt-3 px-1 text-[11px] leading-relaxed text-white/50">
+            Protocolos de teste:{" "}
+            <code className="text-[#e8c275]">PROT-TEST-DEMO</code> ·{" "}
+            <code className="text-[#e8c275]">PROT-DEMO-1234</code>
+          </p>
         </div>
       </div>
     </div>

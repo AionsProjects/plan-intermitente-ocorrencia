@@ -3,6 +3,21 @@ import type { PayloadFinalizar, ProcessamentoDados, RespostaDia } from "./types"
 const BASE_URL = import.meta.env.VITE_N8N_BASE_URL ?? ""
 const USE_MOCK = !BASE_URL
 
+// UUIDs/protocolos com prefixos reservados que SEMPRE caem no mock local,
+// mesmo quando o n8n real está configurado. Útil pra ter chaves fixas de
+// teste em produção sem precisar mexer em .env.
+function isMockUuid(uuid: string): boolean {
+  return uuid in MOCK_PROCESSAMENTOS || uuid.startsWith("mock-")
+}
+function isMockProtocol(protocolo: string): boolean {
+  const limpo = protocolo.trim().toUpperCase()
+  return (
+    limpo.startsWith("PROT-TEST-") ||
+    limpo.startsWith("PROT-DEMO-") ||
+    Object.values(MOCK_PROCESSAMENTOS).some((m) => m.protocolo === limpo)
+  )
+}
+
 function mockDias(inicio: string, fim: string): string[] {
   const dias: string[] = []
   const atual = new Date(inicio)
@@ -101,8 +116,10 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
 }
 
 // Seed localStorage with demo protocols so the "Recentes" list shows up
-// immediately on first load — useful for testing the correction flow.
-if (USE_MOCK && typeof window !== "undefined") {
+// immediately on first load — útil pra testar o fluxo de correção.
+// Roda sempre (não só em USE_MOCK) porque os protocolos demo agora
+// funcionam mesmo com n8n real configurado.
+if (typeof window !== "undefined") {
   try {
     const KEY = "plano-intermitentes:protocolos"
     const existentes = JSON.parse(localStorage.getItem(KEY) ?? "[]")
@@ -157,7 +174,7 @@ function snapshot(m: MockState): ProcessamentoDados {
 export async function buscarProcessamento(
   uuid: string,
 ): Promise<ProcessamentoDados> {
-  if (USE_MOCK) {
+  if (USE_MOCK || isMockUuid(uuid)) {
     await new Promise((r) => setTimeout(r, 400))
     const mock = MOCK_PROCESSAMENTOS[uuid]
     if (!mock) {
@@ -207,7 +224,7 @@ export async function finalizarProcessamento(
   uuid: string,
   payload: PayloadFinalizar,
 ): Promise<{ protocolo: string; editado: boolean }> {
-  if (USE_MOCK) {
+  if (USE_MOCK || isMockUuid(uuid)) {
     await new Promise((r) => setTimeout(r, 600))
     const mock = MOCK_PROCESSAMENTOS[uuid]
     if (mock) {
@@ -269,7 +286,7 @@ export async function buscarUuidPorProtocolo(
   protocolo: string,
 ): Promise<{ uuid: string; nome: string }> {
   const limpo = protocolo.trim().toUpperCase()
-  if (USE_MOCK) {
+  if (USE_MOCK || isMockProtocol(limpo)) {
     await new Promise((r) => setTimeout(r, 300))
     const found = Object.values(MOCK_PROCESSAMENTOS).find(
       (m) => m.protocolo === limpo,
