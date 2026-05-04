@@ -29,21 +29,22 @@ function DialogClose({
   return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
 }
 
-function DialogOverlay({
-  className,
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
+const DialogOverlay = React.forwardRef<
+  HTMLDivElement,
+  React.ComponentProps<typeof DialogPrimitive.Overlay>
+>(function DialogOverlay({ className, ...props }, ref) {
   return (
     <DialogPrimitive.Overlay
+      ref={ref}
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 z-50 bg-[#03060f]/25 backdrop-blur-[14px] data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",
+        "dialog-overlay-cutout fixed inset-0 z-50 bg-[#03060f]/25 backdrop-blur-[14px] data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",
         className
       )}
       {...props}
     />
   )
-}
+})
 
 function DialogContent({
   className,
@@ -53,10 +54,52 @@ function DialogContent({
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
+  const overlayRef = React.useRef<HTMLDivElement>(null)
+  const contentRef = React.useRef<HTMLDivElement>(null)
+
+  // Sincroniza posição/tamanho do modal com CSS vars no overlay,
+  // pra que a mask do overlay recorte um buraco no lugar exato.
+  React.useLayoutEffect(() => {
+    const overlay = overlayRef.current
+    const content = contentRef.current
+    if (!overlay || !content) return
+
+    let raf = 0
+    const update = () => {
+      raf = 0
+      const r = content.getBoundingClientRect()
+      // padding extra de 8px ao redor do modal pra "halo" sem blur
+      const pad = 8
+      overlay.style.setProperty("--hole-x", `${r.left - pad}px`)
+      overlay.style.setProperty("--hole-y", `${r.top - pad}px`)
+      overlay.style.setProperty("--hole-w", `${r.width + pad * 2}px`)
+      overlay.style.setProperty("--hole-h", `${r.height + pad * 2}px`)
+      // só ativa a mask depois que medimos pelo menos uma vez
+      overlay.dataset.holeReady = "1"
+    }
+    const schedule = () => {
+      if (raf) return
+      raf = requestAnimationFrame(update)
+    }
+
+    update()
+    const ro = new ResizeObserver(schedule)
+    ro.observe(content)
+    window.addEventListener("resize", schedule)
+    window.addEventListener("scroll", schedule, true)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener("resize", schedule)
+      window.removeEventListener("scroll", schedule, true)
+      if (raf) cancelAnimationFrame(raf)
+    }
+  }, [])
+
   return (
     <DialogPortal data-slot="dialog-portal">
-      <DialogOverlay />
+      <DialogOverlay ref={overlayRef} />
       <DialogPrimitive.Content
+        ref={contentRef}
         data-slot="dialog-content"
         className={cn(
           "fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border bg-background p-6 shadow-lg duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg",
