@@ -119,64 +119,45 @@
   }
 
   /* ─── Scrollbar custom: só o thumb visível, em vidro fosco cinza ───
-     Track 100% transparente. Thumb com cor cinza translúcida visível,
-     bordas highlight pra parecer vidro. Hover/active acendem dourado. */
-  html,
-  body,
-  *::-webkit-scrollbar {
+     Track 100% transparente. Thumb com cor cinza translúcida visível. */
+  ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
-    background: transparent !important;
   }
-  *::-webkit-scrollbar-track,
-  *::-webkit-scrollbar-track-piece,
-  *::-webkit-scrollbar-track-piece:start,
-  *::-webkit-scrollbar-track-piece:end {
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-track-piece {
+    background: transparent;
+    border: none;
+    box-shadow: none;
   }
-  *::-webkit-scrollbar-thumb {
+  ::-webkit-scrollbar-thumb {
     background-color: rgba(180, 195, 220, 0.28);
     background-clip: padding-box;
     border-radius: 9999px;
-    /* margem interna = "afastamento" do thumb das bordas (parece flutuar) */
+    /* 2px transparent border = thumb visualmente "afastado" das laterais */
     border: 2px solid transparent;
     box-shadow:
       inset 0 0 0 1px rgba(255, 255, 255, 0.22),
-      inset 0 1px 0 0 rgba(255, 255, 255, 0.3),
-      inset 0 -1px 0 0 rgba(0, 0, 0, 0.1);
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.3);
     transition: background-color 200ms ease, box-shadow 200ms ease;
   }
-  *::-webkit-scrollbar-thumb:hover {
+  ::-webkit-scrollbar-thumb:hover {
     background-color: rgba(232, 194, 117, 0.4);
     box-shadow:
       inset 0 0 0 1px rgba(255, 255, 255, 0.32),
-      inset 0 1px 0 0 rgba(255, 255, 255, 0.45),
       0 0 8px 1px rgba(232, 194, 117, 0.35);
   }
-  *::-webkit-scrollbar-thumb:active {
+  ::-webkit-scrollbar-thumb:active {
     background-color: rgba(232, 194, 117, 0.6);
-    box-shadow:
-      inset 0 0 0 1px rgba(255, 255, 255, 0.4),
-      0 0 10px 2px rgba(232, 194, 117, 0.45);
   }
-  /* Setas e canto: invisíveis */
-  *::-webkit-scrollbar-button,
-  *::-webkit-scrollbar-button:start,
-  *::-webkit-scrollbar-button:end {
-    display: none !important;
-    width: 0 !important;
-    height: 0 !important;
-    background: transparent !important;
+  ::-webkit-scrollbar-button {
+    display: none;
   }
-  *::-webkit-scrollbar-corner {
+  ::-webkit-scrollbar-corner {
     background: transparent;
   }
-  /* Firefox: thin + cor do thumb cinza, track transparente */
-  html,
-  body,
-  * {
+  /* Firefox */
+  html {
     scrollbar-width: thin;
     scrollbar-color: rgba(180, 195, 220, 0.32) transparent;
   }
