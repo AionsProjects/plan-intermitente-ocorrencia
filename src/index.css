@@ -205,11 +205,14 @@
     background: rgba(255, 255, 255, 0.04);
     /* borda mais forte e visível — o "ring" do vidro */
     border: 1.5px solid rgba(255, 255, 255, 0.32);
-    /* dentro do modal: SEM blur — só refração da lente + saturate sutil.
-       O blur "frosted" agora vive no overlay (DialogOverlay).
-       Aqui dentro queremos o efeito de lente de óculos transparente. */
-    backdrop-filter: url(#liquid-glass) saturate(125%) brightness(1.04);
-    -webkit-backdrop-filter: url(#liquid-glass) saturate(125%) brightness(1.04);
+    /* dentro do modal: lente liquid-glass com leve "magnificação":
+       - url(#liquid-glass): refração mais forte (scale 40), distorce mais
+         visivelmente nas bordas
+       - blur 3px: frosted bem sutil
+       - saturate 150% + brightness 1.08 + contrast 1.06: cores mais vivas,
+         dá sensação de "zoom"/proximidade tipo lente de aumento */
+    backdrop-filter: url(#liquid-glass) blur(3px) saturate(150%) brightness(1.08) contrast(1.06);
+    -webkit-backdrop-filter: url(#liquid-glass) blur(3px) saturate(150%) brightness(1.08) contrast(1.06);
     box-shadow:
       /* ─── SOMBRAS EXTERNAS (atrás) — bem mais dramáticas ─── */
       /* sombra projetada profunda pra baixo (peso) */
