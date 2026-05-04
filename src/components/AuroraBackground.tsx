@@ -8,19 +8,22 @@ export function AuroraBackground() {
         style={{ position: "absolute", width: 0, height: 0, pointerEvents: "none" }}
       >
         <defs>
-          <filter id="liquid-glass" x="-25%" y="-25%" width="150%" height="150%">
+          <filter id="liquid-glass" x="-15%" y="-15%" width="130%" height="130%">
+            {/* Frequência baixa = ondas longas e suaves (não ruído alto-frequência).
+                Resultado: distorção mais coerente, parece curvatura de lente
+                real em vez de ruído aleatório. */}
             <feTurbulence
               type="fractalNoise"
-              baseFrequency="0.014 0.02"
-              numOctaves="3"
-              seed="7"
+              baseFrequency="0.005 0.007"
+              numOctaves="1"
+              seed="3"
               result="turb"
             />
-            <feGaussianBlur in="turb" stdDeviation="2.5" result="softTurb" />
+            <feGaussianBlur in="turb" stdDeviation="4" result="softTurb" />
             <feDisplacementMap
               in="SourceGraphic"
               in2="softTurb"
-              scale="40"
+              scale="35"
               xChannelSelector="R"
               yChannelSelector="G"
             />
