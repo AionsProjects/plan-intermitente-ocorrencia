@@ -292,7 +292,7 @@ export function FormularioWizard({ dados, ehCorrecao, onFinalizado }: Props) {
 
           {/* Delete mode banner */}
           {modoApagar && (
-            <div className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-red-300/20 bg-red-400/8 px-4 py-3 fade-up">
+            <div className="glass-banner-danger mt-4 flex items-center justify-center gap-2 px-4 py-3 fade-up">
               <Trash2 className="size-4 text-red-300/80" />
               <p className="text-sm text-red-200/80">
                 Toque em um dia para removê-lo. Clique em{" "}

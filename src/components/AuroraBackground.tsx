@@ -25,6 +25,25 @@ export function AuroraBackground() {
               yChannelSelector="G"
             />
           </filter>
+          {/* Versão suave pra elementos menores (tiles, botões, banners):
+              deslocamento bem menor pra não distorcer demais em alturas pequenas. */}
+          <filter id="liquid-glass-soft" x="-15%" y="-15%" width="130%" height="130%">
+            <feTurbulence
+              type="fractalNoise"
+              baseFrequency="0.018 0.024"
+              numOctaves="2"
+              seed="3"
+              result="turb"
+            />
+            <feGaussianBlur in="turb" stdDeviation="1.5" result="softTurb" />
+            <feDisplacementMap
+              in="SourceGraphic"
+              in2="softTurb"
+              scale="8"
+              xChannelSelector="R"
+              yChannelSelector="G"
+            />
+          </filter>
         </defs>
       </svg>
       <div aria-hidden className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
