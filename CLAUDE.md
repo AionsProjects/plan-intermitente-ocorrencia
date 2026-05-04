@@ -4,19 +4,27 @@ App web que o RH acessa via **link único** para registrar, dia a dia, se um int
 
 ## Estado atual do projeto
 
-**Funcionando end-to-end (mock + real):**
-- WF1 (Preparar) — n8n recebe webhook do monday quando RH muda status, gera UUID, cria item no board histórico (status=Aguardando), preenche Link Column do item de origem. **APP_BASE_URL no node "Preparar dados" aponta para `http://192.168.0.40` (IP intranet da VM, sem domínio).**
+**Funcionando end-to-end (mock + real, em produção na VM):**
+- WF1 (Preparar) — n8n recebe webhook do monday quando RH muda status, gera UUID, cria item no board histórico (status=Aguardando), preenche Link Column do item de origem. **APP_BASE_URL no node "Preparar dados" aponta para `http://192.168.0.41` (IP intranet da VM, sem domínio).**
 - WF2 (Ler) — n8n responde `GET /intermitente-ler?uuid=…`, busca item por UUID via `getByColumnValue`, parseia `respostas_json`/`dias_extras`/`dias_desativados`, retorna shape esperado.
 - WF3 (Finalizar) — n8n responde `POST /intermitente-finalizar`, calcula agregados (qtd_faltas, qtd_atrasos, total_minutos), marca status=Concluído, grava `respostas_json`. Idempotente por natureza (1 item, `change_multiple_column_values`).
 - WF4 (Buscar protocolo) — n8n responde `GET /intermitente-buscar-protocolo?protocolo=…`, retorna UUID+nome para o fluxo de correção.
-- Frontend: painel com **modal por dia**, perguntas no positivo ("foi trabalhar?", "chegou no horário?"), adicionar/apagar dias com bolha estourando, fluxo de correção via protocolo `PROT-XXXX-XXXX`. Botão "Copiar protocolo" tem fallback `document.execCommand('copy')` para funcionar em HTTP puro (intranet).
-- **Deploy via Docker preparado** — `Dockerfile` multi-stage (node build → nginx alpine), `docker-compose.yml` e `docker/nginx.conf`. Sobe com `docker compose up -d --build`. `VITE_N8N_BASE_URL` injetada como build arg. Documentado em [DEPLOY.md](DEPLOY.md).
+- Frontend: painel com **modal por dia**, perguntas no positivo ("foi trabalhar?", "chegou no horário?"), adicionar/apagar dias com bolha estourando, fluxo de correção via protocolo `PROT-XXXX-XXXX`. Botão "Copiar protocolo" tem fallback `document.execCommand('copy')` pra funcionar em HTTP puro (intranet).
+- **Polish visual completo (Apple-style "Liquid Glass"):**
+  - Modal com efeito de lente: centro frosted limpo, **quina com displacement SVG** (`feDisplacementMap` + mask radial) simulando a curvatura de uma lente real
+  - Filtro `#liquid-glass` no [AuroraBackground.tsx](src/components/AuroraBackground.tsx) — frequência baixa (0.005) + 1 octave + blur 4px no mapa = ondas longas coerentes, não ruído aleatório
+  - Tiles de dia, botões expansíveis e banner de modo apagar usam `#liquid-glass-soft` (scale 8)
+  - Borda biselada: ring duplo branco→preto + highlights internos assimétricos = impressão de espessura real do vidro
+  - Botões "iluminados": halos coloridos em camadas (gold pro primary, vermelho pro danger, azul pro adicionar) — luz emanando da face do botão
+  - Tilt 3D nos ChoiceButton seguindo o cursor (`--mx`/`--my` setados via `mousemove`)
+  - Scrollbar 100% glass (track invisível, thumb cinza-azulado translúcido)
+  - NumStepper customizado pro input de minutos (botões +/− no padrão glass)
+- **Chaves de teste sempre disponíveis** — UUIDs `mock-*` e protocolos `PROT-TEST-*`/`PROT-DEMO-*` resolvem pra mock local mesmo com n8n real configurado. Útil pra testar UI em produção sem criar items no monday.
+- **Deploy via Docker em produção** — container rodando na VM `192.168.0.41:80`. Stack: Dockerfile multi-stage (node:20-alpine → nginx:alpine), `docker-compose.yml`, `docker/nginx.conf` (catch-all server_name). Sobe com `docker compose up -d --build`. Atualizar = `git pull && docker compose up -d --build`. Documentado em [DEPLOY.md](DEPLOY.md).
 
 **Pendente:**
-- **Subir o container na VM `192.168.0.40`** — bloqueado no momento por falta de senha `sudo` do usuário Linux da VM. Steps documentados em [DEPLOY.md](DEPLOY.md): instalar Docker, clonar repo, criar `.env` com `VITE_N8N_BASE_URL`, parar nginx do sistema (se existir) pra liberar porta 80, `docker compose up -d --build`.
-- **Mergear branch `feat/session-extras-positive-questions` em `main`** — toda a migração Supabase→monday + setup Docker está nessa branch. PR ainda não aberto.
-- Configurar **job de expiração**: pode ser n8n cron diário (lista itens com Status=Aguardando e Expira Em < hoje, muda para Expirado) **ou** monday Automation no próprio board ("When Expira Em arrives → Change Status to Expirado"). Recomendado: monday Automation, mais simples.
-- (Futuro, se houver dados em produção no Supabase) migrar via WF one-shot que lê CSV exportado e cria items no board novo.
+- Configurar **job de expiração**: monday Automation no board histórico (`18411141462`) → *"When Expira Em arrives → Change Status to Expirado"* (recomendado, mais simples) **OU** n8n cron diário que lista itens com Status=Aguardando e Expira Em < hoje.
+- (Se aplicável) Migrar dados antigos do Supabase → board monday via WF one-shot.
 
 ## Fluxo resumido
 
@@ -245,7 +253,10 @@ WF4 retorna:
 - **Concluído Em é preservado** em re-edições (correção) — apenas `Editado Em` é atualizado.
 - Em modo mock, `buscarProcessamento` deve retornar **cópia** do objeto pro React Query detectar mudanças após `finalizarProcessamento` mutar o original.
 - **`VITE_N8N_BASE_URL` é "baked" no bundle no build** — Vite resolve `import.meta.env.*` em build-time, não runtime. No Docker, isso significa que mudar `.env` exige `--build` no `docker compose up`.
-- **Sem domínio + IP privado (`192.168.0.40`)** — Let's Encrypt não emite cert pra IP privado; ficamos em HTTP puro na intranet. Botão Copiar usa fallback `execCommand` pra funcionar sem HTTPS.
+- **Sem domínio + IP privado (`192.168.0.41`)** — Let's Encrypt não emite cert pra IP privado; ficamos em HTTP puro na intranet. Botão Copiar usa fallback `execCommand` pra funcionar sem HTTPS.
+- **Liquid glass: distorção só na quina** — colocar `feDisplacementMap` direto no `.glass-modal` faz ondulações aleatórias por todo o vidro (parece água, não lente). Solução adotada: backdrop-filter no modal só com `blur + saturate`, e `::after` com mask-image radial (transparente no centro, opaca nas bordas) carregando o `url(#liquid-glass)` — assim a refração só aparece no anel da quina.
+- **Cutout de blur via mask-composite** — tentamos recortar a área do modal do overlay com `mask-composite: exclude`. Não funcionou consistentemente em Chromium. Solução final: overlay simples só com tint escuro (`bg-[#03060f]/55`), sem blur. O efeito de "ver através do modal" vem só do filtro de lente do modal.
+- **Scrollbar quebrava layout** — `html, body, *::-webkit-scrollbar { width: 10px }` aplicava `width: 10px` no html e body, achatando a página. Sempre separar regras pra `*::-webkit-scrollbar` das que se aplicam ao `html`/`body`.
 
 ## Segurança
 
