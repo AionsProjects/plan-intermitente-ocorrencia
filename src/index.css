@@ -147,7 +147,7 @@
   .glass-modal {
     /* tint quase nada — pra ver o fundo passar pelo "vidro" */
     background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.18);
     /* blur leve = vê as formas atrás. saturate moderado pra cor não estourar.
        url(#liquid-glass) aplica deslocamento real (refração tipo lente). */
     backdrop-filter: url(#liquid-glass) blur(8px) saturate(140%) brightness(1.05);
@@ -155,15 +155,24 @@
     box-shadow:
       /* sombra projetada profunda */
       0 35px 80px -10px rgba(0, 0, 0, 0.85),
-      /* halo escuro ao redor — destaca a divisória do vidro com o fundo */
+      /* halo escuro ao redor */
       0 0 70px 12px rgba(0, 0, 0, 0.55),
       /* ring de vidro (borda externa) */
-      0 0 0 1px rgba(255, 255, 255, 0.14),
-      /* highlights internos: luz batendo no canto sup-esq como uma lente */
-      inset 0 1px 0 0 rgba(255, 255, 255, 0.45),
-      inset 1px 0 0 0 rgba(255, 255, 255, 0.25),
-      inset -1px 0 0 0 rgba(255, 255, 255, 0.08),
-      inset 0 -1px 0 0 rgba(255, 255, 255, 0.06);
+      0 0 0 1px rgba(255, 255, 255, 0.16),
+      /* ─── BORDA AFUNDADA ───
+         Sombras inset projetando-se a partir de cada borda PRA DENTRO,
+         escurecendo a região interior. O efeito resultante: a borda parece
+         saliente e o conteúdo "rebaixado", como se fosse o fundo de uma
+         moldura redonda. */
+      inset 0 8px 22px -6px rgba(0, 0, 0, 0.55),
+      inset 0 -6px 18px -6px rgba(0, 0, 0, 0.4),
+      inset 8px 0 20px -8px rgba(0, 0, 0, 0.4),
+      inset -8px 0 20px -8px rgba(0, 0, 0, 0.4),
+      /* highlights na própria borda (mantém a "lip" superior bem viva) */
+      inset 0 1.5px 0 0 rgba(255, 255, 255, 0.5),
+      inset 1px 0 0 0 rgba(255, 255, 255, 0.22),
+      inset -1px 0 0 0 rgba(255, 255, 255, 0.1),
+      inset 0 -1px 0 0 rgba(255, 255, 255, 0.08);
     border-radius: var(--radius);
     position: relative;
     isolation: isolate;
