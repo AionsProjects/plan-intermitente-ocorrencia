@@ -59,7 +59,7 @@ export function AuroraBackground() {
             right: "-90px",
             background:
               "radial-gradient(circle at 30% 30%, #6ea0ff 0%, #2a4fd0 45%, transparent 70%)",
-            opacity: 0.6,
+            opacity: 0.38,
             animation: "orb-drift-1 14s ease-in-out infinite",
           }}
         />
@@ -72,7 +72,7 @@ export function AuroraBackground() {
           left: "-110px",
           background:
             "radial-gradient(circle at 40% 40%, #f0d28a 0%, #c8943a 50%, transparent 72%)",
-          opacity: 0.4,
+          opacity: 0.25,
           animation: "orb-drift-2 18s ease-in-out infinite",
         }}
       />
@@ -85,7 +85,7 @@ export function AuroraBackground() {
           right: "10%",
           background:
             "radial-gradient(circle at 50% 50%, #e8c275 0%, #8a6420 55%, transparent 75%)",
-          opacity: 0.28,
+          opacity: 0.18,
           animation: "orb-drift-3 22s ease-in-out infinite",
         }}
       />
@@ -98,7 +98,7 @@ export function AuroraBackground() {
           left: "8%",
           background:
             "radial-gradient(circle at 50% 50%, #b8c5d6 0%, #5a6b85 55%, transparent 78%)",
-          opacity: 0.32,
+          opacity: 0.2,
           animation: "orb-drift-4 20s ease-in-out infinite",
         }}
       />

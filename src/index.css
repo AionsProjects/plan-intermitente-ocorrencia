@@ -8,10 +8,10 @@
 :root {
   --radius: 1.25rem;
 
-  /* Midnight + gold palette */
-  --aurora-bg-1: #03060f;
-  --aurora-bg-2: #07101f;
-  --aurora-bg-3: #0d1a36;
+  /* Midnight + gold palette (escurecida pra dar contraste com luz dos botões) */
+  --aurora-bg-1: #02040b;
+  --aurora-bg-2: #050b18;
+  --aurora-bg-3: #08122a;
 
   --aurora-blue: #4a7dff;
   --aurora-blue-soft: #6ea0ff;
@@ -98,9 +98,9 @@
     font-family: "Geist", ui-sans-serif, system-ui, -apple-system, sans-serif;
     font-feature-settings: "ss01", "cv11";
     background:
-      radial-gradient(1200px 800px at 85% -10%, rgba(74, 125, 255, 0.28), transparent 60%),
-      radial-gradient(1000px 700px at -10% 110%, rgba(232, 194, 117, 0.18), transparent 55%),
-      radial-gradient(900px 600px at 50% 60%, rgba(110, 160, 255, 0.1), transparent 70%),
+      radial-gradient(1200px 800px at 85% -10%, rgba(74, 125, 255, 0.18), transparent 60%),
+      radial-gradient(1000px 700px at -10% 110%, rgba(232, 194, 117, 0.12), transparent 55%),
+      radial-gradient(900px 600px at 50% 60%, rgba(110, 160, 255, 0.06), transparent 70%),
       linear-gradient(165deg, var(--aurora-bg-1) 0%, var(--aurora-bg-2) 55%, var(--aurora-bg-3) 100%);
     background-attachment: fixed;
     overflow-x: hidden;
@@ -291,11 +291,19 @@
   }
 
   .glow-gold {
-    box-shadow: 0 0 0 1px rgba(232, 194, 117, 0.4), 0 18px 50px -10px rgba(232, 194, 117, 0.45);
+    box-shadow:
+      0 0 0 1px rgba(232, 194, 117, 0.5),
+      0 0 50px 6px rgba(232, 194, 117, 0.35),
+      0 22px 56px -10px rgba(232, 194, 117, 0.6),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.35);
   }
 
   .glow-blue {
-    box-shadow: 0 0 0 1px rgba(74, 125, 255, 0.35), 0 18px 50px -10px rgba(74, 125, 255, 0.5);
+    box-shadow:
+      0 0 0 1px rgba(74, 125, 255, 0.4),
+      0 0 45px 5px rgba(74, 125, 255, 0.35),
+      0 20px 50px -10px rgba(74, 125, 255, 0.6),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.3);
   }
 
   /* ─── Stepper de número (botões + / − customizados) ───
@@ -710,21 +718,30 @@
 }
 
 .btn-action-expand.btn-add:hover {
-  background: rgba(110, 160, 255, 0.12);
-  border-color: rgba(110, 160, 255, 0.35);
-  box-shadow: 0 0 16px -4px rgba(110, 160, 255, 0.3);
+  background: rgba(110, 160, 255, 0.16);
+  border-color: rgba(110, 160, 255, 0.5);
+  box-shadow:
+    0 0 28px 2px rgba(110, 160, 255, 0.4),
+    0 8px 20px -4px rgba(110, 160, 255, 0.5),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.3);
 }
 
 .btn-action-expand.btn-delete:hover {
-  background: rgba(248, 113, 113, 0.12);
-  border-color: rgba(248, 113, 113, 0.35);
-  box-shadow: 0 0 16px -4px rgba(248, 113, 113, 0.3);
+  background: rgba(248, 113, 113, 0.16);
+  border-color: rgba(248, 113, 113, 0.5);
+  box-shadow:
+    0 0 28px 2px rgba(248, 113, 113, 0.4),
+    0 8px 20px -4px rgba(248, 113, 113, 0.5),
+    inset 0 1px 0 0 rgba(255, 220, 220, 0.3);
 }
 
 .btn-action-expand.btn-delete-active {
-  background: rgba(248, 113, 113, 0.15);
-  border-color: rgba(248, 113, 113, 0.4);
-  box-shadow: 0 0 20px -4px rgba(248, 113, 113, 0.35);
+  background: rgba(248, 113, 113, 0.2);
+  border-color: rgba(248, 113, 113, 0.6);
+  box-shadow:
+    0 0 36px 4px rgba(248, 113, 113, 0.45),
+    0 8px 22px -4px rgba(248, 113, 113, 0.55),
+    inset 0 1px 0 0 rgba(255, 220, 220, 0.35);
   width: auto;
   gap: 0.375rem;
   padding-left: 0.75rem;
@@ -829,33 +846,53 @@
   z-index: 2;
 }
 
-/* Variante "primary" — gradiente dourado, mantém o tilt */
+/* Variante "primary" — gradiente dourado iluminado: glow ambient + halo */
 .choice-btn--primary {
-  background: linear-gradient(135deg, #e8c275 0%, #d4a64a 60%, #6ea0ff 140%);
-  border: 1px solid rgba(255, 236, 194, 0.5);
+  background: linear-gradient(135deg, #f0cc7d 0%, #d4a64a 55%, #8a6420 130%);
+  border: 1px solid rgba(255, 236, 194, 0.55);
   color: #0a1224;
   box-shadow:
-    0 12px 32px -8px rgba(232, 194, 117, 0.55),
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.4);
+    /* Halo dourado distante (luz ambiente "vazando" ao redor) */
+    0 0 40px 4px rgba(232, 194, 117, 0.35),
+    /* Glow dourado próximo (definição) */
+    0 16px 36px -6px rgba(232, 194, 117, 0.65),
+    /* Highlight da face (pop de cor) */
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.5),
+    inset 0 -1px 0 0 rgba(138, 100, 32, 0.4);
+}
+
+.choice-btn--primary:hover {
+  box-shadow:
+    /* Halo expande no hover, parece que a luz ficou mais intensa */
+    0 0 60px 8px rgba(232, 194, 117, 0.5),
+    0 20px 44px -6px rgba(232, 194, 117, 0.75),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.55),
+    inset 0 -1px 0 0 rgba(138, 100, 32, 0.4);
 }
 
 /* Variante "danger" — começa neutro, vermelho escuro no hover, vermelho vivo no active */
 .choice-btn--danger:hover {
-  background: rgba(127, 29, 29, 0.55); /* red-900/55 */
-  border-color: rgba(220, 38, 38, 0.65);
+  background: rgba(60, 14, 14, 0.65); /* red-950 escuro */
+  border-color: rgba(220, 38, 38, 0.7);
   color: rgba(254, 226, 226, 0.95);
   box-shadow:
-    0 14px 36px -8px rgba(127, 29, 29, 0.55),
-    inset 0 1px 0 0 rgba(255, 200, 200, 0.2);
+    /* Halo vermelho distante */
+    0 0 36px 4px rgba(220, 38, 38, 0.3),
+    /* Glow vermelho próximo */
+    0 16px 36px -6px rgba(127, 29, 29, 0.65),
+    inset 0 1px 0 0 rgba(255, 200, 200, 0.22),
+    inset 0 -1px 0 0 rgba(40, 10, 10, 0.4);
 }
 
 .choice-btn--danger:active {
-  background: rgba(220, 38, 38, 0.85); /* red-600 vivo */
-  border-color: rgba(248, 113, 113, 0.85);
+  background: rgba(220, 38, 38, 0.9);
+  border-color: rgba(248, 113, 113, 0.9);
   color: white;
   box-shadow:
-    0 4px 12px -2px rgba(220, 38, 38, 0.5),
-    inset 0 6px 14px rgba(0, 0, 0, 0.35); /* depressão interna */
+    /* Halo vermelho intenso quando "acendeu" */
+    0 0 50px 6px rgba(248, 113, 113, 0.55),
+    0 4px 12px -2px rgba(220, 38, 38, 0.6),
+    inset 0 6px 14px rgba(0, 0, 0, 0.4);
 }
 
 /* Click "afunda" — vale pra todas as variantes */
