@@ -149,8 +149,12 @@
     border: 1px solid rgba(255, 255, 255, 0.22);
     backdrop-filter: blur(50px) saturate(180%) brightness(1.05);
     -webkit-backdrop-filter: blur(50px) saturate(180%) brightness(1.05);
+    /* sombra mais densa e em todas as direções pra delimitar bem o modal */
     box-shadow:
-      0 40px 100px -20px rgba(0, 0, 0, 0.65),
+      0 50px 120px -20px rgba(0, 0, 0, 0.8),
+      0 0 80px 12px rgba(0, 0, 0, 0.45),
+      0 0 0 1px rgba(255, 255, 255, 0.08),
+      0 0 120px 0 rgba(232, 194, 117, 0.08),
       inset 1px 1px 0 0 rgba(255, 255, 255, 0.3),
       inset -1px -1px 0 0 rgba(255, 255, 255, 0.05);
     border-radius: var(--radius);
