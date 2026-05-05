@@ -205,7 +205,10 @@ export async function buscarProcessamento(
     dias: raw.dias ?? [],
     status: raw.status,
     concluidoEm: raw.concluido_em ?? null,
-    protocolo: raw.protocolo ?? null,
+    // Normaliza "" → null. O monday devolve string vazia em colunas text
+    // não preenchidas, e isso quebra o `??` (que só captura null/undefined)
+    // no FormularioWizard, fazendo o frontend mandar protocolo: "".
+    protocolo: raw.protocolo || null,
     editado: !!raw.editado,
     editadoEm: raw.editado_em ?? null,
     respostasAnteriores: (raw.respostas ?? []).map(

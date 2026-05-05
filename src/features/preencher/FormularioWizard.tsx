@@ -184,7 +184,9 @@ export function FormularioWizard({ dados, ehCorrecao, onFinalizado }: Props) {
   )
 
   async function enviar() {
-    const protocolo = dados.protocolo ?? gerarProtocolo()
+    // Usa `||` (não `??`) porque o backend pode devolver "" em vez de null
+    // quando a coluna Protocolo do monday está vazia.
+    const protocolo = dados.protocolo || gerarProtocolo()
     const datasOriginais = new Set(dados.dias)
     // diasExtras = everything outside the original convocation window
     // (covers both previously-saved extras and new in-session adds).
