@@ -11,4 +11,8 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    // Sem minificação para preservar backdrop-filter e filtros SVG
+    minify: false,
+  },
 })

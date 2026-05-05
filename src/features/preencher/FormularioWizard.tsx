@@ -540,7 +540,7 @@ function DialogAdicionarDias({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="glass-modal border-0 bg-transparent p-8 text-white sm:max-w-md">
+      <DialogContent className="glass-modal border-0 bg-transparent p-8 text-white sm:max-w-md" style={{ backdropFilter: 'blur(10px) saturate(140%) brightness(1.05)' }}>
         <DialogHeader>
           <p className="text-[10px] uppercase tracking-[0.3em] text-white/55">
             Adicionar dias
@@ -669,7 +669,7 @@ function DialogDia({ dia, respostaAtual, onClose, onSalvar }: DialogDiaProps) {
 
   return (
     <Dialog open={!!dia} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="glass-modal border-0 bg-transparent p-8 text-white sm:max-w-md">
+      <DialogContent className="glass-modal border-0 bg-transparent p-8 text-white sm:max-w-md" style={{ backdropFilter: 'blur(10px) saturate(140%) brightness(1.05)' }}>
         <DialogHeader>
           <p className="text-[10px] uppercase tracking-[0.3em] text-white/55">
             Registrar dia
