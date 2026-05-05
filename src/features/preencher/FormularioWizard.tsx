@@ -3,18 +3,14 @@ import { format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import {
   CalendarDays,
-  ChevronRight,
   ChevronDown,
   ChevronUp,
   Loader2,
-  Plus,
   RotateCcw,
   Sparkles,
   Trash2,
   X,
 } from "lucide-react"
-import { DayPicker } from "react-day-picker"
-import "react-day-picker/style.css"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -40,12 +36,16 @@ type Props = {
   onFinalizado?: (protocolo: string) => void
 }
 
-function formatarDia(iso: string): string {
+function formatarDiaCompleto(iso: string): string {
   return format(parseISO(iso), "EEEE, dd 'de' MMMM", { locale: ptBR })
 }
 
+function formatarDiaSemana(iso: string): string {
+  return format(parseISO(iso), "EEEE", { locale: ptBR })
+}
+
 function formatarDiaCurto(iso: string): string {
-  return format(parseISO(iso), "dd/MM", { locale: ptBR })
+  return format(parseISO(iso), "dd 'de' MMM", { locale: ptBR })
 }
 
 function respostasIniciais(
@@ -66,8 +66,6 @@ function respostasIniciais(
 function diasInfoIniciais(dados: ProcessamentoDados): DiaInfo[] {
   const desativados = new Set(dados.diasDesativados ?? [])
   const todos = new Set<string>([...dados.dias, ...(dados.diasExtras ?? [])])
-  // Loaded days (base + previously-saved extras) all start as 'padrao'.
-  // Only days added in the CURRENT session get tipo: "extra" (dashed border).
   return [...todos]
     .sort()
     .map((d) => ({
@@ -86,8 +84,6 @@ export function FormularioWizard({ dados, ehCorrecao, onFinalizado }: Props) {
   )
   const [diaEditando, setDiaEditando] = useState<string | null>(null)
   const [modoApagar, setModoApagar] = useState(false)
-  const [mostrarCalendario, setMostrarCalendario] = useState(false)
-  const [estourando, setEstourando] = useState<Set<string>>(() => new Set())
 
   const finalizar = useFinalizarProcessamento(dados.uuid)
 
@@ -96,74 +92,20 @@ export function FormularioWizard({ dados, ehCorrecao, onFinalizado }: Props) {
     setDiaEditando(null)
   }
 
-  // --- Add days ---
-  const adicionarDias = useCallback(
-    (novasDatas: Date[]) => {
-      const datasExistentes = new Set(diasInfo.map((d) => d.data))
-      const novos: DiaInfo[] = []
-      for (const dt of novasDatas) {
-        const iso = format(dt, "yyyy-MM-dd")
-        if (!datasExistentes.has(iso)) {
-          novos.push({ data: iso, tipo: "extra", ativo: true })
-        }
-      }
-
-      if (novos.length === 0) return
-
-      setDiasInfo((prev) => {
-        const all = [...prev, ...novos]
-        all.sort((a, b) => a.data.localeCompare(b.data))
-        return all
-      })
-
-      // Add default respostas for new days
-      setRespostas((prev) => {
-        const next = { ...prev }
-        for (const d of novos) {
-          next[d.data] = { data: d.data, tipo: "sem_ocorrencia" }
-        }
-        return next
-      })
-
-      setMostrarCalendario(false)
-    },
-    [diasInfo],
-  )
-
-  // --- Delete / deactivate day ---
+  // --- Desconsiderar dia (toggle ativo) ---
   const handleClickDiaApagar = useCallback(
     (diaInfo: DiaInfo) => {
       if (!modoApagar) return
-
-      if (diaInfo.tipo === "extra") {
-        // In-session extras: bubble-pop animation, then remove
-        setEstourando((prev) => new Set(prev).add(diaInfo.data))
-        setTimeout(() => {
-          setDiasInfo((prev) => prev.filter((d) => d.data !== diaInfo.data))
-          setRespostas((prev) => {
-            const next = { ...prev }
-            delete next[diaInfo.data]
-            return next
-          })
-          setEstourando((prev) => {
-            const next = new Set(prev)
-            next.delete(diaInfo.data)
-            return next
-          })
-        }, 480)
-      } else {
-        // Loaded days (base or previously-saved extras): toggle active
-        setDiasInfo((prev) =>
-          prev.map((d) =>
-            d.data === diaInfo.data ? { ...d, ativo: false } : d,
-          ),
-        )
-      }
+      setDiasInfo((prev) =>
+        prev.map((d) =>
+          d.data === diaInfo.data ? { ...d, ativo: false } : d,
+        ),
+      )
     },
     [modoApagar],
   )
 
-  // --- Reactivate a disabled standard day ---
+  // --- Reactivate a desconsiderado day ---
   const reativarDia = useCallback((data: string) => {
     setDiasInfo((prev) =>
       prev.map((d) => (d.data === data ? { ...d, ativo: true } : d)),
@@ -175,21 +117,21 @@ export function FormularioWizard({ dados, ehCorrecao, onFinalizado }: Props) {
     [diasInfo],
   )
 
-  const comOcorrencia = useMemo(
-    () =>
-      diasAtivos.filter(
-        (d) => respostas[d.data] && respostas[d.data].tipo !== "sem_ocorrencia",
-      ).length,
-    [diasAtivos, respostas],
-  )
+  // Conta TUDO que foge de "sem ocorrência":
+  // faltas + atrasos + dias desconsiderados.
+  const totalOcorrencias = useMemo(() => {
+    const desconsiderados = diasInfo.filter((d) => !d.ativo).length
+    const comOcorrencia = diasAtivos.filter(
+      (d) => respostas[d.data] && respostas[d.data].tipo !== "sem_ocorrencia",
+    ).length
+    return desconsiderados + comOcorrencia
+  }, [diasInfo, diasAtivos, respostas])
 
   async function enviar() {
     // Usa `||` (não `??`) porque o backend pode devolver "" em vez de null
     // quando a coluna Protocolo do monday está vazia.
     const protocolo = dados.protocolo || gerarProtocolo()
     const datasOriginais = new Set(dados.dias)
-    // diasExtras = everything outside the original convocation window
-    // (covers both previously-saved extras and new in-session adds).
     const todasExtras = diasInfo
       .filter((d) => !datasOriginais.has(d.data))
       .map((d) => d.data)
@@ -240,26 +182,13 @@ export function FormularioWizard({ dados, ehCorrecao, onFinalizado }: Props) {
                 </div>
               </div>
 
-              {/* Action buttons: Add + Delete */}
+              {/* Action button: Desconsiderar */}
               <div className="mt-4 flex items-center gap-2">
-                <button
-                  type="button"
-                  className="btn-action-expand btn-add"
-                  onClick={() => {
-                    setModoApagar(false)
-                    setMostrarCalendario(true)
-                  }}
-                  title="Adicionar dias"
-                >
-                  <Plus className="size-4 shrink-0 text-[#6ea0ff]" />
-                  <span className="btn-label text-[#6ea0ff]">Adicionar dias</span>
-                </button>
-
                 <button
                   type="button"
                   className={`btn-action-expand btn-delete ${modoApagar ? "btn-delete-active" : ""}`}
                   onClick={() => setModoApagar((v) => !v)}
-                  title="Apagar dias"
+                  title="Desconsiderar dia"
                 >
                   {modoApagar ? (
                     <X className="size-4 shrink-0 text-red-300" />
@@ -267,15 +196,15 @@ export function FormularioWizard({ dados, ehCorrecao, onFinalizado }: Props) {
                     <Trash2 className="size-4 shrink-0 text-red-300/70" />
                   )}
                   <span className="btn-label text-red-300">
-                    {modoApagar ? "Concluir" : "Apagar dias"}
+                    {modoApagar ? "Concluir" : "Desconsiderar dia"}
                   </span>
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Day list */}
-          <ul className="mt-7 space-y-2">
+          {/* Day grid: 2 per row, last odd item spans both columns */}
+          <ul className="mt-7 grid grid-cols-2 gap-2.5 dia-grid">
             {diasInfo.map((diaInfo, i) => (
               <DiaItem
                 key={diaInfo.data}
@@ -283,7 +212,6 @@ export function FormularioWizard({ dados, ehCorrecao, onFinalizado }: Props) {
                 resposta={respostas[diaInfo.data]}
                 index={i}
                 modoApagar={modoApagar}
-                estourando={estourando.has(diaInfo.data)}
                 onEdit={() => {
                   if (!modoApagar && diaInfo.ativo) setDiaEditando(diaInfo.data)
                 }}
@@ -293,12 +221,12 @@ export function FormularioWizard({ dados, ehCorrecao, onFinalizado }: Props) {
             ))}
           </ul>
 
-          {/* Delete mode banner */}
+          {/* Desconsiderar mode banner */}
           {modoApagar && (
             <div className="glass-banner-danger mt-4 flex items-center justify-center gap-2 px-4 py-3 fade-up">
               <Trash2 className="size-4 text-red-300/80" />
               <p className="text-sm text-red-200/80">
-                Toque em um dia para removê-lo. Clique em{" "}
+                Toque em um dia para desconsiderá-lo. Clique em{" "}
                 <strong className="text-red-200">Concluir</strong> quando terminar.
               </p>
             </div>
@@ -333,11 +261,11 @@ export function FormularioWizard({ dados, ehCorrecao, onFinalizado }: Props) {
             </button>
 
             <p className="text-center text-xs text-white/55">
-              {comOcorrencia === 0
+              {totalOcorrencias === 0
                 ? "Nenhuma ocorrência registrada. Você pode finalizar assim mesmo."
-                : `${comOcorrencia} ${
-                    comOcorrencia === 1 ? "dia marcado" : "dias marcados"
-                  } com ocorrência.`}
+                : `${totalOcorrencias} ${
+                    totalOcorrencias === 1 ? "dia com ocorrência" : "dias com ocorrência"
+                  }.`}
             </p>
           </div>
         </section>
@@ -350,26 +278,17 @@ export function FormularioWizard({ dados, ehCorrecao, onFinalizado }: Props) {
         onClose={() => setDiaEditando(null)}
         onSalvar={salvarResposta}
       />
-
-      {/* Dialog: add days calendar */}
-      <DialogAdicionarDias
-        open={mostrarCalendario}
-        onClose={() => setMostrarCalendario(false)}
-        diasExistentes={diasInfo.map((d) => d.data)}
-        onConfirmar={adicionarDias}
-      />
     </div>
   )
 }
 
-/* ─── Day list item ─── */
+/* ─── Day grid item ─── */
 
 type DiaItemProps = {
   diaInfo: DiaInfo
   resposta: RespostaDia | undefined
   index: number
   modoApagar: boolean
-  estourando: boolean
   onEdit: () => void
   onApagar: () => void
   onReativar: () => void
@@ -380,88 +299,87 @@ function DiaItem({
   resposta,
   index,
   modoApagar,
-  estourando,
   onEdit,
   onApagar,
   onReativar,
 }: DiaItemProps) {
-  const isExtra = diaInfo.tipo === "extra"
   const isDisabled = !diaInfo.ativo
 
-  // Build tile class
-  const tileBase = "group flex w-full items-center justify-between rounded-2xl px-5 py-4 text-left"
-  const tileStyle = isDisabled
-    ? "glass-tile-disabled"
-    : isExtra
-      ? "glass-tile glass-tile-extra"
-      : "glass-tile"
+  const tileBase =
+    "group relative flex h-full w-full flex-col items-center justify-center gap-1.5 rounded-2xl px-3 py-4 text-left"
+  const tileStyle = isDisabled ? "glass-tile-disabled" : "glass-tile glass-tile-3d"
 
-  const shakeClass = !estourando && modoApagar && diaInfo.ativo ? "shake-mode" : ""
-  const slideClass = isExtra ? "slide-in-right" : "fade-up"
-  const popClass = estourando ? "bubble-pop" : ""
+  const shakeClass = modoApagar && diaInfo.ativo ? "shake-mode" : ""
 
   function handleClick() {
-    if (estourando) return
     if (modoApagar && diaInfo.ativo) {
       onApagar()
     } else if (isDisabled) {
-      // Disabled days are handled via the overlay
+      // Reativar via overlay
       return
     } else if (!modoApagar) {
       onEdit()
     }
   }
 
+  // 3D tilt: cursor sets --mx/--my, CSS does perspective rotateX/Y
+  function handleMove(e: React.MouseEvent<HTMLButtonElement>) {
+    if (isDisabled) return
+    const r = e.currentTarget.getBoundingClientRect()
+    const mx = ((e.clientX - r.left) / r.width) * 100
+    const my = ((e.clientY - r.top) / r.height) * 100
+    e.currentTarget.style.setProperty("--mx", String(mx))
+    e.currentTarget.style.setProperty("--my", String(my))
+  }
+  function handleLeave(e: React.MouseEvent<HTMLButtonElement>) {
+    e.currentTarget.style.setProperty("--mx", "50")
+    e.currentTarget.style.setProperty("--my", "50")
+  }
+
   return (
     <li
-      className={`${popClass || slideClass} ${shakeClass}`.trim()}
-      style={!isExtra && !estourando ? { animationDelay: `${200 + index * 60}ms` } : undefined}
+      className={`fade-up ${shakeClass}`.trim()}
+      style={{ animationDelay: `${200 + index * 60}ms` }}
     >
       <button
         type="button"
         className={`${tileBase} ${tileStyle}`}
         onClick={handleClick}
+        onMouseMove={handleMove}
+        onMouseLeave={handleLeave}
       >
-        {isExtra && diaInfo.ativo && (
-          <svg className="extra-dash-svg" aria-hidden="true">
-            <rect
-              x="0"
-              y="0"
-              width="100%"
-              height="100%"
-              rx="14"
-              ry="14"
-              vectorEffect="non-scaling-stroke"
-            />
-          </svg>
-        )}
-        <div className="min-w-0">
-          <p className={`text-[15px] font-medium capitalize ${isDisabled ? "text-white/35 line-through" : "text-white/95"}`}>
-            {formatarDia(diaInfo.data)}
-          </p>
-          <div className="mt-1 text-sm text-white/60">
-            {isDisabled ? (
-              <span className="inline-flex items-center gap-2 text-white/30">
-                <span className="lamp lamp-off" />
-                Dia desativado
-              </span>
-            ) : (
-              <BadgeResposta resposta={resposta} />
-            )}
-          </div>
+        <p
+          className={`text-[10px] uppercase tracking-[0.18em] ${
+            isDisabled ? "text-white/30" : "text-white/55"
+          }`}
+        >
+          {formatarDiaSemana(diaInfo.data)}
+        </p>
+        <p
+          className={`text-display text-2xl leading-none ${
+            isDisabled ? "text-white/35 line-through" : "text-white/95"
+          }`}
+        >
+          {formatarDiaCurto(diaInfo.data)}
+        </p>
+        <div className="mt-1 text-xs">
+          {isDisabled ? (
+            <span className="inline-flex items-center gap-1.5 text-violet-300/75">
+              <LampBroken />
+              Desconsiderado
+            </span>
+          ) : (
+            <BadgeResposta resposta={resposta} />
+          )}
         </div>
 
-        {!isDisabled && !modoApagar && (
-          <ChevronRight className="size-4 shrink-0 text-white/45 transition-transform group-hover:translate-x-0.5 group-hover:text-white" />
-        )}
-
         {modoApagar && diaInfo.ativo && (
-          <div className="flex size-7 items-center justify-center rounded-full bg-red-400/15 ring-1 ring-red-400/30 transition-all group-hover:bg-red-400/25">
-            <X className="size-3.5 text-red-300" />
+          <div className="absolute right-2 top-2 flex size-6 items-center justify-center rounded-full bg-red-400/15 ring-1 ring-red-400/30 transition-all group-hover:bg-red-400/25">
+            <X className="size-3 text-red-300" />
           </div>
         )}
 
-        {/* Overlay for reactivating disabled standard days */}
+        {/* Overlay for reactivating desconsiderados */}
         {isDisabled && (
           <div
             className="disabled-overlay"
@@ -470,9 +388,9 @@ function DiaItem({
               onReativar()
             }}
           >
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-medium text-white/90 backdrop-blur transition-all hover:bg-white/15">
-              <RotateCcw className="size-3.5" />
-              Reativar dia
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-medium text-white/90 backdrop-blur transition-all hover:bg-white/15">
+              <RotateCcw className="size-3" />
+              Reativar
             </span>
           </div>
         )}
@@ -508,112 +426,6 @@ function Header({ dados }: { dados: ProcessamentoDados }) {
   )
 }
 
-/* ─── Dialog: Add Days Calendar ─── */
-
-type DialogAdicionarDiasProps = {
-  open: boolean
-  onClose: () => void
-  diasExistentes: string[]
-  onConfirmar: (dates: Date[]) => void
-}
-
-function DialogAdicionarDias({
-  open,
-  onClose,
-  diasExistentes,
-  onConfirmar,
-}: DialogAdicionarDiasProps) {
-  const [selecionadas, setSelecionadas] = useState<Date[]>([])
-
-  useEffect(() => {
-    if (open) setSelecionadas([])
-  }, [open])
-
-  const diasDesabilitados = useMemo(
-    () => diasExistentes.map((d) => parseISO(d)),
-    [diasExistentes],
-  )
-
-  function confirmar() {
-    if (selecionadas.length === 0) return
-    onConfirmar(selecionadas)
-    setSelecionadas([])
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="glass-modal border-0 bg-transparent p-8 text-white sm:max-w-md" style={{ backdropFilter: 'blur(10px) saturate(140%) brightness(1.05)' }}>
-        <DialogHeader>
-          <p className="text-[10px] uppercase tracking-[0.3em] text-white/55">
-            Adicionar dias
-          </p>
-          <DialogTitle className="text-display text-3xl text-white">
-            Selecione os dias
-          </DialogTitle>
-          <DialogDescription className="text-white/60">
-            Escolha um ou mais dias extras para adicionar ao período.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="my-2 h-px bg-white/12" />
-
-        <div className="flex justify-center">
-          <DayPicker
-            mode="multiple"
-            selected={selecionadas}
-            onSelect={(days) => setSelecionadas(days ?? [])}
-            disabled={diasDesabilitados}
-            locale={ptBR}
-            showOutsideDays
-            fixedWeeks
-          />
-        </div>
-
-        {selecionadas.length > 0 && (
-          <div className="mt-2 rounded-xl border border-[#6ea0ff]/20 bg-[#6ea0ff]/8 px-4 py-3">
-            <p className="text-xs font-medium text-[#6ea0ff]/90">
-              {selecionadas.length}{" "}
-              {selecionadas.length === 1 ? "dia selecionado" : "dias selecionados"}
-              :{" "}
-              <span className="text-white/70">
-                {selecionadas
-                  .sort((a, b) => a.getTime() - b.getTime())
-                  .map((d) => formatarDiaCurto(format(d, "yyyy-MM-dd")))
-                  .join(", ")}
-              </span>
-            </p>
-          </div>
-        )}
-
-        <DialogFooter className="mt-3 gap-2 sm:justify-between">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onClose}
-            className="text-white/65 hover:bg-white/10 hover:text-white"
-          >
-            Cancelar
-          </Button>
-          <button
-            type="button"
-            onClick={confirmar}
-            disabled={selecionadas.length === 0}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-full px-6 text-sm font-medium tracking-wide text-[#0a1224] transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
-            style={{
-              background:
-                "linear-gradient(135deg, #6ea0ff 0%, #4a7dff 60%, #e8c275 140%)",
-              border: "1px solid rgba(110, 160, 255, 0.5)",
-            }}
-          >
-            <Plus className="size-4" />
-            Adicionar {selecionadas.length > 0 ? `(${selecionadas.length})` : ""}
-          </button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
 /* ─── Dialog: Edit day occurrence ─── */
 
 type Passo = "faltou" | "atraso" | "minutos"
@@ -640,7 +452,6 @@ function DialogDia({ dia, respostaAtual, onClose, onSalvar }: DialogDiaProps) {
 
   if (!dia) return null
 
-  // "Foi trabalhar?" — Sim avança, Não vira falta
   function handleFoiTrabalhar(v: boolean) {
     if (v) {
       setPasso("atraso")
@@ -649,7 +460,6 @@ function DialogDia({ dia, respostaAtual, onClose, onSalvar }: DialogDiaProps) {
     }
   }
 
-  // "Chegou no horário?" — Sim finaliza sem ocorrência, Não pede minutos
   function handleChegouNoHorario(v: boolean) {
     if (v) {
       onSalvar({ data: dia!, tipo: "sem_ocorrencia" })
@@ -677,7 +487,7 @@ function DialogDia({ dia, respostaAtual, onClose, onSalvar }: DialogDiaProps) {
             Registrar dia
           </p>
           <DialogTitle className="text-display text-3xl capitalize text-white">
-            {formatarDia(dia)}
+            {formatarDiaCompleto(dia)}
           </DialogTitle>
           <DialogDescription className="text-white/60">
             Registre o que aconteceu neste dia.
@@ -742,7 +552,7 @@ function DialogDia({ dia, respostaAtual, onClose, onSalvar }: DialogDiaProps) {
                   value={minutos}
                   onChange={setMinutos}
                   min={1}
-                  step={5}
+                  step={1}
                   placeholder="Ex: 30"
                   autoFocus
                   className="flex-1"
@@ -826,18 +636,25 @@ function NumStepper({
     onChange(String(next))
   }
 
+  // Aceita só dígitos no input — evita validação chata do HTML5 number
+  // ("valor mais próximo é X") quando o usuário digita um valor que não
+  // bate com o `step`. Usamos type="text" + inputMode="numeric" pra
+  // mostrar teclado numérico no mobile sem o validation nativo.
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const v = e.target.value.replace(/[^\d]/g, "")
+    onChange(v)
+  }
+
   return (
     <div className={`num-stepper ${className}`}>
       <input
         id={id}
-        type="number"
+        type="text"
         inputMode="numeric"
-        min={min}
-        max={max}
-        step={step}
+        pattern="[0-9]*"
         placeholder={placeholder}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={handleChange}
         autoFocus={autoFocus}
       />
       <div className="num-stepper-controls" aria-hidden>
@@ -911,7 +728,7 @@ function ChoiceButton({
 function BadgeResposta({ resposta }: { resposta: RespostaDia | undefined }) {
   if (!resposta || resposta.tipo === "sem_ocorrencia") {
     return (
-      <span className="inline-flex items-center gap-2 text-emerald-300">
+      <span className="inline-flex items-center gap-1.5 text-emerald-300">
         <span className="lamp lamp-on-green" />
         Sem ocorrências
       </span>
@@ -919,16 +736,59 @@ function BadgeResposta({ resposta }: { resposta: RespostaDia | undefined }) {
   }
   if (resposta.tipo === "falta") {
     return (
-      <span className="inline-flex items-center gap-2 text-red-300/85">
+      <span className="inline-flex items-center gap-1.5 text-red-300/85">
         <span className="lamp lamp-off" />
         Faltou
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center gap-2 text-yellow-300">
+    <span className="inline-flex items-center gap-1.5 text-yellow-300">
       <span className="lamp lamp-flicker-yellow" />
-      Atraso · {resposta.minutosAtraso} min
+      {resposta.minutosAtraso} min
+    </span>
+  )
+}
+
+/* Lâmpada quebrada — bulbo escurecido roxo + rachadura SVG.
+   Usada no estado "Desconsiderado" pra distinguir visualmente das
+   outras 3 lâmpadas (verde/sem-oco, cinza/falta, amarela/atraso). */
+function LampBroken() {
+  return (
+    <span className="lamp-broken-wrap" aria-hidden>
+      <svg width="12" height="12" viewBox="0 0 12 12" className="block">
+        <defs>
+          <radialGradient id="lb-bg" cx="35%" cy="30%">
+            <stop offset="0%" stopColor="#4a2852" />
+            <stop offset="100%" stopColor="#0e0518" />
+          </radialGradient>
+        </defs>
+        <circle
+          cx="6"
+          cy="6"
+          r="5"
+          fill="url(#lb-bg)"
+          stroke="rgba(168,85,247,0.45)"
+          strokeWidth="0.4"
+        />
+        {/* Rachadura principal em zigue-zague */}
+        <path
+          d="M3.4 2.6 L4.9 4.4 L3.9 5.2 L5.4 6.9 L4.4 8.7"
+          stroke="rgba(240,210,255,0.9)"
+          strokeWidth="0.7"
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        {/* Trinca secundária menor */}
+        <path
+          d="M7.6 4 L7 5.6"
+          stroke="rgba(240,210,255,0.55)"
+          strokeWidth="0.5"
+          fill="none"
+          strokeLinecap="round"
+        />
+      </svg>
     </span>
   )
 }

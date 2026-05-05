@@ -284,6 +284,92 @@
     }
   }
 
+  /* ─── Tile 3D (segue o cursor): mesma técnica do .choice-btn ───
+     --mx, --my (0..100) setados via JS no mousemove. Default 50/50 = neutro.
+     A perspectiva inclina o tile + a camada de pressão/levantamento dá
+     a sensação de profundidade física. */
+  .glass-tile-3d {
+    --mx: 50;
+    --my: 50;
+    isolation: isolate;
+    transform:
+      perspective(800px)
+      rotateY(calc((var(--mx) - 50) * 0.14deg))
+      rotateX(calc((50 - var(--my)) * 0.14deg))
+      translateZ(0);
+    transition:
+      transform 110ms ease-out,
+      background 200ms ease,
+      border-color 200ms ease,
+      box-shadow 200ms ease;
+    transform-style: preserve-3d;
+  }
+
+  /* Halo de pressão (afunda no canto do cursor) + lift no canto oposto.
+     Usa ::before pra não conflitar com glass-edge::after. */
+  .glass-tile-3d::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background:
+      radial-gradient(
+        circle at calc(var(--mx) * 1%) calc(var(--my) * 1%),
+        rgba(0, 0, 0, 0.28) 0%,
+        transparent 42%
+      ),
+      radial-gradient(
+        circle at calc((100 - var(--mx)) * 1%) calc((100 - var(--my)) * 1%),
+        rgba(255, 255, 255, 0.13) 0%,
+        transparent 38%
+      );
+    opacity: 0;
+    transition: opacity 220ms ease;
+    z-index: 0;
+  }
+
+  .glass-tile-3d:hover::before {
+    opacity: 1;
+  }
+
+  .glass-tile-3d:hover {
+    box-shadow:
+      0 18px 40px -8px rgba(0, 0, 0, 0.65),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.25),
+      inset 0 -1px 0 0 rgba(255, 255, 255, 0.05);
+  }
+
+  .glass-tile-3d:active {
+    transform:
+      perspective(800px)
+      rotateY(calc((var(--mx) - 50) * 0.06deg))
+      rotateX(calc((50 - var(--my)) * 0.06deg))
+      translateZ(-3px)
+      scale(0.985);
+    transition: transform 80ms ease-out;
+  }
+
+  /* Conteúdo do tile sempre acima do halo */
+  .glass-tile-3d > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ─── Grid de dias: 2 por linha, último ímpar ocupa as 2 colunas ─── */
+  .dia-grid > li:last-child:nth-child(odd) {
+    grid-column: span 2;
+  }
+
+  /* ─── Lâmpada quebrada (estado "Desconsiderado") ─── */
+  .lamp-broken-wrap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    filter: drop-shadow(0 0 4px rgba(168, 85, 247, 0.4));
+  }
+
   .text-display {
     font-family: "Instrument Serif", ui-serif, Georgia, serif;
     font-weight: 400;
@@ -846,26 +932,18 @@
   z-index: 2;
 }
 
-/* Variante "primary" — gradiente dourado iluminado: glow ambient + halo */
-.choice-btn--primary {
+/* Variante "primary" — começa neutra (igual ghost), só "acende" dourada
+   no hover. Evita que o cérebro pré-ative o "Sim" antes do usuário decidir. */
+.choice-btn--primary:hover {
   background: linear-gradient(135deg, #f0cc7d 0%, #d4a64a 55%, #8a6420 130%);
-  border: 1px solid rgba(255, 236, 194, 0.55);
+  border-color: rgba(255, 236, 194, 0.55);
   color: #0a1224;
   box-shadow:
     /* Halo dourado distante (luz ambiente "vazando" ao redor) */
-    0 0 40px 4px rgba(232, 194, 117, 0.35),
-    /* Glow dourado próximo (definição) */
-    0 16px 36px -6px rgba(232, 194, 117, 0.65),
-    /* Highlight da face (pop de cor) */
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.5),
-    inset 0 -1px 0 0 rgba(138, 100, 32, 0.4);
-}
-
-.choice-btn--primary:hover {
-  box-shadow:
-    /* Halo expande no hover, parece que a luz ficou mais intensa */
     0 0 60px 8px rgba(232, 194, 117, 0.5),
+    /* Glow dourado próximo (definição) */
     0 20px 44px -6px rgba(232, 194, 117, 0.75),
+    /* Highlight da face (pop de cor) */
     inset 0 1px 0 0 rgba(255, 255, 255, 0.55),
     inset 0 -1px 0 0 rgba(138, 100, 32, 0.4);
 }
