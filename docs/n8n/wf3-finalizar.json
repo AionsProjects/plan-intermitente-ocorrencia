@@ -70,8 +70,8 @@
     },
     {
       "parameters": {
-        "resource": "boardItemColumn",
-        "operation": "changeMultiple",
+        "resource": "boardItem",
+        "operation": "changeMultipleColumnValues",
         "boardId": 18411141462,
         "itemId": "={{ $('Validar e preparar').first().json.item_id }}",
         "columnValues": "={{ $('Validar e preparar').first().json.column_values_json }}"
