@@ -46,6 +46,9 @@ export function PreencherPage() {
 
   if (!data) return <TelaCarregando />
 
+  // Modo teste: UUID começa com "mock-" — UI exibe banner e botão pra sair.
+  const ehTeste = data.uuid.startsWith("mock-")
+
   if (data.status === "expirado") {
     return (
       <TelaErro
@@ -61,16 +64,21 @@ export function PreencherPage() {
       <FormularioWizard
         dados={data}
         ehCorrecao
+        ehTeste={ehTeste}
         onFinalizado={() => setAcabouEditar(true)}
       />
     )
   }
 
   if (data.status === "concluido") {
-    return <TelaObrigado dados={data} />
+    return <TelaObrigado dados={data} ehCorrecao={ehCorrecao} ehTeste={ehTeste} />
   }
 
   return (
-    <FormularioWizard dados={data} onFinalizado={() => setAcabouEditar(true)} />
+    <FormularioWizard
+      dados={data}
+      ehTeste={ehTeste}
+      onFinalizado={() => setAcabouEditar(true)}
+    />
   )
 }

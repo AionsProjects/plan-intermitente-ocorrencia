@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
+import { Link } from "react-router-dom"
 import {
+  ArrowLeft,
   CalendarDays,
   ChevronDown,
   ChevronUp,
+  FlaskConical,
   Loader2,
   RotateCcw,
   Sparkles,
@@ -33,6 +36,7 @@ import {
 type Props = {
   dados: ProcessamentoDados
   ehCorrecao?: boolean
+  ehTeste?: boolean
   onFinalizado?: (protocolo: string) => void
 }
 
@@ -75,7 +79,7 @@ function diasInfoIniciais(dados: ProcessamentoDados): DiaInfo[] {
     }))
 }
 
-export function FormularioWizard({ dados, ehCorrecao, onFinalizado }: Props) {
+export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: Props) {
   const [respostas, setRespostas] = useState<Record<string, RespostaDia>>(() =>
     respostasIniciais(dados.dias, dados.respostasAnteriores),
   )
@@ -159,6 +163,7 @@ export function FormularioWizard({ dados, ehCorrecao, onFinalizado }: Props) {
 
   return (
     <div className="relative z-10 min-h-svh">
+      {ehTeste && <BannerTeste />}
       <Header dados={dados} />
 
       <main className="mx-auto max-w-2xl px-4 pb-16">
@@ -747,6 +752,32 @@ function BadgeResposta({ resposta }: { resposta: RespostaDia | undefined }) {
       <span className="lamp lamp-flicker-yellow" />
       {resposta.minutosAtraso} min
     </span>
+  )
+}
+
+/* Banner fixo no topo quando o usuário está num quadro de teste (UUID mock-).
+   Avisa que NÃO é um registro real e oferece atalho pra voltar à correção.
+   Sticky pra acompanhar o scroll na lista de dias. */
+function BannerTeste() {
+  return (
+    <div className="sticky top-0 z-30 w-full border-b border-amber-300/20 bg-amber-500/[0.08] px-4 py-2.5 backdrop-blur-md fade-up">
+      <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <FlaskConical className="size-4 shrink-0 text-amber-300" />
+          <p className="truncate text-xs leading-relaxed text-amber-100/85">
+            <span className="font-semibold">Quadro de teste</span>
+            <span className="text-amber-100/60"> · nada do que for enviado aqui é registrado de verdade.</span>
+          </p>
+        </div>
+        <Link
+          to="/corrigir"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-amber-300/30 bg-amber-300/[0.08] px-3 py-1 text-[11px] font-medium text-amber-100 transition hover:border-amber-300/50 hover:bg-amber-300/15"
+        >
+          <ArrowLeft className="size-3" />
+          Sair do teste
+        </Link>
+      </div>
+    </div>
   )
 }
 

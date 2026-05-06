@@ -1,12 +1,32 @@
 import { useState } from "react"
-import { Check, Copy, Pencil } from "lucide-react"
+import { Link } from "react-router-dom"
+import { ArrowLeft, ArrowRight, Check, Copy, FlaskConical, Pencil } from "lucide-react"
 import { format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
 import type { ProcessamentoDados } from "./types"
 
-export function TelaObrigado({ dados }: { dados: ProcessamentoDados }) {
+type Props = {
+  dados: ProcessamentoDados
+  ehCorrecao?: boolean
+  ehTeste?: boolean
+}
+
+export function TelaObrigado({ dados, ehCorrecao, ehTeste }: Props) {
   const [copiado, setCopiado] = useState(false)
+
+  // Tilt 3D no botão "Fazer outra correção": mesma técnica do .choice-btn
+  function handleTiltMove(e: React.MouseEvent<HTMLAnchorElement>) {
+    const r = e.currentTarget.getBoundingClientRect()
+    const mx = ((e.clientX - r.left) / r.width) * 100
+    const my = ((e.clientY - r.top) / r.height) * 100
+    e.currentTarget.style.setProperty("--mx", String(mx))
+    e.currentTarget.style.setProperty("--my", String(my))
+  }
+  function handleTiltLeave(e: React.MouseEvent<HTMLAnchorElement>) {
+    e.currentTarget.style.setProperty("--mx", "50")
+    e.currentTarget.style.setProperty("--my", "50")
+  }
 
   const concluidoTexto = dados.concluidoEm
     ? format(parseISO(dados.concluidoEm), "dd/MM/yyyy 'às' HH:mm", {
@@ -61,7 +81,28 @@ export function TelaObrigado({ dados }: { dados: ProcessamentoDados }) {
   }
 
   return (
-    <div className="relative z-10 flex min-h-svh items-center justify-center px-4 py-12">
+    <div className="relative z-10 flex min-h-svh flex-col">
+      {ehTeste && (
+        <div className="sticky top-0 z-30 w-full border-b border-amber-300/20 bg-amber-500/[0.08] px-4 py-2.5 backdrop-blur-md fade-up">
+          <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <FlaskConical className="size-4 shrink-0 text-amber-300" />
+              <p className="truncate text-xs leading-relaxed text-amber-100/85">
+                <span className="font-semibold">Quadro de teste</span>
+                <span className="text-amber-100/60"> · nada do que for enviado aqui é registrado de verdade.</span>
+              </p>
+            </div>
+            <Link
+              to="/corrigir"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-amber-300/30 bg-amber-300/[0.08] px-3 py-1 text-[11px] font-medium text-amber-100 transition hover:border-amber-300/50 hover:bg-amber-300/15"
+            >
+              <ArrowLeft className="size-3" />
+              Sair do teste
+            </Link>
+          </div>
+        </div>
+      )}
+      <div className="flex flex-1 items-center justify-center px-4 py-12">
       <div className="glass-strong w-full max-w-md p-10 text-center fade-up">
         {dados.editado && (
           <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-[#e8c275]/30 bg-[#e8c275]/10 px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-[#e8c275]">
@@ -148,9 +189,26 @@ export function TelaObrigado({ dados }: { dados: ProcessamentoDados }) {
           )}
         </div>
 
+        {ehCorrecao && (
+          <Link
+            to="/corrigir"
+            onMouseMove={handleTiltMove}
+            onMouseLeave={handleTiltLeave}
+            className="choice-btn choice-btn--primary mt-8 w-full"
+          >
+            <span className="inline-flex items-center gap-2">
+              Fazer outra correção
+              <ArrowRight className="size-4" />
+            </span>
+          </Link>
+        )}
+
         <p className="mt-8 text-xs text-white/45">
-          Você já pode fechar esta aba.
+          {ehCorrecao
+            ? "Ou simplesmente feche esta aba."
+            : "Você já pode fechar esta aba."}
         </p>
+      </div>
       </div>
     </div>
   )
