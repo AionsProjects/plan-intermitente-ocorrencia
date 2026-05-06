@@ -6,6 +6,7 @@ import {
   ArrowRight,
   ChevronDown,
   ChevronUp,
+  FlaskConical,
   KeyRound,
   Loader2,
   Pencil,
@@ -68,7 +69,18 @@ export function CorrecaoPage() {
 
   return (
     <div className="relative z-10 flex min-h-svh items-center justify-center px-4 py-12">
-      <div className="glass-strong w-full max-w-xl p-10 fade-up">
+      <div className="glass-strong relative w-full max-w-xl p-10 fade-up">
+        {/* Botão discreto de chave de teste — canto superior direito */}
+        <button
+          type="button"
+          onClick={() => void abrir("PROT-DEMO-1234")}
+          title="Abrir protocolo de teste"
+          className="absolute right-4 top-4 inline-flex size-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-white/35 backdrop-blur transition-all hover:border-[#e8c275]/40 hover:bg-[#e8c275]/10 hover:text-[#e8c275]"
+        >
+          <FlaskConical className="size-3.5" />
+          <span className="sr-only">Abrir protocolo de teste PROT-DEMO-1234</span>
+        </button>
+
         <button
           type="button"
           onClick={() => navigate("/")}

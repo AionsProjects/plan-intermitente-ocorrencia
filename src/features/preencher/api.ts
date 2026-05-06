@@ -72,31 +72,6 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
     diasExtras: [],
     diasDesativados: [],
   },
-  "mock-correcao": {
-    uuid: "mock-correcao",
-    nome: "Maria Aparecida Souza",
-    contrato: "CT-2026-088",
-    dataInicio: "2026-04-15",
-    dataFim: "2026-04-21",
-    dias: mockDias("2026-04-15", "2026-04-21"),
-    status: "concluido",
-    concluidoEm: "2026-04-22T09:15:00Z",
-    protocolo: "PROT-TEST-DEMO",
-    editado: false,
-    editadoEm: null,
-    respostasAnteriores: [
-      { data: "2026-04-15", tipo: "sem_ocorrencia" },
-      { data: "2026-04-16", tipo: "atraso", minutosAtraso: 25 },
-      { data: "2026-04-17", tipo: "falta" },
-      { data: "2026-04-18", tipo: "sem_ocorrencia" },
-      { data: "2026-04-19", tipo: "sem_ocorrencia" },
-      { data: "2026-04-20", tipo: "atraso", minutosAtraso: 10 },
-      { data: "2026-04-21", tipo: "sem_ocorrencia" },
-      { data: "2026-04-23", tipo: "atraso", minutosAtraso: 45 },
-    ],
-    diasExtras: ["2026-04-23"],
-    diasDesativados: [],
-  },
   "mock-expirado": {
     uuid: "mock-expirado",
     nome: "Ciclano Silva",
@@ -115,37 +90,25 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
   },
 }
 
-// Seed localStorage with demo protocols so the "Recentes" list shows up
-// immediately on first load — útil pra testar o fluxo de correção.
-// Roda sempre (não só em USE_MOCK) porque os protocolos demo agora
-// funcionam mesmo com n8n real configurado.
+// Limpa entradas de teste antigas que foram auto-seedadas em versões
+// anteriores (PROT-DEMO-* e PROT-TEST-*). Hoje a chave de teste fica
+// num botão discreto separado, não na lista de recentes.
 if (typeof window !== "undefined") {
   try {
     const KEY = "plano-intermitentes:protocolos"
-    const existentes = JSON.parse(localStorage.getItem(KEY) ?? "[]")
-    const protocolosExistentes = new Set(
-      Array.isArray(existentes)
-        ? existentes.map((e: { protocolo: string }) => e.protocolo)
-        : [],
-    )
-    const seeds = Object.values(MOCK_PROCESSAMENTOS)
-      .filter((m) => m.status === "concluido" && m.protocolo)
-      .filter((m) => !protocolosExistentes.has(m.protocolo!))
-      .map((m) => ({
-        protocolo: m.protocolo!,
-        uuid: m.uuid,
-        nome: m.nome,
-        dataInicio: m.dataInicio,
-        dataFim: m.dataFim,
-        concluidoEm: m.concluidoEm ?? new Date().toISOString(),
-        editadoEm: m.editadoEm,
-      }))
-    if (seeds.length > 0) {
-      const merged = [
-        ...seeds,
-        ...(Array.isArray(existentes) ? existentes : []),
-      ]
-      localStorage.setItem(KEY, JSON.stringify(merged.slice(0, 50)))
+    const raw = localStorage.getItem(KEY)
+    if (raw) {
+      const existentes = JSON.parse(raw)
+      if (Array.isArray(existentes)) {
+        const limpos = existentes.filter(
+          (e: { protocolo: string }) =>
+            !e.protocolo?.startsWith("PROT-DEMO-") &&
+            !e.protocolo?.startsWith("PROT-TEST-"),
+        )
+        if (limpos.length !== existentes.length) {
+          localStorage.setItem(KEY, JSON.stringify(limpos))
+        }
+      }
     }
   } catch {
     // ignore

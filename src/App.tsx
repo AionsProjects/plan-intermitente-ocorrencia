@@ -13,8 +13,7 @@ function DevIndex() {
   // testar telas a qualquer momento, sem mexer em .env.
   const exemplos = [
     { uuid: "mock-aguardando", titulo: "Aguardando preenchimento", desc: "Convocação com 6 dias úteis." },
-    { uuid: "mock-concluido", titulo: "Já concluído", desc: "Tela de agradecimento pós-envio." },
-    { uuid: "mock-correcao", titulo: "Concluído (rico, p/ correção)", desc: "Faltas, atrasos e dia extra. Protocolo PROT-TEST-DEMO." },
+    { uuid: "mock-concluido", titulo: "Já concluído", desc: "Tela de agradecimento pós-envio. Protocolo PROT-DEMO-1234." },
     { uuid: "mock-expirado", titulo: "Link expirado", desc: "Estado de erro por expiração." },
     { uuid: "uuid-inexistente", titulo: "Link inválido", desc: "Estado 404 / não encontrado." },
   ]
@@ -87,8 +86,7 @@ function DevIndex() {
           </Link>
 
           <p className="mt-3 px-1 text-[11px] leading-relaxed text-white/50">
-            Protocolos de teste:{" "}
-            <code className="text-[#e8c275]">PROT-TEST-DEMO</code> ·{" "}
+            Protocolo de teste:{" "}
             <code className="text-[#e8c275]">PROT-DEMO-1234</code>
           </p>
         </div>
