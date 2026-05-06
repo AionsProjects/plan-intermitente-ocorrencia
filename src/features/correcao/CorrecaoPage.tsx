@@ -1,11 +1,21 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { format, parseISO } from "date-fns"
-import { ArrowLeft, ArrowRight, KeyRound, Loader2, Pencil } from "lucide-react"
+import {
+  ArrowLeft,
+  ArrowRight,
+  ChevronDown,
+  ChevronUp,
+  KeyRound,
+  Loader2,
+  Pencil,
+} from "lucide-react"
 
 import { buscarUuidPorProtocolo } from "@/features/preencher/api"
 
 import { listarProtocolos, type ProtocoloEntry } from "./protocoloStorage"
+
+const RECENTES_VISIVEIS = 3
 
 export function CorrecaoPage() {
   const navigate = useNavigate()
@@ -13,6 +23,25 @@ export function CorrecaoPage() {
   const [erro, setErro] = useState<string | null>(null)
   const [carregando, setCarregando] = useState(false)
   const [recentes] = useState<ProtocoloEntry[]>(() => listarProtocolos())
+  const [expandido, setExpandido] = useState(false)
+
+  const recentesVisiveis = expandido
+    ? recentes
+    : recentes.slice(0, RECENTES_VISIVEIS)
+  const ocultos = recentes.length - RECENTES_VISIVEIS
+
+  // 3D tilt: cursor sets --mx/--my, CSS faz perspective rotateX/Y
+  function handleTiltMove(e: React.MouseEvent<HTMLButtonElement>) {
+    const r = e.currentTarget.getBoundingClientRect()
+    const mx = ((e.clientX - r.left) / r.width) * 100
+    const my = ((e.clientY - r.top) / r.height) * 100
+    e.currentTarget.style.setProperty("--mx", String(mx))
+    e.currentTarget.style.setProperty("--my", String(my))
+  }
+  function handleTiltLeave(e: React.MouseEvent<HTMLButtonElement>) {
+    e.currentTarget.style.setProperty("--mx", "50")
+    e.currentTarget.style.setProperty("--my", "50")
+  }
 
   async function abrir(protocolo: string) {
     const limpo = protocolo.trim().toUpperCase()
@@ -116,7 +145,7 @@ export function CorrecaoPage() {
               Recentes deste navegador
             </p>
             <ul className="mt-3 space-y-2">
-              {recentes.map((p, i) => (
+              {recentesVisiveis.map((p, i) => (
                 <li
                   key={p.protocolo}
                   className="fade-up"
@@ -125,7 +154,9 @@ export function CorrecaoPage() {
                   <button
                     type="button"
                     onClick={() => void abrir(p.protocolo)}
-                    className="glass-tile group flex w-full items-center justify-between rounded-2xl px-5 py-4 text-left"
+                    onMouseMove={handleTiltMove}
+                    onMouseLeave={handleTiltLeave}
+                    className="glass-tile glass-tile-3d group relative flex w-full items-center justify-between rounded-2xl px-5 py-4 text-left"
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
@@ -150,6 +181,26 @@ export function CorrecaoPage() {
                 </li>
               ))}
             </ul>
+
+            {ocultos > 0 && (
+              <button
+                type="button"
+                onClick={() => setExpandido((v) => !v)}
+                className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-xs font-medium text-white/60 backdrop-blur transition-all hover:border-white/20 hover:bg-white/[0.06] hover:text-white/90"
+              >
+                {expandido ? (
+                  <>
+                    <ChevronUp className="size-3.5" />
+                    Recolher
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="size-3.5" />
+                    Expandir ({ocultos} {ocultos === 1 ? "outro" : "outros"})
+                  </>
+                )}
+              </button>
+            )}
           </div>
         )}
       </div>
