@@ -17,6 +17,9 @@ export type ProcessamentoDados = {
   respostasAnteriores?: RespostaDia[]
   diasExtras?: string[]
   diasDesativados?: string[]
+  totalMinDevidos: number | null
+  diasPerdeVT: number | null
+  diasPerdeVR: number | null
 }
 
 export type RespostaDia = {

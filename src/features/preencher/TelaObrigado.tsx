@@ -1,10 +1,19 @@
 import { useState } from "react"
 import { Link } from "react-router-dom"
-import { ArrowLeft, ArrowRight, Check, Copy, FlaskConical, Pencil } from "lucide-react"
+import { ArrowLeft, ArrowRight, Check, Clock, Copy, FlaskConical, Pencil, Wallet } from "lucide-react"
 import { format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
 import type { ProcessamentoDados } from "./types"
+
+function formatarMinutos(min: number): string {
+  if (min <= 0) return "0min"
+  const h = Math.floor(min / 60)
+  const m = min % 60
+  if (h === 0) return `${m}min`
+  if (m === 0) return `${h}h`
+  return `${h}h ${m}min`
+}
 
 type Props = {
   dados: ProcessamentoDados
@@ -131,6 +140,51 @@ export function TelaObrigado({ dados, ehCorrecao, ehTeste }: Props) {
           As informações de <span className="text-white">{dados.nome}</span>{" "}
           foram registradas com sucesso.
         </p>
+
+        {dados.totalMinDevidos !== null && (
+          <div className="mt-7 rounded-2xl border border-white/12 bg-white/5 p-5 text-left backdrop-blur">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-white/55">
+              Resumo do período
+            </p>
+            <div className="mt-3 grid grid-cols-1 gap-3">
+              <div className="flex items-center justify-between gap-3">
+                <span className="inline-flex items-center gap-2 text-xs text-white/65">
+                  <Clock className="size-3.5 text-white/45" />
+                  Tempo devido
+                </span>
+                <span className="text-display text-base text-white tracking-wide">
+                  {formatarMinutos(dados.totalMinDevidos)}
+                </span>
+              </div>
+              {dados.diasPerdeVT !== null && (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="inline-flex items-center gap-2 text-xs text-white/65">
+                    <Wallet className="size-3.5 text-white/45" />
+                    Dias sem VT
+                  </span>
+                  <span className="text-display text-base text-white tracking-wide">
+                    {dados.diasPerdeVT}
+                  </span>
+                </div>
+              )}
+              {dados.diasPerdeVR !== null && (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="inline-flex items-center gap-2 text-xs text-white/65">
+                    <Wallet className="size-3.5 text-white/45" />
+                    Dias sem VR
+                  </span>
+                  <span className="text-display text-base text-white tracking-wide">
+                    {dados.diasPerdeVR}
+                  </span>
+                </div>
+              )}
+            </div>
+            <p className="mt-3 text-[11px] leading-relaxed text-white/55">
+              Será descontado na próxima convocação. VT perde em falta ou desconsideração.
+              VR perde também em atraso, mas não conta sábado.
+            </p>
+          </div>
+        )}
 
         {dados.protocolo && (
           <div className="mt-7 rounded-2xl border border-white/12 bg-white/5 p-5 text-left backdrop-blur">

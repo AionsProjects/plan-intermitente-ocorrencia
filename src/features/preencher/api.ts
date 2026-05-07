@@ -18,6 +18,53 @@ function isMockProtocol(protocolo: string): boolean {
   )
 }
 
+/**
+ * Mesma regra do WF3 (Code "Validar e preparar"). Mantida em sync à mão para
+ * os mocks baterem com produção quando exibirmos o resumo na TelaObrigado.
+ *
+ * - Jornada: seg–sex = 480min, sáb = 240min, dom = 0
+ * - VT: perde em falta + desconsideração (qualquer dia útil, incl. sábado)
+ * - VR: perde em falta + desconsideração + atraso, só seg–sex (sábado nunca)
+ * - Domingo ignorado em tudo
+ */
+export function calcularAgregados(
+  respostas: RespostaDia[],
+  diasDesativados: string[],
+): { totalMinDevidos: number; diasPerdeVT: number; diasPerdeVR: number } {
+  const dow = (d: string) => new Date(d + "T00:00:00Z").getUTCDay()
+  const jornadaMin = (d: string) => {
+    const x = dow(d)
+    if (x === 0) return 0
+    if (x === 6) return 240
+    return 480
+  }
+  const isSabado = (d: string) => dow(d) === 6
+  const isDomingo = (d: string) => dow(d) === 0
+
+  let totalMinDevidos = 0
+  let diasPerdeVT = 0
+  let diasPerdeVR = 0
+
+  for (const d of diasDesativados) {
+    if (isDomingo(d)) continue
+    totalMinDevidos += jornadaMin(d)
+    diasPerdeVT += 1
+    if (!isSabado(d)) diasPerdeVR += 1
+  }
+  for (const r of respostas) {
+    if (isDomingo(r.data)) continue
+    if (r.tipo === "falta") {
+      totalMinDevidos += jornadaMin(r.data)
+      diasPerdeVT += 1
+      if (!isSabado(r.data)) diasPerdeVR += 1
+    } else if (r.tipo === "atraso") {
+      totalMinDevidos += r.minutosAtraso ?? 0
+      if (!isSabado(r.data)) diasPerdeVR += 1
+    }
+  }
+  return { totalMinDevidos, diasPerdeVT, diasPerdeVR }
+}
+
 function mockDias(inicio: string, fim: string): string[] {
   const dias: string[] = []
   const atual = new Date(inicio)
@@ -51,6 +98,9 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
     respostasAnteriores: [],
     diasExtras: [],
     diasDesativados: [],
+    totalMinDevidos: null,
+    diasPerdeVT: null,
+    diasPerdeVR: null,
   },
   "mock-concluido": {
     uuid: "mock-concluido",
@@ -71,6 +121,10 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
     ],
     diasExtras: [],
     diasDesativados: [],
+    // 10=sex sem_ocorr (0), 11=sáb falta (+240min, +1VT), 12=dom atraso (ignorado)
+    totalMinDevidos: 240,
+    diasPerdeVT: 1,
+    diasPerdeVR: 0,
   },
   "mock-expirado": {
     uuid: "mock-expirado",
@@ -87,6 +141,9 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
     respostasAnteriores: [],
     diasExtras: [],
     diasDesativados: [],
+    totalMinDevidos: null,
+    diasPerdeVT: null,
+    diasPerdeVR: null,
   },
 }
 
@@ -131,6 +188,9 @@ function snapshot(m: MockState): ProcessamentoDados {
     respostasAnteriores: [...m.respostasAnteriores],
     diasExtras: [...m.diasExtras],
     diasDesativados: [...m.diasDesativados],
+    totalMinDevidos: m.totalMinDevidos,
+    diasPerdeVT: m.diasPerdeVT,
+    diasPerdeVR: m.diasPerdeVR,
   }
 }
 
@@ -183,6 +243,9 @@ export async function buscarProcessamento(
     ),
     diasExtras: raw.dias_extras ?? [],
     diasDesativados: raw.dias_desativados ?? [],
+    totalMinDevidos: raw.total_min_devidos ?? null,
+    diasPerdeVT: raw.dias_perde_vt ?? null,
+    diasPerdeVR: raw.dias_perde_vr ?? null,
   }
 }
 
@@ -201,6 +264,10 @@ export async function finalizarProcessamento(
       mock.respostasAnteriores = payload.respostas
       mock.diasExtras = payload.diasExtras ?? []
       mock.diasDesativados = payload.diasDesativados ?? []
+      const ag = calcularAgregados(mock.respostasAnteriores, mock.diasDesativados)
+      mock.totalMinDevidos = ag.totalMinDevidos
+      mock.diasPerdeVT = ag.diasPerdeVT
+      mock.diasPerdeVR = ag.diasPerdeVR
       if (ehReedicao || payload.ehCorrecao) {
         mock.editado = true
         mock.editadoEm = new Date().toISOString()

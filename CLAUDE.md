@@ -162,7 +162,10 @@ Mapa resumido (detalhe completo + payloads em [docs/monday-board-schema.md](docs
 | Editado | `boolean_mm2x1aa4` | checkbox | true se foi alterado pós-finalização |
 | Qtd. Faltas | `numeric_mm2xe2zk` | numbers | Agregado WF3 |
 | Qtd. Atrasos | `numeric_mm2x18hh` | numbers | Agregado WF3 |
-| Total Minutos Atraso | `numeric_mm2x4fjj` | numbers | Agregado WF3 |
+| Total Minutos Atraso | `numeric_mm2x4fjj` | numbers | Agregado WF3 (só somatório de minutos de atraso) |
+| Total Min Devidos | `numeric_mm3455ss` | numbers | Agregado WF3: jornadas perdidas (falta+desconsid: seg–sex=480, sáb=240) + atrasos. Base pro próximo WF de cálculo R$ |
+| Qtd. Dias Perde VT | `numeric_mm345xb6` | numbers | Agregado WF3: count(falta + desconsid.) — incl. sábado, dom ignorado |
+| Qtd. Dias Perde VR | `numeric_mm34a3ph` | numbers | Agregado WF3: count(falta + desconsid. + atraso) só seg–sex (sáb nunca tem VR) |
 | Dias Extras | `long_text_mm2x73w6` | long_text | JSON: array de YYYY-MM-DD adicionados |
 | Dias Desativados | `long_text_mm2xm820` | long_text | JSON: array de YYYY-MM-DD apagados |
 | Respostas JSON | `long_text_mm2xtcpw` | long_text | JSON: `[{data, tipo, minutos_atraso}]` (coração dos dados) |
@@ -193,6 +196,9 @@ WF2 retorna (snake_case, convertido pra camelCase no `api.ts`):
   respostas: Array<{ data: string; tipo: ...; minutos_atraso?: number }>  // populadas pós-finalização
   dias_extras: string[]       // YYYY-MM-DD[]  (fora do período base)
   dias_desativados: string[]  // YYYY-MM-DD[]  (apagados pelo RH)
+  total_min_devidos: number | null   // jornadas perdidas + atrasos (em min)
+  dias_perde_vt: number | null       // count dias que perderam VT
+  dias_perde_vr: number | null       // count dias que perderam VR
 }
 ```
 - **200** → renderiza painel se `status='aguardando'`, tela obrigado se `concluido`, tela erro se `expirado` (override no frontend se `?modo=correcao` e `concluido` → re-abre form com respostas anteriores)
