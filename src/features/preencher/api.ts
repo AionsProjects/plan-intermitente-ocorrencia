@@ -73,7 +73,10 @@ function mockDias(inicio: string, fim: string): string[] {
   const atual = new Date(inicio)
   const fimData = new Date(fim)
   while (atual <= fimData) {
-    dias.push(atual.toISOString().slice(0, 10))
+    // Pula domingos (igual WF1/WF2/WF3) — intermitentes não trabalham
+    if (atual.getUTCDay() !== 0) {
+      dias.push(atual.toISOString().slice(0, 10))
+    }
     atual.setUTCDate(atual.getUTCDate() + 1)
   }
   return dias
