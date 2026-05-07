@@ -7,7 +7,7 @@ App web que o RH acessa via **link único** para registrar, dia a dia, se um int
 **Funcionando end-to-end (mock + real, em produção na VM):**
 - WF1 (Preparar) — n8n recebe webhook do monday quando RH muda status, gera UUID, cria item no board histórico (status=Aguardando), preenche Link Column do item de origem. **APP_BASE_URL no node "Preparar dados" aponta para `http://192.168.0.41` (IP intranet da VM, sem domínio).**
 - WF2 (Ler) — n8n responde `GET /intermitente-ler?uuid=…`, busca item por UUID via `getByColumnValue`, parseia `respostas_json`/`dias_extras`/`dias_desativados`, retorna shape esperado.
-- WF3 (Finalizar) — n8n responde `POST /intermitente-finalizar`, calcula agregados (qtd_faltas, qtd_atrasos, total_minutos), marca status=Concluído, grava `respostas_json`. Idempotente por natureza (1 item, `change_multiple_column_values`).
+- WF3 (Finalizar) — n8n responde `POST /intermitente-finalizar`, calcula agregados (qtd_faltas, qtd_atrasos, total_minutos, total_min_devidos, dias_perde_vt, dias_perde_vr), marca status=Concluído, grava `respostas_json`. **Após atualizar histórico, busca empregado no RM, resolve regra de benefício do contrato, calcula descontoVR/VT (regra fina: faltas/desconsid = dia inteiro; atraso = proporcional vrDia × min/480) e cria/atualiza item no board "Base de Desconto - Intermitente" (`18400981023`)**. Bloqueia correção pós-PARCIAL/FINALIZADO com 409.
 - WF4 (Buscar protocolo) — n8n responde `GET /intermitente-buscar-protocolo?protocolo=…`, retorna UUID+nome para o fluxo de correção.
 - Frontend: painel com **modal por dia**, perguntas no positivo ("foi trabalhar?", "chegou no horário?"), adicionar/apagar dias com bolha estourando, fluxo de correção via protocolo `PROT-XXXX-XXXX`. Botão "Copiar protocolo" tem fallback `document.execCommand('copy')` pra funcionar em HTTP puro (intranet).
 - **Polish visual completo (Apple-style "Liquid Glass"):**
@@ -42,6 +42,14 @@ App web que o RH acessa via **link único** para registrar, dia a dia, se um int
                                             agregados + respostas_json + status=Concluído
                                          ↓
               Tela "Obrigado pelo preenchimento" (com protocolo PROT-XXXX-XXXX)
+                                         ↓
+              [WF3 cont.] busca RM (HTTP TOTVS) → resolve regra (DETRAN/TRE PB/Padrão) → 
+                          calcula descontoVR/VT → cria item PENDENTE no board
+                          "Base de Desconto - Intermitente" (18400981023, group_mm0rmjs3)
+                                         ↓
+              Próxima convocação do mesmo intermitente → automação PONTUAL detecta dívidas
+              PENDENTE/PARCIAL ordenadas por data_inicio ASC, desconta FIFO do benefício novo,
+              atualiza descontado/residual/status. Quando dívida zera, vai pra grupo CONCLUÍDOS
 
 Fluxo de correção:
               [Web app /corrigir]
@@ -54,7 +62,7 @@ Fluxo de correção:
 
 ## Decisões-chave
 
-- **Sem login** — segurança = UUID longo aleatório + expiração de 30 dias.
+- **Sem login** — segurança = UUID longo aleatório + expiração de 10 dias.
 - **Idempotência no WF3** — `change_multiple_column_values` em 1 item identificado por UUID. Pode ser chamado N vezes com o mesmo payload sem efeito colateral (sem inserts/deletes envolvidos).
 - **Painel + modal** (não wizard sequencial) — RH só interage com dias problemáticos.
 - **Frontend não conversa com monday direto** — toda I/O passa pelo n8n.
@@ -70,7 +78,7 @@ Fluxo de correção:
 - **Datas**: date-fns + locale pt-BR
 - **Backend de orquestração**: n8n Cloud (`https://aionscorp-n8n.cloudfy.live`)
 - **Storage**: monday.com — board "Plan. de Intermitentes — Histórico de Ocorrências" (id `18411141462`, workspace `DEPARTAMENTO PESSOAL`). Acesso só via n8n com a credencial monday "Ray0".
-- **Integração externa**: monday.com API v2 (board origem mensal `18408773953`, board histórico `18411141462`)
+- **Integração externa**: monday.com API v2 (board origem mensal `18408773953`, board histórico `18411141462`, board "Base de Desconto - Intermitente" `18400981023`)
 - **Idioma da UI**: português do Brasil
 
 ## Comandos
@@ -124,8 +132,14 @@ docs/
    ├─ wf1-preparar.json          Webhook → Get item origem → Code (UUID + column_values JSON) → Monday create_item → Monday change Link Column origem
    ├─ wf2-ler.json               Webhook GET → Monday getByColumnValue (UUID) → Code (parsear, montar shape) → Respond
    ├─ wf3-finalizar.json         Webhook POST → Monday getByColumnValue (UUID) → Code (validar + agregar + flag editado) →
-                                  IF → Monday change_multiple_column_values → Respond OK / Erro
-   └─ wf4-buscar-protocolo.json  Webhook GET → Monday getByColumnValue (Protocolo) → Code → Respond {uuid, nome}
+                                  IF → Monday change_multiple_column_values (histórico) →
+                                  HTTP RM (busca empregado) → Monday getByColumnValue chapa (descontos) →
+                                  Code (resolver regra + calcular desconto + decidir) →
+                                  IF tem ação → IF create → Monday create_item OR change_multiple (descontos) →
+                                  Respond OK / Erro
+   ├─ wf4-buscar-protocolo.json  Webhook GET → Monday getByColumnValue (Protocolo) → Code → Respond {uuid, nome}
+   └─ wf-pontual-patches.md      Patches doc para o workflow PONTUAL: Code nodes refatorados para
+                                  múltiplas dívidas FIFO + SplitInBatches no lugar dos 5 monday-update hardcoded
 
 docker/
 └─ nginx.conf                     config nginx do container (catch-all server_name, SPA fallback, gzip, cache)
@@ -163,9 +177,11 @@ Mapa resumido (detalhe completo + payloads em [docs/monday-board-schema.md](docs
 | Qtd. Faltas | `numeric_mm2xe2zk` | numbers | Agregado WF3 |
 | Qtd. Atrasos | `numeric_mm2x18hh` | numbers | Agregado WF3 |
 | Total Minutos Atraso | `numeric_mm2x4fjj` | numbers | Agregado WF3 (só somatório de minutos de atraso) |
-| Total Min Devidos | `numeric_mm3455ss` | numbers | Agregado WF3: jornadas perdidas (falta+desconsid: seg–sex=480, sáb=240) + atrasos. Base pro próximo WF de cálculo R$ |
+| Total Min Devidos | `numeric_mm3455ss` | numbers | Agregado WF3: jornadas perdidas (falta+desconsid: seg–sex=480, sáb=240) + minutos de atraso. Auditoria |
 | Qtd. Dias Perde VT | `numeric_mm345xb6` | numbers | Agregado WF3: count(falta + desconsid.) — incl. sábado, dom ignorado |
-| Qtd. Dias Perde VR | `numeric_mm34a3ph` | numbers | Agregado WF3: count(falta + desconsid. + atraso) só seg–sex (sáb nunca tem VR) |
+| Qtd. Dias Perde VR | `numeric_mm34a3ph` | numbers | Agregado WF3: count(falta + desconsid.) só seg–sex. **Atraso NÃO entra aqui** — vira valor proporcional no cálculo R$ (vrDia × min/480) |
+| Optante VT | `text_NEW_OPTVT` *(placeholder)* | text | Copiado do mensal pelo WF1: "SIM"/"NAO" |
+| Trabalha Sábado | `text_NEW_TRABSAB` *(placeholder)* | text | Copiado do mensal pelo WF1: "SIM"/"NAO" |
 | Dias Extras | `long_text_mm2x73w6` | long_text | JSON: array de YYYY-MM-DD adicionados |
 | Dias Desativados | `long_text_mm2xm820` | long_text | JSON: array de YYYY-MM-DD apagados |
 | Respostas JSON | `long_text_mm2xtcpw` | long_text | JSON: `[{data, tipo, minutos_atraso}]` (coração dos dados) |
@@ -173,6 +189,65 @@ Mapa resumido (detalhe completo + payloads em [docs/monday-board-schema.md](docs
 | Link Preencher | `link_mm2xfay7` | link | URL pública do form |
 
 **Atenção**: o ID interno do label "Expirado" é `17`, não `2`. Aguardando=`0`, Concluído=`1`. Em mutations use `{label: "..."}` ou `{index: 0|1|17}`.
+
+## Schema do board "Base de Desconto - Intermitente"
+
+Board id: **`18400981023`** · workspace `DEPARTAMENTO PESSOAL`. 1 item por convocação que gerou dívida. Grupo de entrada: `group_mm0rmjs3` (DESCONTOS). Quando dívida zera (status FINALIZADO), automação monday move pro grupo `group_mm1cnhf4` (CONCLUÍDOS).
+
+| Coluna | Column ID | Tipo | Conteúdo |
+|---|---|---|---|
+| Name | `name` | name | Fixo `"INTERMITENTE"` |
+| Nome do Empregado | `dropdown_mm0rgfrx` | dropdown | Etiqueta com nome (cria se não existe) |
+| Matrícula | `text_mm0rpqxs` | text | Chapa do RM |
+| CPF | `text_mm0r5ted` | text | CPF do RM |
+| Data Início | `date_mm0r6tyr` | date | Início da convocação que gerou dívida |
+| Data Fim | `date_mm0rzpyv` | date | Fim da convocação |
+| Qtd. Dias Perde VT | `numeric_mm3428yj` | numbers | Copiado do histórico |
+| Qtd. Dias Perde VR | `numeric_mm34p6p7` | numbers | Copiado do histórico |
+| Qtd Total de Atrasos (min) | `numeric_mm2pj1av` | numbers | Total minutos de atraso (auditoria) |
+| Desconto de VR | `numeric_mm0rgsaw` | numbers | Valor R$ original a descontar (calculado pelo WF3 com regra de contrato + RM) |
+| Desconto de VT | `numeric_mm0r5tca` | numbers | Idem VT |
+| Status do Desconto | `color_mm0r8mjr` | status | PENDENTE / PARCIAL / FINALIZADO |
+| Valor Descontado VR | `numeric_mm0rqy6z` | numbers | Acumulado pago até agora (PONTUAL incrementa) |
+| Valor Descontado VT | `numeric_mm0r6cn0` | numbers | Idem VT |
+| Valor Residual VR | `numeric_mm0r1691` | numbers | Quanto ainda falta (PONTUAL decrementa, zera quando FINALIZADO) |
+| Valor Residual VT | `numeric_mm0rtwwg` | numbers | Idem VT |
+
+**Tabela de regras de benefício** (mesma do PONTUAL Code Node 6):
+
+| Contrato/Órgão | vrDia | vtDia | Função extra |
+|---|---|---|---|
+| DETRAN | 514,50/30 | 10,00 | "PORTARIA" no nome |
+| DETRAN | 27,00 | 10,00 | "MOTO BOY" no nome |
+| DETRAN | 588,00/30 | 10,00 | demais funções |
+| TRE PB | 660,00/30 | 10,40 | qualquer |
+| Padrão (SEDUC SEDE/ESCOLA/INTERIOR, CETAM, SEMSA, URUGUAIANA, ADMIN.) | 24,50 | 10,00 | qualquer |
+
+Se `optante_vt = "NAO"`, vtDia = 0.
+
+**Cálculo de descontoVR/VT no WF3** (após resolver vrDia/vtDia):
+
+```
+Para cada dia em diasDesativados:
+  se domingo: skip
+  se sábado: descontoVT += vtDia (sábado nunca tem VR)
+  senão (seg-sex): descontoVR += vrDia, descontoVT += vtDia
+
+Para cada resposta:
+  se domingo: skip
+  se tipo=falta:
+    se sábado: descontoVT += vtDia
+    senão: descontoVR += vrDia, descontoVT += vtDia
+  se tipo=atraso:
+    se sábado: skip
+    senão (seg-sex): descontoVR += vrDia × (minutos_atraso / 480)
+
+Se !optanteVT: descontoVT = 0
+Round 2 casas
+Se descontoVR === 0 && descontoVT === 0: não cria item de desconto
+```
+
+**PONTUAL FIFO**: na próxima convocação do mesmo intermitente, busca todas dívidas PENDENTE/PARCIAL ordenadas por data_inicio ASC e desconta uma a uma do benefício novo até saldo zerar. Detalhes em [docs/n8n/wf-pontual-patches.md](docs/n8n/wf-pontual-patches.md).
 
 ## Contratos com o n8n
 
@@ -198,7 +273,9 @@ WF2 retorna (snake_case, convertido pra camelCase no `api.ts`):
   dias_desativados: string[]  // YYYY-MM-DD[]  (apagados pelo RH)
   total_min_devidos: number | null   // jornadas perdidas + atrasos (em min)
   dias_perde_vt: number | null       // count dias que perderam VT
-  dias_perde_vr: number | null       // count dias que perderam VR
+  dias_perde_vr: number | null       // count dias que perderam VR (só falta+desconsid seg-sex)
+  optante_vt: "SIM" | "NAO"          // copiado do mensal
+  trabalha_sabado: "SIM" | "NAO"     // copiado do mensal
 }
 ```
 - **200** → renderiza painel se `status='aguardando'`, tela obrigado se `concluido`, tela erro se `expirado` (override no frontend se `?modo=correcao` e `concluido` → re-abre form com respostas anteriores)
@@ -222,10 +299,10 @@ Body:
 }
 ```
 WF3 retorna:
-- **200** `{ ok: true, uuid, protocolo, editado, concluido_em }` → frontend invalida query
+- **200** `{ ok: true, uuid, protocolo, editado, concluido_em, desconto: { acao: "create"|"update"|"skip", descontoVR, descontoVT, regra, motivo?, warning? } }` → frontend invalida query
 - **400** validação (resposta faltando, tipo inválido, minutos inválidos, protocolo inválido)
 - **404** processamento não existe
-- **409** já concluído (apenas se `eh_correcao=false`)
+- **409** já concluído (`eh_correcao=false`) OU desconto da convocação já em consumo (PARCIAL/FINALIZADO em correção). `_erro: "desconto_em_consumo"`.
 - **410** expirado
 
 ### GET `/webhook/intermitente-buscar-protocolo?protocolo=<PROT-XXXX-XXXX>`

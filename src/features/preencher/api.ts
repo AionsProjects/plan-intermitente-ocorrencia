@@ -24,7 +24,9 @@ function isMockProtocol(protocolo: string): boolean {
  *
  * - Jornada: seg–sex = 480min, sáb = 240min, dom = 0
  * - VT: perde em falta + desconsideração (qualquer dia útil, incl. sábado)
- * - VR: perde em falta + desconsideração + atraso, só seg–sex (sábado nunca)
+ * - VR: perde em falta + desconsideração só seg–sex (sábado nunca; atraso
+ *   também NÃO conta como dia perdido — vira valor proporcional no WF de
+ *   geração de desconto: vrDia × min/480)
  * - Domingo ignorado em tudo
  */
 export function calcularAgregados(
@@ -58,8 +60,9 @@ export function calcularAgregados(
       diasPerdeVT += 1
       if (!isSabado(r.data)) diasPerdeVR += 1
     } else if (r.tipo === "atraso") {
+      // Atraso NÃO conta como dia perdido — vira valor proporcional no WF de
+      // geração de desconto. Aqui só soma minutos pra auditoria.
       totalMinDevidos += r.minutosAtraso ?? 0
-      if (!isSabado(r.data)) diasPerdeVR += 1
     }
   }
   return { totalMinDevidos, diasPerdeVT, diasPerdeVR }
@@ -121,7 +124,8 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
     ],
     diasExtras: [],
     diasDesativados: [],
-    // 10=sex sem_ocorr (0), 11=sáb falta (+240min, +1VT), 12=dom atraso (ignorado)
+    // 10=sex sem_ocorr (0), 11=sáb falta (+240min, +1VT, sáb sem VR),
+    // 12=dom atraso (ignorado)
     totalMinDevidos: 240,
     diasPerdeVT: 1,
     diasPerdeVR: 0,

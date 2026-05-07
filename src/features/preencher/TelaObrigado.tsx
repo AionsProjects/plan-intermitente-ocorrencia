@@ -180,8 +180,9 @@ export function TelaObrigado({ dados, ehCorrecao, ehTeste }: Props) {
               )}
             </div>
             <p className="mt-3 text-[11px] leading-relaxed text-white/55">
-              Será descontado na próxima convocação. VT perde em falta ou desconsideração.
-              VR perde também em atraso, mas não conta sábado.
+              Será descontado na próxima convocação. VT perde em falta ou
+              desconsideração (qualquer dia útil). VR perde em falta ou
+              desconsideração seg–sex; atraso vira valor proporcional ao tempo.
             </p>
           </div>
         )}
