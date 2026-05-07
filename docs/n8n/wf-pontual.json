@@ -1,0 +1,956 @@
+{
+  "name": "AUTOMAÇÃO DE INTERMITENTES PONTUAL (FIFO)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "intermitentes/pontual",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -816,
+        16
+      ],
+      "id": "e607588a-cadf-43c4-9d28-2fbf797cda17",
+      "name": "Webhook",
+      "webhookId": "2f6c91b1-f82b-44ea-a044-2308eadbe2af"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// NÓ 2 — Extrair e Tratar Dados do Webhook\n// ============================================================\n// Entrada: payload bruto do webhook do Monday.com\n// Saída: objeto limpo com todos os dados necessários para o fluxo\n// ============================================================\n\nconst event = $input.first().json.body.event;\nconst cols = event.columnValues;\n\n// --- Extração dos campos ---\nconst nomeEmpregado = cols.dropdown_mktadatt.chosenValues[0].name.trim();\nconst dataInicio = cols.date_mktayxhb.date;       // \"2026-03-16\"\nconst dataFim = cols.date_mktasnwq.date;           // \"2026-03-20\"\nconst optanteVT = (cols.optante___vt?.label?.text || \"NÃO\").toUpperCase() === \"SIM\";\nconst trabalhaSabado = (cols.color_mktaavmp?.label?.text || \"NÃO\").toUpperCase() === \"SIM\";\nconst interior = (cols.color__1?.label?.text || \"NÃO\").toUpperCase() === \"SIM\";\nconst contratoOrgao = (cols.color_mktcnxwn?.label?.text || \"\").toUpperCase().trim();\n\n// IDs do Monday para atualizações futuras\nconst boardId = event.boardId;\nconst itemId = event.pulseId;\n\n// --- Tratamento do nome para a URL do RM ---\n// A API do RM espera o nome com % para o LIKE, ex: %JAMILE JORGINA DOS SANTOS%\n// E precisa de encoding na URL\nconst nomeParaRM = encodeURIComponent(`%${nomeEmpregado}%`);\n\n// URL completa montada para o HTTP Request do próximo nó que precisar\nconst urlRM = `https://003080:.2099840340@contatoservicos165112.rm.cloudtotvs.com.br:8051/api/framework/v1/consultaSQLServer/RealizaConsulta/BEN%202/3/P/?parameters=$CODCOLIGADA%3D3%3BNOME%3D${nomeParaRM}`;\n\nreturn [{\n  json: {\n    // Dados do empregado\n    nomeEmpregado,\n    nomeParaRM,\n    urlRM,\n    \n    // Configurações de benefício\n    optanteVT,\n    trabalhaSabado,\n    interior,\n    contratoOrgao,\n    \n    // Período\n    dataInicio,\n    dataFim,\n    \n    // IDs Monday (para atualizações futuras)\n    boardId,\n    itemId\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -608,
+        16
+      ],
+      "id": "9bea2ce9-9c34-445e-a48b-3edfa56f6ad3",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// NÓ 3 — Calcular Dias Úteis (VR e VT com regras distintas)\n// ============================================================\n// Entrada: dados tratados do Nó 2\n// Saída: mesmos dados + diasVR e diasVT calculados\n// ============================================================\n// Regra:\n//   - diasVR = dias úteis seg-sex (sábado NUNCA conta para VR)\n//   - diasVT = dias úteis seg-sex, MAS se trabalhaSabado = true,\n//     sábados no período também contam para VT\n//   - Se optanteVT = false, diasVT = 0\n//   - Domingos nunca contam\n// ============================================================\n\nconst dados = $input.first().json;\n\nconst inicio = new Date(dados.dataInicio + \"T00:00:00\");\nconst fim = new Date(dados.dataFim + \"T00:00:00\");\n\nlet diasVR = 0;\nlet diasVT = 0;\n\n// Percorre cada dia do período (inclusive início e fim)\nconst atual = new Date(inicio);\nwhile (atual <= fim) {\n  const diaSemana = atual.getDay(); // 0=Dom, 1=Seg, ..., 5=Sex, 6=Sáb\n\n  if (diaSemana >= 1 && diaSemana <= 5) {\n    // Seg a Sex: conta para VR e VT\n    diasVR++;\n    diasVT++;\n  } else if (diaSemana === 6 && dados.trabalhaSabado) {\n    // Sábado: conta APENAS para VT se trabalha sábado\n    diasVT++;\n  }\n  // Domingo: não conta para nada\n\n  atual.setDate(atual.getDate() + 1);\n}\n\n// Se não é optante de VT, zera os dias de VT\nif (!dados.optanteVT) {\n  diasVT = 0;\n}\n\nreturn [{\n  json: {\n    ...dados,\n    diasVR,\n    diasVT\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        16
+      ],
+      "id": "96108031-7756-4c34-bcba-f962a3791303",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.urlRM }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -192,
+        16
+      ],
+      "id": "de7883cb-b076-4fd6-983f-57aed8426f57",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "144aa9c0-6709-4531-93e8-36a3a07a296a",
+              "leftValue": "={{ $json['Nome do Intermitente'] }}",
+              "rightValue": "={{ $('Code in JavaScript1').item.json.nomeEmpregado }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        16,
+        0
+      ],
+      "id": "95c61140-cbc4-41f3-9201-12cbcf83d608",
+      "name": "If",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// NÓ 6 — Identificar Regra de Benefício\n// ============================================================\n// Entrada: \n//   - Contrato/Órgão do Webhook (color_mktcnxwn)\n//   - Função do RM (HTTP Request)\n//   - Dados do Nó 2 e 3 via referência direta\n// Saída: valores unitários de VR e VT por dia + dados consolidados\n// ============================================================\n\n// --- Referências diretas aos nós (não depende do $input) ---\nconst dadosNó3 = $('Code in JavaScript1').first().json;\nconst contrato = $('Webhook').first().json.body.event.columnValues.color_mktcnxwn.label.text.toUpperCase().trim();\nconst funcaoRM = $('HTTP Request').first().json['Função'].toUpperCase().trim();\nconst optanteVT = dadosNó3.optanteVT;\n\n// Dados do RM para manter no fluxo (histórico futuro)\nconst dadosRM = {\n  nomeRM: $('HTTP Request').first().json['Nome do Intermitente'],\n  secaoRM: $('HTTP Request').first().json['Seção'],\n  descricaoSecaoRM: $('HTTP Request').first().json['Descrição Seção'],\n  chapaRM: $('HTTP Request').first().json['Matrícula/Chapa'],\n  dataAdmissaoRM: $('HTTP Request').first().json['Data de Admissão'],\n  funcaoRM: $('HTTP Request').first().json['Função'],\n};\n\n// --- Lógica de identificação ---\nlet vrDia = 0;\nlet vtDia = 0;\nlet regraAplicada = '';\n\nif (contrato === 'DETRAN') {\n\n  if (funcaoRM.includes('PORTARIA')) {\n    vrDia = 514.50 / 30;\n    regraAplicada = 'DETRAN - Agente de Portaria';\n  } else if (funcaoRM.includes('MOTO BOY')) {\n    vrDia = 27.00;\n    regraAplicada = 'DETRAN - Moto Boy';\n  } else {\n    vrDia = 588.00 / 30;\n    regraAplicada = `DETRAN - Outras Funções (${dadosRM.funcaoRM})`;\n  }\n  vtDia = 10.00;\n\n} else if (contrato === 'TRE PB') {\n\n  vrDia = 660.00 / 30;\n  vtDia = 10.40;\n  regraAplicada = 'TRE PB';\n\n} else {\n\n  // SEDUC SEDE, SEDUC ESCOLA, SEDUC INTERIOR, CETAM, SEMSA, URUGUAIANA, ADMINISTRATIVO\n  vrDia = 24.50;\n  vtDia = 10.00;\n  regraAplicada = `Padrão (${contrato})`;\n\n}\n\n// Se não é optante de VT, zera o valor unitário de VT\nif (!optanteVT) {\n  vtDia = 0;\n}\n\n// Arredonda valores unitários para 2 casas decimais\nvrDia = Math.round(vrDia * 100) / 100;\nvtDia = Math.round(vtDia * 100) / 100;\n\nreturn [{\n  json: {\n    // Dados do Nó 2/3 (preservados)\n    ...dadosNó3,\n    // Dados do RM\n    ...dadosRM,\n    // Dados calculados neste nó\n    contrato,\n    funcao: dadosRM.funcaoRM,\n    regraAplicada,\n    vrDia,\n    vtDia\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -816,
+        208
+      ],
+      "id": "ea0778af-ac1c-4766-ab4c-eeb3f29e7ea6",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// NÓ 7 — Calcular Valor Bruto Total\n// ============================================================\n// Entrada: dados do Nó 6 com vrDia, vtDia, diasVR, diasVT\n// Saída: mesmos dados + valorBrutoVR e valorBrutoVT\n// ============================================================\n\nconst dados = $input.first().json;\n\nconst valorBrutoVR = Math.round(dados.vrDia * dados.diasVR * 100) / 100;\nconst valorBrutoVT = Math.round(dados.vtDia * dados.diasVT * 100) / 100;\n\nreturn [{\n  json: {\n    ...dados,\n    valorBrutoVR,\n    valorBrutoVT\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -608,
+        208
+      ],
+      "id": "664431b0-b098-4afc-a7b7-36ddf0dcf461",
+      "name": "Code in JavaScript3"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// NÓ 8 — Buscar TODAS as dívidas PENDENTE/PARCIAL do empregado\n// ============================================================\n// limit: 100. Filtragem por status feita no Nó 9.\n// ============================================================\n\nconst dados = $input.first().json;\nconst nomeEmpregado = dados.nomeEmpregado;\n\nconst query = `query {\n  items_page_by_column_values(\n    limit: 100\n    board_id: 18400981023\n    columns: [\n      { column_id: \"dropdown_mm0rgfrx\", column_values: [\"${nomeEmpregado}\"] }\n    ]\n  ) {\n    items {\n      id\n      name\n      column_values {\n        id\n        text\n        value\n      }\n    }\n  }\n}`;\n\nreturn [{\n  json: {\n    ...dados,\n    mondayDescontoQuery: { query }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        208
+      ],
+      "id": "7b231dd7-55fa-4d02-8e9e-9032edb2cdfb",
+      "name": "Code in JavaScript4"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.monday.com/v2",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "eyJhbGciOiJIUzI1NiJ9.eyJ0aWQiOjQ0MDQyMzQ0NywiYWFpIjoxMSwidWlkIjo0NTk4NTI3NSwiaWFkIjoiMjAyNC0xMS0yM1QxODowNDo1MC4wMDBaIiwicGVyIjoibWU6d3JpdGUiLCJhY3RpZCI6MTI2ODUwMDYsInJnbiI6InVzZTEifQ.rQ4gm1nLNGZnI24LD4awmZIKM67iNZP7GDyI_tquLHA"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.mondayDescontoQuery) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -192,
+        208
+      ],
+      "id": "20b57ece-8e13-4a50-b84a-9eca133cff0d",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// NÓ 9 — Parsear retorno do Monday: array de dívidas FIFO\n// ============================================================\n\nconst dados = $('Code in JavaScript3').first().json;\n\nconst COL_STATUS         = 'color_mm0r8mjr';\nconst COL_DATA_INICIO    = 'date_mm0r6tyr';\nconst COL_DATA_FIM       = 'date_mm0rzpyv';\nconst COL_DESCONTO_VR    = 'numeric_mm0rgsaw';\nconst COL_DESCONTO_VT    = 'numeric_mm0r5tca';\nconst COL_RESIDUAL_VR    = 'numeric_mm0r1691';\nconst COL_RESIDUAL_VT    = 'numeric_mm0rtwwg';\nconst COL_DESCONTADO_VR  = 'numeric_mm0rqy6z';\nconst COL_DESCONTADO_VT  = 'numeric_mm0r6cn0';\n\nconst response = $input.first().json;\nconst items = response.data?.items_page_by_column_values?.items || [];\n\nconst dividas = [];\nfor (const item of items) {\n  const cols = {};\n  for (const c of item.column_values) cols[c.id] = c.text;\n  const status = (cols[COL_STATUS] || '').toUpperCase().trim();\n  if (status !== 'PENDENTE' && status !== 'PARCIAL') continue;\n\n  dividas.push({\n    itemId: String(item.id),\n    status,\n    dataInicio: cols[COL_DATA_INICIO] || null,\n    dataFim: cols[COL_DATA_FIM] || null,\n    descontoVR: parseFloat(cols[COL_DESCONTO_VR]) || 0,\n    descontoVT: parseFloat(cols[COL_DESCONTO_VT]) || 0,\n    residualVR: parseFloat(cols[COL_RESIDUAL_VR]) || 0,\n    residualVT: parseFloat(cols[COL_RESIDUAL_VT]) || 0,\n    descontadoVR: parseFloat(cols[COL_DESCONTADO_VR]) || 0,\n    descontadoVT: parseFloat(cols[COL_DESCONTADO_VT]) || 0\n  });\n}\n\ndividas.sort((a, b) => (a.dataInicio || '').localeCompare(b.dataInicio || ''));\n\nreturn [{\n  json: {\n    ...dados,\n    dividas,\n    temDividas: dividas.length > 0\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16,
+        208
+      ],
+      "id": "494dfe98-bc42-4a5e-bcb9-81e4396be328",
+      "name": "Code in JavaScript5"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// NÓ 10 — Aplicar dívidas FIFO ao benefício bruto\n// ============================================================\n\nconst dados = $input.first().json;\nconst round = (n) => Math.round(n * 100) / 100;\n\nlet saldoVR = dados.valorBrutoVR;\nlet saldoVT = dados.valorBrutoVT;\n\nconst updates = [];\nfor (const d of dados.dividas) {\n  let aplicadoVR = 0, aplicadoVT = 0;\n\n  if (saldoVR > 0 && d.residualVR > 0) {\n    aplicadoVR = Math.min(saldoVR, d.residualVR);\n    saldoVR = round(saldoVR - aplicadoVR);\n    d.residualVR = round(d.residualVR - aplicadoVR);\n    d.descontadoVR = round(d.descontadoVR + aplicadoVR);\n  }\n  if (saldoVT > 0 && d.residualVT > 0) {\n    aplicadoVT = Math.min(saldoVT, d.residualVT);\n    saldoVT = round(saldoVT - aplicadoVT);\n    d.residualVT = round(d.residualVT - aplicadoVT);\n    d.descontadoVT = round(d.descontadoVT + aplicadoVT);\n  }\n\n  if (aplicadoVR > 0 || aplicadoVT > 0) {\n    const novoStatus = (d.residualVR === 0 && d.residualVT === 0) ? 'FINALIZADO' : 'PARCIAL';\n    updates.push({\n      itemId: d.itemId,\n      column_values_json: JSON.stringify({\n        numeric_mm0rqy6z: String(d.descontadoVR),\n        numeric_mm0r6cn0: String(d.descontadoVT),\n        numeric_mm0r1691: String(d.residualVR),\n        numeric_mm0rtwwg: String(d.residualVT),\n        color_mm0r8mjr:   { label: novoStatus }\n      }),\n      novoStatus,\n      aplicadoVR,\n      aplicadoVT\n    });\n  }\n\n  if (saldoVR === 0 && saldoVT === 0) break;\n}\n\nconst valorLiquidoVR = round(saldoVR);\nconst valorLiquidoVT = round(saldoVT);\n\n// Retorna 1 item por update — Split In Batches no node seguinte percorre.\n// Se nenhum update: retorna 1 item vazio (com saldo) pra Code 7 funcionar.\nif (updates.length === 0) {\n  return [{\n    json: {\n      ...dados,\n      valorLiquidoVR,\n      valorLiquidoVT,\n      updates: [],\n      totalAplicadoVR: 0,\n      totalAplicadoVT: 0\n    }\n  }];\n}\n\nreturn updates.map((u, idx) => ({\n  json: {\n    ...(idx === 0 ? dados : {}),\n    ...u,\n    valorLiquidoVR,\n    valorLiquidoVT,\n    totalAplicadoVR: round(dados.valorBrutoVR - valorLiquidoVR),\n    totalAplicadoVT: round(dados.valorBrutoVT - valorLiquidoVT)\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ],
+      "id": "e59fcf15-4dff-433b-a6db-ebc9bdc13ed5",
+      "name": "Code in JavaScript6"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "26ce823f-d452-4ee8-91d1-f49bc1d59ae2",
+              "leftValue": "={{ $json.temDividas }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        320,
+        208
+      ],
+      "id": "aa593ecb-5d2c-4719-bb39-799a18941eda",
+      "name": "If1"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        736,
+        416
+      ],
+      "id": "2b46120d-2164-4a45-be47-9198ef88e976",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// NÓ 12 — Consolidar valores finais (pós-Merge)\n// ============================================================\n\nlet valorFinalVR, valorFinalVT, dados, caminhoDesconto;\n\ntry {\n  const com = $('Code in JavaScript6').first().json;\n  valorFinalVR = com.valorLiquidoVR;\n  valorFinalVT = com.valorLiquidoVT;\n  dados = com;\n  caminhoDesconto = true;\n} catch (e) {\n  const sem = $('Code in JavaScript5').first().json;\n  valorFinalVR = sem.valorBrutoVR;\n  valorFinalVT = sem.valorBrutoVT;\n  dados = sem;\n  caminhoDesconto = false;\n}\n\nconst valorFinalTotal = Math.round((valorFinalVR + valorFinalVT) * 100) / 100;\n\nreturn [{\n  json: {\n    nomeEmpregado: dados.nomeEmpregado,\n    chapaRM: dados.chapaRM,\n    secaoRM: dados.secaoRM,\n    descricaoSecaoRM: dados.descricaoSecaoRM,\n    funcaoRM: dados.funcaoRM,\n    dataAdmissaoRM: dados.dataAdmissaoRM,\n    contrato: dados.contrato,\n    funcao: dados.funcao,\n    regraAplicada: dados.regraAplicada,\n    optanteVT: dados.optanteVT,\n    trabalhaSabado: dados.trabalhaSabado,\n    interior: dados.interior,\n    dataInicio: dados.dataInicio,\n    dataFim: dados.dataFim,\n    diasVR: dados.diasVR,\n    diasVT: dados.diasVT,\n    vrDia: dados.vrDia,\n    vtDia: dados.vtDia,\n    valorBrutoVR: dados.valorBrutoVR,\n    valorBrutoVT: dados.valorBrutoVT,\n    descontoAplicadoVR: caminhoDesconto ? (dados.totalAplicadoVR || 0) : 0,\n    descontoAplicadoVT: caminhoDesconto ? (dados.totalAplicadoVT || 0) : 0,\n    qtdDividasAplicadas: caminhoDesconto ? (dados.updates?.length || 0) : 0,\n    valorFinalVR,\n    valorFinalVT,\n    valorFinalTotal,\n    boardId: dados.boardId,\n    itemId: dados.itemId\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        944,
+        416
+      ],
+      "id": "bd44b03c-a8fd-4201-8907-42b2cad5c7d9",
+      "name": "Code in JavaScript7"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "e227839f-b17e-4242-99cb-ffef72006906",
+              "leftValue": "={{ $json.valorFinalVR }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            },
+            {
+              "id": "d0609bf3-85bd-4aa9-9b53-ce941fb36592",
+              "leftValue": "={{ $json.valorFinalVT }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1152,
+        416
+      ],
+      "id": "743dc8e0-a3fa-4d5b-a8be-e2443e750cb7",
+      "name": "If2"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://auth.caju.com.br/realms/partner/protocol/openid-connect/token",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "client_id",
+              "value": "contato-servicos"
+            },
+            {
+              "name": "client_secret",
+              "value": "j6K8IKb2mNig7JYpfoCWwQx28E019oEA"
+            },
+            {
+              "name": "grant_type",
+              "value": "password"
+            },
+            {
+              "name": "username",
+              "value": "423ae836-16c6-4b02-9d67-fd5949faa830"
+            },
+            {
+              "name": "password",
+              "value": "-inVDaf66ZkKdb*oWhE3B3Q9dYnJKsV!GUeP"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1360,
+        400
+      ],
+      "id": "1faed2d6-058a-49ec-bd63-9b162d655515",
+      "name": "HTTP Request2"
+    },
+    {
+      "parameters": {
+        "url": "https://services.caju.com.br/partners/v1/sponsor/5ff5cdc3-c55a-46b3-8a47-29479bf5ad35/employee",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "cpf",
+              "value": "={{ $('HTTP Request').item.json.CPF }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1584,
+        400
+      ],
+      "id": "91165ccb-b92e-448c-8d1a-772f8b218fb7",
+      "name": "HTTP Request3"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// NÓ 17 — Calcular Separação Crédito vs Boleto\n// ============================================================\n// Lógica:\n//   - 1 dia de VR + 1 dia de VT → crédito (EXISTING_BALANCE)\n//   - Restante → boleto (PIX_CODE)\n//   - Se valor final < 1 dia, tudo vai no crédito\n//   - Valores em centavos para a API Caju\n// ============================================================\n\n// --- Referências aos nós ---\nconst consolidado = $('Code in JavaScript7').first().json; // Nó 12 - Consolidação\n// ↑ AJUSTE O NOME conforme seu workflow\n\nconst employeeId = $input.first().json.items[0].employeeId;\nconst cpfCaju = $input.first().json.items[0].cpf;\nconst fullNameCaju = $input.first().json.items[0].fullName;\n\n// Valores finais (já com desconto aplicado, se houve)\nconst valorFinalVR = consolidado.valorFinalVR;\nconst valorFinalVT = consolidado.valorFinalVT;\nconst vrDia = consolidado.vrDia;\nconst vtDia = consolidado.vtDia;\n\n// --- Separação VR: crédito vs boleto ---\nlet creditoVR = 0;\nlet boletoVR = 0;\n\nif (valorFinalVR > 0) {\n  if (valorFinalVR <= vrDia) {\n    // Valor final menor ou igual a 1 dia: tudo no crédito\n    creditoVR = valorFinalVR;\n  } else {\n    // 1 dia no crédito, restante no boleto\n    creditoVR = vrDia;\n    boletoVR = Math.round((valorFinalVR - vrDia) * 100) / 100;\n  }\n}\n\n// --- Separação VT: crédito vs boleto ---\nlet creditoVT = 0;\nlet boletoVT = 0;\n\nif (valorFinalVT > 0) {\n  if (valorFinalVT <= vtDia) {\n    creditoVT = valorFinalVT;\n  } else {\n    creditoVT = vtDia;\n    boletoVT = Math.round((valorFinalVT - vtDia) * 100) / 100;\n  }\n}\n\n// --- Totais ---\nconst totalCredito = Math.round((creditoVR + creditoVT) * 100) / 100;\nconst totalBoleto = Math.round((boletoVR + boletoVT) * 100) / 100;\nconst temBoleto = totalBoleto > 0;\n\n// --- Conversão para centavos (API Caju) ---\nconst creditoVR_centavos = Math.round(creditoVR * 100);\nconst creditoVT_centavos = Math.round(creditoVT * 100);\nconst boletoVR_centavos = Math.round(boletoVR * 100);\nconst boletoVT_centavos = Math.round(boletoVT * 100);\nconst totalCredito_centavos = Math.round(totalCredito * 100);\nconst totalBoleto_centavos = Math.round(totalBoleto * 100);\n\n// --- Nome do pedido (máx 27 caracteres) ---\nconst hoje = new Date();\nconst dataFormatada = hoje.toLocaleDateString('pt-BR'); // DD/MM/YYYY\nconst nomeBase = `INT-${consolidado.nomeEmpregado}`;\nconst nomePedidoCredito = `${nomeBase}-${dataFormatada}`.substring(0, 27);\nconst nomePedidoBoleto = `${nomeBase}-B-${dataFormatada}`.substring(0, 27);\n\n// --- Monta allowances do crédito ---\nconst allowancesCredito = [];\nif (creditoVR_centavos > 0) {\n  allowancesCredito.push({ category: 'FOOD_AID', amount: creditoVR_centavos });\n}\nif (creditoVT_centavos > 0) {\n  allowancesCredito.push({ category: 'TRANSPORTATION', amount: creditoVT_centavos });\n}\n\n// --- Monta allowances do boleto ---\nconst allowancesBoleto = [];\nif (boletoVR_centavos > 0) {\n  allowancesBoleto.push({ category: 'FOOD_AID', amount: boletoVR_centavos });\n}\nif (boletoVT_centavos > 0) {\n  allowancesBoleto.push({ category: 'TRANSPORTATION', amount: boletoVT_centavos });\n}\n\nreturn [{\n  json: {\n    // Dados do fluxo\n    ...consolidado,\n\n    // Dados Caju\n    employeeId,\n    cpfCaju,\n    fullNameCaju,\n    sponsorId: '5ff5cdc3-c55a-46b3-8a47-29479bf5ad35',\n\n    // Valores separados (reais)\n    creditoVR,\n    creditoVT,\n    totalCredito,\n    boletoVR,\n    boletoVT,\n    totalBoleto,\n    temBoleto,\n\n    // Valores em centavos\n    creditoVR_centavos,\n    creditoVT_centavos,\n    totalCredito_centavos,\n    boletoVR_centavos,\n    boletoVT_centavos,\n    totalBoleto_centavos,\n\n    // Payloads prontos para os HTTP Requests\n    payloadCredito: {\n      sponsorId: '5ff5cdc3-c55a-46b3-8a47-29479bf5ad35',\n      name: nomePedidoCredito,\n      allowances: [{\n        employeeId,\n        amounts: allowancesCredito\n      }]\n    },\n\n    payloadBoleto: {\n      sponsorId: '5ff5cdc3-c55a-46b3-8a47-29479bf5ad35',\n      name: nomePedidoBoleto,\n      allowances: [{\n        employeeId,\n        amounts: allowancesBoleto\n      }]\n    },\n\n    // Payloads de confirmação\n    payloadConfirmarCredito: {\n      paymentStrategies: [{\n        paymentType: 'EXISTING_BALANCE',\n        amount: totalCredito_centavos\n      }]\n    },\n\n    payloadConfirmarBoleto: {\n      paymentStrategies: [{\n        paymentType: 'PIX_CODE',\n        amount: totalBoleto_centavos\n      }]\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        736,
+        608
+      ],
+      "id": "ecf30dad-2fdc-4a50-970e-102f43ae9660",
+      "name": "Code in JavaScript8"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.caju.com.br/partners/v1/voucher/allowance_order",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('HTTP Request2').first().json.access_token }}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payloadCredito) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        944,
+        608
+      ],
+      "id": "fe824922-d32a-4df2-af0e-840e7f2a4962",
+      "name": "HTTP Request4"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://services.caju.com.br/partners/v1/voucher/allowance_order/{{ $json.allowanceOrderId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('HTTP Request2').first().json.access_token }}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Code in JavaScript8').first().json.payloadConfirmarCredito) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1152,
+        608
+      ],
+      "id": "8f488585-c624-4101-8ca5-5477591f09b6",
+      "name": "HTTP Request5",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "3f77e684-9d0e-408e-a844-8cba70336a41",
+              "leftValue": "={{ $('Code in JavaScript8').first().json.temBoleto }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1360,
+        608
+      ],
+      "id": "d4cd1f0e-c0e1-4d25-93aa-bf7b306bc356",
+      "name": "If3"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.caju.com.br/partners/v1/voucher/allowance_order",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('HTTP Request2').first().json.access_token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Code in JavaScript8').first().json.payloadBoleto) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1584,
+        592
+      ],
+      "id": "66d9dfe1-0f71-4ef9-bc71-7edd086f4d2c",
+      "name": "HTTP Request6"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://services.caju.com.br/partners/v1/voucher/allowance_order/{{ $json.allowanceOrderId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('HTTP Request2').first().json.access_token }}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Code in JavaScript8').first().json.payloadConfirmarBoleto) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        736,
+        800
+      ],
+      "id": "66f3a8d1-b46a-4e80-b59d-7b36ae1c4383",
+      "name": "HTTP Request7"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// NÓ 23 — Montar XMLs SOAP para Histórico de Benefícios (RM Labore)\n// ============================================================\n// Entrada: dados consolidados do fluxo (Nó 17)\n// Saída: até 4 soapBody prontos para HTTP Requests\n// ============================================================\n// Registros a criar:\n//   1. Crédito VR → CODBENEFICIO=1, TPBEN=1 (mensal)\n//   2. Crédito VT → CODBENEFICIO=2, TPBEN=1 (mensal)\n//   3. Boleto VR  → CODBENEFICIO=1, TPBEN=0 (diário)  [se houver]\n//   4. Boleto VT  → CODBENEFICIO=2, TPBEN=0 (diário)  [se houver]\n// ============================================================\n\n// AJUSTE o nome do nó conforme seu workflow\nconst dados = $('Code in JavaScript8').first().json; // Nó 17\n\nconst hoje = new Date();\nconst anoComp = hoje.getFullYear();\nconst mesComp = hoje.getMonth() + 1; // getMonth() é 0-indexed\nconst chapa = dados.chapaRM;\nconst nome = dados.nomeEmpregado;\n\n// Função auxiliar para montar o SOAP envelope\nfunction montarSoap(codBeneficio, vlrTotal, tpBen) {\n  const xml = `<PRJ3230976>\n              <ZMDHSTBENFUNC>\n                <ID>-1</ID>\n                <CODCOLIGADA>3</CODCOLIGADA>\n                <ANOCOMP>${anoComp}</ANOCOMP>\n                <MESCOMP>${mesComp}</MESCOMP>\n                <ANOREF>${anoComp}</ANOREF>\n                <MESREF>${mesComp}</MESREF>\n                <CHAPA>${chapa}</CHAPA>\n                <NOME>${nome}</NOME>\n                <CODBENEFICIO>${codBeneficio}</CODBENEFICIO>\n                <VLRTOTAL>${vlrTotal}</VLRTOTAL>\n                <TPBEN>${tpBen}</TPBEN>\n                <CATFUN>1</CATFUN>\n              </ZMDHSTBENFUNC>\n            </PRJ3230976>`;\n\n  return `<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:tot=\"http://www.totvs.com/\">\n   <soapenv:Header/>\n   <soapenv:Body>\n      <tot:SaveRecord>\n         <tot:DataServerName>RMSPRJ3230976Server</tot:DataServerName>\n         <tot:XML><![CDATA[${xml}]]></tot:XML>\n         <tot:Contexto>CODCOLIGADA=3; USUARIO=003080</tot:Contexto>\n      </tot:SaveRecord>\n   </soapenv:Body>\n</soapenv:Envelope>`;\n}\n\nconst registros = [];\n\n// --- Crédito VR (sempre, se > 0) ---\nif (dados.creditoVR > 0) {\n  registros.push({\n    tipo: 'CREDITO_VR',\n    soapBody: montarSoap(1, dados.creditoVR, 1),\n    valor: dados.creditoVR\n  });\n}\n\n// --- Crédito VT (sempre, se > 0) ---\nif (dados.creditoVT > 0) {\n  registros.push({\n    tipo: 'CREDITO_VT',\n    soapBody: montarSoap(2, dados.creditoVT, 1),\n    valor: dados.creditoVT\n  });\n}\n\n// --- Boleto VR (só se houver) ---\nif (dados.boletoVR > 0) {\n  registros.push({\n    tipo: 'BOLETO_VR',\n    soapBody: montarSoap(1, dados.boletoVR, 0),\n    valor: dados.boletoVR\n  });\n}\n\n// --- Boleto VT (só se houver) ---\nif (dados.boletoVT > 0) {\n  registros.push({\n    tipo: 'BOLETO_VT',\n    soapBody: montarSoap(2, dados.boletoVT, 0),\n    valor: dados.boletoVT\n  });\n}\n\n// Retorna array de itens — cada um será processado pelo nó seguinte\nreturn registros.map(r => ({ json: r }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        944,
+        800
+      ],
+      "id": "a1ddca56-969a-4615-ad1c-19a146fa1f01",
+      "name": "Code in JavaScript9"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://contatoservicos165112.rm.cloudtotvs.com.br:8051/wsDataServer/IwsDataServer",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "text/xml; charset=utf-8"
+            },
+            {
+              "name": "SOAPAction",
+              "value": "\"http://www.totvs.com/IwsDataServer/SaveRecord\""
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "text/xml",
+        "body": "={{ $json.soapBody }}",
+        "options": {
+          "response": {
+            "response": {}
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1152,
+        800
+      ],
+      "id": "44e8acb7-0168-4380-9638-67f5c65885f6",
+      "name": "HTTP Request8",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "ZfNj3Ojtg4cQvxhR",
+          "name": "RM LABORE"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        992,
+        0
+      ],
+      "id": "fifo-split-batches-001",
+      "name": "Split Updates"
+    },
+    {
+      "parameters": {
+        "resource": "boardItem",
+        "operation": "changeMultipleColumnValues",
+        "boardId": "18400981023",
+        "itemId": "={{ $json.itemId }}",
+        "columnValues": "={{ $json.column_values_json }}"
+      },
+      "type": "n8n-nodes-base.mondayCom",
+      "typeVersion": 1,
+      "position": [
+        1216,
+        96
+      ],
+      "id": "fifo-update-discount-001",
+      "name": "Atualizar Desconto Item",
+      "credentials": {
+        "mondayComApi": {
+          "id": "XkNXnsZQp5NuxYms",
+          "name": "Mike's Account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript3": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript4": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript5": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript6",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript6": {
+      "main": [
+        [
+          {
+            "node": "Split Updates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript7",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript7": {
+      "main": [
+        [
+          {
+            "node": "If2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If2": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request2": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request3": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript8",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript8": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request4": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request5": {
+      "main": [
+        [
+          {
+            "node": "If3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If3": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request6": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request7",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request7": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript9",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript9": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request8",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request8": {
+      "main": [
+        []
+      ]
+    },
+    "Split Updates": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Atualizar Desconto Item",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar Desconto Item": {
+      "main": [
+        [
+          {
+            "node": "Split Updates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "07c60698-3430-4f8f-8004-cb5dfafc7eea",
+  "meta": {
+    "instanceId": "7d64b6429aa3413b295e2ece1e26b21654e8b9fddf992ebc72a17823165cc1aa"
+  },
+  "id": "4txhs7jE13kC025b",
+  "tags": []
+}
