@@ -180,8 +180,8 @@ Mapa resumido (detalhe completo + payloads em [docs/monday-board-schema.md](docs
 | Total Min Devidos | `numeric_mm3455ss` | numbers | Agregado WF3: jornadas perdidas (falta+desconsid: seg–sex=480, sáb=240) + minutos de atraso. Auditoria |
 | Qtd. Dias Perde VT | `numeric_mm345xb6` | numbers | Agregado WF3: count(falta + desconsid.) — incl. sábado, dom ignorado |
 | Qtd. Dias Perde VR | `numeric_mm34a3ph` | numbers | Agregado WF3: count(falta + desconsid.) só seg–sex. **Atraso NÃO entra aqui** — vira valor proporcional no cálculo R$ (vrDia × min/480) |
-| Optante VT | `text_NEW_OPTVT` *(placeholder)* | text | Copiado do mensal pelo WF1: "SIM"/"NAO" |
-| Trabalha Sábado | `text_NEW_TRABSAB` *(placeholder)* | text | Copiado do mensal pelo WF1: "SIM"/"NAO" |
+| Optante VT | `color_mm34ry47` | status | Copiado do mensal `optante___vt` pelo WF1: SIM / NÃO |
+| Trabalha Sábado | `color_mm34yyet` | status | Copiado do mensal `color_mktaavmp` pelo WF1: SIM / NÃO |
 | Dias Extras | `long_text_mm2x73w6` | long_text | JSON: array de YYYY-MM-DD adicionados |
 | Dias Desativados | `long_text_mm2xm820` | long_text | JSON: array de YYYY-MM-DD apagados |
 | Respostas JSON | `long_text_mm2xtcpw` | long_text | JSON: `[{data, tipo, minutos_atraso}]` (coração dos dados) |
@@ -274,8 +274,8 @@ WF2 retorna (snake_case, convertido pra camelCase no `api.ts`):
   total_min_devidos: number | null   // jornadas perdidas + atrasos (em min)
   dias_perde_vt: number | null       // count dias que perderam VT
   dias_perde_vr: number | null       // count dias que perderam VR (só falta+desconsid seg-sex)
-  optante_vt: "SIM" | "NAO"          // copiado do mensal
-  trabalha_sabado: "SIM" | "NAO"     // copiado do mensal
+  optante_vt: "SIM" | "NÃO"          // copiado do mensal (status histórico color_mm34ry47)
+  trabalha_sabado: "SIM" | "NÃO"     // copiado do mensal (status histórico color_mm34yyet)
 }
 ```
 - **200** → renderiza painel se `status='aguardando'`, tela obrigado se `concluido`, tela erro se `expirado` (override no frontend se `?modo=correcao` e `concluido` → re-abre form com respostas anteriores)
