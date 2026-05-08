@@ -7,7 +7,7 @@ App web que o RH acessa via **link único** para registrar, dia a dia, se um int
 **Funcionando end-to-end (mock + real, em produção na VM):**
 - WF1 (Preparar) — n8n recebe webhook do monday quando RH muda status, gera UUID, cria item no board histórico (status=Aguardando), preenche Link Column do item de origem. **APP_BASE_URL no node "Preparar dados" aponta para `http://192.168.0.41` (IP intranet da VM, sem domínio).**
 - WF2 (Ler) — n8n responde `GET /intermitente-ler?uuid=…`, busca item por UUID via `getByColumnValue`, parseia `respostas_json`/`dias_extras`/`dias_desativados`, retorna shape esperado.
-- WF3 (Finalizar) — n8n responde `POST /intermitente-finalizar`, calcula agregados (qtd_faltas, qtd_atrasos, total_minutos, total_min_devidos, dias_perde_vt, dias_perde_vr), marca status=Concluído, grava `respostas_json`. **Após atualizar histórico, busca empregado no RM, resolve regra de benefício do contrato, calcula descontoVR/VT (regra fina: faltas/desconsid = dia inteiro; atraso = proporcional vrDia × min/480) e cria/atualiza item no board "Base de Desconto - Intermitente" (`18400981023`)**. Bloqueia correção pós-PARCIAL/FINALIZADO com 409.
+- WF3 (Finalizar) — n8n responde `POST /intermitente-finalizar`, calcula agregados (qtd_faltas, qtd_atrasos, total_minutos, total_min_devidos, dias_perde_vt, dias_perde_vr), marca status=Concluído, grava `respostas_json`. **Após atualizar histórico, busca CPF + função no item origem do mensal (via `link_mm2x1rk0`), resolve regra de benefício do contrato, calcula descontoVR/VT (regra fina: faltas/desconsid = dia inteiro; atraso = proporcional vrDia × min/480) e cria/atualiza item no board "Base de Desconto - Intermitente" (`18400981023`)**. Bloqueia correção pós-PARCIAL/FINALIZADO com 409.
 - WF4 (Buscar protocolo) — n8n responde `GET /intermitente-buscar-protocolo?protocolo=…`, retorna UUID+nome para o fluxo de correção.
 - Frontend: painel com **modal por dia**, perguntas no positivo ("foi trabalhar?", "chegou no horário?"), adicionar/apagar dias com bolha estourando, fluxo de correção via protocolo `PROT-XXXX-XXXX`. Botão "Copiar protocolo" tem fallback `document.execCommand('copy')` pra funcionar em HTTP puro (intranet).
 - **Polish visual completo (Apple-style "Liquid Glass"):**
@@ -43,7 +43,7 @@ App web que o RH acessa via **link único** para registrar, dia a dia, se um int
                                          ↓
               Tela "Obrigado pelo preenchimento" (com protocolo PROT-XXXX-XXXX)
                                          ↓
-              [WF3 cont.] busca RM (HTTP TOTVS) → resolve regra (DETRAN/TRE PB/Padrão) → 
+              [WF3 cont.] busca item mensal (CPF+função) → resolve regra (DETRAN/TRE PB/Padrão) → 
                           calcula descontoVR/VT → cria item PENDENTE no board
                           "Base de Desconto - Intermitente" (18400981023, group_mm0rmjs3)
                                          ↓
@@ -133,7 +133,7 @@ docs/
    ├─ wf2-ler.json               Webhook GET → Monday getByColumnValue (UUID) → Code (parsear, montar shape) → Respond
    ├─ wf3-finalizar.json         Webhook POST → Monday getByColumnValue (UUID) → Code (validar + agregar + flag editado) →
                                   IF → Monday change_multiple_column_values (histórico) →
-                                  HTTP RM (busca empregado) → Monday getByColumnValue chapa (descontos) →
+                                  Monday get (item mensal pra CPF/função) → Monday getByColumnValue chapa (descontos) →
                                   Code (resolver regra + calcular desconto + decidir) →
                                   IF tem ação → IF create → Monday create_item OR change_multiple (descontos) →
                                   Respond OK / Erro
@@ -198,14 +198,14 @@ Board id: **`18400981023`** · workspace `DEPARTAMENTO PESSOAL`. 1 item por conv
 |---|---|---|---|
 | Name | `name` | name | Fixo `"INTERMITENTE"` |
 | Nome do Empregado | `dropdown_mm0rgfrx` | dropdown | Etiqueta com nome (cria se não existe) |
-| Matrícula | `text_mm0rpqxs` | text | Chapa do RM |
-| CPF | `text_mm0r5ted` | text | CPF do RM |
+| Matrícula | `text_mm0rpqxs` | text | Chapa (copiada do mensal `texto`) |
+| CPF | `text_mm0r5ted` | text | CPF (copiado do mensal `dup__of_matr_cula`) |
 | Data Início | `date_mm0r6tyr` | date | Início da convocação que gerou dívida |
 | Data Fim | `date_mm0rzpyv` | date | Fim da convocação |
 | Qtd. Dias Perde VT | `numeric_mm3428yj` | numbers | Copiado do histórico |
 | Qtd. Dias Perde VR | `numeric_mm34p6p7` | numbers | Copiado do histórico |
 | Qtd Total de Atrasos (min) | `numeric_mm2pj1av` | numbers | Total minutos de atraso (auditoria) |
-| Desconto de VR | `numeric_mm0rgsaw` | numbers | Valor R$ original a descontar (calculado pelo WF3 com regra de contrato + RM) |
+| Desconto de VR | `numeric_mm0rgsaw` | numbers | Valor R$ original a descontar (calculado pelo WF3 com regra de contrato + função do mensal) |
 | Desconto de VT | `numeric_mm0r5tca` | numbers | Idem VT |
 | Status do Desconto | `color_mm0r8mjr` | status | PENDENTE / PARCIAL / FINALIZADO |
 | Valor Descontado VR | `numeric_mm0rqy6z` | numbers | Acumulado pago até agora (PONTUAL incrementa) |
