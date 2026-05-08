@@ -20,6 +20,8 @@ export type ProcessamentoDados = {
   totalMinDevidos: number | null
   diasPerdeVT: number | null
   diasPerdeVR: number | null
+  optanteVT: "SIM" | "NÃO"
+  trabalhaSabado: "SIM" | "NÃO"
 }
 
 export type RespostaDia = {

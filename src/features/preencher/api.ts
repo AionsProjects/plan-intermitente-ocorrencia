@@ -32,6 +32,7 @@ function isMockProtocol(protocolo: string): boolean {
 export function calcularAgregados(
   respostas: RespostaDia[],
   diasDesativados: string[],
+  trabalhaSabado: boolean = true,
 ): { totalMinDevidos: number; diasPerdeVT: number; diasPerdeVR: number } {
   const dow = (d: string) => new Date(d + "T00:00:00Z").getUTCDay()
   const jornadaMin = (d: string) => {
@@ -49,12 +50,14 @@ export function calcularAgregados(
 
   for (const d of diasDesativados) {
     if (isDomingo(d)) continue
+    if (!trabalhaSabado && isSabado(d)) continue
     totalMinDevidos += jornadaMin(d)
     diasPerdeVT += 1
     if (!isSabado(d)) diasPerdeVR += 1
   }
   for (const r of respostas) {
     if (isDomingo(r.data)) continue
+    if (!trabalhaSabado && isSabado(r.data)) continue
     if (r.tipo === "falta") {
       totalMinDevidos += jornadaMin(r.data)
       diasPerdeVT += 1
@@ -68,13 +71,20 @@ export function calcularAgregados(
   return { totalMinDevidos, diasPerdeVT, diasPerdeVR }
 }
 
-function mockDias(inicio: string, fim: string): string[] {
+function mockDias(
+  inicio: string,
+  fim: string,
+  trabalhaSabado: boolean = true,
+): string[] {
   const dias: string[] = []
   const atual = new Date(inicio)
   const fimData = new Date(fim)
   while (atual <= fimData) {
-    // Pula domingos (igual WF1/WF2/WF3) — intermitentes não trabalham
-    if (atual.getUTCDay() !== 0) {
+    const dow = atual.getUTCDay()
+    const ehDomingo = dow === 0
+    const ehSabado = dow === 6
+    // Domingo nunca; sábado só se trabalhaSabado
+    if (!ehDomingo && (!ehSabado || trabalhaSabado)) {
       dias.push(atual.toISOString().slice(0, 10))
     }
     atual.setUTCDate(atual.getUTCDate() + 1)
@@ -95,7 +105,7 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
     contrato: "CT-2026-042",
     dataInicio: "2026-04-20",
     dataFim: "2026-04-25",
-    dias: mockDias("2026-04-20", "2026-04-25"),
+    dias: mockDias("2026-04-20", "2026-04-25", false),
     status: "aguardando",
     concluidoEm: null,
     protocolo: null,
@@ -107,6 +117,8 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
     totalMinDevidos: null,
     diasPerdeVT: null,
     diasPerdeVR: null,
+    optanteVT: "SIM",
+    trabalhaSabado: "NÃO",
   },
   "mock-concluido": {
     uuid: "mock-concluido",
@@ -114,7 +126,7 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
     contrato: "CT-2026-001",
     dataInicio: "2026-04-10",
     dataFim: "2026-04-12",
-    dias: mockDias("2026-04-10", "2026-04-12"),
+    dias: mockDias("2026-04-10", "2026-04-12", true),
     status: "concluido",
     concluidoEm: "2026-04-13T15:32:00Z",
     protocolo: "PROT-DEMO-1234",
@@ -128,10 +140,12 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
     diasExtras: [],
     diasDesativados: [],
     // 10=sex sem_ocorr (0), 11=sáb falta (+240min, +1VT, sáb sem VR),
-    // 12=dom atraso (ignorado)
+    // 12=dom atraso (ignorado). Mock com trabalhaSabado=SIM.
     totalMinDevidos: 240,
     diasPerdeVT: 1,
     diasPerdeVR: 0,
+    optanteVT: "SIM",
+    trabalhaSabado: "SIM",
   },
   "mock-expirado": {
     uuid: "mock-expirado",
@@ -139,7 +153,7 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
     contrato: "CT-2025-999",
     dataInicio: "2025-12-01",
     dataFim: "2025-12-03",
-    dias: mockDias("2025-12-01", "2025-12-03"),
+    dias: mockDias("2025-12-01", "2025-12-03", false),
     status: "expirado",
     concluidoEm: null,
     protocolo: null,
@@ -151,6 +165,8 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
     totalMinDevidos: null,
     diasPerdeVT: null,
     diasPerdeVR: null,
+    optanteVT: "NÃO",
+    trabalhaSabado: "NÃO",
   },
 }
 
@@ -198,6 +214,8 @@ function snapshot(m: MockState): ProcessamentoDados {
     totalMinDevidos: m.totalMinDevidos,
     diasPerdeVT: m.diasPerdeVT,
     diasPerdeVR: m.diasPerdeVR,
+    optanteVT: m.optanteVT,
+    trabalhaSabado: m.trabalhaSabado,
   }
 }
 
@@ -253,6 +271,12 @@ export async function buscarProcessamento(
     totalMinDevidos: raw.total_min_devidos ?? null,
     diasPerdeVT: raw.dias_perde_vt ?? null,
     diasPerdeVR: raw.dias_perde_vr ?? null,
+    optanteVT: (String(raw.optante_vt ?? "").toUpperCase() === "SIM"
+      ? "SIM"
+      : "NÃO") as "SIM" | "NÃO",
+    trabalhaSabado: (String(raw.trabalha_sabado ?? "").toUpperCase() === "SIM"
+      ? "SIM"
+      : "NÃO") as "SIM" | "NÃO",
   }
 }
 
@@ -271,7 +295,11 @@ export async function finalizarProcessamento(
       mock.respostasAnteriores = payload.respostas
       mock.diasExtras = payload.diasExtras ?? []
       mock.diasDesativados = payload.diasDesativados ?? []
-      const ag = calcularAgregados(mock.respostasAnteriores, mock.diasDesativados)
+      const ag = calcularAgregados(
+        mock.respostasAnteriores,
+        mock.diasDesativados,
+        mock.trabalhaSabado === "SIM",
+      )
       mock.totalMinDevidos = ag.totalMinDevidos
       mock.diasPerdeVT = ag.diasPerdeVT
       mock.diasPerdeVR = ag.diasPerdeVR
