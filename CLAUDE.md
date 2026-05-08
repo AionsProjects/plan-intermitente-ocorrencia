@@ -225,21 +225,29 @@ Board id: **`18400981023`** · workspace `DEPARTAMENTO PESSOAL`. 1 item por conv
 
 Se `optante_vt = "NAO"`, vtDia = 0.
 
+**Filtro de dias da semana** (aplicado em **WF1, WF2, WF3 e frontend**):
+- **Domingo**: nunca entra. Não aparece no form, não conta em agregados, não gera desconto.
+- **Sábado**: só entra se `trabalha_sabado === "SIM"` na origem. Se NÃO, sábado é tratado igual domingo (ignorado em todos os loops, mesmo que apareça em `dias_extras` ou `dias_desativados`).
+
+WF1 lê `color_mktaavmp` do mensal e grava `color_mm34yyet` (status SIM/NÃO) no histórico. WF2/WF3 leem do histórico. Frontend `calcularAgregados` e `mockDias` aceitam `trabalhaSabado: boolean` como parâmetro.
+
 **Cálculo de descontoVR/VT no WF3** (após resolver vrDia/vtDia):
 
 ```
 Para cada dia em diasDesativados:
   se domingo: skip
-  se sábado: descontoVT += vtDia (sábado nunca tem VR)
+  se sábado E !trabalhaSabado: skip
+  se sábado E trabalhaSabado: descontoVT += vtDia (sábado nunca tem VR)
   senão (seg-sex): descontoVR += vrDia, descontoVT += vtDia
 
 Para cada resposta:
   se domingo: skip
+  se sábado E !trabalhaSabado: skip
   se tipo=falta:
     se sábado: descontoVT += vtDia
     senão: descontoVR += vrDia, descontoVT += vtDia
   se tipo=atraso:
-    se sábado: skip
+    se sábado: skip (atraso sáb nunca conta — sáb sem VR)
     senão (seg-sex): descontoVR += vrDia × (minutos_atraso / 480)
 
 Se !optanteVT: descontoVT = 0
@@ -262,7 +270,7 @@ WF2 retorna (snake_case, convertido pra camelCase no `api.ts`):
   contrato: string | null
   data_inicio: string         // YYYY-MM-DD
   data_fim: string
-  dias: string[]              // YYYY-MM-DD[]  (período base)
+  dias: string[]              // YYYY-MM-DD[]  (período base, sem domingos; sábado só se trabalha_sabado=SIM)
   expira_em: string
   concluido_em: string | null
   protocolo: string | null
