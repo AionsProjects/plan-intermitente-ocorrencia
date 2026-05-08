@@ -130,7 +130,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// ==============================================================\n// WF3 — Decidir Desconto\n// Combina dados do histórico + RM + items existentes no board descontos\n// pra calcular descontoVR/VT e decidir create/update/skip.\n// ==============================================================\n\nconst BOARD_DESCONTOS = 18400981023;\nconst GROUP_DESCONTOS = 'group_mm0rmjs3';\n\n// Colunas do board Base de Desconto - Intermitente (18400981023)\nconst COL_D_NOME           = 'dropdown_mm0rgfrx';\nconst COL_D_MATRICULA      = 'text_mm0rpqxs';\nconst COL_D_CPF            = 'text_mm0r5ted';\nconst COL_D_DATA_INICIO    = 'date_mm0r6tyr';\nconst COL_D_DATA_FIM       = 'date_mm0rzpyv';\nconst COL_D_DIAS_PERDE_VT  = 'numeric_mm3428yj';\nconst COL_D_DIAS_PERDE_VR  = 'numeric_mm34p6p7';\nconst COL_D_QTD_ATRASOS    = 'numeric_mm2pj1av';\nconst COL_D_DESCONTO_VR    = 'numeric_mm0rgsaw';\nconst COL_D_DESCONTO_VT    = 'numeric_mm0r5tca';\nconst COL_D_STATUS         = 'color_mm0r8mjr';\nconst COL_D_RESIDUAL_VR    = 'numeric_mm0r1691';\nconst COL_D_RESIDUAL_VT    = 'numeric_mm0rtwwg';\nconst COL_D_DESCONTADO_VR  = 'numeric_mm0rqy6z';\nconst COL_D_DESCONTADO_VT  = 'numeric_mm0r6cn0';\n\nconst hist = $('Validar e preparar').first().json;\n\n// Lê CPF + função direto do board mensal (sem chamada RM)\n// Colunas no board mensal 18408773953:\nconst COL_MENSAL_CPF    = 'dup__of_matr_cula';\nconst COL_MENSAL_FUNCAO = 'texto0';\n\nconst origemRaw = $('Get Item Origem').first().json;\nconst origemItem = origemRaw?.data?.item ?? origemRaw?.item ?? origemRaw;\nconst origemColumns = origemItem?.column_values ?? [];\nconst origemGet = (id) => origemColumns.find(c => c.id === id)?.text ?? null;\n\nconst nomeNorm = (s) => String(s || '').toUpperCase().trim();\n\nconst chapa = String(hist.chapa || '').trim();\nconst cpf = String(origemGet(COL_MENSAL_CPF) || '').trim();\nconst funcao = nomeNorm(origemGet(COL_MENSAL_FUNCAO));\nconst contrato = nomeNorm(hist.contrato);\nconst optanteVT = String(hist.optante_vt || '').toUpperCase() === 'SIM';\nconst trabalhaSabado = String(hist.trabalha_sabado || '').toUpperCase() === 'SIM';\n\n// ----- Resolver regra de benefício (mesma tabela do PONTUAL Nó 6) -----\nlet vrDia = 0;\nlet vtDia = 0;\nlet regraAplicada = '';\n\nif (contrato === 'DETRAN') {\n  if (funcao.includes('PORTARIA')) {\n    vrDia = 514.50 / 30;\n    regraAplicada = 'DETRAN - Agente de Portaria';\n  } else if (funcao.includes('MOTO BOY')) {\n    vrDia = 27.00;\n    regraAplicada = 'DETRAN - Moto Boy';\n  } else {\n    vrDia = 588.00 / 30;\n    regraAplicada = `DETRAN - Outras Funções (${funcao})`;\n  }\n  vtDia = 10.00;\n} else if (contrato === 'TRE PB') {\n  vrDia = 660.00 / 30;\n  vtDia = 10.40;\n  regraAplicada = 'TRE PB';\n} else {\n  vrDia = 24.50;\n  vtDia = 10.00;\n  regraAplicada = `Padrão (${contrato})`;\n}\n\nif (!optanteVT) vtDia = 0;\nvrDia = Math.round(vrDia * 100) / 100;\nvtDia = Math.round(vtDia * 100) / 100;\n\n// ----- Calcular descontoVR e descontoVT (regra fina) -----\n// VR: faltas+desconsid em seg-sex (dia inteiro) + atraso seg-sex (proporcional minutos/480)\n//     sábado nunca tem VR\n// VT: faltas+desconsid em qualquer dia útil (dia inteiro), atraso não afeta VT\n//     domingo ignorado\nfunction _dow(d) { return new Date(d + 'T00:00:00Z').getUTCDay(); }\nfunction _isSabado(d) { return _dow(d) === 6; }\nfunction _isDomingo(d) { return _dow(d) === 0; }\n\nlet descontoVR = 0;\nlet descontoVT = 0;\n\nfor (const d of hist.dias_desativ || []) {\n  if (_isDomingo(d)) continue;\n  if (!trabalhaSabado && _isSabado(d)) continue;\n  if (!_isSabado(d)) descontoVR += vrDia;\n  descontoVT += vtDia;\n}\nfor (const r of hist.respostas_final || []) {\n  if (_isDomingo(r.data)) continue;\n  if (!trabalhaSabado && _isSabado(r.data)) continue;\n  if (r.tipo === 'falta') {\n    if (!_isSabado(r.data)) descontoVR += vrDia;\n    descontoVT += vtDia;\n  } else if (r.tipo === 'atraso') {\n    if (!_isSabado(r.data) && r.minutos_atraso) {\n      descontoVR += vrDia * (r.minutos_atraso / 480);\n    }\n  }\n}\n\nif (!optanteVT) descontoVT = 0;\ndescontoVR = Math.round(descontoVR * 100) / 100;\ndescontoVT = Math.round(descontoVT * 100) / 100;\n\nif (descontoVR === 0 && descontoVT === 0) {\n  return [{ json: { _statusCode: 200, acao: 'skip', motivo: 'sem_divida', regraAplicada } }];\n}\n\n// ----- Buscar item desconto existente: filtrar por chapa + datas -----\nconst descontosRaw = $input.all();\nconst descontosList = [];\nfor (const it of descontosRaw) {\n  const j = it.json;\n  if (!j || !j.id || !j.column_values) continue;\n  const cols = {};\n  for (const c of j.column_values) cols[c.id] = { text: c.text, value: c.value };\n  const di = cols[COL_D_DATA_INICIO]?.text || null;\n  const df = cols[COL_D_DATA_FIM]?.text || null;\n  if (di === hist.data_inicio && df === hist.data_fim) {\n    descontosList.push({\n      id: String(j.id),\n      status: nomeNorm(cols[COL_D_STATUS]?.text)\n    });\n  }\n}\n\nconst existente = descontosList[0] || null;\n\n// Bloquear correção se desconto já consumido\nif (existente && (existente.status === 'PARCIAL' || existente.status === 'FINALIZADO')) {\n  return [{ json: {\n    _statusCode: 409,\n    _erro: 'desconto_em_consumo',\n    mensagem: 'Não é possível corrigir: o desconto desta convocação já foi parcial ou totalmente consumido.',\n    acao: 'skip'\n  } }];\n}\n\n// Montar column_values\nfunction toDate(d) { return d ? { date: d } : null; }\n\nconst columnValues = {\n  [COL_D_NOME]:           { labels: [hist.nome] }, // monday cria/usa label automaticamente quando array de strings\n  [COL_D_MATRICULA]:      chapa,\n  [COL_D_CPF]:            cpf,\n  [COL_D_DATA_INICIO]:    toDate(hist.data_inicio),\n  [COL_D_DATA_FIM]:       toDate(hist.data_fim),\n  [COL_D_DIAS_PERDE_VT]:  String(hist.dias_perde_vt || 0),\n  [COL_D_DIAS_PERDE_VR]:  String(hist.dias_perde_vr || 0),\n  [COL_D_QTD_ATRASOS]:    String(hist.total_min_atraso || 0),\n  [COL_D_DESCONTO_VR]:    String(descontoVR),\n  [COL_D_DESCONTO_VT]:    String(descontoVT),\n  [COL_D_STATUS]:         { label: 'PENDENTE' },\n  [COL_D_RESIDUAL_VR]:    String(descontoVR),\n  [COL_D_RESIDUAL_VT]:    String(descontoVT),\n  [COL_D_DESCONTADO_VR]:  '0',\n  [COL_D_DESCONTADO_VT]:  '0'\n};\n\n// Remover entradas null\nfor (const k of Object.keys(columnValues)) {\n  if (columnValues[k] === null || columnValues[k] === undefined) delete columnValues[k];\n}\n\nconst acao = existente ? 'update' : 'create';\nreturn [{ json: {\n  _statusCode: 200,\n  acao,\n  item_id_desconto: existente?.id || null,\n  board_id: BOARD_DESCONTOS,\n  group_id: GROUP_DESCONTOS,\n  item_name: 'INTERMITENTE',\n  column_values_json: JSON.stringify(columnValues),\n  descontoVR,\n  descontoVT,\n  regraAplicada,\n  vrDia,\n  vtDia\n} }];\n"
+        "jsCode": "// ==============================================================\n// WF3 — Decidir Desconto\n// Combina dados do histórico + RM + items existentes no board descontos\n// pra calcular descontoVR/VT e decidir create/update/skip.\n// ==============================================================\n\nconst BOARD_DESCONTOS = 18400981023;\nconst GROUP_DESCONTOS = 'group_mm0rmjs3';\n\n// Colunas do board Base de Desconto - Intermitente (18400981023)\nconst COL_D_NOME           = 'dropdown_mm0rgfrx';\nconst COL_D_MATRICULA      = 'text_mm0rpqxs';\nconst COL_D_CPF            = 'text_mm0r5ted';\nconst COL_D_DATA_INICIO    = 'date_mm0r6tyr';\nconst COL_D_DATA_FIM       = 'date_mm0rzpyv';\nconst COL_D_DIAS_PERDE_VT  = 'numeric_mm3428yj';\nconst COL_D_DIAS_PERDE_VR  = 'numeric_mm34p6p7';\nconst COL_D_QTD_ATRASOS    = 'numeric_mm2pj1av';\nconst COL_D_DESCONTO_VR    = 'numeric_mm0rgsaw';\nconst COL_D_DESCONTO_VT    = 'numeric_mm0r5tca';\nconst COL_D_STATUS         = 'color_mm0r8mjr';\nconst COL_D_RESIDUAL_VR    = 'numeric_mm0r1691';\nconst COL_D_RESIDUAL_VT    = 'numeric_mm0rtwwg';\nconst COL_D_DESCONTADO_VR  = 'numeric_mm0rqy6z';\nconst COL_D_DESCONTADO_VT  = 'numeric_mm0r6cn0';\n\nconst hist = $('Validar e preparar').first().json;\n\n// Lê CPF + função direto do board mensal (sem chamada RM)\n// Colunas no board mensal 18408773953:\nconst COL_MENSAL_CPF    = 'dup__of_matr_cula';\nconst COL_MENSAL_FUNCAO = 'texto0';\n\nconst origemRaw = $('Get Item Origem').first().json;\nconst origemItem = origemRaw?.data?.item ?? origemRaw?.item ?? origemRaw;\nconst origemColumns = origemItem?.column_values ?? [];\nconst origemGet = (id) => origemColumns.find(c => c.id === id)?.text ?? null;\n\nconst nomeNorm = (s) => String(s || '').toUpperCase().trim();\n\nconst chapa = String(hist.chapa || '').trim();\nconst cpf = String(origemGet(COL_MENSAL_CPF) || '').trim();\nconst funcao = nomeNorm(origemGet(COL_MENSAL_FUNCAO));\nconst contrato = nomeNorm(hist.contrato);\nconst optanteVT = String(hist.optante_vt || '').toUpperCase() === 'SIM';\nconst trabalhaSabado = String(hist.trabalha_sabado || '').toUpperCase() === 'SIM';\n\n// ----- Resolver regra de benefício (mesma tabela do PONTUAL Nó 6) -----\nlet vrDia = 0;\nlet vtDia = 0;\nlet regraAplicada = '';\n\nif (contrato === 'DETRAN') {\n  if (funcao.includes('PORTARIA')) {\n    vrDia = 514.50 / 30;\n    regraAplicada = 'DETRAN - Agente de Portaria';\n  } else if (funcao.includes('MOTO BOY')) {\n    vrDia = 27.00;\n    regraAplicada = 'DETRAN - Moto Boy';\n  } else {\n    vrDia = 588.00 / 30;\n    regraAplicada = `DETRAN - Outras Funções (${funcao})`;\n  }\n  vtDia = 10.00;\n} else if (contrato === 'TRE PB') {\n  vrDia = 660.00 / 30;\n  vtDia = 10.40;\n  regraAplicada = 'TRE PB';\n} else {\n  vrDia = 24.50;\n  vtDia = 10.00;\n  regraAplicada = `Padrão (${contrato})`;\n}\n\nif (!optanteVT) vtDia = 0;\nvrDia = Math.round(vrDia * 100) / 100;\nvtDia = Math.round(vtDia * 100) / 100;\n\n// ----- Calcular descontoVR e descontoVT (regra fina) -----\n// VR: faltas+desconsid em seg-sex (dia inteiro) + atraso seg-sex (proporcional minutos/480)\n//     sábado nunca tem VR\n// VT: faltas+desconsid em qualquer dia útil (dia inteiro), atraso não afeta VT\n//     domingo ignorado\nfunction _dow(d) { return new Date(d + 'T00:00:00Z').getUTCDay(); }\nfunction _isSabado(d) { return _dow(d) === 6; }\nfunction _isDomingo(d) { return _dow(d) === 0; }\n\nlet descontoVR = 0;\nlet descontoVT = 0;\n\nfor (const d of hist.dias_desativ || []) {\n  if (_isDomingo(d)) continue;\n  if (!trabalhaSabado && _isSabado(d)) continue;\n  if (!_isSabado(d)) descontoVR += vrDia;\n  descontoVT += vtDia;\n}\nfor (const r of hist.respostas_final || []) {\n  if (_isDomingo(r.data)) continue;\n  if (!trabalhaSabado && _isSabado(r.data)) continue;\n  if (r.tipo === 'falta') {\n    if (!_isSabado(r.data)) descontoVR += vrDia;\n    descontoVT += vtDia;\n  } else if (r.tipo === 'atraso') {\n    if (!_isSabado(r.data) && r.minutos_atraso) {\n      descontoVR += vrDia * (r.minutos_atraso / 480);\n    }\n  }\n}\n\nif (!optanteVT) descontoVT = 0;\ndescontoVR = Math.round(descontoVR * 100) / 100;\ndescontoVT = Math.round(descontoVT * 100) / 100;\n\nif (descontoVR === 0 && descontoVT === 0) {\n  return [{ json: { _statusCode: 200, acao: 'skip', motivo: 'sem_divida', regraAplicada } }];\n}\n\n// ----- Buscar item desconto existente: filtrar por chapa + datas -----\nconst descontosRaw = $input.all();\nconst descontosList = [];\nfor (const it of descontosRaw) {\n  const j = it.json;\n  if (!j || !j.id || !j.column_values) continue;\n  const cols = {};\n  for (const c of j.column_values) cols[c.id] = { text: c.text, value: c.value };\n  const di = cols[COL_D_DATA_INICIO]?.text || null;\n  const df = cols[COL_D_DATA_FIM]?.text || null;\n  if (di === hist.data_inicio && df === hist.data_fim) {\n    descontosList.push({\n      id: String(j.id),\n      status: nomeNorm(cols[COL_D_STATUS]?.text)\n    });\n  }\n}\n\nconst existente = descontosList[0] || null;\n\n// Bloquear correção se desconto já consumido\nif (existente && (existente.status === 'PARCIAL' || existente.status === 'FINALIZADO')) {\n  return [{ json: {\n    _statusCode: 409,\n    _erro: 'desconto_em_consumo',\n    mensagem: 'Não é possível corrigir: o desconto desta convocação já foi parcial ou totalmente consumido.',\n    acao: 'skip'\n  } }];\n}\n\n// Montar column_values\nfunction toDate(d) { return d ? { date: d } : null; }\n\nconst columnValues = {\n  [COL_D_NOME]:           { labels: [hist.nome] }, // monday cria/usa label automaticamente quando array de strings\n  [COL_D_MATRICULA]:      chapa,\n  [COL_D_CPF]:            cpf,\n  [COL_D_DATA_INICIO]:    toDate(hist.data_inicio),\n  [COL_D_DATA_FIM]:       toDate(hist.data_fim),\n  [COL_D_DIAS_PERDE_VT]:  String(hist.dias_perde_vt || 0),\n  [COL_D_DIAS_PERDE_VR]:  String(hist.dias_perde_vr || 0),\n  [COL_D_QTD_ATRASOS]:    String(hist.total_min_atraso || 0),\n  [COL_D_DESCONTO_VR]:    String(descontoVR),\n  [COL_D_DESCONTO_VT]:    String(descontoVT),\n  [COL_D_STATUS]:         { label: 'PENDENTE' },\n  [COL_D_RESIDUAL_VR]:    String(descontoVR),\n  [COL_D_RESIDUAL_VT]:    String(descontoVT),\n  [COL_D_DESCONTADO_VR]:  '0',\n  [COL_D_DESCONTADO_VT]:  '0'\n};\n\n// Remover entradas null\nfor (const k of Object.keys(columnValues)) {\n  if (columnValues[k] === null || columnValues[k] === undefined) delete columnValues[k];\n}\n\nconst acao = existente ? 'update' : 'create';\nconst columnValuesJson = JSON.stringify(columnValues);\n// Escape JSON string como string literal pra GraphQL (envolve aspas + escapa \\\")\nconst columnValuesEscaped = JSON.stringify(columnValuesJson);\n\nlet query;\nif (acao === 'create') {\n  query = `mutation { create_item(board_id: ${BOARD_DESCONTOS}, group_id: \"${GROUP_DESCONTOS}\", item_name: \"INTERMITENTE\", column_values: ${columnValuesEscaped}, create_labels_if_missing: true) { id } }`;\n} else {\n  query = `mutation { change_multiple_column_values(board_id: ${BOARD_DESCONTOS}, item_id: ${existente.id}, column_values: ${columnValuesEscaped}, create_labels_if_missing: true) { id } }`;\n}\n\nreturn [{ json: {\n  _statusCode: 200,\n  acao,\n  item_id_desconto: existente?.id || null,\n  board_id: BOARD_DESCONTOS,\n  group_id: GROUP_DESCONTOS,\n  item_name: 'INTERMITENTE',\n  column_values_json: columnValuesJson,\n  query,\n  descontoVR,\n  descontoVT,\n  regraAplicada,\n  vrDia,\n  vtDia\n} }];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -161,63 +161,28 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
-          "conditions": [
-            {
-              "leftValue": "={{ $json.acao }}",
-              "rightValue": "create",
-              "operator": { "type": "string", "operation": "equals" }
-            }
-          ],
-          "combinator": "and"
+        "method": "POST",
+        "url": "https://api.monday.com/v2",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "mondayApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
         },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query: $('Decidir Desconto').first().json.query }) }}",
         "options": {}
       },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
       "position": [1200, -64],
-      "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567115",
-      "name": "Acao Create?"
-    },
-    {
-      "parameters": {
-        "resource": "boardItem",
-        "operation": "create",
-        "boardId": 18400981023,
-        "groupId": "={{ $('Decidir Desconto').first().json.group_id }}",
-        "name": "={{ $('Decidir Desconto').first().json.item_name }}",
-        "additionalFields": {
-          "columnValues": "={{ $('Decidir Desconto').first().json.column_values_json }}"
-        }
-      },
-      "type": "n8n-nodes-base.mondayCom",
-      "typeVersion": 1,
-      "position": [1376, -160],
       "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567116",
-      "name": "Criar Desconto",
+      "name": "Executar Desconto GraphQL",
       "credentials": {
-        "mondayComApi": {
-          "id": "6I0ycSr6PQJkBYpc",
-          "name": "Ray0"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "resource": "boardItem",
-        "operation": "changeMultipleColumnValues",
-        "boardId": 18400981023,
-        "itemId": "={{ $('Decidir Desconto').first().json.item_id_desconto }}",
-        "columnValues": "={{ $('Decidir Desconto').first().json.column_values_json }}"
-      },
-      "type": "n8n-nodes-base.mondayCom",
-      "typeVersion": 1,
-      "position": [1376, 32],
-      "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567117",
-      "name": "Atualizar Desconto",
-      "credentials": {
-        "mondayComApi": {
+        "mondayApi": {
           "id": "6I0ycSr6PQJkBYpc",
           "name": "Ray0"
         }
@@ -295,20 +260,11 @@
     },
     "Deve Processar Desconto?": {
       "main": [
-        [{ "node": "Acao Create?", "type": "main", "index": 0 }],
+        [{ "node": "Executar Desconto GraphQL", "type": "main", "index": 0 }],
         [{ "node": "Responder OK", "type": "main", "index": 0 }]
       ]
     },
-    "Acao Create?": {
-      "main": [
-        [{ "node": "Criar Desconto", "type": "main", "index": 0 }],
-        [{ "node": "Atualizar Desconto", "type": "main", "index": 0 }]
-      ]
-    },
-    "Criar Desconto": {
-      "main": [[{ "node": "Responder OK", "type": "main", "index": 0 }]]
-    },
-    "Atualizar Desconto": {
+    "Executar Desconto GraphQL": {
       "main": [[{ "node": "Responder OK", "type": "main", "index": 0 }]]
     }
   },
