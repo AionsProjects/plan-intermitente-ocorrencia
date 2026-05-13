@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600;700&display=swap");
+﻿@import url("https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600;700&display=swap");
 
 @import "tailwindcss";
 @import "tw-animate-css";
@@ -8,50 +8,48 @@
 :root {
   --radius: 1.25rem;
 
-  /* Midnight + gold palette (escurecida pra dar contraste com luz dos botões) */
-  --aurora-bg-1: #02040b;
-  --aurora-bg-2: #050b18;
-  --aurora-bg-3: #08122a;
+  /* Deep dark palette with blue/gold accents */
+  --aurora-bg-1: #00030a;
+  --aurora-bg-2: #020815;
+  --aurora-bg-3: #071124;
 
-  --aurora-blue: #4a7dff;
-  --aurora-blue-soft: #6ea0ff;
-  --aurora-blue-deep: #1e3a8a;
-  --aurora-gold: #e8c275;
-  --aurora-gold-deep: #b8862e;
-  --aurora-steel: #94a3b8;
+  --aurora-blue: #3f6ff5;
+  --aurora-blue-soft: #7da7ff;
+  --aurora-blue-deep: #10245f;
+  --aurora-gold: #d8aa53;
+  --aurora-gold-deep: #76511c;
+  --aurora-steel: #75849b;
 
   /* Status */
-  --status-red: #f87171;
-  --status-yellow: #facc15;
-  --status-green: #4ade80;
+  --status-red: #ef6666;
+  --status-yellow: #e4bd43;
+  --status-green: #3fcf79;
 
   /* Glass tokens */
-  --glass-bg: rgba(255, 255, 255, 0.07);
-  --glass-bg-strong: rgba(255, 255, 255, 0.12);
-  --glass-border: rgba(255, 255, 255, 0.18);
-  --glass-border-strong: rgba(255, 255, 255, 0.28);
-  --glass-shadow: 0 20px 60px -10px rgba(8, 5, 30, 0.55), 0 8px 24px -8px rgba(8, 5, 30, 0.35);
-
+  --glass-bg: rgba(8, 13, 26, 0.66);
+  --glass-bg-strong: rgba(12, 18, 34, 0.78);
+  --glass-border: rgba(160, 178, 210, 0.14);
+  --glass-border-strong: rgba(170, 188, 220, 0.22);
+  --glass-shadow: 0 26px 74px -16px rgba(0, 0, 0, 0.82), 0 12px 34px -18px rgba(6, 12, 28, 0.9);
   /* Semantic */
-  --background: transparent;
-  --foreground: #f5f3ff;
-  --card: transparent;
-  --card-foreground: #f5f3ff;
-  --popover: rgba(10, 18, 38, 0.9);
-  --popover-foreground: #eef2ff;
-  --primary: #eef2ff;
-  --primary-foreground: #050912;
-  --secondary: rgba(255, 255, 255, 0.06);
-  --secondary-foreground: #eef2ff;
-  --muted: rgba(255, 255, 255, 0.05);
-  --muted-foreground: rgba(226, 232, 240, 0.6);
-  --accent: rgba(232, 194, 117, 0.12);
-  --accent-foreground: #eef2ff;
-  --destructive: #f87171;
-  --border: rgba(232, 240, 255, 0.12);
-  --input: rgba(232, 240, 255, 0.1);
-  --ring: rgba(232, 194, 117, 0.55);
-}
+  --background: #00030a;
+  --foreground: #f4f7ff;
+  --card: rgba(8, 13, 26, 0.7);
+  --card-foreground: #f4f7ff;
+  --popover: rgba(5, 10, 22, 0.96);
+  --popover-foreground: #eef4ff;
+  --primary: #edf4ff;
+  --primary-foreground: #030711;
+  --secondary: rgba(80, 96, 128, 0.18);
+  --secondary-foreground: #edf4ff;
+  --muted: rgba(70, 82, 108, 0.14);
+  --muted-foreground: rgba(218, 226, 242, 0.58);
+  --accent: rgba(216, 170, 83, 0.12);
+  --accent-foreground: #f8f0dd;
+  --destructive: #ef6666;
+  --border: rgba(176, 194, 230, 0.12);
+  --input: rgba(176, 194, 230, 0.11);
+  --ring: rgba(216, 170, 83, 0.55);}
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 8px);
@@ -98,10 +96,10 @@
     font-family: "Geist", ui-sans-serif, system-ui, -apple-system, sans-serif;
     font-feature-settings: "ss01", "cv11";
     background:
-      radial-gradient(1200px 800px at 85% -10%, rgba(74, 125, 255, 0.18), transparent 60%),
-      radial-gradient(1000px 700px at -10% 110%, rgba(232, 194, 117, 0.12), transparent 55%),
-      radial-gradient(900px 600px at 50% 60%, rgba(110, 160, 255, 0.06), transparent 70%),
-      linear-gradient(165deg, var(--aurora-bg-1) 0%, var(--aurora-bg-2) 55%, var(--aurora-bg-3) 100%);
+      radial-gradient(1100px 760px at 88% -12%, rgba(55, 91, 190, 0.18), transparent 58%),
+      radial-gradient(900px 620px at -12% 112%, rgba(216, 170, 83, 0.08), transparent 54%),
+      radial-gradient(820px 560px at 50% 55%, rgba(70, 96, 155, 0.08), transparent 72%),
+      linear-gradient(165deg, var(--aurora-bg-1) 0%, var(--aurora-bg-2) 52%, var(--aurora-bg-3) 100%);
     background-attachment: fixed;
     overflow-x: hidden;
   }
@@ -118,8 +116,8 @@
     background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
   }
 
-  /* ─── Scrollbar custom: só o thumb visível, em vidro fosco cinza ───
-     Track 100% transparente. Thumb com cor cinza translúcida visível. */
+  /* â”€â”€â”€ Scrollbar custom: sÃ³ o thumb visÃ­vel, em vidro fosco cinza â”€â”€â”€
+     Track 100% transparente. Thumb com cor cinza translÃºcida visÃ­vel. */
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
@@ -162,8 +160,8 @@
     scrollbar-color: rgba(180, 195, 220, 0.32) transparent;
   }
 
-  /* ─── Esconder spinner nativo do input[type=number] ───
-     Usamos botões custom (.num-stepper) no lugar. */
+  /* â”€â”€â”€ Esconder spinner nativo do input[type=number] â”€â”€â”€
+     Usamos botÃµes custom (.num-stepper) no lugar. */
   input[type="number"]::-webkit-inner-spin-button,
   input[type="number"]::-webkit-outer-spin-button {
     -webkit-appearance: none;
@@ -189,44 +187,47 @@
   }
 
   .glass-strong {
-    background: var(--glass-bg-strong);
+    background:
+      linear-gradient(135deg, rgba(18, 25, 44, 0.84), rgba(10, 16, 31, 0.78)),
+      var(--glass-bg-strong);
     border: 1px solid var(--glass-border-strong);
-    backdrop-filter: blur(40px) saturate(180%);
-    -webkit-backdrop-filter: blur(40px) saturate(180%);
+    backdrop-filter: blur(42px) saturate(150%);
+    -webkit-backdrop-filter: blur(42px) saturate(150%);
     box-shadow:
-      0 30px 80px -20px rgba(8, 5, 30, 0.7),
-      inset 1px 1px 0 0 rgba(255, 255, 255, 0.28),
-      inset -1px -1px 0 0 rgba(255, 255, 255, 0.05);
+      0 34px 86px -24px rgba(0, 0, 0, 0.9),
+      0 0 0 1px rgba(255, 255, 255, 0.03),
+      inset 1px 1px 0 0 rgba(255, 255, 255, 0.17),
+      inset -1px -1px 0 0 rgba(0, 0, 0, 0.26);
     border-radius: var(--radius);
   }
 
   .glass-modal {
-    /* tint quase nada — pra ver o fundo passar pelo "vidro" */
+    /* tint quase nada â€” pra ver o fundo passar pelo "vidro" */
     background: rgba(255, 255, 255, 0.04);
-    /* borda mais forte e visível — o "ring" do vidro */
+    /* borda mais forte e visÃ­vel â€” o "ring" do vidro */
     border: 1.5px solid rgba(255, 255, 255, 0.32);
-    /* CENTRO do modal: só frosted glass, SEM displacement.
-       (a distorção da quina vive no ::after via mask radial) */
+    /* CENTRO do modal: sÃ³ frosted glass, SEM displacement.
+       (a distorÃ§Ã£o da quina vive no ::after via mask radial) */
     backdrop-filter: blur(10px) saturate(140%) brightness(1.05);
     -webkit-backdrop-filter: blur(10px) saturate(140%) brightness(1.05);
     box-shadow:
-      /* ─── SOMBRAS EXTERNAS (atrás) — bem mais dramáticas ─── */
+      /* â”€â”€â”€ SOMBRAS EXTERNAS (atrÃ¡s) â€” bem mais dramÃ¡ticas â”€â”€â”€ */
       /* sombra projetada profunda pra baixo (peso) */
       0 60px 130px -20px rgba(0, 0, 0, 0.95),
-      /* sombra direta logo abaixo (definição da silhueta) */
+      /* sombra direta logo abaixo (definiÃ§Ã£o da silhueta) */
       0 25px 50px -8px rgba(0, 0, 0, 0.7),
-      /* halo escuro ao redor — separa o vidro do fundo em todos os lados */
+      /* halo escuro ao redor â€” separa o vidro do fundo em todos os lados */
       0 0 100px 18px rgba(0, 0, 0, 0.7),
-      /* ring exterior duplo: branco fino + sombra escura logo após
-         (cria a impressão de espessura real do vidro) */
+      /* ring exterior duplo: branco fino + sombra escura logo apÃ³s
+         (cria a impressÃ£o de espessura real do vidro) */
       0 0 0 1px rgba(255, 255, 255, 0.25),
       0 0 0 3px rgba(0, 0, 0, 0.45),
-      /* ─── BORDA AFUNDADA (inset) ─── */
+      /* â”€â”€â”€ BORDA AFUNDADA (inset) â”€â”€â”€ */
       inset 0 10px 26px -6px rgba(0, 0, 0, 0.65),
       inset 0 -8px 20px -6px rgba(0, 0, 0, 0.5),
       inset 10px 0 22px -8px rgba(0, 0, 0, 0.5),
       inset -10px 0 22px -8px rgba(0, 0, 0, 0.5),
-      /* highlights na própria borda — bem mais brilhantes pra "lip" pop */
+      /* highlights na prÃ³pria borda â€” bem mais brilhantes pra "lip" pop */
       inset 0 2px 0 0 rgba(255, 255, 255, 0.6),
       inset 1.5px 0 0 0 rgba(255, 255, 255, 0.3),
       inset -1.5px 0 0 0 rgba(255, 255, 255, 0.18),
@@ -238,7 +239,7 @@
 
 
 
-  /* highlight curvo no topo — simula a borda iluminada de uma lente */
+  /* highlight curvo no topo â€” simula a borda iluminada de uma lente */
   .glass-modal::before {
     content: "";
     position: absolute;
@@ -260,34 +261,29 @@
   }
 
   .glass-tile {
-    background: rgba(255, 255, 255, 0.035);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    backdrop-filter: url(#liquid-glass-soft) blur(6px) saturate(135%);
-    -webkit-backdrop-filter: url(#liquid-glass-soft) blur(6px) saturate(135%);
+    background: linear-gradient(135deg, rgba(38, 48, 70, 0.68), rgba(16, 23, 38, 0.76));
+    border: 1px solid rgba(178, 196, 230, 0.13);
+    backdrop-filter: url(#liquid-glass-soft) blur(8px) saturate(125%);
+    -webkit-backdrop-filter: url(#liquid-glass-soft) blur(8px) saturate(125%);
     box-shadow:
-      0 8px 24px -8px rgba(0, 0, 0, 0.5),
-      inset 0 1px 0 0 rgba(255, 255, 255, 0.18),
-      inset 0 -1px 0 0 rgba(255, 255, 255, 0.04);
-    transition: background 220ms ease, border-color 220ms ease, transform 220ms ease;
+      0 12px 30px -12px rgba(0, 0, 0, 0.72),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.16),
+      inset 0 -1px 0 0 rgba(0, 0, 0, 0.22);
+    transition: background 220ms ease, border-color 220ms ease, transform 220ms ease, box-shadow 220ms ease;
   }
 
   .glass-tile:hover {
-    background: rgba(255, 255, 255, 0.07);
-    border-color: rgba(255, 255, 255, 0.2);
+    background: linear-gradient(135deg, rgba(50, 62, 86, 0.78), rgba(20, 29, 48, 0.84));
+    border-color: rgba(185, 205, 240, 0.24);
   }
 
-  /* Fallback pra browsers sem suporte a url() em backdrop-filter */
   @supports not (backdrop-filter: url(#liquid-glass-soft)) {
     .glass-tile {
-      backdrop-filter: blur(14px) saturate(160%);
-      -webkit-backdrop-filter: blur(14px) saturate(160%);
+      backdrop-filter: blur(14px) saturate(140%);
+      -webkit-backdrop-filter: blur(14px) saturate(140%);
     }
   }
 
-  /* ─── Tile 3D (segue o cursor): mesma técnica do .choice-btn ───
-     --mx, --my (0..100) setados via JS no mousemove. Default 50/50 = neutro.
-     A perspectiva inclina o tile + a camada de pressão/levantamento dá
-     a sensação de profundidade física. */
   .glass-tile-3d {
     --mx: 50;
     --my: 50;
@@ -305,8 +301,6 @@
     transform-style: preserve-3d;
   }
 
-  /* Halo de pressão (afunda no canto do cursor) + lift no canto oposto.
-     Usa ::before pra não conflitar com glass-edge::after. */
   .glass-tile-3d::before {
     content: "";
     position: absolute;
@@ -316,12 +310,12 @@
     background:
       radial-gradient(
         circle at calc(var(--mx) * 1%) calc(var(--my) * 1%),
-        rgba(0, 0, 0, 0.28) 0%,
+        rgba(0, 0, 0, 0.38) 0%,
         transparent 42%
       ),
       radial-gradient(
         circle at calc((100 - var(--mx)) * 1%) calc((100 - var(--my)) * 1%),
-        rgba(255, 255, 255, 0.13) 0%,
+        rgba(160, 184, 228, 0.12) 0%,
         transparent 38%
       );
     opacity: 0;
@@ -335,9 +329,9 @@
 
   .glass-tile-3d:hover {
     box-shadow:
-      0 18px 40px -8px rgba(0, 0, 0, 0.65),
-      inset 0 1px 0 0 rgba(255, 255, 255, 0.25),
-      inset 0 -1px 0 0 rgba(255, 255, 255, 0.05);
+      0 22px 48px -12px rgba(0, 0, 0, 0.78),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.22),
+      inset 0 -1px 0 0 rgba(0, 0, 0, 0.2);
   }
 
   .glass-tile-3d:active {
@@ -345,23 +339,20 @@
       perspective(800px)
       rotateY(calc((var(--mx) - 50) * 0.06deg))
       rotateX(calc((50 - var(--my)) * 0.06deg))
-      translateZ(-3px)
-      scale(0.985);
+      translateZ(-4px)
+      scale(0.982);
     transition: transform 80ms ease-out;
   }
 
-  /* Conteúdo do tile sempre acima do halo */
   .glass-tile-3d > * {
     position: relative;
     z-index: 1;
   }
-
-  /* ─── Grid de dias: 2 por linha, último ímpar ocupa as 2 colunas ─── */
   .dia-grid > li:last-child:nth-child(odd) {
     grid-column: span 2;
   }
 
-  /* ─── Lâmpada quebrada (estado "Desconsiderado") ─── */
+  /* â”€â”€â”€ LÃ¢mpada quebrada (estado "Desconsiderado") â”€â”€â”€ */
   .lamp-broken-wrap {
     display: inline-flex;
     align-items: center;
@@ -392,8 +383,8 @@
       inset 0 1px 0 0 rgba(255, 255, 255, 0.3);
   }
 
-  /* ─── Stepper de número (botões + / − customizados) ───
-     Wrapper que agrupa o input e os 2 botões empilhados à direita. */
+  /* â”€â”€â”€ Stepper de nÃºmero (botÃµes + / âˆ’ customizados) â”€â”€â”€
+     Wrapper que agrupa o input e os 2 botÃµes empilhados Ã  direita. */
   .num-stepper {
     display: flex;
     align-items: stretch;
@@ -465,9 +456,9 @@
     pointer-events: none;
   }
 
-  /* ─── Glass edge — borda biselada visível em todas as caixas ───
+  /* â”€â”€â”€ Glass edge â€” borda biselada visÃ­vel em todas as caixas â”€â”€â”€
      Aplica via ::after um halo sobreposto que mistura highlights nos cantos
-     e um leve "ring" pra dar a sensação de espessura de vidro.
+     e um leve "ring" pra dar a sensaÃ§Ã£o de espessura de vidro.
      Aplicado automaticamente em todas as classes glass conhecidas + a
      utility .glass-edge pra elementos avulsos. */
   .glass-edge,
@@ -500,13 +491,13 @@
     mix-blend-mode: overlay;
     opacity: 0.85;
   }
-  /* ─── Quina de lente do modal ───
+  /* â”€â”€â”€ Quina de lente do modal â”€â”€â”€
      Pseudo posicionado por cima do modal com:
-     - backdrop-filter url(#liquid-glass) → distorção tipo lente
-     - mask-image radial → SÓ renderiza no anel das bordas (centro fica intacto)
+     - backdrop-filter url(#liquid-glass) â†’ distorÃ§Ã£o tipo lente
+     - mask-image radial â†’ SÃ“ renderiza no anel das bordas (centro fica intacto)
      - bg gradients + linear gradients = highlights da quina
-     Resultado: centro do modal é frosted limpo; quina tem distorção real
-     de quina de vidro de óculos. */
+     Resultado: centro do modal Ã© frosted limpo; quina tem distorÃ§Ã£o real
+     de quina de vidro de Ã³culos. */
   .glass-modal::after {
     content: "";
     position: absolute;
@@ -521,8 +512,8 @@
       radial-gradient(ellipse 35% 30% at 100% 100%, rgba(255, 255, 255, 0.1), transparent 60%),
       linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, transparent 2px),
       linear-gradient(0deg, rgba(0, 0, 0, 0.18) 0%, transparent 2px);
-    /* Mask radial: transparente no centro (não renderiza, vidro fica limpo)
-       opaco nas bordas (quina visível com displacement + highlights) */
+    /* Mask radial: transparente no centro (nÃ£o renderiza, vidro fica limpo)
+       opaco nas bordas (quina visÃ­vel com displacement + highlights) */
     mask-image: radial-gradient(
       ellipse 78% 72% at center,
       transparent 50%,
@@ -537,7 +528,7 @@
     );
   }
 
-  /* Banner de modo apagar — liquid glass com tint vermelho */
+  /* Banner de modo apagar â€” liquid glass com tint vermelho */
   .glass-banner-danger {
     background: rgba(248, 113, 113, 0.06);
     border: 1px solid rgba(248, 113, 113, 0.22);
@@ -642,7 +633,7 @@
   animation: fade-up 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* ─── Extra-day tile (animated dashed border via SVG) ─── */
+/* â”€â”€â”€ Extra-day tile (animated dashed border via SVG) â”€â”€â”€ */
 .glass-tile-extra {
   background-color: rgba(255, 255, 255, 0.03);
   border: none !important;
@@ -688,7 +679,7 @@
   to { stroke-dashoffset: -1100; }
 }
 
-/* ─── Disabled tile (standard day deactivated) ─── */
+/* â”€â”€â”€ Disabled tile (standard day deactivated) â”€â”€â”€ */
 .glass-tile-disabled {
   background: rgba(0, 0, 0, 0.25) !important;
   border: 1px solid rgba(255, 255, 255, 0.05) !important;
@@ -721,7 +712,7 @@
   pointer-events: auto;
 }
 
-/* ─── Shake / tremble mode ─── */
+/* â”€â”€â”€ Shake / tremble mode â”€â”€â”€ */
 @keyframes shake-tremble {
   0%, 100% { transform: rotate(0deg) translate(0, 0); }
   20%      { transform: rotate(-0.25deg) translate(-0.3px, 0.15px); }
@@ -745,7 +736,7 @@
   animation-duration: 0.7s !important;
 }
 
-/* ─── Expandable action button ─── */
+/* â”€â”€â”€ Expandable action button â”€â”€â”€ */
 .btn-action-expand {
   display: inline-flex;
   align-items: center;
@@ -839,9 +830,9 @@
   opacity: 1;
 }
 
-/* ─── Choice button — vidro 3D que afunda seguindo o cursor ───
-   --mx e --my (0..100) são setados via JS no mousemove.
-   Default 50/50 = sem tilt, sem highlight de pressão. */
+/* â”€â”€â”€ Choice button â€” vidro 3D que afunda seguindo o cursor â”€â”€â”€
+   --mx e --my (0..100) sÃ£o setados via JS no mousemove.
+   Default 50/50 = sem tilt, sem highlight de pressÃ£o. */
 .choice-btn {
   --mx: 50;
   --my: 50;
@@ -867,7 +858,7 @@
     0 10px 30px -8px rgba(0, 0, 0, 0.55),
     inset 0 1px 0 0 rgba(255, 255, 255, 0.25),
     inset 0 -1px 0 0 rgba(255, 255, 255, 0.06);
-  /* tilt 3D: cursor mais à direita → eixo Y rotaciona positivo (lado direito recua) */
+  /* tilt 3D: cursor mais Ã  direita â†’ eixo Y rotaciona positivo (lado direito recua) */
   transform:
     perspective(700px)
     rotateY(calc((var(--mx) - 50) * 0.16deg))
@@ -888,7 +879,7 @@
   }
 }
 
-/* "Polegar" de pressão — escurece um halo radial no ponto do cursor */
+/* "Polegar" de pressÃ£o â€” escurece um halo radial no ponto do cursor */
 .choice-btn::before {
   content: "";
   position: absolute;
@@ -905,7 +896,7 @@
   z-index: 1;
 }
 
-/* "Salto" oposto — clareia o canto contrário pra parecer que pulou pra cima */
+/* "Salto" oposto â€” clareia o canto contrÃ¡rio pra parecer que pulou pra cima */
 .choice-btn::after {
   content: "";
   position: absolute;
@@ -932,8 +923,8 @@
   z-index: 2;
 }
 
-/* Variante "primary" — começa neutra (igual ghost), só "acende" dourada
-   no hover. Evita que o cérebro pré-ative o "Sim" antes do usuário decidir. */
+/* Variante "primary" â€” comeÃ§a neutra (igual ghost), sÃ³ "acende" dourada
+   no hover. Evita que o cÃ©rebro prÃ©-ative o "Sim" antes do usuÃ¡rio decidir. */
 .choice-btn--primary:hover {
   background: linear-gradient(135deg, #f0cc7d 0%, #d4a64a 55%, #8a6420 130%);
   border-color: rgba(255, 236, 194, 0.55);
@@ -941,14 +932,14 @@
   box-shadow:
     /* Halo dourado distante (luz ambiente "vazando" ao redor) */
     0 0 60px 8px rgba(232, 194, 117, 0.5),
-    /* Glow dourado próximo (definição) */
+    /* Glow dourado prÃ³ximo (definiÃ§Ã£o) */
     0 20px 44px -6px rgba(232, 194, 117, 0.75),
     /* Highlight da face (pop de cor) */
     inset 0 1px 0 0 rgba(255, 255, 255, 0.55),
     inset 0 -1px 0 0 rgba(138, 100, 32, 0.4);
 }
 
-/* Variante "danger" — começa neutro, vermelho escuro no hover, vermelho vivo no active */
+/* Variante "danger" â€” comeÃ§a neutro, vermelho escuro no hover, vermelho vivo no active */
 .choice-btn--danger:hover {
   background: rgba(60, 14, 14, 0.65); /* red-950 escuro */
   border-color: rgba(220, 38, 38, 0.7);
@@ -956,7 +947,7 @@
   box-shadow:
     /* Halo vermelho distante */
     0 0 36px 4px rgba(220, 38, 38, 0.3),
-    /* Glow vermelho próximo */
+    /* Glow vermelho prÃ³ximo */
     0 16px 36px -6px rgba(127, 29, 29, 0.65),
     inset 0 1px 0 0 rgba(255, 200, 200, 0.22),
     inset 0 -1px 0 0 rgba(40, 10, 10, 0.4);
@@ -973,7 +964,7 @@
     inset 0 6px 14px rgba(0, 0, 0, 0.4);
 }
 
-/* Click "afunda" — vale pra todas as variantes */
+/* Click "afunda" â€” vale pra todas as variantes */
 .choice-btn:active {
   transform:
     perspective(700px)
@@ -995,7 +986,7 @@
   pointer-events: none;
 }
 
-/* ─── Calendar (react-day-picker inside glass modal) ─── */
+/* â”€â”€â”€ Calendar (react-day-picker inside glass modal) â”€â”€â”€ */
 .rdp-root {
   --rdp-accent-color: var(--aurora-blue-soft);
   --rdp-accent-background-color: rgba(110, 160, 255, 0.18);
@@ -1063,7 +1054,7 @@
   color: white;
 }
 
-/* ─── Slide-in animation for extra days ─── */
+/* â”€â”€â”€ Slide-in animation for extra days â”€â”€â”€ */
 @keyframes slide-in-right {
   from {
     opacity: 0;
@@ -1079,7 +1070,7 @@
   animation: slide-in-right 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* ─── Fade-out for removed days ─── */
+/* â”€â”€â”€ Fade-out for removed days â”€â”€â”€ */
 @keyframes shrink-out {
   from {
     opacity: 1;
@@ -1100,7 +1091,7 @@
   overflow: hidden;
 }
 
-/* ─── Bubble pop (in-session extra removal) ─── */
+/* â”€â”€â”€ Bubble pop (in-session extra removal) â”€â”€â”€ */
 @keyframes bubble-pop {
   0%   { transform: scale(1);    opacity: 1;   max-height: 6rem; filter: blur(0); }
   18%  { transform: scale(1.07); opacity: 1; }
@@ -1160,3 +1151,56 @@
   pointer-events: none;
   z-index: 2;
 }
+
+/* popover de Select/DatePicker usa .glass-modal (igual DialogDia) */
+
+/* slide transitions agora vivem no componente SlideStack (TS inline styles). */
+
+/* ============================================================
+   Background animado â€” cycle navy â†’ pÃºrpura â†’ preto â†’ azul-preto â†’ navy
+   Sutil, 120s, nÃ£o rouba atenÃ§Ã£o. Aplicado em html (camada base atrÃ¡s
+   dos orbes do AuroraBackground).
+   ============================================================ */
+@keyframes bg-hue-cycle {
+  0%   { background-color: hsl(222deg 55% 2%); }
+  25%  { background-color: hsl(236deg 44% 4%); }
+  50%  { background-color: hsl(218deg 42% 2%); }
+  75%  { background-color: hsl(226deg 52% 4%); }
+  100% { background-color: hsl(222deg 55% 2%); }
+}
+html {
+  background-color: hsl(222deg 55% 2%);
+  animation: bg-hue-cycle 120s ease-in-out infinite;
+}
+
+/* ============================================================
+   Convocar button â€” esteira vertical do aviÃ£o
+   AviÃ£o 1 sobe pelo topo do botÃ£o e some;
+   AviÃ£o 2 surge por baixo do botÃ£o e sobe pra posiÃ§Ã£o original.
+   1Ã— por mouseenter (nÃ£o-loop).
+   ============================================================ */
+/* AviÃ£o decolando na direÃ§Ã£o que aponta (â†— up-right).
+   TranslaÃ§Ã£o grande o bastante pra passar pelas bordas do botÃ£o.
+   overflow:hidden no botÃ£o clipa o Ã­cone â€” box-shadow do botÃ£o NÃƒO
+   Ã© afetado (paint da borda externa, nÃ£o conteÃºdo). */
+@keyframes plane-takeoff {
+  0%   { transform: translate(0, 0)        rotate(0deg);  opacity: 1; }
+  35%  { transform: translate(18px, -18px) rotate(-8deg); opacity: 1; }
+  49%  { transform: translate(40px, -40px) rotate(-12deg); opacity: 0; }
+  50%  { transform: translate(-40px, 40px) rotate(-12deg); opacity: 0; }
+  65%  { transform: translate(-18px, 18px) rotate(-6deg); opacity: 0.7; }
+  100% { transform: translate(0, 0)        rotate(0deg);  opacity: 1; }
+}
+.plane-btn {
+  position: relative;
+  overflow: hidden;  /* clipa sÃ³ o conteÃºdo; glow externo do botÃ£o preservado */
+}
+.plane-btn:hover .plane-icon {
+  animation: plane-takeoff 820ms cubic-bezier(0.4, 0, 0.35, 1);
+}
+.plane-icon {
+  display: inline-block;
+  will-change: transform, opacity;
+}
+
+

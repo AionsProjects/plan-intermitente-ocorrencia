@@ -1,0 +1,194 @@
+import { useMemo, useState } from "react"
+import {
+  addMonths,
+  endOfMonth,
+  endOfWeek,
+  format,
+  isSameDay,
+  isSameMonth,
+  parseISO,
+  startOfMonth,
+  startOfWeek,
+  subMonths,
+} from "date-fns"
+import { ptBR } from "date-fns/locale"
+import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react"
+
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+
+type Props = {
+  label: string
+  value: string // YYYY-MM-DD ou ""
+  onChange: (v: string) => void
+  min?: string
+}
+
+export function GlassDatePicker({ label, value, onChange, min }: Props) {
+  const [aberto, setAberto] = useState(false)
+  const [mesVisivel, setMesVisivel] = useState<Date>(() =>
+    value ? parseISO(value) : new Date(),
+  )
+
+  function abrir() {
+    if (value) setMesVisivel(parseISO(value))
+    else setMesVisivel(new Date())
+    setAberto(true)
+  }
+
+  const selecionado = value ? parseISO(value) : null
+  const minDate = min ? parseISO(min) : null
+
+  const dias = useMemo(() => {
+    const inicio = startOfWeek(startOfMonth(mesVisivel), { weekStartsOn: 0 })
+    const fim = endOfWeek(endOfMonth(mesVisivel), { weekStartsOn: 0 })
+    const out: Date[] = []
+    const d = new Date(inicio)
+    while (d <= fim) {
+      out.push(new Date(d))
+      d.setDate(d.getDate() + 1)
+    }
+    return out
+  }, [mesVisivel])
+
+  const labelMesAno = format(mesVisivel, "MMMM 'de' yyyy", { locale: ptBR })
+  const exibido = selecionado
+    ? format(selecionado, "dd/MM/yyyy", { locale: ptBR })
+    : ""
+
+  function selecionar(d: Date) {
+    if (minDate && d < minDate) return
+    const iso = format(d, "yyyy-MM-dd")
+    onChange(iso)
+    setAberto(false)
+  }
+
+  function hoje() {
+    selecionar(new Date())
+  }
+
+  function limpar() {
+    onChange("")
+    setAberto(false)
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={abrir}
+        className={`flex w-full items-center gap-2 rounded-xl border border-white/12 bg-white/[0.04] px-4 py-3 text-left text-sm backdrop-blur transition hover:border-white/20 hover:bg-white/[0.06] ${
+          aberto ? "border-[#e8c275]/55 bg-white/[0.08]" : ""
+        }`}
+      >
+        <CalendarDays className="size-4 shrink-0 text-white/50" />
+        <span className={exibido ? "text-white" : "text-white/40"}>
+          {exibido || "dd/mm/aaaa"}
+        </span>
+      </button>
+
+      <Dialog open={aberto} onOpenChange={setAberto}>
+        <DialogContent
+          className="glass-modal border-0 bg-transparent p-8 text-white sm:max-w-md"
+          style={{
+            backdropFilter: "blur(10px) saturate(140%) brightness(1.05)",
+          }}
+        >
+          <DialogHeader>
+            <p className="text-[10px] uppercase tracking-[0.3em] text-white/55">
+              Escolher data
+            </p>
+            <DialogTitle className="text-display text-3xl text-white">
+              {label}
+            </DialogTitle>
+            <DialogDescription className="text-white/60">
+              Selecione o dia desejado no calendário.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="my-2 h-px bg-white/12" />
+
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setMesVisivel((m) => subMonths(m, 1))}
+              className="inline-flex size-9 items-center justify-center rounded-xl border border-white/12 bg-white/[0.04] text-white/75 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+            <p className="text-display text-lg capitalize text-white/95">
+              {labelMesAno}
+            </p>
+            <button
+              type="button"
+              onClick={() => setMesVisivel((m) => addMonths(m, 1))}
+              className="inline-flex size-9 items-center justify-center rounded-xl border border-white/12 bg-white/[0.04] text-white/75 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
+            >
+              <ChevronRight className="size-4" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-7 gap-1">
+            {["D", "S", "T", "Q", "Q", "S", "S"].map((d, i) => (
+              <div
+                key={i}
+                className="py-1 text-center text-[10px] uppercase tracking-wider text-white/40"
+              >
+                {d}
+              </div>
+            ))}
+            {dias.map((d) => {
+              const noMes = isSameMonth(d, mesVisivel)
+              const sel = selecionado && isSameDay(d, selecionado)
+              const ehHoje = isSameDay(d, new Date())
+              const desabilitado = minDate && d < minDate
+              return (
+                <button
+                  key={d.toISOString()}
+                  type="button"
+                  disabled={!!desabilitado}
+                  onClick={() => selecionar(d)}
+                  className={`flex h-10 w-full items-center justify-center rounded-xl text-sm font-medium transition ${
+                    sel
+                      ? "bg-[#e8c275] text-[#0a1224] shadow-[0_0_18px_rgba(232,194,117,0.5)]"
+                      : noMes
+                        ? "text-white/90 hover:bg-white/10"
+                        : "text-white/30 hover:bg-white/5"
+                  } ${ehHoje && !sel ? "ring-1 ring-[#e8c275]/45" : ""} ${
+                    desabilitado ? "cursor-not-allowed opacity-40" : ""
+                  }`}
+                >
+                  {d.getDate()}
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="my-2 h-px bg-white/12" />
+
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={limpar}
+              className="text-sm text-white/55 transition hover:text-white/85"
+            >
+              Limpar
+            </button>
+            <button
+              type="button"
+              onClick={hoje}
+              className="text-sm font-medium text-[#e8c275] transition hover:text-[#ffe6b0]"
+            >
+              Hoje
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}

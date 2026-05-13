@@ -1,7 +1,7 @@
-export function AuroraBackground() {
+﻿export function AuroraBackground() {
   return (
     <>
-      {/* Filtro SVG global pra distorção tipo lente/liquid glass.
+      {/* Filtro SVG global pra distorÃ§Ã£o tipo lente/liquid glass.
           Referenciado em CSS via backdrop-filter: url(#liquid-glass) */}
       <svg
         aria-hidden
@@ -9,9 +9,9 @@ export function AuroraBackground() {
       >
         <defs>
           <filter id="liquid-glass" x="-15%" y="-15%" width="130%" height="130%">
-            {/* Frequência baixa = ondas longas e suaves (não ruído alto-frequência).
-                Resultado: distorção mais coerente, parece curvatura de lente
-                real em vez de ruído aleatório. */}
+            {/* FrequÃªncia baixa = ondas longas e suaves (nÃ£o ruÃ­do alto-frequÃªncia).
+                Resultado: distorÃ§Ã£o mais coerente, parece curvatura de lente
+                real em vez de ruÃ­do aleatÃ³rio. */}
             <feTurbulence
               type="fractalNoise"
               baseFrequency="0.005 0.007"
@@ -28,8 +28,8 @@ export function AuroraBackground() {
               yChannelSelector="G"
             />
           </filter>
-          {/* Versão suave pra elementos menores (tiles, botões, banners):
-              deslocamento bem menor pra não distorcer demais em alturas pequenas. */}
+          {/* VersÃ£o suave pra elementos menores (tiles, botÃµes, banners):
+              deslocamento bem menor pra nÃ£o distorcer demais em alturas pequenas. */}
           <filter id="liquid-glass-soft" x="-15%" y="-15%" width="130%" height="130%">
             <feTurbulence
               type="fractalNoise"
@@ -58,8 +58,8 @@ export function AuroraBackground() {
             top: "-130px",
             right: "-90px",
             background:
-              "radial-gradient(circle at 30% 30%, #6ea0ff 0%, #2a4fd0 45%, transparent 70%)",
-            opacity: 0.38,
+              "radial-gradient(circle at 30% 30%, #5f86ff 0%, #18338c 48%, transparent 72%)",
+            opacity: 0.24,
             animation: "orb-drift-1 14s ease-in-out infinite",
           }}
         />
@@ -71,8 +71,8 @@ export function AuroraBackground() {
           bottom: "-150px",
           left: "-110px",
           background:
-            "radial-gradient(circle at 40% 40%, #f0d28a 0%, #c8943a 50%, transparent 72%)",
-          opacity: 0.25,
+            "radial-gradient(circle at 40% 40%, #d8aa53 0%, #6f4817 52%, transparent 74%)",
+          opacity: 0.16,
           animation: "orb-drift-2 18s ease-in-out infinite",
         }}
       />
@@ -84,8 +84,8 @@ export function AuroraBackground() {
           top: "55%",
           right: "10%",
           background:
-            "radial-gradient(circle at 50% 50%, #e8c275 0%, #8a6420 55%, transparent 75%)",
-          opacity: 0.18,
+            "radial-gradient(circle at 50% 50%, #bd8f3d 0%, #503313 55%, transparent 76%)",
+          opacity: 0.12,
           animation: "orb-drift-3 22s ease-in-out infinite",
         }}
       />
@@ -97,8 +97,8 @@ export function AuroraBackground() {
           top: "18%",
           left: "8%",
           background:
-            "radial-gradient(circle at 50% 50%, #b8c5d6 0%, #5a6b85 55%, transparent 78%)",
-          opacity: 0.2,
+            "radial-gradient(circle at 50% 50%, #7688a3 0%, #25324a 56%, transparent 78%)",
+          opacity: 0.13,
           animation: "orb-drift-4 20s ease-in-out infinite",
         }}
       />
@@ -106,3 +106,4 @@ export function AuroraBackground() {
     </>
   )
 }
+

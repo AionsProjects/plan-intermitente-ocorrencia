@@ -1,0 +1,163 @@
+import type {
+  ConvocacaoPayload,
+  ConvocacaoResposta,
+  EmpregadoRM,
+} from "./types"
+
+const BASE_URL = import.meta.env.VITE_N8N_BASE_URL ?? ""
+const USE_MOCK = !BASE_URL
+
+const MOCK_EMPREGADOS: EmpregadoRM[] = [
+  {
+    nome: "FULANO DE TAL",
+    chapa: "999001",
+    cpf: "00000000001",
+    funcao: "AUXILIAR DE SERVIÇOS GERAIS",
+    admissao: "2024-01-15",
+    secao: "01.01.0001.01.0001",
+    codcoligada: 3,
+  },
+  {
+    nome: "BELTRANO DA SILVA",
+    chapa: "999002",
+    cpf: "00000000002",
+    funcao: "PORTARIA",
+    admissao: "2023-06-01",
+    secao: "01.01.0001.01.0001",
+    codcoligada: 3,
+  },
+  {
+    nome: "CICRANO DOS SANTOS",
+    chapa: "999003",
+    cpf: "00000000003",
+    funcao: "MOTORISTA",
+    admissao: "2022-11-20",
+    secao: "01.01.0001.01.0001",
+    codcoligada: 3,
+  },
+  {
+    nome: "ISAAC RAYLEN GOMES",
+    chapa: "999004",
+    cpf: "00000000004",
+    funcao: "DESENVOLVEDOR",
+    admissao: "2025-08-01",
+    secao: "01.01.0001.01.0001",
+    codcoligada: 3,
+  },
+  {
+    nome: "FULANA DEMO PEREIRA",
+    chapa: "999005",
+    cpf: "00000000005",
+    funcao: "AUXILIAR ADMINISTRATIVO",
+    admissao: "2024-05-10",
+    secao: "01.01.0001.01.0001",
+    codcoligada: 3,
+  },
+]
+
+function normaliza(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toUpperCase()
+    .trim()
+}
+
+export async function buscarEmpregado(
+  nome: string,
+): Promise<EmpregadoRM[]> {
+  const query = nome.trim()
+  if (query.length < 3) return []
+
+  if (USE_MOCK) {
+    await new Promise((r) => setTimeout(r, 250))
+    const q = normaliza(query)
+    return MOCK_EMPREGADOS.filter((e) => normaliza(e.nome).includes(q))
+  }
+
+  const res = await fetch(
+    `${BASE_URL}/convocar-buscar-empregado?nome=${encodeURIComponent(query)}`,
+  )
+  if (!res.ok) {
+    const err = new Error(`Erro ${res.status}`) as Error & { status?: number }
+    err.status = res.status
+    throw err
+  }
+  const raw = await res.json()
+  const lista: unknown[] = raw.resultados ?? []
+  return lista.map((r) => {
+    const o = r as Record<string, unknown>
+    return {
+      nome: String(o.nome ?? ""),
+      chapa: String(o.chapa ?? ""),
+      cpf: String(o.cpf ?? ""),
+      funcao: String(o.funcao ?? ""),
+      admissao: String(o.admissao ?? ""),
+      secao: String(o.secao ?? ""),
+      codcoligada: Number(o.codcoligada ?? 3),
+    }
+  })
+}
+
+export async function criarConvocacao(
+  payload: ConvocacaoPayload,
+): Promise<ConvocacaoResposta> {
+  if (USE_MOCK) {
+    await new Promise((r) => setTimeout(r, 700))
+    return {
+      ok: true,
+      itemId: `mock-${Date.now()}`,
+      itemUrl: "#mock",
+    }
+  }
+
+  const fd = new FormData()
+  fd.append("name", payload.name)
+  fd.append("empregado_nome", payload.empregado.nome)
+  fd.append("empregado_chapa", payload.empregado.chapa)
+  fd.append("empregado_cpf", payload.empregado.cpf)
+  fd.append("empregado_funcao", payload.empregado.funcao)
+  fd.append("empregado_admissao", payload.empregado.admissao)
+  fd.append("empregado_secao", payload.empregado.secao)
+  fd.append("empregado_codcoligada", String(payload.empregado.codcoligada))
+  fd.append("escala", payload.escala)
+  fd.append("solicitante", payload.solicitante)
+  fd.append("contrato", payload.contrato)
+  fd.append("local_unidade", payload.localUnidade)
+  fd.append("sabado", payload.sabado)
+  fd.append("insalubridade", payload.insalubridade)
+  fd.append("interior", payload.interior)
+  fd.append("data_inicio", payload.dataInicio)
+  fd.append("data_fim", payload.dataFim)
+  fd.append("justificativa", payload.justificativa)
+  fd.append("empregado_substituido", payload.empregadoSubstituido)
+  if (payload.termoConvocacao) {
+    fd.append("termo_convocacao", payload.termoConvocacao)
+  }
+  if (payload.termoInsalubridade) {
+    fd.append("termo_insalubridade", payload.termoInsalubridade)
+  }
+
+  const res = await fetch(`${BASE_URL}/intermitente-convocar`, {
+    method: "POST",
+    body: fd,
+  })
+  if (!res.ok) {
+    let mensagem = `Erro ${res.status}`
+    try {
+      const data = await res.json()
+      if (data?.mensagem) mensagem = String(data.mensagem)
+    } catch {
+      // ignore
+    }
+    const err = new Error(mensagem) as Error & { status?: number }
+    err.status = res.status
+    throw err
+  }
+  const data = await res.json()
+  return {
+    ok: true,
+    itemId: String(data.item_id ?? ""),
+    itemUrl: String(data.item_url ?? ""),
+  }
+}
