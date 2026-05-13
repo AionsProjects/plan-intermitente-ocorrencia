@@ -6,8 +6,7 @@ import { ptBR } from "date-fns/locale"
 import { GlassDatePicker } from "./GlassDatePicker"
 import { GlassSelect } from "./GlassSelect"
 import {
-  CONTRATOS,
-  JUSTIFICATIVAS,
+  OPCOES_CONVOCACAO_FALLBACK,
   type ConvocacaoPayload,
   type Contrato,
   type EmpregadoRM,
@@ -16,7 +15,7 @@ import {
   type SimNao,
   type Solicitante,
 } from "./types"
-import { useCriarConvocacao } from "./useConvocacao"
+import { useCriarConvocacao, useOpcoesConvocacao } from "./useConvocacao"
 
 type Props = {
   empregado: EmpregadoRM
@@ -65,7 +64,9 @@ export function FormularioConvocacao({
 }: Props) {
   const [form, setForm] = useState<FormState>(() => initialState(empregado))
   const [erroGeral, setErroGeral] = useState<string | null>(null)
+  const opcoesQuery = useOpcoesConvocacao()
   const mutation = useCriarConvocacao()
+  const opcoes = opcoesQuery.data ?? OPCOES_CONVOCACAO_FALLBACK
 
   const camposObrigatoriosOk = useMemo(() => {
     return (
@@ -185,7 +186,7 @@ export function FormularioConvocacao({
             label="Solicitante"
             value={form.solicitante}
             onChange={(v) => set("solicitante", v as Solicitante | "")}
-            options={["OPERACIONAL", "RH"] as const}
+            options={opcoes.solicitantes}
           />
         </FieldWrap>
 
@@ -194,7 +195,7 @@ export function FormularioConvocacao({
             label="Op - Contrato"
             value={form.contrato}
             onChange={(v) => set("contrato", v as Contrato | "")}
-            options={CONTRATOS}
+            options={opcoes.contratos}
           />
         </FieldWrap>
 
@@ -214,7 +215,7 @@ export function FormularioConvocacao({
             label="Sábado?"
             value={form.sabado}
             onChange={(v) => set("sabado", v as SimNao | "")}
-            options={["SIM", "NÃO"] as const}
+            options={opcoes.sabados}
           />
         </FieldWrap>
 
@@ -223,7 +224,7 @@ export function FormularioConvocacao({
             label="Insalubridade?"
             value={form.insalubridade}
             onChange={(v) => set("insalubridade", v as Insalubridade | "")}
-            options={["SIM", "NÃO", "NÃO INFORMADO"] as const}
+            options={opcoes.insalubridades}
           />
         </FieldWrap>
 
@@ -238,7 +239,7 @@ export function FormularioConvocacao({
             label="Interior?"
             value={form.interior}
             onChange={(v) => set("interior", v as SimNao | "")}
-            options={["SIM", "NÃO"] as const}
+            options={opcoes.interiores}
           />
         </FieldWrap>
 
@@ -265,7 +266,7 @@ export function FormularioConvocacao({
             label="OP - Justificativa"
             value={form.justificativa}
             onChange={(v) => set("justificativa", v as Justificativa | "")}
-            options={JUSTIFICATIVAS}
+            options={opcoes.justificativas}
           />
         </FieldWrap>
 

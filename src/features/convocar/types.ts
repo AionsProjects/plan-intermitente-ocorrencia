@@ -8,9 +8,10 @@ export type EmpregadoRM = {
   codcoligada: number
 }
 
-export type SimNao = "SIM" | "NÃO"
-export type Insalubridade = SimNao | "NÃO INFORMADO"
-export type Solicitante = "OPERACIONAL" | "RH"
+export type MondayLabel = string
+export type SimNao = MondayLabel
+export type Insalubridade = MondayLabel
+export type Solicitante = MondayLabel
 
 export const CONTRATOS = [
   "SEDUC SEDE",
@@ -23,7 +24,7 @@ export const CONTRATOS = [
   "URUGUAIANA",
   "ADMINISTRATIVO",
 ] as const
-export type Contrato = (typeof CONTRATOS)[number]
+export type Contrato = MondayLabel
 
 export const JUSTIFICATIVAS = [
   "AFASTAMENTO",
@@ -40,7 +41,25 @@ export const JUSTIFICATIVAS = [
   "APOIO",
   "DEMITIDO",
 ] as const
-export type Justificativa = (typeof JUSTIFICATIVAS)[number]
+export type Justificativa = MondayLabel
+
+export const OPCOES_CONVOCACAO_FALLBACK = {
+  solicitantes: ["OPERACIONAL", "RH"],
+  contratos: CONTRATOS,
+  sabados: ["SIM", "NÃO"],
+  insalubridades: ["SIM", "NÃO", "NÃO INFORMADO"],
+  interiores: ["SIM", "NÃO"],
+  justificativas: JUSTIFICATIVAS,
+} as const
+
+export type ConvocacaoOpcoes = {
+  solicitantes: string[]
+  contratos: string[]
+  sabados: string[]
+  insalubridades: string[]
+  interiores: string[]
+  justificativas: string[]
+}
 
 export type ConvocacaoPayload = {
   name: string

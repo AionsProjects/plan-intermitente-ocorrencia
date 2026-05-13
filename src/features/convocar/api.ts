@@ -1,8 +1,10 @@
 import type {
   ConvocacaoPayload,
+  ConvocacaoOpcoes,
   ConvocacaoResposta,
   EmpregadoRM,
 } from "./types"
+import { OPCOES_CONVOCACAO_FALLBACK } from "./types"
 
 const BASE_URL = import.meta.env.VITE_N8N_BASE_URL ?? ""
 const USE_MOCK = !BASE_URL
@@ -61,6 +63,63 @@ function normaliza(s: string): string {
     .replace(/[̀-ͯ]/g, "")
     .toUpperCase()
     .trim()
+}
+
+function uniqueOrdered(values: unknown, fallback: readonly string[]): string[] {
+  const origem = Array.isArray(values) ? values : []
+  const normalizadas = origem
+    .map((v) => String(v ?? "").trim())
+    .filter(Boolean)
+  const unicas = [...new Set(normalizadas)]
+  return unicas.length > 0 ? unicas : [...fallback]
+}
+
+function normalizarOpcoes(raw: unknown): ConvocacaoOpcoes {
+  const data = (raw ?? {}) as Record<string, unknown>
+  const opcoes = (data.opcoes ?? data) as Record<string, unknown>
+
+  return {
+    solicitantes: uniqueOrdered(
+      opcoes.solicitantes ?? opcoes.solicitante,
+      OPCOES_CONVOCACAO_FALLBACK.solicitantes,
+    ),
+    contratos: uniqueOrdered(
+      opcoes.contratos ?? opcoes.contrato,
+      OPCOES_CONVOCACAO_FALLBACK.contratos,
+    ),
+    sabados: uniqueOrdered(
+      opcoes.sabados ?? opcoes.sabado,
+      OPCOES_CONVOCACAO_FALLBACK.sabados,
+    ),
+    insalubridades: uniqueOrdered(
+      opcoes.insalubridades ?? opcoes.insalubridade,
+      OPCOES_CONVOCACAO_FALLBACK.insalubridades,
+    ),
+    interiores: uniqueOrdered(
+      opcoes.interiores ?? opcoes.interior,
+      OPCOES_CONVOCACAO_FALLBACK.interiores,
+    ),
+    justificativas: uniqueOrdered(
+      opcoes.justificativas ?? opcoes.justificativa,
+      OPCOES_CONVOCACAO_FALLBACK.justificativas,
+    ),
+  }
+}
+
+export async function buscarOpcoesConvocacao(): Promise<ConvocacaoOpcoes> {
+  if (USE_MOCK) {
+    await new Promise((r) => setTimeout(r, 200))
+    return normalizarOpcoes(OPCOES_CONVOCACAO_FALLBACK)
+  }
+
+  const res = await fetch(`${BASE_URL}/intermitente-convocar-opcoes`)
+  if (!res.ok) {
+    const err = new Error(`Erro ${res.status}`) as Error & { status?: number }
+    err.status = res.status
+    throw err
+  }
+
+  return normalizarOpcoes(await res.json())
 }
 
 export async function buscarEmpregado(

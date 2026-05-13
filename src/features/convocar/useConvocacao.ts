@@ -1,8 +1,22 @@
 import { useEffect, useState } from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 
-import { buscarEmpregado, criarConvocacao } from "./api"
+import {
+  buscarEmpregado,
+  buscarOpcoesConvocacao,
+  criarConvocacao,
+} from "./api"
+import { OPCOES_CONVOCACAO_FALLBACK } from "./types"
 import type { ConvocacaoPayload } from "./types"
+
+const FALLBACK_OPCOES_MUTABLE = {
+  solicitantes: [...OPCOES_CONVOCACAO_FALLBACK.solicitantes],
+  contratos: [...OPCOES_CONVOCACAO_FALLBACK.contratos],
+  sabados: [...OPCOES_CONVOCACAO_FALLBACK.sabados],
+  insalubridades: [...OPCOES_CONVOCACAO_FALLBACK.insalubridades],
+  interiores: [...OPCOES_CONVOCACAO_FALLBACK.interiores],
+  justificativas: [...OPCOES_CONVOCACAO_FALLBACK.justificativas],
+}
 
 function useDebounce<T>(value: T, delay = 250): T {
   const [debounced, setDebounced] = useState(value)
@@ -23,6 +37,17 @@ export function useBuscarEmpregado(query: string) {
     staleTime: 30_000,
   })
   return { ...result, ativo, queryDebounced: debounced }
+}
+
+export function useOpcoesConvocacao() {
+  return useQuery({
+    queryKey: ["convocacao-opcoes"],
+    queryFn: buscarOpcoesConvocacao,
+    staleTime: 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    placeholderData: FALLBACK_OPCOES_MUTABLE,
+    retry: 1,
+  })
 }
 
 export function useCriarConvocacao() {
