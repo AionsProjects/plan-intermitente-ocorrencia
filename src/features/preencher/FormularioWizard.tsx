@@ -1312,9 +1312,9 @@ function TelaCancelamentoConvocacao({
                           : "data selecionada"
                       }.`}
                 </p>
-                <ChoiceButton onClick={onClose} variant="primary" className="w-full">
-                  Concluir
-                </ChoiceButton>
+                <Link to="/" className="choice-btn choice-btn--primary w-full">
+                  Ir para a tela inicial
+                </Link>
               </div>
             ) : null}
 
@@ -1337,7 +1337,7 @@ function TelaCancelamentoConvocacao({
             </button>
           ) : (
             <p className="mt-8 text-xs text-white/45">
-              Você já pode fechar esta aba.
+              Este registro foi encerrado.
             </p>
           )}
         </div>
