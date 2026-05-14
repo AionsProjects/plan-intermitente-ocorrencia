@@ -84,3 +84,13 @@ export type ConvocacaoResposta = {
   itemId: string
   itemUrl: string
 }
+
+export type ConvocacaoConflito = {
+  item_id?: string
+  item_url?: string
+  nome?: string
+  chapa?: string
+  data_inicio?: string
+  data_fim?: string
+  status_convocacao?: string
+}

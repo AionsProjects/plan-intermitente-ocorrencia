@@ -1,12 +1,23 @@
 import { useMemo, useState } from "react"
-import { ArrowLeft, FileUp, Loader2, Lock, Send, X } from "lucide-react"
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ExternalLink,
+  FileUp,
+  Loader2,
+  Lock,
+  Send,
+  X,
+} from "lucide-react"
 import { format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
 import { GlassDatePicker } from "./GlassDatePicker"
 import { GlassSelect } from "./GlassSelect"
+import { ConvocacaoApiError } from "./api"
 import {
   OPCOES_CONVOCACAO_FALLBACK,
+  type ConvocacaoConflito,
   type ConvocacaoPayload,
   type Contrato,
   type EmpregadoRM,
@@ -57,6 +68,11 @@ const initialState = (empregado: EmpregadoRM): FormState => ({
   termoInsalubridade: null,
 })
 
+type AlertaConflito = {
+  mensagem: string
+  conflito?: ConvocacaoConflito
+}
+
 export function FormularioConvocacao({
   empregado,
   onTrocarEmpregado,
@@ -64,6 +80,8 @@ export function FormularioConvocacao({
 }: Props) {
   const [form, setForm] = useState<FormState>(() => initialState(empregado))
   const [erroGeral, setErroGeral] = useState<string | null>(null)
+  const [alertaConflito, setAlertaConflito] =
+    useState<AlertaConflito | null>(null)
   const opcoesQuery = useOpcoesConvocacao()
   const mutation = useCriarConvocacao()
   const opcoes = opcoesQuery.data ?? OPCOES_CONVOCACAO_FALLBACK
@@ -86,12 +104,15 @@ export function FormularioConvocacao({
   }, [form])
 
   function set<K extends keyof FormState>(k: K, v: FormState[K]) {
+    setErroGeral(null)
+    setAlertaConflito(null)
     setForm((f) => ({ ...f, [k]: v }))
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setErroGeral(null)
+    setAlertaConflito(null)
     if (!camposObrigatoriosOk) {
       setErroGeral("Preencha todos os campos obrigatórios.")
       return
@@ -121,6 +142,20 @@ export function FormularioConvocacao({
       const res = await mutation.mutateAsync(payload)
       onSucesso(res.itemId, res.itemUrl)
     } catch (err) {
+      if (
+        err instanceof ConvocacaoApiError &&
+        err.status === 409 &&
+        err.erro === "convocacao_conflitante"
+      ) {
+        setAlertaConflito({
+          mensagem:
+            err.message ||
+            "Data divergente: este intermitente já foi convocado neste período.",
+          conflito: err.conflito,
+        })
+        return
+      }
+
       setErroGeral(
         (err as Error).message ||
           "Erro ao criar convocação. Tente novamente.",
@@ -285,6 +320,8 @@ export function FormularioConvocacao({
         />
       </section>
 
+      {alertaConflito && <AlertaConflito alerta={alertaConflito} />}
+
       {erroGeral && (
         <p className="rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-xs text-rose-200">
           {erroGeral}
@@ -309,6 +346,53 @@ export function FormularioConvocacao({
         Convocar
       </button>
     </form>
+  )
+}
+
+function formatarDataConflito(data?: string): string | null {
+  if (!data) return null
+  try {
+    return format(parseISO(data), "dd/MM/yyyy", { locale: ptBR })
+  } catch {
+    return data
+  }
+}
+
+function AlertaConflito({ alerta }: { alerta: AlertaConflito }) {
+  const inicio = formatarDataConflito(alerta.conflito?.data_inicio)
+  const fim = formatarDataConflito(alerta.conflito?.data_fim)
+  const periodo = inicio && fim ? `${inicio} a ${fim}` : null
+
+  return (
+    <div className="rounded-2xl border border-rose-300/35 bg-rose-300/10 px-4 py-4 text-sm text-rose-100 shadow-[0_0_35px_rgba(251,113,133,0.12)]">
+      <div className="flex gap-3">
+        <AlertTriangle className="mt-0.5 size-5 shrink-0 text-rose-200" />
+        <div className="min-w-0 space-y-2">
+          <p className="font-medium text-rose-100">Data divergente</p>
+          <p className="text-xs leading-relaxed text-rose-100/85">
+            Este intermitente já foi convocado para um período que cruza com as
+            datas informadas.
+          </p>
+          {periodo && (
+            <p className="text-xs leading-relaxed text-rose-100/85">
+              Convocação existente:{" "}
+              <span className="font-medium text-rose-50">{periodo}</span>.
+            </p>
+          )}
+          {alerta.conflito?.item_url && (
+            <a
+              href={alerta.conflito.item_url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-rose-50 underline-offset-4 transition hover:underline"
+            >
+              Abrir convocação existente
+              <ExternalLink className="size-3.5" />
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
 

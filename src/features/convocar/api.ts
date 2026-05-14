@@ -1,4 +1,5 @@
 import type {
+  ConvocacaoConflito,
   ConvocacaoPayload,
   ConvocacaoOpcoes,
   ConvocacaoResposta,
@@ -8,6 +9,27 @@ import { OPCOES_CONVOCACAO_FALLBACK } from "./types"
 
 const BASE_URL = import.meta.env.VITE_N8N_BASE_URL ?? ""
 const USE_MOCK = !BASE_URL
+
+export class ConvocacaoApiError extends Error {
+  status?: number
+  erro?: string
+  conflito?: ConvocacaoConflito
+
+  constructor(
+    message: string,
+    options: {
+      status?: number
+      erro?: string
+      conflito?: ConvocacaoConflito
+    } = {},
+  ) {
+    super(message)
+    this.name = "ConvocacaoApiError"
+    this.status = options.status
+    this.erro = options.erro
+    this.conflito = options.conflito
+  }
+}
 
 const MOCK_EMPREGADOS: EmpregadoRM[] = [
   {
@@ -203,15 +225,21 @@ export async function criarConvocacao(
   })
   if (!res.ok) {
     let mensagem = `Erro ${res.status}`
+    let erro: string | undefined
+    let conflito: ConvocacaoConflito | undefined
     try {
       const data = await res.json()
       if (data?.mensagem) mensagem = String(data.mensagem)
+      if (data?.erro) erro = String(data.erro)
+      if (data?.conflito) conflito = data.conflito as ConvocacaoConflito
     } catch {
       // ignore
     }
-    const err = new Error(mensagem) as Error & { status?: number }
-    err.status = res.status
-    throw err
+    throw new ConvocacaoApiError(mensagem, {
+      status: res.status,
+      erro,
+      conflito,
+    })
   }
   const data = await res.json()
   return {
