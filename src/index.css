@@ -672,7 +672,7 @@
   stroke: rgba(110, 160, 255, 0.6);
   stroke-width: 1.25;
   stroke-dasharray: 6 5;
-  animation: dash-walk-left 30s linear infinite;
+  animation: dash-walk-left 14s linear infinite;
 }
 
 @keyframes dash-walk-left {
@@ -837,6 +837,37 @@
     0 0 32px 3px rgba(185, 28, 28, 0.38),
     0 8px 20px -4px rgba(69, 10, 10, 0.72),
     inset 0 1px 0 0 rgba(254, 202, 202, 0.26);
+}
+
+/* ─── Botão "Adicionar sábados" (azul) ─── */
+.btn-action-expand.btn-add-sabados {
+  border-color: rgba(110, 160, 255, 0.35);
+  background: rgba(110, 160, 255, 0.08);
+}
+.btn-action-expand.btn-add-sabados:hover {
+  background: rgba(110, 160, 255, 0.18);
+  border-color: rgba(110, 160, 255, 0.6);
+  box-shadow:
+    0 0 28px 2px rgba(110, 160, 255, 0.32),
+    0 8px 20px -4px rgba(56, 90, 180, 0.5),
+    inset 0 1px 0 0 rgba(220, 232, 255, 0.3);
+}
+.btn-action-expand.btn-add-sabados svg {
+  transition: transform 380ms cubic-bezier(0.34, 1.4, 0.5, 1);
+}
+.btn-action-expand.btn-add-sabados:hover svg,
+.btn-action-expand.btn-add-sabados:focus-visible svg {
+  transform: scale(1.14) rotate(6deg);
+  filter: drop-shadow(0 0 6px rgba(110, 160, 255, 0.55));
+}
+
+/* X de remover sábado extra (canto do tile) */
+.btn-remover-sabado {
+  background: rgba(110, 160, 255, 0.18);
+  cursor: pointer;
+}
+.btn-remover-sabado:hover {
+  background: rgba(110, 160, 255, 0.32);
 }
 
 /* ============================================================
