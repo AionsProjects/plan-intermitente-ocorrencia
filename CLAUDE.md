@@ -7,27 +7,31 @@ App web pra **gerenciar convocações de intermitentes** no monday: cria convoca
 **Funcionando end-to-end (mock + real, produção na VM):**
 
 ### Frontend (SPA React)
-- **Hub principal** (`/`) — 2 tiles: Nova convocação · Atualizar ocorrência. Botão flask discreto canto sup-direito → `/teste` (área de mocks).
-- **Convocar** (`/convocar`) — substitui o form nativo do monday do board de entrada. Etapas internas com slide carrossel:
+- **Hub principal** (`/`) — eyebrow `ClipboardCheck` + título display "Escolha o próximo passo" + 2 tiles `glass-tile-3d` (Nova convocação / Atualizar ocorrência) com tilt 3D no mousemove. Rodapé com link discreto "Abrir testes" → `/teste`. Actions vêm de array tipado com `tone: "blue" | "gold"`.
+- **Convocar** (`/convocar`) — substitui o form nativo do monday do board de entrada. SlideStack ancorado **dentro** do card glass-strong, botão Voltar fixo fora do slide. Etapas internas:
   1. **Buscar empregado** — autocomplete por nome (search-as-you-type, debounce 250ms, min 3 chars, highlight das letras buscadas, 3 visíveis + "ver todos")
-  2. **Formulário convocação** — 15 campos + bloco read-only com dados do RM (Nome, Chapa, CPF, Função, Admissão, Seção). Selects e DatePicker custom via Dialog (mesmo padrão visual do `DialogDia` de registrar ocorrência).
+  2. **Formulário convocação** — 15 campos + bloco read-only com dados do RM (Nome, Chapa, CPF, Função, Admissão, Seção). Selects e DatePicker custom via Dialog (mesmo padrão visual do `DialogDia` de registrar ocorrência). Opções dos selects vêm de `useOpcoesConvocacao()` (lazy load do n8n com fallback local).
   3. **Tela sucesso** — ID do item + URL do board monday + CTA "Nova convocação"
-- **Preencher** (`/preencher/:uuid`) — painel com modal por dia, perguntas no positivo ("foi trabalhar?", "chegou no horário?"), adicionar/apagar dias com bolha estourando, fluxo de correção via protocolo `PROT-XXXX-XXXX`.
+- **Preencher** (`/preencher/:uuid`) — painel com modal por dia, perguntas no positivo ("foi trabalhar?", "chegou no horário?"), adicionar/apagar dias com bolha estourando, fluxo de correção via protocolo `PROT-XXXX-XXXX`. **Cancelar convocação** (ícone fogo no header) abre wizard: parcial (calendário → escolhe data → tela `confirmar_parcial` exige clique "Confirmar") ou total (data = primeiro dia → tela `confirmar_total`). Toda mutação passa por etapa de confirmação — sem accidental cancel.
 - **Corrigir** (`/corrigir`) — input do protocolo + lista de recentes (localStorage) + atalho flask pro `PROT-DEMO-1234`.
-- **Teste** (`/teste`) — área de mocks (4 UUIDs `mock-*` + chave demo). Acessível só via botão discreto do hub.
+- **Teste** (`/teste`) — área de mocks (4 UUIDs `mock-*` + chave demo). Acessível só via link "Abrir testes" no rodapé do hub.
 
 ### Transições globais (Liquid Glass)
 - **PageTransition** (`src/components/PageTransition.tsx`) — wrapper de `<Routes>` que detecta path change e aplica slide carrossel direcional. Hierarquia: `/` = 0; `/teste|convocar|corrigir` = 1; `/preencher/*` = 2. Forward = nível ↑ (slide saí esquerda + entra direita); backward = nível ↓ (inverso).
-- **SlideStack** (`src/components/SlideStack.tsx`) — carrossel genérico reutilizável (trilho 200% + 2 slots × 50%, translateX 0↔-50%, 520ms cubic-bezier ease-out, overflow só durante anim, preserva sombras em idle). Consumido por `PageTransition` (rotas) e `ConvocarPage` (etapas internas).
+- **SlideStack** (`src/components/SlideStack.tsx`) — carrossel genérico reutilizável (trilho 200% + 2 slots × 50%, translateX 0↔-50%, **680ms cubic-bezier(0.2, 0.84, 0.2, 1)**, overflow só durante anim, preserva sombras em idle). Cada Slot ganha estado `active | enter | exit`; slots não-ativos ficam com `opacity 0.18 + scale 0.985` durante a transição (efeito cinemático). Captura do conteúdo anterior via `useLayoutEffect`. Consumido por `PageTransition` (rotas) e `ConvocarPage` (etapas internas).
 - **Background animado** — keyframe `bg-hue-cycle` (120s ease-in-out infinite) no `<html>`: navy → púrpura-fumê → preto puro → azul-preto → navy. Sutil, não rouba atenção.
 
-### Backend n8n (6 workflows)
+### Backend n8n (9 workflows principais)
 - **WF1 Preparar** — webhook do monday quando coluna `ativar` muda. Gera UUID, cria item no board Histórico (`18411141462`), patch Link Column no item de origem.
 - **WF2 Ler** — `GET /intermitente-ler?uuid=…`. Busca item por UUID via `getByColumnValue`, parseia respostas_json/dias_extras/dias_desativados.
 - **WF3 Finalizar** — `POST /intermitente-finalizar`. Valida payload, agrega (qtd_faltas/atrasos/total_minutos), grava respostas_json, marca status=Concluído. Trava antifraude se desconto já consumido. **Idempotente** (1 item, `change_multiple_column_values`).
 - **WF4 Buscar protocolo** — `GET /intermitente-buscar-protocolo?protocolo=…` → `{uuid, nome}`.
-- **WF7 Convocar** *(novo)* — `POST /intermitente-convocar` (multipart). Cria item no board ENTRADA (`18408773953`) com `Tipo Convocação=PONTUAL` fixo. Upload de Termo de Convocação + Termo de Insalubridade via `add_file_to_column` no `/v2/file`. Reutiliza credencial `Ray0`.
+- **WF5 Pontual FIFO** — convoca pontual: calcula benefício do período, abate descontos pendentes FIFO no board Desconto, gera order Caju (crédito + boleto PIX), SOAPs RM, cria item Solicitação Pagamento (board `18393673859`). Documentado completo no `Mapeamento.md`.
+- **WF6 Gerar Lançamento Financeiro** — subworkflow (`executeWorkflow`) chamado pelo WF5. SOAP RM `FopRotinasLancFinanceiroAction` + `FopLancIntegraFinanceiroTerceiroAction` por evento (100=VR, 110=VT).
+- **WF7 Convocar** *(novo)* — `POST /intermitente-convocar` (multipart). **Trava antifraude de período**: antes de criar item, busca convocações conflitantes no board ENTRADA filtrando por chapa (ou nome, fallback), considera período efetivo (respeitando `STATUS_CONVOCACAO` e `CANCELAMENTO_INICIO`), retorna 409 `convocacao_conflitante` se overlap. Quando OK, cria item no board ENTRADA (`18408773953`) com `Tipo Convocação=PONTUAL` e `Status Convocação=Válida` fixos. Upload de Termo de Convocação + Termo de Insalubridade via `add_file_to_column` no `/v2/file` (com IF "Tem upload?" pra pular HTTP quando sem binário). Reutiliza credencial `Ray0`.
 - **WF8 Buscar empregado RM** *(novo)* — `GET /convocar-buscar-empregado?nome=…` (min 3 chars). Consulta SQL `BEN 2` do RM TOTVS via `consultaSQLServer/RealizaConsulta` (mesmo endpoint usado pelo WF5 de pagamento). Retorna array `[{nome, chapa, cpf, funcao, admissao, secao, codcoligada}]`. Cred basic auth `rm mike`. **CPF não retornado pela `BEN 2` atual** — fica vazio até estender SQL no RM.
+- **WF Cancelar Convocação** *(novo)* — `POST /intermitente-cancelar-convocacao?uuid=…`. Criado no n8n novo. Busca o item no Histórico por UUID, localiza o item de origem na Entrada, atualiza `Status Convocação` (`color_mm3a8ana`) para `Cancelada` ou `Cancelada parcialmente`, grava `Cancelamento Início` (`date_mm3b88ta`) no parcial, atualiza `Status Cancelamento` (`color_mm3b9v4n`) no Histórico e gera/atualiza desconto na Base de Desconto (`18400981023`) tratando dias cancelados como falta.
+- **Opções de convocação** *(planejado)* — `GET /intermitente-convocar-opcoes` retorna `{opcoes: {solicitantes, contratos, sabados, insalubridades, interiores, justificativas}}` extraído dos status do board ENTRADA. Frontend (`useOpcoesConvocacao`) consome com `OPCOES_CONVOCACAO_FALLBACK` local enquanto endpoint não estiver pronto.
 
 ### Deploy
 - Container Docker rodando na VM `192.168.0.41:80` (intranet, sem domínio público).
@@ -38,6 +42,9 @@ App web pra **gerenciar convocações de intermitentes** no monday: cria convoca
 - Configurar job de expiração: monday Automation no board histórico → *"When Expira Em arrives → Change Status to Expirado"* OU n8n cron diário.
 - Estender SQL `BEN 2` no RM TOTVS pra incluir CPF (hoje vem vazio).
 - Atualizar `DEPLOY.md` se host n8n mudou pra `antigoaionscorp-n8n.cloudfy.live`.
+- Implementar endpoint n8n `GET /intermitente-convocar-opcoes` (frontend já consome com fallback local).
+- Renderizar UI do erro 409 conflito no `/convocar` (api.ts já lança `ConvocacaoApiError` com `.conflito` — falta painel mostrando link do item existente + datas + status).
+- Confirmar labels do `STATUS_CONVOCACAO` no board ENTRADA (mapeados hoje: `Válida`, `Cancelada`/`Cancelado`, `Cancelada parcialmente`/`Cancelado parcialmente`, `Bloqueada - conflito`).
 
 ## Fluxos
 
@@ -147,9 +154,9 @@ src/
 │  ├─ TelaSucesso.tsx               item ID + URL board + CTA "Nova convocação"
 │  ├─ GlassSelect.tsx               Select via Dialog (mesma cara do DialogDia)
 │  ├─ GlassDatePicker.tsx           DatePicker via Dialog (calendário glass)
-│  ├─ api.ts                        buscarEmpregado + criarConvocacao (mock + n8n real)
-│  ├─ types.ts                      EmpregadoRM, ConvocacaoPayload, CONTRATOS, JUSTIFICATIVAS
-│  └─ useConvocacao.ts              hooks react-query (busca debounced + mutation)
+│  ├─ api.ts                        buscarEmpregado + criarConvocacao + buscarOpcoesConvocacao (mock + n8n real); classe ConvocacaoApiError com payload de conflito
+│  ├─ types.ts                      EmpregadoRM, ConvocacaoPayload, ConvocacaoConflito, ConvocacaoOpcoes, OPCOES_CONVOCACAO_FALLBACK
+│  └─ useConvocacao.ts              hooks react-query (useBuscarEmpregado debounced, useOpcoesConvocacao c/ fallback, useCriarConvocacao mutation)
 ├─ features/preencher/
 │  ├─ api.ts                        fetch n8n + mocks (seed + lookup por protocolo)
 │  ├─ types.ts                      StatusProcessamento, TipoOcorrencia, RespostaDia, ProcessamentoDados
@@ -213,6 +220,8 @@ Origem das convocações. Form `/convocar` cria itens aqui. WF1 dispara quando c
 | OP - Empregado Substituído | `text_mktc23av` | text | |
 | Termo de Convocação | `file_mm21x463` | file | Upload via WF7 (`add_file_to_column`) |
 | Termo de Insalubridade | `file_mm21457r` | file | Upload via WF7 |
+| Status Convocação | `color_mm3a8ana` | status | Válida / Cancelada / Cancelada parcialmente / Bloqueada - conflito. WF7 cria item como "Válida"; trava antifraude do WF7 ignora itens "Cancelada"/"Bloqueada" e trunca período se "Cancelada parcialmente" |
+| Cancelamento Início | `date_mm3b88ta` | date | Data início do cancelamento parcial. Usada pelo WF7 pra calcular fim efetivo (= `CANCELAMENTO_INICIO - 1`) ao checar conflito |
 | Link | `link_mm2pn9kg` | link | Preenchido pelo WF1 com URL do `/preencher/<uuid>` |
 | **ativar** | `color_mm2pxmak` | status | `ativar(1)` = trigger do WF1 |
 
@@ -235,6 +244,7 @@ Origem das convocações. Form `/convocar` cria itens aqui. WF1 dispara quando c
 | Concluído Em | `date_mm2xh1vm` | date | Timestamp WF3 |
 | Editado Em | `date_mm2x62fq` | date | Timestamp última correção |
 | Status | `color_mm2xkqpc` | status | Aguardando(0) / Concluído(1) / Expirado(17) |
+| Status Cancelamento | `color_mm3b9v4n` | status | Cancelada / Cancelada parcialmente. Atualizado pelo WF Cancelar Convocação |
 | Editado | `boolean_mm2x1aa4` | checkbox | true se alterado pós-finalização |
 | Qtd. Faltas | `numeric_mm2xe2zk` | numbers | Agregado WF3 |
 | Qtd. Atrasos | `numeric_mm2x18hh` | numbers | Agregado WF3 |
@@ -286,11 +296,32 @@ Retorna `{uuid, nome}` ou 404.
 
 Retorna `{resultados: EmpregadoRM[]}`. Mínimo 3 chars no nome. Consulta `BEN 2` no RM com `LIKE %nome%`. CPF vazio até estender SQL.
 
-### POST `/webhook/intermitente-convocar` (WF7, novo) — multipart/form-data
+### POST `/webhook/intermitente-cancelar-convocacao?uuid=<uuid>` (WF Cancelar Convocação, novo)
+
+Body total: `{tipo: "total", data_inicio_cancelamento: null}`. Body parcial: `{tipo: "parcial", data_inicio_cancelamento: "YYYY-MM-DD"}`.
+
+Retorna `{ok, tipo, data_inicio_cancelamento, desconto}`. Atualiza Entrada (`color_mm3a8ana`, e `date_mm3b88ta` no parcial), Histórico (`color_mm3b9v4n`) e Base de Desconto (`18400981023`). Bloqueia duplicidade de cancelamento e deve retornar `409` se houver desconto existente `PARCIAL` ou `FINALIZADO`.
+
+### POST `/webhook/intermitente-convocar` (WF7) — multipart/form-data
 
 Body: name, empregado_{nome,chapa,cpf,funcao,admissao,secao,codcoligada}, escala, solicitante, contrato, local_unidade, sabado, insalubridade, interior, data_inicio, data_fim, justificativa, empregado_substituido, termo_convocacao? (file), termo_insalubridade? (file)
-- 200 `{ok, item_id, item_url}` → cria item no board ENTRADA + upload files
-- 400 campo_obrigatorio | data_invalida
+
+Respostas:
+- **200** `{ok: true, item_id, item_url}` → criou item no board ENTRADA + upload files (se houver)
+- **400** `{ok: false, erro: "campo_obrigatorio" | "data_invalida", mensagem}` — payload mal-formado
+- **409** `{ok: false, erro: "convocacao_conflitante", mensagem, conflito: {item_id, item_url, nome, chapa, data_inicio, data_fim, data_inicio_original, data_fim_original, status_convocacao, data_inicio_cancelamento}}` — já existe convocação no período (considerando trava de período efetivo)
+- **500** `{ok: false, erro: "erro_monday_conflitos", mensagem}` — falha no GraphQL do monday ao buscar conflitos
+
+Frontend (`features/convocar/api.ts`): lança `ConvocacaoApiError` com `.status`/`.erro`/`.conflito` pra UI poder renderizar info do item conflitante (link pro monday + datas + status).
+
+### GET `/webhook/intermitente-convocar-opcoes` *(planejado)*
+
+Retorna lista de labels dos status do board ENTRADA pros selects do form `/convocar`:
+```ts
+{ opcoes: { solicitantes: string[], contratos: string[], sabados: string[],
+            insalubridades: string[], interiores: string[], justificativas: string[] } }
+```
+Frontend `useOpcoesConvocacao()` consome com `placeholderData` (fallback local) + staleTime 60s. Sem dependência forte — UI funciona com fallback enquanto o endpoint não estiver no ar.
 
 ## Convenções
 
@@ -322,6 +353,8 @@ Body: name, empregado_{nome,chapa,cpf,funcao,admissao,secao,codcoligada}, escala
 - **Refs durante render geram lint** (`react-hooks/refs`). Pra detectar "valor anterior" em `PageTransition`, usar padrão setState during render (docs do React) ao invés de `useRef`.
 - **`add_file_to_column` monday** = POST `https://api.monday.com/v2/file` com GraphQL multipart (campos `query` + `variables` + `map` + `0`=binary). Autorização via Header `Authorization: <token>`.
 - **Avião decolando**: keyframe `plane-takeoff` translada (40, -40) → salto pra (-40, 40) → volta (0, 0); button `.plane-btn` com `overflow:hidden` clipa só conteúdo, glow externo (box-shadow) **não é afetado**.
+- **Lixeira (Desconsiderar dia)**: SVG inline `TrashCanIcon` (alça curta no topo + barra grossa da tampa + corpo trapezoidal com 3 ribs verticais). Tampa pivota com `rotate(-22deg)` + leve translate ao hover; easing overshoot `cubic-bezier(0.34, 1.4, 0.5, 1)`.
+- **Chama (Cancelar convocação)**: SVG `CancelFlameIcon` com 3 camadas concêntricas (outer/mid/inner). Animação só anima no `:hover` — 3 keyframes (`flame-flicker-outer/mid/inner`) com 9–10 stops cada, durações primas relativas (740/980/1320ms) → padrão nunca alinha, parece fogo real. `transform-origin: 50% 100%` pivota da base; combinações `skewX ± 14°` + `rotate ± 7°` + `scale` assimétrico simulam fogo dobrando pra esquerda/direita com crescimento desigual.
 
 ## Segurança
 

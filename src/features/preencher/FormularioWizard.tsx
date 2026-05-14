@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { format, parseISO } from "date-fns"
+import {
+  addMonths,
+  endOfMonth,
+  endOfWeek,
+  format,
+  isSameDay,
+  isSameMonth,
+  parseISO,
+  startOfMonth,
+  startOfWeek,
+  subMonths,
+} from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { Link } from "react-router-dom"
 import {
@@ -26,7 +37,10 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 
-import { useFinalizarProcessamento } from "./useProcessamento"
+import {
+  useCancelarConvocacao,
+  useFinalizarProcessamento,
+} from "./useProcessamento"
 import type { DiaInfo, ProcessamentoDados, RespostaDia } from "./types"
 import {
   gerarProtocolo,
@@ -40,6 +54,15 @@ type Props = {
   onFinalizado?: (protocolo: string) => void
 }
 
+type EtapaCancelamento =
+  | "fechado"
+  | "escolha"
+  | "calendario"
+  | "confirmar_total"
+  | "confirmar_parcial"
+  | "sucesso_total"
+  | "sucesso_parcial"
+
 function formatarDiaCompleto(iso: string): string {
   return format(parseISO(iso), "EEEE, dd 'de' MMMM", { locale: ptBR })
 }
@@ -50,6 +73,10 @@ function formatarDiaSemana(iso: string): string {
 
 function formatarDiaCurto(iso: string): string {
   return format(parseISO(iso), "dd 'de' MMM", { locale: ptBR })
+}
+
+function formatarDataNumerica(iso: string): string {
+  return format(parseISO(iso), "dd/MM/yyyy", { locale: ptBR })
 }
 
 function respostasIniciais(
@@ -88,8 +115,22 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
   )
   const [diaEditando, setDiaEditando] = useState<string | null>(null)
   const [modoApagar, setModoApagar] = useState(false)
+  const [etapaCancelamento, setEtapaCancelamento] =
+    useState<EtapaCancelamento>("fechado")
+  const [dataInicioCancelamento, setDataInicioCancelamento] = useState<
+    string | null
+  >(null)
+  const [cancelamentoErro, setCancelamentoErro] = useState<string | null>(null)
 
   const finalizar = useFinalizarProcessamento(dados.uuid)
+  const cancelarConvocacao = useCancelarConvocacao(dados.uuid)
+  const erroEnvio =
+    finalizar.error instanceof Error
+      ? finalizar.error.message
+      : "Erro ao enviar. Tente novamente."
+
+  const diasConvocacao = useMemo(() => [...dados.dias].sort(), [dados.dias])
+  const primeiroDiaConvocacao = diasConvocacao[0] ?? dados.dataInicio
 
   function salvarResposta(resposta: RespostaDia) {
     setRespostas((prev) => ({ ...prev, [resposta.data]: resposta }))
@@ -161,6 +202,95 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
     onFinalizado?.(resultado.protocolo)
   }
 
+  function abrirCancelamento() {
+    setModoApagar(false)
+    setCancelamentoErro(null)
+    setDataInicioCancelamento(null)
+    setEtapaCancelamento("escolha")
+  }
+
+  function fecharCancelamento() {
+    if (cancelarConvocacao.isPending) return
+    setEtapaCancelamento("fechado")
+    setCancelamentoErro(null)
+    setDataInicioCancelamento(null)
+  }
+
+  async function executarCancelamentoTotal() {
+    setCancelamentoErro(null)
+    try {
+      await cancelarConvocacao.mutateAsync({
+        tipo: "total",
+        dataInicioCancelamento: null,
+      })
+      setEtapaCancelamento("sucesso_total")
+    } catch (err) {
+      setCancelamentoErro(
+        err instanceof Error
+          ? err.message
+          : "Erro ao cancelar a convocação. Tente novamente.",
+      )
+    }
+  }
+
+  async function executarCancelamentoParcial(data: string) {
+    setCancelamentoErro(null)
+    try {
+      await cancelarConvocacao.mutateAsync({
+        tipo: "parcial",
+        dataInicioCancelamento: data,
+      })
+      setEtapaCancelamento("sucesso_parcial")
+    } catch (err) {
+      setCancelamentoErro(
+        err instanceof Error
+          ? err.message
+          : "Erro ao cancelar parcialmente. Tente novamente.",
+      )
+    }
+  }
+
+  function escolherDataCancelamento(data: string) {
+    setDataInicioCancelamento(data)
+    setCancelamentoErro(null)
+    if (data === primeiroDiaConvocacao) {
+      setEtapaCancelamento("confirmar_total")
+      return
+    }
+    setEtapaCancelamento("confirmar_parcial")
+  }
+
+  function confirmarCancelamentoParcial() {
+    if (!dataInicioCancelamento) return
+    void executarCancelamentoParcial(dataInicioCancelamento)
+  }
+
+  if (
+    etapaCancelamento === "sucesso_total" ||
+    etapaCancelamento === "sucesso_parcial"
+  ) {
+    return (
+      <TelaCancelamentoConvocacao
+        dados={dados}
+        etapa={etapaCancelamento}
+        dias={diasConvocacao}
+        dataInicioCancelamento={dataInicioCancelamento}
+        erro={cancelamentoErro}
+        isPending={cancelarConvocacao.isPending}
+        onClose={fecharCancelamento}
+        onEscolherParcial={() => {
+          setCancelamentoErro(null)
+          setEtapaCancelamento("calendario")
+        }}
+        onEscolherTotal={executarCancelamentoTotal}
+        onSelecionarData={escolherDataCancelamento}
+        onVoltarCalendario={() => setEtapaCancelamento("calendario")}
+        onConfirmarTotal={executarCancelamentoTotal}
+        onConfirmarParcial={confirmarCancelamentoParcial}
+      />
+    )
+  }
+
   return (
     <div className="relative z-10 min-h-svh">
       {ehTeste && <BannerTeste />}
@@ -193,15 +323,26 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
                   type="button"
                   className={`btn-action-expand btn-delete ${modoApagar ? "btn-delete-active" : ""}`}
                   onClick={() => setModoApagar((v) => !v)}
-                  title="Desconsiderar dia"
+                  aria-label="Desconsiderar dia"
                 >
                   {modoApagar ? (
-                    <X className="size-4 shrink-0 text-red-300" />
+                    <X className="size-4 shrink-0 text-orange-300" />
                   ) : (
-                    <Trash2 className="size-4 shrink-0 text-red-300/70" />
+                    <TrashCanIcon />
                   )}
-                  <span className="btn-label text-red-300">
+                  <span className="btn-label text-orange-200">
                     {modoApagar ? "Concluir" : "Desconsiderar dia"}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="btn-action-expand btn-cancel-convocacao"
+                  onClick={abrirCancelamento}
+                  aria-label="Cancelar convocação"
+                >
+                  <CancelFlameIcon />
+                  <span className="btn-label text-red-200">
+                    Cancelar convocação
                   </span>
                 </button>
               </div>
@@ -239,7 +380,7 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
 
           {finalizar.isError ? (
             <p className="mt-6 rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-center text-sm text-rose-100">
-              Erro ao enviar. Tente novamente.
+              {erroEnvio}
             </p>
           ) : null}
 
@@ -282,6 +423,23 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
         respostaAtual={diaEditando ? respostas[diaEditando] : undefined}
         onClose={() => setDiaEditando(null)}
         onSalvar={salvarResposta}
+      />
+      <DialogCancelamento
+        etapa={etapaCancelamento}
+        dias={diasConvocacao}
+        dataInicioCancelamento={dataInicioCancelamento}
+        erro={cancelamentoErro}
+        isPending={cancelarConvocacao.isPending}
+        onClose={fecharCancelamento}
+        onEscolherParcial={() => {
+          setCancelamentoErro(null)
+          setEtapaCancelamento("calendario")
+        }}
+        onEscolherTotal={executarCancelamentoTotal}
+        onSelecionarData={escolherDataCancelamento}
+        onVoltarCalendario={() => setEtapaCancelamento("calendario")}
+        onConfirmarTotal={executarCancelamentoTotal}
+        onConfirmarParcial={confirmarCancelamentoParcial}
       />
     </div>
   )
@@ -605,6 +763,600 @@ function DialogDia({ dia, respostaAtual, onClose, onSalvar }: DialogDiaProps) {
 
 /* ─── Shared components ─── */
 
+/* Dialog: cancelamento */
+
+type DialogCancelamentoProps = {
+  etapa: EtapaCancelamento
+  dias: string[]
+  dataInicioCancelamento: string | null
+  erro: string | null
+  isPending: boolean
+  onClose: () => void
+  onEscolherParcial: () => void
+  onEscolherTotal: () => void
+  onSelecionarData: (data: string) => void
+  onVoltarCalendario: () => void
+  onConfirmarTotal: () => void
+  onConfirmarParcial: () => void
+}
+
+function DialogCancelamento({
+  etapa,
+  dias,
+  dataInicioCancelamento,
+  erro,
+  isPending,
+  onClose,
+  onEscolherParcial,
+  onEscolherTotal,
+  onSelecionarData,
+  onVoltarCalendario,
+  onConfirmarTotal,
+  onConfirmarParcial,
+}: DialogCancelamentoProps) {
+  const aberto =
+    etapa === "escolha" ||
+    etapa === "calendario" ||
+    etapa === "confirmar_total" ||
+    etapa === "confirmar_parcial"
+
+  return (
+    <Dialog open={aberto} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        className="glass-modal border-0 bg-transparent p-8 text-white sm:max-w-lg"
+        style={{ backdropFilter: "blur(10px) saturate(140%) brightness(1.05)" }}
+      >
+        <DialogHeader>
+          <p className="text-[10px] uppercase tracking-[0.3em] text-white/55">
+            Cancelamento
+          </p>
+          <DialogTitle className="text-display text-3xl text-white">
+            {etapa === "calendario" ? (
+              <>
+                Escolha o <em className="italic text-[#e8c275]">início</em>
+              </>
+            ) : etapa === "confirmar_total" ? (
+              <>
+                Cancelar <em className="italic text-[#e8c275]">tudo</em>?
+              </>
+            ) : etapa === "confirmar_parcial" ? (
+              <>
+                Confirmar <em className="italic text-[#e8c275]">cancelamento</em>?
+              </>
+            ) : (
+              <>
+                Cancelar <em className="italic text-[#e8c275]">convocação</em>
+              </>
+            )}
+          </DialogTitle>
+          <DialogDescription className="text-white/60">
+            {etapa === "calendario"
+              ? "O cancelamento parcial vale da data escolhida até o fim da convocação."
+              : etapa === "confirmar_total"
+                ? "Você selecionou todo o período da convocação."
+                : etapa === "confirmar_parcial"
+                  ? "Revise a data antes de prosseguir. A ação não pode ser desfeita."
+                  : "Escolha se o cancelamento será total ou parcial."}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="my-2 h-px bg-white/12" />
+
+        {etapa === "escolha" ? (
+          <div className="grid gap-3">
+            <ChoiceButton
+              onClick={onEscolherParcial}
+              variant="warning"
+              disabled={isPending}
+              className="w-full"
+            >
+              Cancelar parcialmente
+            </ChoiceButton>
+            <ChoiceButton
+              onClick={onEscolherTotal}
+              variant="danger"
+              disabled={isPending}
+              className="w-full"
+            >
+              {isPending ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="size-4 animate-spin" />
+                  Cancelando
+                </span>
+              ) : (
+                "Cancelar convocação"
+              )}
+            </ChoiceButton>
+          </div>
+        ) : null}
+
+        {etapa === "calendario" ? (
+          <CalendarioCancelamento
+            dias={dias}
+            selected={dataInicioCancelamento}
+            disabled={isPending}
+            onSelect={onSelecionarData}
+          />
+        ) : null}
+
+        {etapa === "confirmar_total" ? (
+          <div className="space-y-4">
+            <p className="rounded-2xl border border-orange-300/30 bg-orange-300/10 px-4 py-3 text-sm leading-relaxed text-orange-100">
+              A data selecionada é o primeiro dia da convocação. Isso cancela o
+              período inteiro. Pode prosseguir?
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <ChoiceButton onClick={onVoltarCalendario} disabled={isPending}>
+                Não
+              </ChoiceButton>
+              <ChoiceButton
+                onClick={onConfirmarTotal}
+                variant="danger"
+                disabled={isPending}
+              >
+                {isPending ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="size-4 animate-spin" />
+                    Cancelando
+                  </span>
+                ) : (
+                  "Sim"
+                )}
+              </ChoiceButton>
+            </div>
+          </div>
+        ) : null}
+
+        {etapa === "confirmar_parcial" ? (
+          <div className="space-y-4">
+            <p className="rounded-2xl border border-orange-300/30 bg-orange-300/10 px-4 py-3 text-sm leading-relaxed text-orange-100">
+              Cancelar a convocação a partir de{" "}
+              <strong className="text-orange-50">
+                {dataInicioCancelamento
+                  ? formatarDataNumerica(dataInicioCancelamento)
+                  : "—"}
+              </strong>{" "}
+              até o fim do período? A ação não pode ser desfeita.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <ChoiceButton onClick={onVoltarCalendario} disabled={isPending}>
+                Voltar
+              </ChoiceButton>
+              <ChoiceButton
+                onClick={onConfirmarParcial}
+                variant="warning"
+                disabled={isPending}
+              >
+                {isPending ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="size-4 animate-spin" />
+                    Cancelando
+                  </span>
+                ) : (
+                  "Confirmar"
+                )}
+              </ChoiceButton>
+            </div>
+          </div>
+        ) : null}
+
+        {erro ? (
+          <p className="mt-4 rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
+            {erro}
+          </p>
+        ) : null}
+
+        <DialogFooter className="mt-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            disabled={isPending}
+            className="text-white/65 hover:bg-white/10 hover:text-white"
+          >
+            Voltar ao registro
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/* Cancelamento em tela cheia */
+
+type TelaCancelamentoConvocacaoProps = {
+  dados: ProcessamentoDados
+  etapa: EtapaCancelamento
+  dias: string[]
+  dataInicioCancelamento: string | null
+  erro: string | null
+  isPending: boolean
+  onClose: () => void
+  onEscolherParcial: () => void
+  onEscolherTotal: () => void
+  onSelecionarData: (data: string) => void
+  onVoltarCalendario: () => void
+  onConfirmarTotal: () => void
+  onConfirmarParcial: () => void
+}
+
+function TelaCancelamentoConvocacao({
+  dados,
+  etapa,
+  dias,
+  dataInicioCancelamento,
+  erro,
+  isPending,
+  onClose,
+  onEscolherParcial,
+  onEscolherTotal,
+  onSelecionarData,
+  onVoltarCalendario,
+  onConfirmarTotal,
+  onConfirmarParcial,
+}: TelaCancelamentoConvocacaoProps) {
+  const sucessoTotal = etapa === "sucesso_total"
+  const sucessoParcial = etapa === "sucesso_parcial"
+
+  return (
+    <div className="relative z-10 flex min-h-svh flex-col">
+      <div className="flex flex-1 items-center justify-center px-4 py-12">
+        <div className="glass-strong w-full max-w-md p-10 text-center fade-up">
+          <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-red-950/70 text-red-100 shadow-[0_18px_46px_-10px_rgba(127,29,29,0.72)] ring-1 ring-red-300/35">
+            {sucessoTotal || sucessoParcial ? (
+              <span className="text-3xl leading-none">✓</span>
+            ) : (
+              <span className="text-3xl leading-none">✓</span>
+            )}
+          </div>
+
+          <p className="mt-6 text-[11px] uppercase tracking-[0.32em] text-white/55">
+            Cancelamento
+          </p>
+          <h1 className="text-display mt-2 text-4xl leading-tight text-white">
+            {sucessoParcial ? (
+              <>
+                Cancelamento{" "}
+                <em className="italic text-[#e8c275]">parcial</em>
+              </>
+            ) : etapa === "calendario" ? (
+              <>
+                Escolha o <em className="italic text-[#e8c275]">início</em>
+              </>
+            ) : (
+              <>
+                Cancelar{" "}
+                <em className="italic text-[#e8c275]">convocação</em>
+              </>
+            )}
+          </h1>
+          <p className="mt-3 text-sm leading-relaxed text-white/70">
+            {sucessoTotal
+              ? `A convocação de ${dados.nome} foi cancelada com sucesso.`
+              : sucessoParcial
+                ? `A convocação de ${dados.nome} foi cancelada parcialmente.`
+                : etapa === "calendario"
+                  ? "O cancelamento parcial vale da data escolhida até o fim da convocação."
+                  : etapa === "confirmar_total"
+                    ? "Você selecionou todo o período da convocação."
+                    : etapa === "confirmar_parcial"
+                      ? "Revise a data antes de prosseguir. A ação não pode ser desfeita."
+                      : "Escolha se o cancelamento será total ou parcial."}
+          </p>
+
+          <div className="mt-7 rounded-2xl border border-white/12 bg-white/5 p-5 text-left backdrop-blur">
+            {etapa === "escolha" ? (
+              <div className="grid gap-3">
+                <ChoiceButton
+                  onClick={onEscolherParcial}
+                  variant="warning"
+                  disabled={isPending}
+                  className="w-full"
+                >
+                  Cancelar parcialmente
+                </ChoiceButton>
+                <ChoiceButton
+                  onClick={onEscolherTotal}
+                  variant="danger"
+                  disabled={isPending}
+                  className="w-full"
+                >
+                  {isPending ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 className="size-4 animate-spin" />
+                      Cancelando
+                    </span>
+                  ) : (
+                    "Cancelar convocação"
+                  )}
+                </ChoiceButton>
+              </div>
+            ) : null}
+
+            {etapa === "calendario" ? (
+              <CalendarioCancelamento
+                dias={dias}
+                selected={dataInicioCancelamento}
+                disabled={isPending}
+                onSelect={onSelecionarData}
+              />
+            ) : null}
+
+            {etapa === "confirmar_total" ? (
+              <div className="space-y-4">
+                <p className="rounded-2xl border border-orange-300/30 bg-orange-300/10 px-4 py-3 text-sm leading-relaxed text-orange-100">
+                  A data selecionada é o primeiro dia da convocação. Isso
+                  cancela o período inteiro. Pode prosseguir?
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <ChoiceButton
+                    onClick={onVoltarCalendario}
+                    disabled={isPending}
+                  >
+                    Não
+                  </ChoiceButton>
+                  <ChoiceButton
+                    onClick={onConfirmarTotal}
+                    variant="danger"
+                    disabled={isPending}
+                  >
+                    {isPending ? (
+                      <span className="inline-flex items-center gap-2">
+                        <Loader2 className="size-4 animate-spin" />
+                        Cancelando
+                      </span>
+                    ) : (
+                      "Sim"
+                    )}
+                  </ChoiceButton>
+                </div>
+              </div>
+            ) : null}
+
+            {etapa === "confirmar_parcial" ? (
+              <div className="space-y-4">
+                <p className="rounded-2xl border border-orange-300/30 bg-orange-300/10 px-4 py-3 text-sm leading-relaxed text-orange-100">
+                  Cancelar a convocação a partir de{" "}
+                  <strong className="text-orange-50">
+                    {dataInicioCancelamento
+                      ? formatarDataNumerica(dataInicioCancelamento)
+                      : "—"}
+                  </strong>{" "}
+                  até o fim do período? A ação não pode ser desfeita.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <ChoiceButton
+                    onClick={onVoltarCalendario}
+                    disabled={isPending}
+                  >
+                    Voltar
+                  </ChoiceButton>
+                  <ChoiceButton
+                    onClick={onConfirmarParcial}
+                    variant="warning"
+                    disabled={isPending}
+                  >
+                    {isPending ? (
+                      <span className="inline-flex items-center gap-2">
+                        <Loader2 className="size-4 animate-spin" />
+                        Cancelando
+                      </span>
+                    ) : (
+                      "Confirmar"
+                    )}
+                  </ChoiceButton>
+                </div>
+              </div>
+            ) : null}
+
+            {sucessoTotal || sucessoParcial ? (
+              <div className="space-y-4 text-center">
+                <p className="rounded-2xl border border-emerald-300/30 bg-emerald-300/10 px-4 py-4 text-sm text-emerald-100">
+                  {sucessoTotal
+                    ? "Convocação cancelada com sucesso."
+                    : `Cancelamento parcial registrado a partir de ${
+                        dataInicioCancelamento
+                          ? formatarDataNumerica(dataInicioCancelamento)
+                          : "data selecionada"
+                      }.`}
+                </p>
+                <ChoiceButton onClick={onClose} variant="primary" className="w-full">
+                  Concluir
+                </ChoiceButton>
+              </div>
+            ) : null}
+
+            {erro ? (
+              <p className="mt-4 rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
+                {erro}
+              </p>
+            ) : null}
+          </div>
+
+          {!sucessoTotal && !sucessoParcial ? (
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isPending}
+              className="mt-6 inline-flex items-center gap-2 text-sm text-white/55 transition hover:text-white"
+            >
+              <ArrowLeft className="size-4" />
+              Voltar ao registro
+            </button>
+          ) : (
+            <p className="mt-8 text-xs text-white/45">
+              Você já pode fechar esta aba.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CalendarioCancelamento({
+  dias,
+  selected,
+  disabled,
+  onSelect,
+}: {
+  dias: string[]
+  selected: string | null
+  disabled: boolean
+  onSelect: (data: string) => void
+}) {
+  const primeiroDia = dias[0] ?? format(new Date(), "yyyy-MM-dd")
+  const [mesVisivel, setMesVisivel] = useState(() => parseISO(primeiroDia))
+
+  useEffect(() => {
+    setMesVisivel(parseISO(primeiroDia))
+  }, [primeiroDia])
+
+  const diasPermitidos = useMemo(() => new Set(dias), [dias])
+  const diasDoMes = useMemo(() => {
+    const inicio = startOfWeek(startOfMonth(mesVisivel), { weekStartsOn: 0 })
+    const fim = endOfWeek(endOfMonth(mesVisivel), { weekStartsOn: 0 })
+    const out: Date[] = []
+    const d = new Date(inicio)
+    while (d <= fim) {
+      out.push(new Date(d))
+      d.setDate(d.getDate() + 1)
+    }
+    return out
+  }, [mesVisivel])
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => setMesVisivel((m) => subMonths(m, 1))}
+          className="inline-flex size-9 items-center justify-center rounded-xl border border-white/12 bg-white/[0.04] text-white/75 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
+        >
+          <ArrowLeft className="size-4" />
+        </button>
+        <p className="text-display text-lg capitalize text-white/95">
+          {format(mesVisivel, "MMMM 'de' yyyy", { locale: ptBR })}
+        </p>
+        <button
+          type="button"
+          onClick={() => setMesVisivel((m) => addMonths(m, 1))}
+          className="inline-flex size-9 items-center justify-center rounded-xl border border-white/12 bg-white/[0.04] text-white/75 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
+        >
+          <ArrowLeft className="size-4 rotate-180" />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-7 gap-1">
+        {["D", "S", "T", "Q", "Q", "S", "S"].map((d, i) => (
+          <div
+            key={i}
+            className="py-1 text-center text-[10px] uppercase tracking-wider text-white/40"
+          >
+            {d}
+          </div>
+        ))}
+        {diasDoMes.map((dia) => {
+          const iso = format(dia, "yyyy-MM-dd")
+          const permitido = diasPermitidos.has(iso)
+          const selecionado = selected && isSameDay(dia, parseISO(selected))
+          const noMes = isSameMonth(dia, mesVisivel)
+          return (
+            <button
+              key={iso}
+              type="button"
+              disabled={!permitido || disabled}
+              onClick={() => onSelect(iso)}
+              className={`flex h-10 w-full items-center justify-center rounded-xl text-sm font-medium transition ${
+                selecionado
+                  ? "bg-orange-300 text-[#0a1224] shadow-[0_0_18px_rgba(251,146,60,0.45)]"
+                  : permitido
+                    ? "text-white/90 hover:bg-orange-300/15 hover:text-orange-100"
+                    : noMes
+                      ? "cursor-not-allowed text-white/18"
+                      : "cursor-not-allowed text-white/10"
+              }`}
+            >
+              {dia.getDate()}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function TrashCanIcon() {
+  // SVG estilo lixeira clássica: alça curta no topo + barra grossa da tampa
+  // + corpo com 3 ribs verticais. Tampa pivota e ergue ao hover.
+  return (
+    <svg
+      className="trash-can-svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {/* Tampa: alça + barra horizontal */}
+      <g className="trash-lid-svg">
+        <path d="M10 3.5h4" strokeWidth="1.7" />
+        <path d="M3.2 6.7h17.6" strokeWidth="2.1" />
+      </g>
+      {/* Corpo: silhueta levemente trapezoidal + 3 ribs */}
+      <g className="trash-body-svg">
+        <path
+          d="M5.2 7.7l1 13.2a1.8 1.8 0 0 0 1.8 1.6h8a1.8 1.8 0 0 0 1.8-1.6l1-13.2"
+          strokeWidth="1.7"
+        />
+        <path d="M9.2 11v8.5" strokeWidth="1.5" />
+        <path d="M12 11v8.5" strokeWidth="1.5" />
+        <path d="M14.8 11v8.5" strokeWidth="1.5" />
+      </g>
+    </svg>
+  )
+}
+
+function CancelFlameIcon() {
+  // SVG: 3 chamas concêntricas (outer/mid/inner) + brasas embaixo.
+  // Cada chama tem keyframe próprio com duração desalinhada — efeito fire
+  // realista sem ciclo perceptível. Só anima no hover do botão.
+  return (
+    <span className="cancel-flame-icon" aria-hidden="true">
+      <svg
+        className="cancel-flame-svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        aria-hidden="true"
+      >
+        <path
+          className="flame-outer"
+          d="M12 22c-4 0-7-2.7-7-6.4 0-2.8 1.8-4.6 3-6.2.6-.7.8-1.5.4-2.4 1.6.4 2.6 1.6 2.9 3.1.4-2.4 1.8-4 4.1-6.1 0 2.2.9 3.3 1.8 4.6 1.3 1.7 2.8 3.4 2.8 6 0 4-3 7.4-8 7.4Z"
+          fill="rgba(239, 68, 68, 0.42)"
+          stroke="rgba(248, 113, 113, 0.9)"
+          strokeWidth="1.4"
+          strokeLinejoin="round"
+        />
+        <path
+          className="flame-mid"
+          d="M12 20.2c-2.6 0-4.6-1.7-4.6-4.2 0-1.7 1-3 1.9-4 .8-.8 1-1.7.7-2.7 1.4.6 2.1 1.7 2.3 3 .3-1.6 1.2-2.6 2.6-3.9.1 1.5.6 2.4 1.3 3.3.9 1.2 1.7 2.2 1.7 4.1 0 2.6-2 4.4-5.9 4.4Z"
+          fill="rgba(251, 146, 60, 0.6)"
+          stroke="rgba(251, 191, 36, 0.85)"
+          strokeWidth="1"
+          strokeLinejoin="round"
+        />
+        <path
+          className="flame-inner"
+          d="M12 18.4c-1.4 0-2.5-.9-2.5-2.3 0-1 .6-1.7 1.1-2.3.5-.5.6-1.1.4-1.7.8.4 1.2 1 1.4 1.8.2-1 .7-1.6 1.5-2.3 0 .9.3 1.5.8 2 .5.7 1 1.3 1 2.4 0 1.5-1.1 2.4-3.7 2.4Z"
+          fill="rgba(253, 224, 71, 0.85)"
+        />
+      </svg>
+      <span className="flame-base-glow" />
+    </span>
+  )
+}
+
 type NumStepperProps = {
   id?: string
   value: string
@@ -696,7 +1448,7 @@ function ChoiceButton({
   onMouseLeave,
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "ghost" | "primary" | "danger"
+  variant?: "ghost" | "primary" | "danger" | "warning"
 }) {
   // Tilt 3D segue o cursor: --mx, --my (0..100%) consumidos pelo CSS .choice-btn
   function handleMove(e: React.MouseEvent<HTMLButtonElement>) {
@@ -717,7 +1469,9 @@ function ChoiceButton({
       ? "choice-btn--primary"
       : variant === "danger"
         ? "choice-btn--danger"
-        : ""
+        : variant === "warning"
+          ? "choice-btn--warning"
+          : ""
   return (
     <button
       {...props}

@@ -1,4 +1,10 @@
-import type { PayloadFinalizar, ProcessamentoDados, RespostaDia } from "./types"
+import type {
+  PayloadCancelarConvocacao,
+  PayloadFinalizar,
+  ProcessamentoDados,
+  RespostaDia,
+  ResultadoCancelarConvocacao,
+} from "./types"
 
 const BASE_URL = import.meta.env.VITE_N8N_BASE_URL ?? ""
 const USE_MOCK = !BASE_URL
@@ -243,6 +249,75 @@ export async function finalizarProcessamento(
   return {
     protocolo: data.protocolo ?? payload.protocolo,
     editado: !!data.editado,
+  }
+}
+
+export class CancelarConvocacaoApiError extends Error {
+  status?: number
+  erro?: string
+
+  constructor(message: string, status?: number, erro?: string) {
+    super(message)
+    this.name = "CancelarConvocacaoApiError"
+    this.status = status
+    this.erro = erro
+  }
+}
+
+export async function cancelarConvocacao(
+  uuid: string,
+  payload: PayloadCancelarConvocacao,
+): Promise<ResultadoCancelarConvocacao> {
+  if (USE_MOCK || isMockUuid(uuid)) {
+    await new Promise((r) => setTimeout(r, 500))
+    const mock = MOCK_PROCESSAMENTOS[uuid]
+    if (!mock) {
+      throw new CancelarConvocacaoApiError(
+        "Processamento não encontrado.",
+        404,
+        "nao_encontrado",
+      )
+    }
+    return {
+      ok: true,
+      tipo: payload.tipo,
+      dataInicioCancelamento: payload.dataInicioCancelamento,
+      desconto: {
+        acao: "create",
+        descontoVR: 0,
+        descontoVT: 0,
+        motivo: "mock",
+      },
+    }
+  }
+
+  const res = await fetch(
+    `${BASE_URL}/intermitente-cancelar-convocacao?uuid=${encodeURIComponent(uuid)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        uuid,
+        tipo: payload.tipo,
+        data_inicio_cancelamento: payload.dataInicioCancelamento,
+      }),
+    },
+  )
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new CancelarConvocacaoApiError(
+      data.mensagem || `Erro ${res.status}`,
+      res.status,
+      data.erro,
+    )
+  }
+
+  return {
+    ok: data.ok !== false,
+    tipo: data.tipo ?? payload.tipo,
+    dataInicioCancelamento:
+      data.data_inicio_cancelamento ?? payload.dataInicioCancelamento,
+    desconto: data.desconto,
   }
 }
 

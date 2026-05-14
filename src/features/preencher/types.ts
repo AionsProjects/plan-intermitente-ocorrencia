@@ -33,6 +33,25 @@ export type PayloadFinalizar = {
   ehCorrecao?: boolean
 }
 
+export type TipoCancelamentoConvocacao = "total" | "parcial"
+
+export type PayloadCancelarConvocacao = {
+  tipo: TipoCancelamentoConvocacao
+  dataInicioCancelamento: string | null
+}
+
+export type ResultadoCancelarConvocacao = {
+  ok: boolean
+  tipo: TipoCancelamentoConvocacao
+  dataInicioCancelamento: string | null
+  desconto?: {
+    acao?: "create" | "update" | "skip"
+    descontoVR?: number
+    descontoVT?: number
+    motivo?: string | null
+  }
+}
+
 export type DiaInfo = {
   data: string
   tipo: "padrao" | "extra"
