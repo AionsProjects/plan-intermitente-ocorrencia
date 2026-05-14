@@ -24,6 +24,16 @@ export function TestePage() {
       desc: "Estado de erro por expiração.",
     },
     {
+      uuid: "mock-sabados",
+      titulo: "Com sábado extra pré-carregado",
+      desc: "Convocação de abril inteiro c/ um sábado extra já marcado.",
+    },
+    {
+      uuid: "mock-com-sabado",
+      titulo: "Já trabalha sábado",
+      desc: "Trabalha Sábado = SIM. Botão 'Adicionar sábados' fica oculto.",
+    },
+    {
       uuid: "uuid-inexistente",
       titulo: "Link inválido",
       desc: "Estado 404 / não encontrado.",

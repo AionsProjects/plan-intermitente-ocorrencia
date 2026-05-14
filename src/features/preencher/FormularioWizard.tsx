@@ -16,6 +16,7 @@ import { Link } from "react-router-dom"
 import {
   ArrowLeft,
   CalendarDays,
+  CalendarPlus,
   ChevronDown,
   ChevronUp,
   FlaskConical,
@@ -63,6 +64,8 @@ type EtapaCancelamento =
   | "sucesso_total"
   | "sucesso_parcial"
 
+type EtapaSabados = "fechado" | "calendario" | "confirmar_remover"
+
 function formatarDiaCompleto(iso: string): string {
   return format(parseISO(iso), "EEEE, dd 'de' MMMM", { locale: ptBR })
 }
@@ -96,12 +99,17 @@ function respostasIniciais(
 
 function diasInfoIniciais(dados: ProcessamentoDados): DiaInfo[] {
   const desativados = new Set(dados.diasDesativados ?? [])
-  const todos = new Set<string>([...dados.dias, ...(dados.diasExtras ?? [])])
+  const sabadosExtras = new Set(dados.sabadosExtras ?? [])
+  const todos = new Set<string>([
+    ...dados.dias,
+    ...(dados.diasExtras ?? []),
+    ...(dados.sabadosExtras ?? []),
+  ])
   return [...todos]
     .sort()
     .map((d) => ({
       data: d,
-      tipo: "padrao",
+      tipo: sabadosExtras.has(d) ? "extra" : "padrao",
       ativo: !desativados.has(d),
     }))
 }
@@ -121,6 +129,8 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
     string | null
   >(null)
   const [cancelamentoErro, setCancelamentoErro] = useState<string | null>(null)
+  const [etapaSabados, setEtapaSabados] = useState<EtapaSabados>("fechado")
+  const [sabadoARemover, setSabadoARemover] = useState<string | null>(null)
 
   const finalizar = useFinalizarProcessamento(dados.uuid)
   const cancelarConvocacao = useCancelarConvocacao(dados.uuid)
@@ -162,6 +172,67 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
     [diasInfo],
   )
 
+  // Sábados dentro do período da convocação que ainda não foram adicionados
+  // como extras e que não fazem parte dos dias originais convocados.
+  const sabadosDisponiveis = useMemo(() => {
+    const existentes = new Set(diasInfo.map((d) => d.data))
+    const out: string[] = []
+    const inicio = parseISO(dados.dataInicio)
+    const fim = parseISO(dados.dataFim)
+    const cursor = new Date(inicio)
+    while (cursor <= fim) {
+      if (cursor.getUTCDay() === 6) {
+        const iso = cursor.toISOString().slice(0, 10)
+        if (!existentes.has(iso)) out.push(iso)
+      }
+      cursor.setUTCDate(cursor.getUTCDate() + 1)
+    }
+    return out
+  }, [diasInfo, dados.dataInicio, dados.dataFim])
+
+  const adicionarSabadosExtras = useCallback((datas: string[]) => {
+    if (datas.length === 0) return
+    setDiasInfo((prev) => {
+      const existentes = new Set(prev.map((d) => d.data))
+      const novos = datas
+        .filter((d) => !existentes.has(d))
+        .map<DiaInfo>((d) => ({ data: d, tipo: "extra", ativo: true }))
+      return [...prev, ...novos].sort((a, b) => a.data.localeCompare(b.data))
+    })
+    setRespostas((prev) => {
+      const next = { ...prev }
+      for (const d of datas) {
+        if (!next[d]) next[d] = { data: d, tipo: "sem_ocorrencia" }
+      }
+      return next
+    })
+  }, [])
+
+  const removerSabadoExtra = useCallback((data: string) => {
+    setDiasInfo((prev) => prev.filter((d) => d.data !== data))
+    setRespostas((prev) => {
+      const next = { ...prev }
+      delete next[data]
+      return next
+    })
+  }, [])
+
+  function pedirRemoverSabado(data: string) {
+    setSabadoARemover(data)
+    setEtapaSabados("confirmar_remover")
+  }
+
+  function confirmarRemoverSabado() {
+    if (sabadoARemover) removerSabadoExtra(sabadoARemover)
+    setSabadoARemover(null)
+    setEtapaSabados("fechado")
+  }
+
+  function fecharSabados() {
+    setEtapaSabados("fechado")
+    setSabadoARemover(null)
+  }
+
   // Conta TUDO que foge de "sem ocorrência":
   // faltas + atrasos + dias desconsiderados.
   const totalOcorrencias = useMemo(() => {
@@ -177,8 +248,12 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
     // quando a coluna Protocolo do monday está vazia.
     const protocolo = dados.protocolo || gerarProtocolo()
     const datasOriginais = new Set(dados.dias)
+    const sabadosExtras = diasInfo
+      .filter((d) => d.tipo === "extra" && d.ativo)
+      .map((d) => d.data)
+    const sabadosExtrasSet = new Set(sabadosExtras)
     const todasExtras = diasInfo
-      .filter((d) => !datasOriginais.has(d.data))
+      .filter((d) => !datasOriginais.has(d.data) && !sabadosExtrasSet.has(d.data))
       .map((d) => d.data)
     const payload = {
       respostas: diasAtivos.map(
@@ -187,6 +262,7 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
       protocolo,
       diasExtras: todasExtras,
       diasDesativados: diasInfo.filter((d) => !d.ativo).map((d) => d.data),
+      sabadosExtras,
       ehCorrecao: !!ehCorrecao,
     }
     const resultado = await finalizar.mutateAsync(payload)
@@ -345,6 +421,19 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
                     Cancelar convocação
                   </span>
                 </button>
+                {!dados.trabalhaSabado && (
+                  <button
+                    type="button"
+                    className="btn-action-expand btn-add-sabados"
+                    onClick={() => setEtapaSabados("calendario")}
+                    aria-label="Adicionar sábados"
+                  >
+                    <CalendarPlus className="size-4 shrink-0 text-blue-300" />
+                    <span className="btn-label text-blue-200">
+                      Adicionar sábados
+                    </span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -363,6 +452,7 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
                 }}
                 onApagar={() => handleClickDiaApagar(diaInfo)}
                 onReativar={() => reativarDia(diaInfo.data)}
+                onRemoverExtra={() => pedirRemoverSabado(diaInfo.data)}
               />
             ))}
           </ul>
@@ -441,6 +531,22 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
         onConfirmarTotal={executarCancelamentoTotal}
         onConfirmarParcial={confirmarCancelamentoParcial}
       />
+      <DialogSelecionarSabados
+        open={etapaSabados === "calendario"}
+        sabadosDisponiveis={sabadosDisponiveis}
+        dataInicio={dados.dataInicio}
+        onClose={fecharSabados}
+        onConfirmar={(datas) => {
+          adicionarSabadosExtras(datas)
+          fecharSabados()
+        }}
+      />
+      <DialogConfirmarRemoverSabado
+        open={etapaSabados === "confirmar_remover"}
+        data={sabadoARemover}
+        onCancelar={fecharSabados}
+        onConfirmar={confirmarRemoverSabado}
+      />
     </div>
   )
 }
@@ -455,6 +561,7 @@ type DiaItemProps = {
   onEdit: () => void
   onApagar: () => void
   onReativar: () => void
+  onRemoverExtra: () => void
 }
 
 function DiaItem({
@@ -465,12 +572,18 @@ function DiaItem({
   onEdit,
   onApagar,
   onReativar,
+  onRemoverExtra,
 }: DiaItemProps) {
   const isDisabled = !diaInfo.ativo
+  const isExtra = diaInfo.tipo === "extra"
 
   const tileBase =
     "group relative flex h-full w-full flex-col items-center justify-center gap-1.5 rounded-2xl px-3 py-4 text-left"
-  const tileStyle = isDisabled ? "glass-tile-disabled" : "glass-tile glass-tile-3d"
+  const tileStyle = isDisabled
+    ? "glass-tile-disabled"
+    : isExtra
+      ? "glass-tile-extra"
+      : "glass-tile glass-tile-3d"
 
   const shakeClass = modoApagar && diaInfo.ativo ? "shake-mode" : ""
 
@@ -536,7 +649,46 @@ function DiaItem({
           )}
         </div>
 
-        {modoApagar && diaInfo.ativo && (
+        {isExtra && !isDisabled && (
+          <svg
+            className="extra-dash-svg"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+          >
+            <rect
+              x="0"
+              y="0"
+              width="100%"
+              height="100%"
+              rx="16"
+              ry="16"
+            />
+          </svg>
+        )}
+
+        {isExtra && !modoApagar && !isDisabled && (
+          <span
+            role="button"
+            tabIndex={0}
+            aria-label="Remover sábado extra"
+            onClick={(e) => {
+              e.stopPropagation()
+              onRemoverExtra()
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault()
+                e.stopPropagation()
+                onRemoverExtra()
+              }
+            }}
+            className="btn-remover-sabado absolute right-2 top-2 z-10 flex size-6 items-center justify-center rounded-full ring-1 ring-blue-300/40 transition-all"
+          >
+            <X className="size-3 text-blue-200" />
+          </span>
+        )}
+
+        {modoApagar && diaInfo.ativo && !isExtra && (
           <div className="absolute right-2 top-2 flex size-6 items-center justify-center rounded-full bg-red-400/15 ring-1 ring-red-400/30 transition-all group-hover:bg-red-400/25">
             <X className="size-3 text-red-300" />
           </div>
@@ -1575,5 +1727,246 @@ function LampBroken() {
         />
       </svg>
     </span>
+  )
+}
+
+/* ─── Dialog: Selecionar sábados extras ─── */
+
+type DialogSelecionarSabadosProps = {
+  open: boolean
+  sabadosDisponiveis: string[]
+  dataInicio: string
+  onClose: () => void
+  onConfirmar: (datas: string[]) => void
+}
+
+function DialogSelecionarSabados({
+  open,
+  sabadosDisponiveis,
+  dataInicio,
+  onClose,
+  onConfirmar,
+}: DialogSelecionarSabadosProps) {
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
+  const [mesVisivel, setMesVisivel] = useState(() => parseISO(dataInicio))
+  const [prevOpen, setPrevOpen] = useState(open)
+
+  // Reset interno quando o diálogo abre — padrão setState-during-render
+  // (lint react-hooks/set-state-in-effect proíbe usar useEffect aqui).
+  if (open !== prevOpen) {
+    setPrevOpen(open)
+    if (open) {
+      setSelecionados(new Set())
+      setMesVisivel(parseISO(sabadosDisponiveis[0] ?? dataInicio))
+    }
+  }
+
+  const permitidos = useMemo(
+    () => new Set(sabadosDisponiveis),
+    [sabadosDisponiveis],
+  )
+
+  const diasDoMes = useMemo(() => {
+    const inicio = startOfWeek(startOfMonth(mesVisivel), { weekStartsOn: 0 })
+    const fim = endOfWeek(endOfMonth(mesVisivel), { weekStartsOn: 0 })
+    const out: Date[] = []
+    const d = new Date(inicio)
+    while (d <= fim) {
+      out.push(new Date(d))
+      d.setDate(d.getDate() + 1)
+    }
+    return out
+  }, [mesVisivel])
+
+  function toggle(iso: string) {
+    setSelecionados((prev) => {
+      const next = new Set(prev)
+      if (next.has(iso)) next.delete(iso)
+      else next.add(iso)
+      return next
+    })
+  }
+
+  function handleConfirmar() {
+    if (selecionados.size === 0) return
+    onConfirmar([...selecionados].sort())
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent
+        className="glass-modal border-0 bg-transparent p-8 text-white sm:max-w-md"
+        style={{
+          backdropFilter: "blur(10px) saturate(140%) brightness(1.05)",
+        }}
+      >
+        <DialogHeader>
+          <p className="text-[10px] uppercase tracking-[0.3em] text-blue-200/80">
+            Sábados extras
+          </p>
+          <DialogTitle className="text-display text-3xl text-white">
+            Adicionar <em className="italic text-[#6ea0ff]">sábados</em>
+          </DialogTitle>
+          <DialogDescription className="text-white/65">
+            Selecione os sábados extras trabalhados. Você receberá VT pelos
+            dias adicionados.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="my-2 h-px bg-white/12" />
+
+        {sabadosDisponiveis.length === 0 ? (
+          <p className="rounded-2xl border border-white/12 bg-white/5 px-4 py-6 text-center text-sm text-white/70">
+            Nenhum sábado disponível no período da convocação.
+          </p>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setMesVisivel((m) => subMonths(m, 1))}
+                className="inline-flex size-9 items-center justify-center rounded-xl border border-white/12 bg-white/[0.04] text-white/75 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
+                aria-label="Mês anterior"
+              >
+                <ArrowLeft className="size-4" />
+              </button>
+              <p className="text-display text-lg capitalize text-white/95">
+                {format(mesVisivel, "MMMM 'de' yyyy", { locale: ptBR })}
+              </p>
+              <button
+                type="button"
+                onClick={() => setMesVisivel((m) => addMonths(m, 1))}
+                className="inline-flex size-9 items-center justify-center rounded-xl border border-white/12 bg-white/[0.04] text-white/75 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
+                aria-label="Próximo mês"
+              >
+                <ArrowLeft className="size-4 rotate-180" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-7 gap-1">
+              {["D", "S", "T", "Q", "Q", "S", "S"].map((d, i) => (
+                <div
+                  key={i}
+                  className="py-1 text-center text-[10px] uppercase tracking-wider text-white/40"
+                >
+                  {d}
+                </div>
+              ))}
+              {diasDoMes.map((dia) => {
+                const iso = format(dia, "yyyy-MM-dd")
+                const permitido = permitidos.has(iso)
+                const selecionado = selecionados.has(iso)
+                const noMes = isSameMonth(dia, mesVisivel)
+                return (
+                  <button
+                    key={iso}
+                    type="button"
+                    disabled={!permitido}
+                    onClick={() => toggle(iso)}
+                    className={`flex h-10 w-full items-center justify-center rounded-xl text-sm font-medium transition ${
+                      selecionado
+                        ? "bg-blue-300 text-[#0a1224] shadow-[0_0_18px_rgba(110,160,255,0.45)]"
+                        : permitido
+                          ? "text-white/90 hover:bg-blue-300/15 hover:text-blue-100"
+                          : noMes
+                            ? "cursor-not-allowed text-white/18"
+                            : "cursor-not-allowed text-white/10"
+                    }`}
+                  >
+                    {dia.getDate()}
+                  </button>
+                )
+              })}
+            </div>
+
+            <p className="text-center text-xs text-white/55">
+              {selecionados.size === 0
+                ? "Toque nos sábados para selecionar."
+                : `${selecionados.size} ${
+                    selecionados.size === 1
+                      ? "sábado selecionado"
+                      : "sábados selecionados"
+                  }.`}
+            </p>
+          </div>
+        )}
+
+        <DialogFooter className="mt-2 sm:justify-between">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            className="text-white/65 hover:bg-white/10 hover:text-white"
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="button"
+            onClick={handleConfirmar}
+            disabled={selecionados.size === 0}
+            className="bg-blue-300 text-[#0a1224] hover:bg-blue-200 disabled:opacity-50"
+          >
+            Adicionar{selecionados.size > 0 ? ` (${selecionados.size})` : ""}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/* ─── Dialog: Confirmar remover sábado extra ─── */
+
+type DialogConfirmarRemoverSabadoProps = {
+  open: boolean
+  data: string | null
+  onCancelar: () => void
+  onConfirmar: () => void
+}
+
+function DialogConfirmarRemoverSabado({
+  open,
+  data,
+  onCancelar,
+  onConfirmar,
+}: DialogConfirmarRemoverSabadoProps) {
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onCancelar()}>
+      <DialogContent
+        className="glass-modal border-0 bg-transparent p-8 text-white sm:max-w-sm"
+        style={{
+          backdropFilter: "blur(10px) saturate(140%) brightness(1.05)",
+        }}
+      >
+        <DialogHeader>
+          <p className="text-[10px] uppercase tracking-[0.3em] text-blue-200/80">
+            Sábado extra
+          </p>
+          <DialogTitle className="text-display text-2xl text-white">
+            Remover este sábado?
+          </DialogTitle>
+          <DialogDescription className="text-white/65">
+            {data
+              ? `Remover ${formatarDataNumerica(data)} dos sábados extras. O benefício de VT não será mais solicitado para esta data.`
+              : "Remover este sábado extra. O benefício de VT não será mais solicitado para esta data."}
+          </DialogDescription>
+        </DialogHeader>
+
+        <DialogFooter className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-2">
+          <Button
+            variant="ghost"
+            onClick={onCancelar}
+            className="text-white/85 hover:bg-white/10 hover:text-white"
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={onConfirmar}
+            className="bg-blue-300 text-[#0a1224] hover:bg-blue-200"
+          >
+            Remover
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

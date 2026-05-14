@@ -17,6 +17,8 @@ export type ProcessamentoDados = {
   respostasAnteriores?: RespostaDia[]
   diasExtras?: string[]
   diasDesativados?: string[]
+  trabalhaSabado: boolean
+  sabadosExtras?: string[]
 }
 
 export type RespostaDia = {
@@ -30,6 +32,7 @@ export type PayloadFinalizar = {
   protocolo: string
   diasExtras?: string[]
   diasDesativados?: string[]
+  sabadosExtras?: string[]
   ehCorrecao?: boolean
 }
 

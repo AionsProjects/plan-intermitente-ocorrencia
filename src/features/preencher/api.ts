@@ -24,13 +24,18 @@ function isMockProtocol(protocolo: string): boolean {
   )
 }
 
-function mockDias(inicio: string, fim: string): string[] {
+function mockDias(
+  inicio: string,
+  fim: string,
+  incluirSabado = false,
+): string[] {
   const dias: string[] = []
   const atual = new Date(inicio)
   const fimData = new Date(fim)
   while (atual <= fimData) {
-    // Pula domingos (0 = domingo)
-    if (atual.getUTCDay() !== 0) {
+    const dow = atual.getUTCDay()
+    // Pula domingos (0); pula sábados (6) quando não inclui
+    if (dow !== 0 && (incluirSabado || dow !== 6)) {
       dias.push(atual.toISOString().slice(0, 10))
     }
     atual.setUTCDate(atual.getUTCDate() + 1)
@@ -42,6 +47,7 @@ type MockState = ProcessamentoDados & {
   respostasAnteriores: RespostaDia[]
   diasExtras: string[]
   diasDesativados: string[]
+  sabadosExtras: string[]
 }
 
 const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
@@ -60,6 +66,8 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
     respostasAnteriores: [],
     diasExtras: [],
     diasDesativados: [],
+    trabalhaSabado: false,
+    sabadosExtras: [],
   },
   "mock-concluido": {
     uuid: "mock-concluido",
@@ -80,6 +88,8 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
     ],
     diasExtras: [],
     diasDesativados: [],
+    trabalhaSabado: false,
+    sabadosExtras: [],
   },
   "mock-expirado": {
     uuid: "mock-expirado",
@@ -96,6 +106,44 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
     respostasAnteriores: [],
     diasExtras: [],
     diasDesativados: [],
+    trabalhaSabado: false,
+    sabadosExtras: [],
+  },
+  "mock-sabados": {
+    uuid: "mock-sabados",
+    nome: "Marina Pereira",
+    contrato: "CT-2026-115",
+    dataInicio: "2026-04-01",
+    dataFim: "2026-04-30",
+    dias: mockDias("2026-04-01", "2026-04-30", false),
+    status: "aguardando",
+    concluidoEm: null,
+    protocolo: null,
+    editado: false,
+    editadoEm: null,
+    respostasAnteriores: [],
+    diasExtras: [],
+    diasDesativados: [],
+    trabalhaSabado: false,
+    sabadosExtras: ["2026-04-25"],
+  },
+  "mock-com-sabado": {
+    uuid: "mock-com-sabado",
+    nome: "Bruno Lima",
+    contrato: "CT-2026-220",
+    dataInicio: "2026-04-06",
+    dataFim: "2026-04-11",
+    dias: mockDias("2026-04-06", "2026-04-11", true),
+    status: "aguardando",
+    concluidoEm: null,
+    protocolo: null,
+    editado: false,
+    editadoEm: null,
+    respostasAnteriores: [],
+    diasExtras: [],
+    diasDesativados: [],
+    trabalhaSabado: true,
+    sabadosExtras: [],
   },
 }
 
@@ -140,6 +188,8 @@ function snapshot(m: MockState): ProcessamentoDados {
     respostasAnteriores: [...m.respostasAnteriores],
     diasExtras: [...m.diasExtras],
     diasDesativados: [...m.diasDesativados],
+    trabalhaSabado: m.trabalhaSabado,
+    sabadosExtras: [...m.sabadosExtras],
   }
 }
 
@@ -192,6 +242,11 @@ export async function buscarProcessamento(
     ),
     diasExtras: raw.dias_extras ?? [],
     diasDesativados: raw.dias_desativados ?? [],
+    trabalhaSabado:
+      raw.trabalha_sabado === true ||
+      raw.trabalha_sabado === "SIM" ||
+      raw.trabalha_sabado === "sim",
+    sabadosExtras: raw.sabados_extras ?? [],
   }
 }
 
@@ -210,6 +265,7 @@ export async function finalizarProcessamento(
       mock.respostasAnteriores = payload.respostas
       mock.diasExtras = payload.diasExtras ?? []
       mock.diasDesativados = payload.diasDesativados ?? []
+      mock.sabadosExtras = payload.sabadosExtras ?? []
       if (ehReedicao || payload.ehCorrecao) {
         mock.editado = true
         mock.editadoEm = new Date().toISOString()
@@ -236,6 +292,7 @@ export async function finalizarProcessamento(
         protocolo: payload.protocolo,
         dias_extras: payload.diasExtras ?? [],
         dias_desativados: payload.diasDesativados ?? [],
+        sabados_extras: payload.sabadosExtras ?? [],
         eh_correcao: payload.ehCorrecao ?? false,
       }),
     },
