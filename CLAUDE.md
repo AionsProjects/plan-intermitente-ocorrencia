@@ -25,6 +25,7 @@ App web pra **gerenciar convocações de intermitentes** no monday: cria convoca
 - **WF1 Preparar** — webhook do monday quando coluna `ativar` muda. Gera UUID, cria item no board Histórico (`18411141462`), patch Link Column no item de origem.
 - **WF2 Ler** — `GET /intermitente-ler?uuid=…`. Busca item por UUID via `getByColumnValue`, parseia respostas_json/dias_extras/dias_desativados.
 - **WF3 Finalizar** — `POST /intermitente-finalizar`. Valida payload, agrega (qtd_faltas/atrasos/total_minutos), grava respostas_json, marca status=Concluído. Trava antifraude se desconto já consumido. **Idempotente** (1 item, `change_multiple_column_values`). Também grava `sabados_extras` em `numeric_mm3bszk3` + `text_mm3b4k7d` quando aplicável, e dispara WF "Lançamento Sábados Extras" via webhook cross-n8n.
+- **WF3 Atestados** *(em implantação)* — o frontend envia multipart com `payload` JSON + arquivos `atestado_<id>`. WF3 deve criar item no board Controle de Atestados (`18298015951`, grupo `topics`) e anexar o arquivo na coluna `files`. Mapeamento completo em `docs/n8n/controle-atestados-board.md`.
 - **WF4 Buscar protocolo** — `GET /intermitente-buscar-protocolo?protocolo=…` → `{uuid, nome}`.
 - **WF5 Pontual FIFO** — convoca pontual: calcula benefício do período, abate descontos pendentes FIFO no board Desconto, gera order Caju (crédito + boleto PIX), SOAPs RM, cria item Solicitação Pagamento (board `18393673859`). Documentado completo no `Mapeamento.md`.
 - **WF6 Gerar Lançamento Financeiro** — subworkflow (`executeWorkflow`) chamado pelo WF5. SOAP RM `FopRotinasLancFinanceiroAction` + `FopLancIntegraFinanceiroTerceiroAction` por evento (100=VR, 110=VT).
@@ -261,6 +262,29 @@ Origem das convocações. Form `/convocar` cria itens aqui. WF1 dispara quando c
 
 **Atenção**: label "Expirado" tem ID interno `17` (não `2`). Aguardando=`0`, Concluído=`1`. Use `{label: "..."}` em mutations.
 
+### Board Controle de Atestados `18298015951` — Controle de atestados - Ponta
+
+Arquivo detalhado: `docs/n8n/controle-atestados-board.md`.
+
+| Coluna | Column ID | Tipo | Uso no fluxo de intermitentes |
+|---|---|---|---|
+| Nome do Colaborador | `name` | name | Nome do intermitente |
+| Modalidade de contrato | `single_select5yq25pm` | status | `INTERMITENTE` |
+| Tipo da Documentação | `sele__o_individual__1` | status | `Atestado Médico` por padrão |
+| Dias de Atestado? | `numberjox5johv` | numbers | Quantidade de dias do atestado |
+| Saída e ou/ Retorno ao trabalho | `short_textcpcyzaec` | text | Período do atestado em texto |
+| Emissão do Atestado | `date` | date | Data inicial do atestado, salvo ajuste operacional |
+| Horário de almoço | `single_selectkiwkh2d` | status | `NDA` |
+| Trabalhou +6 / -6 horas? | `single_selectcovdz0i` | status | `Trabalhou +6h`, `Trabalhou -6h` ou `Não se aplica` |
+| Acompanhante? | `sele__o_individual8__1` | status | `Sem acompanhamento` |
+| Contrato do Colaborador | `department` | status | Contrato Monday (`SEMSA`, `DETRAN`, etc.) |
+| Arquivos | `files` | file | Anexo do atestado |
+| Observação | `short_textl33u569o` | text | UUID/período/origem |
+| Validação de documento | `color_mky1mjh7` | status | Sugestão: `VALIDADO` |
+| Lançamento DP | `status` | status | Sugestão: `VERIFICAR` |
+| Validação de lançamento | `color_mkzbgzc6` | status | Sugestão: `AGUARDANDO RETORNO` |
+| Competência | `dropdown_mkzsebbf` | dropdown | Mês do início do atestado |
+
 ## Contratos n8n
 
 ### GET `/webhook/intermitente-ler?uuid=<uuid>` (WF2)
@@ -279,6 +303,8 @@ Retorna (snake_case, convertido pra camelCase em `features/preencher/api.ts`):
 - 404 → "Link não encontrado"
 
 ### POST `/webhook/intermitente-finalizar?uuid=<uuid>` (WF3)
+
+Atestados: quando houver arquivo novo, frontend envia `multipart/form-data` com `payload` JSON + arquivos `atestado_<id>` (PDF/JPG/PNG/HEIC). WF3 deve criar item no board Controle de Atestados `18298015951`, grupo `topics`, anexar o arquivo na coluna `files` e persistir metadados para WF2 devolver em `atestados[]`.
 
 Body:
 ```ts

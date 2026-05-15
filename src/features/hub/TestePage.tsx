@@ -34,6 +34,11 @@ export function TestePage() {
       desc: "Trabalha Sábado = SIM. Botão 'Adicionar sábados' fica oculto.",
     },
     {
+      uuid: "mock-atestado",
+      titulo: "Com atestado",
+      desc: "Convocação com atestado pré-carregado para validar o destaque.",
+    },
+    {
       uuid: "uuid-inexistente",
       titulo: "Link inválido",
       desc: "Estado 404 / não encontrado.",

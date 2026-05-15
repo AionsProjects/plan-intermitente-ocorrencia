@@ -1,4 +1,5 @@
 import type {
+  Atestado,
   PayloadCancelarConvocacao,
   PayloadFinalizar,
   ProcessamentoDados,
@@ -48,6 +49,7 @@ type MockState = ProcessamentoDados & {
   diasExtras: string[]
   diasDesativados: string[]
   sabadosExtras: string[]
+  atestados: Atestado[]
 }
 
 const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
@@ -68,6 +70,7 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
     diasDesativados: [],
     trabalhaSabado: false,
     sabadosExtras: [],
+    atestados: [],
   },
   "mock-concluido": {
     uuid: "mock-concluido",
@@ -90,6 +93,7 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
     diasDesativados: [],
     trabalhaSabado: false,
     sabadosExtras: [],
+    atestados: [],
   },
   "mock-expirado": {
     uuid: "mock-expirado",
@@ -108,6 +112,7 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
     diasDesativados: [],
     trabalhaSabado: false,
     sabadosExtras: [],
+    atestados: [],
   },
   "mock-sabados": {
     uuid: "mock-sabados",
@@ -126,6 +131,7 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
     diasDesativados: [],
     trabalhaSabado: false,
     sabadosExtras: ["2026-04-25"],
+    atestados: [],
   },
   "mock-com-sabado": {
     uuid: "mock-com-sabado",
@@ -144,6 +150,37 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
     diasDesativados: [],
     trabalhaSabado: true,
     sabadosExtras: [],
+    atestados: [],
+  },
+  "mock-atestado": {
+    uuid: "mock-atestado",
+    nome: "Lorena Marques",
+    contrato: "CT-2026-331",
+    dataInicio: "2026-04-20",
+    dataFim: "2026-04-26",
+    dias: mockDias("2026-04-20", "2026-04-26", false),
+    status: "aguardando",
+    concluidoEm: null,
+    protocolo: null,
+    editado: false,
+    editadoEm: null,
+    respostasAnteriores: [],
+    diasExtras: [],
+    diasDesativados: [],
+    trabalhaSabado: false,
+    sabadosExtras: [],
+    atestados: [
+      {
+        id: "atest-mock-1",
+        dataInicio: "2026-04-22",
+        dataFim: "2026-04-24",
+        primeiroDiaFoiTrabalhar: true,
+        primeiroDiaTrabalhouSeisHoras: false,
+        nomeArquivo: "atestado-exemplo.pdf",
+        tamanhoArquivo: 284_000,
+        mondayItemId: "mock",
+      },
+    ],
   },
 }
 
@@ -190,6 +227,74 @@ function snapshot(m: MockState): ProcessamentoDados {
     diasDesativados: [...m.diasDesativados],
     trabalhaSabado: m.trabalhaSabado,
     sabadosExtras: [...m.sabadosExtras],
+    atestados: m.atestados.map((a) => ({ ...a })),
+  }
+}
+
+function mapAtestado(raw: {
+  id?: string
+  data_inicio?: string
+  data_fim?: string
+  dataInicio?: string
+  dataFim?: string
+  primeiro_dia_foi_trabalhar?: boolean
+  primeiroDiaFoiTrabalhar?: boolean
+  primeiro_dia_trabalhou_seis_horas?: boolean
+  primeiroDiaTrabalhouSeisHoras?: boolean
+  nome_arquivo?: string
+  nomeArquivo?: string
+  tamanho_arquivo?: number
+  tamanhoArquivo?: number
+  monday_item_id?: string | null
+  mondayItemId?: string | null
+  arquivo_url?: string | null
+  arquivoUrl?: string | null
+}): Atestado {
+  return {
+    id: raw.id ?? crypto.randomUUID(),
+    dataInicio: raw.dataInicio ?? raw.data_inicio ?? "",
+    dataFim: raw.dataFim ?? raw.data_fim ?? "",
+    primeiroDiaFoiTrabalhar:
+      raw.primeiroDiaFoiTrabalhar ?? raw.primeiro_dia_foi_trabalhar ?? false,
+    primeiroDiaTrabalhouSeisHoras:
+      raw.primeiroDiaTrabalhouSeisHoras ??
+      raw.primeiro_dia_trabalhou_seis_horas,
+    nomeArquivo: raw.nomeArquivo ?? raw.nome_arquivo ?? "Atestado",
+    tamanhoArquivo: raw.tamanhoArquivo ?? raw.tamanho_arquivo ?? 0,
+    mondayItemId: raw.mondayItemId ?? raw.monday_item_id ?? null,
+    arquivoUrl: raw.arquivoUrl ?? raw.arquivo_url ?? null,
+  }
+}
+
+function payloadFinalizarSnake(
+  uuid: string,
+  payload: PayloadFinalizar,
+  respostas: Array<{
+    data: string
+    tipo: RespostaDia["tipo"]
+    minutos_atraso: number | null
+  }>,
+) {
+  return {
+    uuid,
+    respostas,
+    protocolo: payload.protocolo,
+    dias_extras: payload.diasExtras ?? [],
+    dias_desativados: payload.diasDesativados ?? [],
+    sabados_extras: payload.sabadosExtras ?? [],
+    atestados: (payload.atestados ?? []).map((a) => ({
+      id: a.id,
+      data_inicio: a.dataInicio,
+      data_fim: a.dataFim,
+      primeiro_dia_foi_trabalhar: a.primeiroDiaFoiTrabalhar,
+      primeiro_dia_trabalhou_seis_horas:
+        a.primeiroDiaTrabalhouSeisHoras ?? null,
+      nome_arquivo: a.nomeArquivo,
+      tamanho_arquivo: a.tamanhoArquivo,
+      monday_item_id: a.mondayItemId ?? null,
+      arquivo_url: a.arquivoUrl ?? null,
+    })),
+    eh_correcao: payload.ehCorrecao ?? false,
   }
 }
 
@@ -247,6 +352,9 @@ export async function buscarProcessamento(
       raw.trabalha_sabado === "SIM" ||
       raw.trabalha_sabado === "sim",
     sabadosExtras: raw.sabados_extras ?? [],
+    atestados: Array.isArray(raw.atestados)
+      ? raw.atestados.map(mapAtestado)
+      : [],
   }
 }
 
@@ -266,6 +374,7 @@ export async function finalizarProcessamento(
       mock.diasExtras = payload.diasExtras ?? []
       mock.diasDesativados = payload.diasDesativados ?? []
       mock.sabadosExtras = payload.sabadosExtras ?? []
+      mock.atestados = payload.atestados ?? []
       if (ehReedicao || payload.ehCorrecao) {
         mock.editado = true
         mock.editadoEm = new Date().toISOString()
@@ -281,21 +390,28 @@ export async function finalizarProcessamento(
     minutos_atraso: r.minutosAtraso ?? null,
   }))
 
+  const bodyJson = payloadFinalizarSnake(uuid, payload, respostas)
+  const arquivos = payload.arquivosAtestados
+  const temArquivos = !!arquivos && arquivos.size > 0
   const res = await fetch(
     `${BASE_URL}/intermitente-finalizar?uuid=${encodeURIComponent(uuid)}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        uuid,
-        respostas,
-        protocolo: payload.protocolo,
-        dias_extras: payload.diasExtras ?? [],
-        dias_desativados: payload.diasDesativados ?? [],
-        sabados_extras: payload.sabadosExtras ?? [],
-        eh_correcao: payload.ehCorrecao ?? false,
-      }),
-    },
+    temArquivos
+      ? {
+          method: "POST",
+          body: (() => {
+            const form = new FormData()
+            form.append("payload", JSON.stringify(bodyJson))
+            for (const [id, file] of arquivos) {
+              form.append(`atestado_${id}`, file, file.name)
+            }
+            return form
+          })(),
+        }
+      : {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(bodyJson),
+        },
   )
   if (!res.ok) {
     const err = new Error(`Erro ${res.status}`) as Error & { status?: number }

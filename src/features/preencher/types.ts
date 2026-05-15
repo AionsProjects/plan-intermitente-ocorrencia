@@ -19,6 +19,7 @@ export type ProcessamentoDados = {
   diasDesativados?: string[]
   trabalhaSabado: boolean
   sabadosExtras?: string[]
+  atestados?: Atestado[]
 }
 
 export type RespostaDia = {
@@ -27,12 +28,26 @@ export type RespostaDia = {
   minutosAtraso?: number
 }
 
+export type Atestado = {
+  id: string
+  dataInicio: string
+  dataFim: string
+  primeiroDiaFoiTrabalhar: boolean
+  primeiroDiaTrabalhouSeisHoras?: boolean
+  nomeArquivo: string
+  tamanhoArquivo: number
+  mondayItemId?: string | null
+  arquivoUrl?: string | null
+}
+
 export type PayloadFinalizar = {
   respostas: RespostaDia[]
   protocolo: string
   diasExtras?: string[]
   diasDesativados?: string[]
   sabadosExtras?: string[]
+  atestados?: Atestado[]
+  arquivosAtestados?: Map<string, File>
   ehCorrecao?: boolean
 }
 
@@ -57,6 +72,6 @@ export type ResultadoCancelarConvocacao = {
 
 export type DiaInfo = {
   data: string
-  tipo: "padrao" | "extra"
+  tipo: "padrao" | "extra" | "atestado"
   ativo: boolean
 }
