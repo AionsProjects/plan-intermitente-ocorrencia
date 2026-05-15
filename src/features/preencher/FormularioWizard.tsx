@@ -297,7 +297,15 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
     })
   }, [])
 
+  // Sábados extras já gravados no histórico (vieram do WF2) — já foram pagos,
+  // não podem ser removidos pela UI. Backend (WF3) tb bloqueia se tentar.
+  const sabadosJaPagos = useMemo(
+    () => new Set(dados.sabadosExtras ?? []),
+    [dados.sabadosExtras],
+  )
+
   function pedirRemoverSabado(data: string) {
+    if (sabadosJaPagos.has(data)) return
     setSabadoARemover(data)
     setEtapaSabados("confirmar_remover")
   }
@@ -546,6 +554,7 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
                 onRemoverExtra={() => pedirRemoverSabado(diaInfo.data)}
                 atestadosNoDia={atestadosPorData.get(diaInfo.data) ?? []}
                 onAbrirAtestadoInfo={() => abrirInfoDocumento(diaInfo.data)}
+                podeRemoverExtra={!sabadosJaPagos.has(diaInfo.data)}
               />
             ))}
           </ul>
@@ -664,6 +673,7 @@ type DiaItemProps = {
   onRemoverExtra: () => void
   atestadosNoDia: Atestado[]
   onAbrirAtestadoInfo: () => void
+  podeRemoverExtra?: boolean
 }
 
 function DiaItem({
@@ -677,6 +687,7 @@ function DiaItem({
   onRemoverExtra,
   atestadosNoDia,
   onAbrirAtestadoInfo,
+  podeRemoverExtra = true,
 }: DiaItemProps) {
   const isDisabled = !diaInfo.ativo
   const isExtra = diaInfo.tipo === "extra"
@@ -804,7 +815,16 @@ function DiaItem({
           </svg>
         )}
 
-        {isExtra && !modoApagar && !isDisabled && !isAtestado && (
+        {isExtra && !podeRemoverExtra && !isDisabled && !isAtestado && (
+          <span
+            className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-blue-300/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-blue-200 ring-1 ring-blue-300/30"
+            title="Sábado extra já pago — não removível"
+          >
+            Pago
+          </span>
+        )}
+
+        {isExtra && !modoApagar && !isDisabled && !isAtestado && podeRemoverExtra && (
           <span
             role="button"
             tabIndex={0}
