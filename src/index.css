@@ -464,6 +464,8 @@
   .glass-edge,
   .glass-tile,
   .glass-tile-extra,
+  .glass-tile-atestado,
+  .glass-tile-declaracao,
   .glass-banner-danger,
   .btn-action-expand {
     position: relative;
@@ -471,6 +473,8 @@
   .glass-edge::after,
   .glass-tile::after,
   .glass-tile-extra::after,
+  .glass-tile-atestado::after,
+  .glass-tile-declaracao::after,
   .glass-banner-danger::after,
   .btn-action-expand::after {
     content: "";
@@ -666,16 +670,34 @@
   background-color: rgba(232, 194, 117, 0.08);
 }
 
+.glass-tile-declaracao {
+  background-color: rgba(56, 189, 248, 0.045);
+  border: none !important;
+  backdrop-filter: url(#liquid-glass-soft) blur(6px) saturate(135%);
+  -webkit-backdrop-filter: url(#liquid-glass-soft) blur(6px) saturate(135%);
+  box-shadow:
+    0 8px 24px -8px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 0 rgba(125, 211, 252, 0.18);
+  transition: background-color 220ms ease, transform 220ms ease;
+  position: relative;
+}
+
+.glass-tile-declaracao:hover {
+  background-color: rgba(56, 189, 248, 0.1);
+}
+
 @supports not (backdrop-filter: url(#liquid-glass-soft)) {
   .glass-tile-extra,
-  .glass-tile-atestado {
+  .glass-tile-atestado,
+  .glass-tile-declaracao {
     backdrop-filter: blur(14px) saturate(160%);
     -webkit-backdrop-filter: blur(14px) saturate(160%);
   }
 }
 
 .extra-dash-svg,
-.atestado-dash-svg {
+.atestado-dash-svg,
+.declaracao-dash-svg {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -699,6 +721,14 @@
   stroke-width: 1.25;
   stroke-dasharray: 6 5;
   animation: dash-walk-left 14s linear infinite;
+}
+
+.declaracao-dash-svg rect {
+  fill: none;
+  stroke: rgba(125, 211, 252, 0.76);
+  stroke-width: 1.25;
+  stroke-dasharray: 3 4;
+  animation: dash-walk-left 11s linear infinite;
 }
 
 @keyframes dash-walk-left {

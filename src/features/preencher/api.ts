@@ -174,6 +174,7 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
         id: "atest-mock-1",
         dataInicio: "2026-04-22",
         dataFim: "2026-04-24",
+        tipoDocumento: "atestado",
         primeiroDiaFoiTrabalhar: true,
         primeiroDiaTrabalhouSeisHoras: false,
         nomeArquivo: "atestado-exemplo.pdf",
@@ -237,6 +238,11 @@ function mapAtestado(raw: {
   data_fim?: string
   dataInicio?: string
   dataFim?: string
+  tipo_documento?: "atestado" | "declaracao"
+  tipoDocumento?: "atestado" | "declaracao"
+  tipo_periodo?: "integral" | "manha" | "tarde"
+  tipoPeriodo?: "integral" | "manha" | "tarde"
+  periodos?: Array<"manha" | "tarde">
   primeiro_dia_foi_trabalhar?: boolean
   primeiroDiaFoiTrabalhar?: boolean
   primeiro_dia_trabalhou_seis_horas?: boolean
@@ -250,10 +256,28 @@ function mapAtestado(raw: {
   arquivo_url?: string | null
   arquivoUrl?: string | null
 }): Atestado {
+  const tipoLegado = raw.tipoPeriodo ?? raw.tipo_periodo
+  const tipoDocumento =
+    raw.tipoDocumento ??
+    raw.tipo_documento ??
+    (tipoLegado === "manha" || tipoLegado === "tarde"
+      ? "declaracao"
+      : "atestado")
+  const periodos: Atestado["periodos"] =
+    tipoDocumento === "declaracao"
+      ? raw.periodos?.length
+        ? (raw.periodos.filter((p) => p === "manha" || p === "tarde") as Array<"manha" | "tarde">)
+        : tipoLegado === "manha" || tipoLegado === "tarde"
+          ? [tipoLegado]
+          : (["manha", "tarde"] as Array<"manha" | "tarde">)
+      : undefined
+
   return {
     id: raw.id ?? crypto.randomUUID(),
     dataInicio: raw.dataInicio ?? raw.data_inicio ?? "",
     dataFim: raw.dataFim ?? raw.data_fim ?? "",
+    tipoDocumento,
+    periodos,
     primeiroDiaFoiTrabalhar:
       raw.primeiroDiaFoiTrabalhar ?? raw.primeiro_dia_foi_trabalhar ?? false,
     primeiroDiaTrabalhouSeisHoras:
@@ -286,6 +310,8 @@ function payloadFinalizarSnake(
       id: a.id,
       data_inicio: a.dataInicio,
       data_fim: a.dataFim,
+      tipo_documento: a.tipoDocumento ?? "atestado",
+      periodos: a.periodos ?? [],
       primeiro_dia_foi_trabalhar: a.primeiroDiaFoiTrabalhar,
       primeiro_dia_trabalhou_seis_horas:
         a.primeiroDiaTrabalhouSeisHoras ?? null,
@@ -413,12 +439,20 @@ export async function finalizarProcessamento(
           body: JSON.stringify(bodyJson),
         },
   )
+  const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    const err = new Error(`Erro ${res.status}`) as Error & { status?: number }
+    const err = new Error(data.mensagem || `Erro ${res.status}`) as Error & {
+      status?: number
+      erro?: string
+      atestadoId?: string | null
+      detalheTecnico?: string | null
+    }
     err.status = res.status
+    err.erro = data.erro
+    err.atestadoId = data.atestado_id ?? null
+    err.detalheTecnico = data.detalhe_tecnico ?? null
     throw err
   }
-  const data = await res.json().catch(() => ({}))
   return {
     protocolo: data.protocolo ?? payload.protocolo,
     editado: !!data.editado,

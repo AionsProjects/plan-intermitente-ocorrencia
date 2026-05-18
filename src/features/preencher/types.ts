@@ -2,6 +2,9 @@ export type StatusProcessamento = "aguardando" | "concluido" | "expirado"
 
 export type TipoOcorrencia = "falta" | "atraso" | "sem_ocorrencia"
 
+export type TipoDocumentoAtestado = "atestado" | "declaracao"
+export type PeriodoDeclaracao = "manha" | "tarde"
+
 export type ProcessamentoDados = {
   uuid: string
   nome: string
@@ -32,6 +35,8 @@ export type Atestado = {
   id: string
   dataInicio: string
   dataFim: string
+  tipoDocumento: TipoDocumentoAtestado
+  periodos?: PeriodoDeclaracao[]
   primeiroDiaFoiTrabalhar: boolean
   primeiroDiaTrabalhouSeisHoras?: boolean
   nomeArquivo: string
