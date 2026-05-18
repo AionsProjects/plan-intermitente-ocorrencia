@@ -2,6 +2,7 @@ import { Route, Routes } from "react-router-dom"
 
 import { AuroraBackground } from "@/components/AuroraBackground"
 import { PageTransition } from "@/components/PageTransition"
+import { AtestadosPage } from "@/features/atestados/AtestadosPage"
 import { ConvocarPage } from "@/features/convocar/ConvocarPage"
 import { CorrecaoPage } from "@/features/correcao/CorrecaoPage"
 import { HubPage } from "@/features/hub/HubPage"
@@ -20,6 +21,7 @@ function App() {
             <Route path="/preencher/:uuid" element={<PreencherPage />} />
             <Route path="/corrigir" element={<CorrecaoPage />} />
             <Route path="/convocar" element={<ConvocarPage />} />
+            <Route path="/atestados" element={<AtestadosPage />} />
           </Routes>
         )}
       />

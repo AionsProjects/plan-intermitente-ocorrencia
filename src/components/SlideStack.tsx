@@ -85,6 +85,7 @@ export function SlideStack({ slideKey, direction, children }: Props) {
 
   return (
     <div
+      className={animando ? "slide-stack-animating" : undefined}
       style={{
         position: "relative",
         overflowX: animando ? "hidden" : "visible",

@@ -7,25 +7,27 @@ App web pra **gerenciar convocações de intermitentes** no monday: cria convoca
 **Funcionando end-to-end (mock + real, produção na VM):**
 
 ### Frontend (SPA React)
-- **Hub principal** (`/`) — eyebrow `ClipboardCheck` + título display "Escolha o próximo passo" + 2 tiles `glass-tile-3d` (Nova convocação / Atualizar ocorrência) com tilt 3D no mousemove. Rodapé com link discreto "Abrir testes" → `/teste`. Actions vêm de array tipado com `tone: "blue" | "gold"`.
+- **Hub principal** (`/`) — eyebrow `ClipboardCheck` + título display "Escolha o próximo passo" + 3 tiles `glass-tile-3d` (Nova convocação / Atestados e declarações / Atualizar ocorrência) com tilt 3D no mousemove. Rodapé com link discreto "Abrir testes" → `/teste`. Actions vêm de array tipado com `tone: "blue" | "amber" | "gold"`.
 - **Convocar** (`/convocar`) — substitui o form nativo do monday do board de entrada. SlideStack ancorado **dentro** do card glass-strong, botão Voltar fixo fora do slide. Etapas internas:
   1. **Buscar empregado** — autocomplete por nome (search-as-you-type, debounce 250ms, min 3 chars, highlight das letras buscadas, 3 visíveis + "ver todos")
   2. **Formulário convocação** — 15 campos + bloco read-only com dados do RM (Nome, Chapa, CPF, Função, Admissão, Seção). Selects e DatePicker custom via Dialog (mesmo padrão visual do `DialogDia` de registrar ocorrência). Opções dos selects vêm de `useOpcoesConvocacao()` (lazy load do n8n com fallback local).
   3. **Tela sucesso** — ID do item + URL do board monday + CTA "Nova convocação"
-- **Preencher** (`/preencher/:uuid`) — painel com modal por dia, perguntas no positivo ("foi trabalhar?", "chegou no horário?"), adicionar/apagar dias com bolha estourando, fluxo de correção via protocolo `PROT-XXXX-XXXX`. **Cancelar convocação** (ícone fogo no header) abre wizard: parcial (calendário → escolhe data → tela `confirmar_parcial` exige clique "Confirmar") ou total (data = primeiro dia → tela `confirmar_total`). Toda mutação passa por etapa de confirmação — sem accidental cancel. **Adicionar sábados extras** (botão azul `CalendarPlus`, só aparece se `trabalhaSabado=NÃO`) — calendário multi-seleção dos sábados do período; tiles ficam com borda azul tracejada animada (`.glass-tile-extra` + `.extra-dash-svg`); remoção individual com confirmação; finalizar dispara boleto VT extra (ver `Mapeamento.md` §6.1).
+- **Preencher** (`/preencher/:uuid`) — painel com modal por dia, perguntas no positivo ("foi trabalhar?", "chegou no horário?"), adicionar/apagar dias com bolha estourando, fluxo de correção via protocolo `PROT-XXXX-XXXX`. **Cancelar convocação** (ícone fogo no header) abre wizard: parcial (calendário → escolhe data → tela `confirmar_parcial` exige clique "Confirmar") ou total (data = primeiro dia → tela `confirmar_total`). Toda mutação passa por etapa de confirmação — sem accidental cancel. **Adicionar sábados extras** (botão azul `CalendarPlus`, só aparece se `trabalhaSabado=NÃO`) — calendário multi-seleção dos sábados do período; tiles ficam com borda azul tracejada animada (`.glass-tile-extra` + `.extra-dash-svg`); remoção individual com confirmação; finalizar dispara boleto VT extra (ver `Mapeamento.md` §6.1). **Atestados/declarações** lançados via `/atestados` aparecem aqui como tiles read-only (`glass-tile-atestado` + `atestado-dash-svg`); click abre `DialogDiaComDocumento` com link pro item no board Controle de Atestados (sem opção de remover).
+- **Atestados e declarações** (`/atestados`) — feature standalone (sem dependência de link único de convocação). Fluxo: Hub → tile → escolhe tipo trabalhador (Intermitente / CLT em breve) → autocomplete RM (mesmo WF8 do `/convocar`) → painel de convocações do mês via `GET /intermitente-convocacoes-empregado?chapa=…` → escolhe convocação → WizardDocumento interno (tipo atestado vs declaração → calendário com regras de bloqueio → turnos só pra declaração → perguntas condicionais → upload → preview). Adicionar à sessão → abre `ResumoSessao` modal listando todos os docs acumulados (cross-pessoa). Botão flutuante "Resumo (N)" sempre visível. Concluir = POST batch `intermitente-lancar-documentos` (multipart `payload` JSON + binários `doc_<id>`). Regras de bloqueio no frontend: atestado bloqueia qualquer doc nas datas, declaração não em dia com atestado, declaração 1 dia, declaração não duplica turno, sábado só se ativo, atestado multi-dia não cruza sábado inativo.
 - **Corrigir** (`/corrigir`) — input do protocolo + lista de recentes (localStorage) + atalho flask pro `PROT-DEMO-1234`.
 - **Teste** (`/teste`) — área de mocks (4 UUIDs `mock-*` + chave demo). Acessível só via link "Abrir testes" no rodapé do hub.
 
 ### Transições globais (Liquid Glass)
-- **PageTransition** (`src/components/PageTransition.tsx`) — wrapper de `<Routes>` que detecta path change e aplica slide carrossel direcional. Hierarquia: `/` = 0; `/teste|convocar|corrigir` = 1; `/preencher/*` = 2. Forward = nível ↑ (slide saí esquerda + entra direita); backward = nível ↓ (inverso).
+- **PageTransition** (`src/components/PageTransition.tsx`) — wrapper de `<Routes>` que detecta path change e aplica slide carrossel direcional. Hierarquia: `/` = 0; `/teste|convocar|corrigir|atestados` = 1; `/preencher/*` = 2. Forward = nível ↑ (slide saí esquerda + entra direita); backward = nível ↓ (inverso).
 - **SlideStack** (`src/components/SlideStack.tsx`) — carrossel genérico reutilizável (trilho 200% + 2 slots × 50%, translateX 0↔-50%, **680ms cubic-bezier(0.2, 0.84, 0.2, 1)**, overflow só durante anim, preserva sombras em idle). Cada Slot ganha estado `active | enter | exit`; slots não-ativos ficam com `opacity 0.18 + scale 0.985` durante a transição (efeito cinemático). Captura do conteúdo anterior via `useLayoutEffect`. Consumido por `PageTransition` (rotas) e `ConvocarPage` (etapas internas).
 - **Background animado** — keyframe `bg-hue-cycle` (120s ease-in-out infinite) no `<html>`: navy → púrpura-fumê → preto puro → azul-preto → navy. Sutil, não rouba atenção.
 
 ### Backend n8n (9 workflows principais)
 - **WF1 Preparar** — webhook do monday quando coluna `ativar` muda. Gera UUID, cria item no board Histórico (`18411141462`), patch Link Column no item de origem.
 - **WF2 Ler** — `GET /intermitente-ler?uuid=…`. Busca item por UUID via `getByColumnValue`, parseia respostas_json/dias_extras/dias_desativados.
-- **WF3 Finalizar** — `POST /intermitente-finalizar`. Valida payload, agrega (qtd_faltas/atrasos/total_minutos), grava respostas_json, marca status=Concluído. Trava antifraude se desconto já consumido. **Idempotente** (1 item, `change_multiple_column_values`). Também grava `sabados_extras` em `numeric_mm3bszk3` + `text_mm3b4k7d` quando aplicável, e dispara WF "Lançamento Sábados Extras" via webhook cross-n8n.
-- **WF3 Atestados** *(em implantação)* — o frontend envia multipart com `payload` JSON + arquivos `atestado_<id>`. WF3 deve criar item no board Controle de Atestados (`18298015951`, grupo `topics`) e anexar o arquivo na coluna `files`. Mapeamento completo em `docs/n8n/controle-atestados-board.md`.
+- **WF3 Finalizar** — `POST /intermitente-finalizar` (JSON simples — sem multipart desde a separação do fluxo de atestados). Valida payload, agrega (qtd_faltas/atrasos/total_minutos), grava respostas_json, marca status=Concluído. Trava antifraude se desconto já consumido. **Idempotente** (1 item, `change_multiple_column_values`). Também grava `sabados_extras` em `numeric_mm3bvgy` + `text_mm3bfn6h` quando aplicável, e dispara WF "Lançamento Sábados Extras" via webhook cross-n8n. **Atestado/declaração saíram do WF3** — feature standalone agora; ver §atestados abaixo.
+- **WF Lancar Documentos** *(novo, substitui parte atestado do WF3)* — `POST /intermitente-lancar-documentos` multipart (`payload` JSON com array `documentos[]` + binários `doc_<id>`). Pra cada doc: cria item no board Controle de Atestados (`18298015951`, grupo `topics`, label `Tipo da Documentação = Atestado Médico | Declaração de Comparecimento`), anexa arquivo na coluna `files`, atualiza `Atestados JSON` (`long_text_mm3cp43g`) + ledger `Beneficios Descontados JSON` (`long_text_mm3ct3hg`) + `Arquivos de Atestado` (`file_mm3cvt54`) do Histórico, e cria/atualiza item Desconto (board `18400981023`) respeitando o ledger pra não duplicar com falta manual já consumida.
+- **WF Buscar Convocacoes Empregado** *(novo)* — `GET /intermitente-convocacoes-empregado?chapa=…&mes=YYYY-MM`. Busca board ENTRADA (`18408773953`) por chapa, filtra por intersecção com o mês solicitado, ignora `Status Convocação` cancelado/bloqueado, cross-references Histórico pra trazer `uuid`, `trabalhaSabado`, `optanteVT`, `status` e `documentos_existentes` (do `Atestados JSON`). Retorna `{convocacoes: ConvocacaoResumida[]}`.
 - **WF4 Buscar protocolo** — `GET /intermitente-buscar-protocolo?protocolo=…` → `{uuid, nome}`.
 - **WF5 Pontual FIFO** — convoca pontual: calcula benefício do período, abate descontos pendentes FIFO no board Desconto, gera order Caju (crédito + boleto PIX), SOAPs RM, cria item Solicitação Pagamento (board `18393673859`). Documentado completo no `Mapeamento.md`.
 - **WF6 Gerar Lançamento Financeiro** — subworkflow (`executeWorkflow`) chamado pelo WF5. SOAP RM `FopRotinasLancFinanceiroAction` + `FopLancIntegraFinanceiroTerceiroAction` por evento (100=VR, 110=VT).
@@ -148,8 +150,21 @@ src/
 │  ├─ PageTransition.tsx            wrapper de Routes que detecta path change e direção
 │  └─ ui/                           shadcn customizado (dialog c/ overlayClassName, button, input, label, select, separator, badge, card, table)
 ├─ features/hub/
-│  ├─ HubPage.tsx                   rota `/` — 2 tiles + botão flask discreto
+│  ├─ HubPage.tsx                   rota `/` — 3 tiles (Convocar / Atestados / Corrigir) + link teste no rodapé
 │  └─ TestePage.tsx                 rota `/teste` — 4 UUIDs mock + chave PROT-DEMO-1234
+├─ features/atestados/
+│  ├─ AtestadosPage.tsx             rota `/atestados` — orquestra etapas via SlideStack + ResumoSessao flutuante
+│  ├─ EscolhaTipoTrabalhador.tsx    tile Intermitente / tile CLT (em breve)
+│  ├─ BuscarPessoa.tsx              autocomplete RM (reusa `useBuscarEmpregado` do convocar)
+│  ├─ PainelConvocacoes.tsx         lista convocações do mês via `useConvocacoesEmpregado`
+│  ├─ WizardDocumento.tsx           sub-fluxo: tipo-doc → calendário → turnos → perguntas → upload → preview
+│  ├─ ResumoSessao.tsx              botão flutuante "Resumo (N)" + Dialog modal com lista + Concluir
+│  ├─ TelaSucesso.tsx               sucesso pós-envio batch
+│  ├─ ChoiceButton.tsx              botão tilt 3D variants ghost/primary/danger/warning
+│  ├─ shared.tsx                    helpers (datas, periodos, rotuloDocumento, validações de turno)
+│  ├─ api.ts                        buscarConvocacoesEmpregado + lancarDocumentos (multipart); re-exporta buscarEmpregado
+│  ├─ types.ts                      TipoDocumento, PeriodoTurno, DocumentoLancamento, ConvocacaoResumida, SessaoLancamento
+│  └─ useAtestados.ts               hooks react-query
 ├─ features/convocar/
 │  ├─ ConvocarPage.tsx              orquestra busca/form/sucesso via SlideStack interno
 │  ├─ BuscarEmpregado.tsx           autocomplete com highlight + 3 visíveis + expandir
@@ -304,17 +319,46 @@ Retorna (snake_case, convertido pra camelCase em `features/preencher/api.ts`):
 
 ### POST `/webhook/intermitente-finalizar?uuid=<uuid>` (WF3)
 
-Atestados: quando houver arquivo novo, frontend envia `multipart/form-data` com `payload` JSON + arquivos `atestado_<id>` (PDF/JPG/PNG/HEIC). WF3 deve criar item no board Controle de Atestados `18298015951`, grupo `topics`, anexar o arquivo na coluna `files` e persistir metadados para WF2 devolver em `atestados[]`.
+JSON simples — sem multipart. Atestados/declarações foram extraídos pra feature standalone `/atestados` (ver §`intermitente-lancar-documentos` abaixo).
 
 Body:
 ```ts
 {
   uuid, respostas: [{data, tipo, minutos_atraso: number | null}],
-  protocolo, dias_extras, dias_desativados, eh_correcao: boolean
+  protocolo, dias_extras, dias_desativados, sabados_extras, eh_correcao: boolean
 }
 ```
 - 200 `{ok, uuid, protocolo, editado, concluido_em}` → frontend invalida query
 - 400 validação | 404 não existe | 409 já concluído (se `eh_correcao=false`) | 410 expirado
+
+### POST `/webhook/intermitente-lancar-documentos` *(novo, substitui parte atestado do WF3)*
+
+Multipart `payload` JSON + binários `doc_<id>` (PDF/JPG/PNG/HEIC, máx 15MB cada).
+
+Body JSON:
+```ts
+{
+  documentos: [{
+    id, tipo_documento: "atestado" | "declaracao",
+    uuid_convocacao, item_entrada_id?, chapa, empregado_nome,
+    contrato, trabalha_sabado, optante_vt,
+    data_inicio, data_fim,
+    periodos: ("manha" | "tarde")[],  // [] pra atestado; 1 ou 2 pra declaração
+    primeiro_dia_foi_trabalhar, primeiro_dia_trabalhou_seis_horas: boolean | null,
+    nome_arquivo, tamanho_arquivo
+  }]
+}
+```
+
+Pra cada doc: cria item no board Controle de Atestados (`18298015951`) com label correto (Atestado Médico / Declaração de Comparecimento), anexa arquivo em `files`, atualiza `Atestados JSON` + ledger `Beneficios Descontados JSON` + `Arquivos de Atestado` do Histórico, e cria/atualiza item Desconto considerando ledger.
+
+Resposta `{ok, resultados: [{id, monday_item_id_controle, desconto_id, erro?}]}`.
+
+### GET `/webhook/intermitente-convocacoes-empregado?chapa=<chapa>&mes=<YYYY-MM>` *(novo)*
+
+Lookup de convocações de uma chapa no board ENTRADA (`18408773953`). Filtra por intersecção com o mês solicitado; ignora `Status Convocação` cancelado/bloqueado. Cross-reference Histórico pra `uuid`, `trabalhaSabado`, `optanteVT`, `status` e `documentos_existentes`.
+
+Resposta `{convocacoes: ConvocacaoResumida[]}`. Consumido por `/atestados` no painel pós-busca da pessoa.
 
 ### GET `/webhook/intermitente-buscar-protocolo?protocolo=<PROT-XXXX-XXXX>` (WF4)
 

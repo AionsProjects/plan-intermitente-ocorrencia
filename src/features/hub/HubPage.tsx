@@ -3,6 +3,7 @@ import { Link } from "react-router-dom"
 import {
   ArrowUpRight,
   ClipboardCheck,
+  FileText,
   KeyRound,
   UserPlus,
 } from "lucide-react"
@@ -14,6 +15,13 @@ const actions = [
     description: "Cadastrar uma convocação pontual no monday.",
     icon: UserPlus,
     tone: "blue",
+  },
+  {
+    to: "/atestados",
+    title: "Atestados e declarações",
+    description: "Lançar atestado médico ou declaração de comparecimento.",
+    icon: FileText,
+    tone: "amber",
   },
   {
     to: "/corrigir",
@@ -66,11 +74,19 @@ export function HubPage() {
         <div className="mt-8 grid gap-3 sm:gap-3.5">
           {actions.map((action, index) => {
             const Icon = action.icon
-            const isGold = action.tone === "gold"
-            const ringClass = isGold
-              ? "bg-[#d8aa53]/10 ring-[#d8aa53]/35"
-              : "bg-[#6f9cff]/10 ring-[#6f9cff]/35"
-            const iconClass = isGold ? "text-[#d8aa53]" : "text-[#7fb3ff]"
+            const tone = action.tone
+            const ringClass =
+              tone === "gold"
+                ? "bg-[#d8aa53]/10 ring-[#d8aa53]/35"
+                : tone === "amber"
+                  ? "bg-[#e8c275]/10 ring-[#e8c275]/40"
+                  : "bg-[#6f9cff]/10 ring-[#6f9cff]/35"
+            const iconClass =
+              tone === "gold"
+                ? "text-[#d8aa53]"
+                : tone === "amber"
+                  ? "text-[#e8c275]"
+                  : "text-[#7fb3ff]"
 
             return (
               <div
@@ -86,9 +102,9 @@ export function HubPage() {
                 >
                   <div className="flex min-w-0 items-center gap-3.5">
                     <div
-                      className={`flex size-11 shrink-0 items-center justify-center rounded-full ring-1 ${ringClass}`}
+                      className={`icon-3d-host flex size-11 shrink-0 items-center justify-center rounded-full ring-1 ${ringClass}`}
                     >
-                      <Icon className={`size-4.5 ${iconClass}`} />
+                      <Icon className={`icon-3d-only size-4.5 ${iconClass}`} />
                     </div>
                     <div className="min-w-0">
                       <p className="text-base font-medium leading-tight text-white/95">

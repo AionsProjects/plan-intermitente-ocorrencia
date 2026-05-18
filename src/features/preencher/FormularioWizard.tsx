@@ -19,13 +19,13 @@ import {
   CalendarPlus,
   ChevronDown,
   ChevronUp,
+  ExternalLink,
   FileText,
   FlaskConical,
   Loader2,
   RotateCcw,
   Sparkles,
   Trash2,
-  Upload,
   X,
 } from "lucide-react"
 
@@ -67,20 +67,6 @@ type EtapaCancelamento =
   | "sucesso_parcial"
 
 type EtapaSabados = "fechado" | "calendario" | "confirmar_remover"
-type EtapaAtestado =
-  | "fechado"
-  | "datas"
-  | "pergunta_primeiro_dia"
-  | "upload"
-  | "confirmar"
-  | "confirmar_remover"
-
-type AtestadoEmConstrucao = Partial<Atestado> & {
-  arquivo?: File
-}
-
-const ATESTADO_MAX_BYTES = 15 * 1024 * 1024
-const ATESTADO_ACCEPT = ".pdf,.jpg,.jpeg,.png,.heic,image/jpeg,image/png,image/heic,application/pdf"
 
 function formatarDiaCompleto(iso: string): string {
   return format(parseISO(iso), "EEEE, dd 'de' MMMM", { locale: ptBR })
@@ -98,13 +84,6 @@ function formatarDataNumerica(iso: string): string {
   return format(parseISO(iso), "dd/MM/yyyy", { locale: ptBR })
 }
 
-function criarIdLocal(prefixo: string): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return `${prefixo}-${crypto.randomUUID()}`
-  }
-  return `${prefixo}-${Date.now()}-${Math.random().toString(36).slice(2)}`
-}
-
 function listarDiasPeriodo(inicio: string, fim: string): string[] {
   const out: string[] = []
   const atual = new Date(inicio + "T00:00:00Z")
@@ -116,26 +95,19 @@ function listarDiasPeriodo(inicio: string, fim: string): string[] {
   return out
 }
 
-function dataDentroPeriodo(data: string, inicio: string, fim: string): boolean {
-  return data >= inicio && data <= fim
-}
-
 function atestadoCobreDia(atestado: Pick<Atestado, "dataInicio" | "dataFim">, data: string): boolean {
   return data >= atestado.dataInicio && data <= atestado.dataFim
 }
 
-function isDiaSemanaUtil(iso: string): boolean {
-  const dow = parseISO(iso).getUTCDay()
-  return dow >= 1 && dow <= 5
-}
-
-function isSabadoIso(iso: string): boolean {
-  return parseISO(iso).getUTCDay() === 6
-}
-
-function formatarBytes(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+function rotularDocumentoTile(docs: Atestado[]): string {
+  if (docs.length === 0) return "Documento"
+  if (docs.length > 1) return `${docs.length} documentos`
+  const d = docs[0]
+  if (d.tipoDocumento === "atestado") return "Atestado"
+  if (d.periodos.length === 2) return "Declaração integral"
+  if (d.periodos[0] === "manha") return "Declaração · manhã"
+  if (d.periodos[0] === "tarde") return "Declaração · tarde"
+  return "Declaração"
 }
 
 function normalizarTipoBaseDia(
@@ -217,17 +189,14 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
   const [cancelamentoErro, setCancelamentoErro] = useState<string | null>(null)
   const [etapaSabados, setEtapaSabados] = useState<EtapaSabados>("fechado")
   const [sabadoARemover, setSabadoARemover] = useState<string | null>(null)
-  const [etapaAtestado, setEtapaAtestado] =
-    useState<EtapaAtestado>("fechado")
-  const [atestadoEmConstrucao, setAtestadoEmConstrucao] =
-    useState<AtestadoEmConstrucao>({})
-  const [atestados, setAtestados] = useState<Atestado[]>(
+  // Atestados/declarações são read-only no /preencher (criação/correção é em /atestados).
+  const atestados = useMemo<Atestado[]>(
     () => dados.atestados ?? [],
+    [dados.atestados],
   )
-  const [arquivosAtestados, setArquivosAtestados] = useState<Map<string, File>>(
-    () => new Map(),
+  const [diaDocSelecionado, setDiaDocSelecionado] = useState<string | null>(
+    null,
   )
-  const [atestadoARemover, setAtestadoARemover] = useState<string | null>(null)
 
   const finalizar = useFinalizarProcessamento(dados.uuid)
   const cancelarConvocacao = useCancelarConvocacao(dados.uuid)
@@ -268,15 +237,6 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
     () => diasInfo.filter((d) => d.ativo),
     [diasInfo],
   )
-  const diasComAtestado = useMemo(() => {
-    const set = new Set<string>()
-    for (const atestado of atestados) {
-      for (const dia of listarDiasPeriodo(atestado.dataInicio, atestado.dataFim)) {
-        set.add(dia)
-      }
-    }
-    return set
-  }, [atestados])
 
   const atestadosPorData = useMemo(() => {
     const map = new Map<string, Atestado[]>()
@@ -353,123 +313,12 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
     setSabadoARemover(null)
   }
 
-  function abrirAtestado() {
-    setModoApagar(false)
-    setAtestadoEmConstrucao({})
-    setAtestadoARemover(null)
-    setEtapaAtestado("datas")
+  function abrirInfoDocumento(data: string) {
+    setDiaDocSelecionado(data)
   }
 
-  function fecharAtestado() {
-    setEtapaAtestado("fechado")
-    setAtestadoEmConstrucao({})
-    setAtestadoARemover(null)
-  }
-
-  function primeiroDiaPedePergunta(data: string): boolean {
-    if (isDiaSemanaUtil(data)) return true
-    if (!isSabadoIso(data)) return false
-    const dia = diasInfo.find((d) => d.data === data && d.ativo)
-    return !!dia && (dados.trabalhaSabado || dia.tipo === "extra")
-  }
-
-  function confirmarDatasAtestado(dataInicio: string, dataFim: string) {
-    setAtestadoEmConstrucao((prev) => ({ ...prev, dataInicio, dataFim }))
-    if (primeiroDiaPedePergunta(dataInicio)) {
-      setEtapaAtestado("pergunta_primeiro_dia")
-    } else {
-      setAtestadoEmConstrucao((prev) => ({
-        ...prev,
-        primeiroDiaFoiTrabalhar: false,
-        primeiroDiaTrabalhouSeisHoras: undefined,
-      }))
-      setEtapaAtestado("upload")
-    }
-  }
-
-  function confirmarPerguntasPrimeiroDia(
-    foiTrabalhar: boolean,
-    trabalhouSeisHoras?: boolean,
-  ) {
-    setAtestadoEmConstrucao((prev) => ({
-      ...prev,
-      primeiroDiaFoiTrabalhar: foiTrabalhar,
-      primeiroDiaTrabalhouSeisHoras: foiTrabalhar
-        ? trabalhouSeisHoras
-        : undefined,
-    }))
-    setEtapaAtestado("upload")
-  }
-
-  function confirmarUploadAtestado(arquivo: File) {
-    setAtestadoEmConstrucao((prev) => ({
-      ...prev,
-      arquivo,
-      nomeArquivo: arquivo.name,
-      tamanhoArquivo: arquivo.size,
-    }))
-    setEtapaAtestado("confirmar")
-  }
-
-  function confirmarAtestado() {
-    const draft = atestadoEmConstrucao
-    if (!draft.dataInicio || !draft.dataFim || !draft.arquivo) return
-    const novo: Atestado = {
-      id: criarIdLocal("atest"),
-      dataInicio: draft.dataInicio,
-      dataFim: draft.dataFim,
-      primeiroDiaFoiTrabalhar: !!draft.primeiroDiaFoiTrabalhar,
-      primeiroDiaTrabalhouSeisHoras: draft.primeiroDiaTrabalhouSeisHoras,
-      nomeArquivo: draft.arquivo.name,
-      tamanhoArquivo: draft.arquivo.size,
-    }
-    const proximos = [...atestados, novo]
-    setAtestados(proximos)
-    setArquivosAtestados((prev) => {
-      const next = new Map(prev)
-      next.set(novo.id, draft.arquivo!)
-      return next
-    })
-    setDiasInfo((prev) =>
-      aplicarAtestadosNosDias(
-        prev.map((dia) =>
-          atestadoCobreDia(novo, dia.data)
-            ? { ...dia, ativo: true }
-            : dia,
-        ),
-        proximos,
-        dados,
-      ),
-    )
-    setRespostas((prev) => {
-      const next = { ...prev }
-      for (const dia of listarDiasPeriodo(novo.dataInicio, novo.dataFim)) {
-        if (!next[dia]) next[dia] = { data: dia, tipo: "sem_ocorrencia" }
-      }
-      return next
-    })
-    fecharAtestado()
-  }
-
-  function pedirRemoverAtestado(data: string) {
-    const lista = atestadosPorData.get(data) ?? []
-    const escolhido = lista[lista.length - 1]
-    if (!escolhido) return
-    setAtestadoARemover(escolhido.id)
-    setEtapaAtestado("confirmar_remover")
-  }
-
-  function confirmarRemoverAtestado() {
-    if (!atestadoARemover) return
-    const proximos = atestados.filter((a) => a.id !== atestadoARemover)
-    setAtestados(proximos)
-    setArquivosAtestados((prev) => {
-      const next = new Map(prev)
-      next.delete(atestadoARemover)
-      return next
-    })
-    setDiasInfo((prev) => aplicarAtestadosNosDias(prev, proximos, dados))
-    fecharAtestado()
+  function fecharInfoDocumento() {
+    setDiaDocSelecionado(null)
   }
 
   // Conta TUDO que foge de "sem ocorrência":
@@ -495,20 +344,16 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
       .filter((d) => !datasOriginais.has(d.data) && !sabadosExtrasSet.has(d.data))
       .map((d) => d.data)
     const payload = {
-      respostas: diasAtivos.map((d) => {
-        const resposta =
-          respostas[d.data] ?? { data: d.data, tipo: "sem_ocorrencia" as const }
-        if (diasComAtestado.has(d.data) && resposta.tipo !== "sem_ocorrencia") {
-          return { data: d.data, tipo: "sem_ocorrencia" as const }
-        }
-        return resposta
-      }),
+      // Atestado/declaração agora tem ledger no backend pra dedup; respostas
+      // manuais em dia coberto seguem normais (o WF3 ignora se já tem doc).
+      respostas: diasAtivos.map(
+        (d) =>
+          respostas[d.data] ?? { data: d.data, tipo: "sem_ocorrencia" as const },
+      ),
       protocolo,
       diasExtras: todasExtras,
       diasDesativados: diasInfo.filter((d) => !d.ativo).map((d) => d.data),
       sabadosExtras,
-      atestados,
-      arquivosAtestados,
       ehCorrecao: !!ehCorrecao,
     }
     const resultado = await finalizar.mutateAsync(payload)
@@ -667,17 +512,6 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
                     Cancelar convocação
                   </span>
                 </button>
-                <button
-                  type="button"
-                  className="btn-action-expand btn-add-atestado"
-                  onClick={abrirAtestado}
-                  aria-label="Adicionar atestado"
-                >
-                  <FileText className="size-4 shrink-0 text-amber-300" />
-                  <span className="btn-label text-amber-200">
-                    Adicionar atestado
-                  </span>
-                </button>
                 {!dados.trabalhaSabado && (
                   <button
                     type="button"
@@ -711,7 +545,7 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
                 onReativar={() => reativarDia(diaInfo.data)}
                 onRemoverExtra={() => pedirRemoverSabado(diaInfo.data)}
                 atestadosNoDia={atestadosPorData.get(diaInfo.data) ?? []}
-                onRemoverAtestado={() => pedirRemoverAtestado(diaInfo.data)}
+                onAbrirAtestadoInfo={() => abrirInfoDocumento(diaInfo.data)}
               />
             ))}
           </ul>
@@ -806,48 +640,12 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
         onCancelar={fecharSabados}
         onConfirmar={confirmarRemoverSabado}
       />
-      <DialogSelecionarDatasAtestado
-        open={etapaAtestado === "datas"}
-        dataInicio={dados.dataInicio}
-        dataFim={dados.dataFim}
-        onClose={fecharAtestado}
-        onConfirmar={confirmarDatasAtestado}
-      />
-      <DialogPerguntaPrimeiroDiaAtestado
-        open={etapaAtestado === "pergunta_primeiro_dia"}
-        data={atestadoEmConstrucao.dataInicio ?? null}
-        onClose={fecharAtestado}
-        onConfirmar={confirmarPerguntasPrimeiroDia}
-      />
-      <DialogUploadAtestado
-        open={etapaAtestado === "upload"}
-        onClose={fecharAtestado}
-        onConfirmar={confirmarUploadAtestado}
-      />
-      <DialogConfirmarAtestado
-        open={etapaAtestado === "confirmar"}
-        atestado={atestadoEmConstrucao}
-        onCancelar={fecharAtestado}
-        onConfirmar={confirmarAtestado}
-      />
-      <DialogConfirmarRemoverAtestado
-        open={etapaAtestado === "confirmar_remover"}
-        atestado={atestados.find((a) => a.id === atestadoARemover) ?? null}
-        quantidadeNoDia={
-          atestadoARemover
-            ? atestados.filter(
-                (a) =>
-                  a.id !== atestadoARemover &&
-                  atestadoCobreDia(
-                    a,
-                    atestados.find((x) => x.id === atestadoARemover)
-                      ?.dataInicio ?? "",
-                  ),
-              ).length
-            : 0
+      <DialogDiaComDocumento
+        data={diaDocSelecionado}
+        documentos={
+          diaDocSelecionado ? atestadosPorData.get(diaDocSelecionado) ?? [] : []
         }
-        onCancelar={fecharAtestado}
-        onConfirmar={confirmarRemoverAtestado}
+        onClose={fecharInfoDocumento}
       />
     </div>
   )
@@ -865,7 +663,7 @@ type DiaItemProps = {
   onReativar: () => void
   onRemoverExtra: () => void
   atestadosNoDia: Atestado[]
-  onRemoverAtestado: () => void
+  onAbrirAtestadoInfo: () => void
 }
 
 function DiaItem({
@@ -878,18 +676,26 @@ function DiaItem({
   onReativar,
   onRemoverExtra,
   atestadosNoDia,
-  onRemoverAtestado,
+  onAbrirAtestadoInfo,
 }: DiaItemProps) {
   const isDisabled = !diaInfo.ativo
   const isExtra = diaInfo.tipo === "extra"
   const isAtestado = diaInfo.tipo === "atestado" || atestadosNoDia.length > 0
+  // Quando todos os docs no dia são declaração → visual violeta.
+  // Misto ou atestado → visual âmbar (atestado tem prioridade).
+  const ehDeclaracaoPura =
+    isAtestado &&
+    atestadosNoDia.length > 0 &&
+    atestadosNoDia.every((a) => a.tipoDocumento === "declaracao")
 
   const tileBase =
     "group relative flex h-full w-full flex-col items-center justify-center gap-1.5 rounded-2xl px-3 py-4 text-left"
   const tileStyle = isDisabled
     ? "glass-tile-disabled"
     : isAtestado
-      ? "glass-tile-atestado"
+      ? ehDeclaracaoPura
+        ? "glass-tile-declaracao"
+        : "glass-tile-atestado"
       : isExtra
       ? "glass-tile-extra"
       : "glass-tile glass-tile-3d"
@@ -903,7 +709,7 @@ function DiaItem({
       // Reativar via overlay
       return
     } else if (isAtestado) {
-      onRemoverAtestado()
+      onAbrirAtestadoInfo()
     } else if (!modoApagar) {
       onEdit()
     }
@@ -956,9 +762,13 @@ function DiaItem({
               Desconsiderado
             </span>
           ) : isAtestado ? (
-            <span className="inline-flex items-center gap-1.5 text-amber-200">
+            <span
+              className={`inline-flex items-center gap-1.5 ${
+                ehDeclaracaoPura ? "text-violet-200" : "text-amber-200"
+              }`}
+            >
               <FileText className="size-3" />
-              Atestado{atestadosNoDia.length > 1 ? ` (${atestadosNoDia.length})` : ""}
+              {rotularDocumentoTile(atestadosNoDia)}
             </span>
           ) : (
             <BadgeResposta resposta={resposta} />
@@ -967,7 +777,9 @@ function DiaItem({
 
         {isAtestado && !isDisabled ? (
           <svg
-            className="atestado-dash-svg"
+            className={
+              ehDeclaracaoPura ? "declaracao-dash-svg" : "atestado-dash-svg"
+            }
             xmlns="http://www.w3.org/2000/svg"
             aria-hidden="true"
           >
@@ -2056,485 +1868,6 @@ function LampBroken() {
   )
 }
 
-/* ─── Dialogs: Atestado ─── */
-
-type DialogSelecionarDatasAtestadoProps = {
-  open: boolean
-  dataInicio: string
-  dataFim: string
-  onClose: () => void
-  onConfirmar: (dataInicio: string, dataFim: string) => void
-}
-
-function DialogSelecionarDatasAtestado({
-  open,
-  dataInicio,
-  dataFim,
-  onClose,
-  onConfirmar,
-}: DialogSelecionarDatasAtestadoProps) {
-  const [inicio, setInicio] = useState<string | null>(null)
-  const [fim, setFim] = useState<string | null>(null)
-  const [mesVisivel, setMesVisivel] = useState(() => parseISO(dataInicio))
-  const [prevOpen, setPrevOpen] = useState(open)
-
-  if (open !== prevOpen) {
-    setPrevOpen(open)
-    if (open) {
-      setInicio(null)
-      setFim(null)
-      setMesVisivel(parseISO(dataInicio))
-    }
-  }
-
-  const diasDoMes = useMemo(() => {
-    const inicioMes = startOfWeek(startOfMonth(mesVisivel), { weekStartsOn: 0 })
-    const fimMes = endOfWeek(endOfMonth(mesVisivel), { weekStartsOn: 0 })
-    const out: Date[] = []
-    const d = new Date(inicioMes)
-    while (d <= fimMes) {
-      out.push(new Date(d))
-      d.setDate(d.getDate() + 1)
-    }
-    return out
-  }, [mesVisivel])
-
-  function selecionar(iso: string) {
-    if (!inicio || (inicio && fim)) {
-      setInicio(iso)
-      setFim(null)
-      return
-    }
-    if (iso < inicio) {
-      setFim(inicio)
-      setInicio(iso)
-      return
-    }
-    setFim(iso)
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent
-        className="glass-modal border-0 bg-transparent p-8 text-white sm:max-w-md"
-        style={{ backdropFilter: "blur(10px) saturate(140%) brightness(1.05)" }}
-      >
-        <DialogHeader>
-          <p className="text-[10px] uppercase tracking-[0.3em] text-amber-200/80">
-            Atestado
-          </p>
-          <DialogTitle className="text-display text-3xl text-white">
-            Período do <em className="italic text-[#e8c275]">atestado</em>
-          </DialogTitle>
-          <DialogDescription className="text-white/65">
-            Selecione a data inicial e final dentro da convocação.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="my-2 h-px bg-white/12" />
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => setMesVisivel((m) => subMonths(m, 1))}
-              className="inline-flex size-9 items-center justify-center rounded-xl border border-white/12 bg-white/[0.04] text-white/75 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
-              aria-label="Mês anterior"
-            >
-              <ArrowLeft className="size-4" />
-            </button>
-            <p className="text-display text-lg capitalize text-white/95">
-              {format(mesVisivel, "MMMM 'de' yyyy", { locale: ptBR })}
-            </p>
-            <button
-              type="button"
-              onClick={() => setMesVisivel((m) => addMonths(m, 1))}
-              className="inline-flex size-9 items-center justify-center rounded-xl border border-white/12 bg-white/[0.04] text-white/75 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
-              aria-label="Próximo mês"
-            >
-              <ArrowLeft className="size-4 rotate-180" />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-7 gap-1">
-            {["D", "S", "T", "Q", "Q", "S", "S"].map((d, i) => (
-              <div
-                key={i}
-                className="py-1 text-center text-[10px] uppercase tracking-wider text-white/40"
-              >
-                {d}
-              </div>
-            ))}
-            {diasDoMes.map((dia) => {
-              const iso = format(dia, "yyyy-MM-dd")
-              const permitido = dataDentroPeriodo(iso, dataInicio, dataFim)
-              const noMes = isSameMonth(dia, mesVisivel)
-              const selecionado = iso === inicio || iso === fim
-              const noRange = inicio && fim && iso > inicio && iso < fim
-              return (
-                <button
-                  key={iso}
-                  type="button"
-                  disabled={!permitido}
-                  onClick={() => selecionar(iso)}
-                  className={`flex h-10 w-full items-center justify-center rounded-xl text-sm font-medium transition ${
-                    selecionado
-                      ? "bg-amber-300 text-[#0a1224] shadow-[0_0_18px_rgba(232,194,117,0.45)]"
-                      : noRange
-                        ? "bg-amber-300/16 text-amber-100"
-                        : permitido
-                          ? "text-white/90 hover:bg-amber-300/15 hover:text-amber-100"
-                          : noMes
-                            ? "cursor-not-allowed text-white/18"
-                            : "cursor-not-allowed text-white/10"
-                  }`}
-                >
-                  {dia.getDate()}
-                </button>
-              )
-            })}
-          </div>
-
-          <p className="text-center text-xs text-white/55">
-            {inicio && fim
-              ? `${formatarDataNumerica(inicio)} a ${formatarDataNumerica(fim)}`
-              : inicio
-                ? "Agora selecione a data final."
-                : "Selecione a data inicial."}
-          </p>
-        </div>
-
-        <DialogFooter className="mt-2 sm:justify-between">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onClose}
-            className="text-white/65 hover:bg-white/10 hover:text-white"
-          >
-            Cancelar
-          </Button>
-          <Button
-            type="button"
-            onClick={() => inicio && fim && onConfirmar(inicio, fim)}
-            disabled={!inicio || !fim}
-            className="bg-amber-300 text-[#0a1224] hover:bg-amber-200 disabled:opacity-50"
-          >
-            Próximo
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function DialogPerguntaPrimeiroDiaAtestado({
-  open,
-  data,
-  onClose,
-  onConfirmar,
-}: {
-  open: boolean
-  data: string | null
-  onClose: () => void
-  onConfirmar: (foiTrabalhar: boolean, trabalhouSeisHoras?: boolean) => void
-}) {
-  const diaUtil = !!data && isDiaSemanaUtil(data)
-  const [foiTrabalhar, setFoiTrabalhar] = useState(false)
-  const [prevOpen, setPrevOpen] = useState(open)
-
-  if (open !== prevOpen) {
-    setPrevOpen(open)
-    if (open) setFoiTrabalhar(false)
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent
-        className="glass-modal border-0 bg-transparent p-8 text-white sm:max-w-md"
-        style={{ backdropFilter: "blur(10px) saturate(140%) brightness(1.05)" }}
-      >
-        <DialogHeader>
-          <p className="text-[10px] uppercase tracking-[0.3em] text-amber-200/80">
-            Primeiro dia
-          </p>
-          <DialogTitle className="text-display text-3xl text-white">
-            {data ? formatarDataNumerica(data) : "Atestado"}
-          </DialogTitle>
-          <DialogDescription className="text-white/65">
-            Informe o que aconteceu no primeiro dia do atestado.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="my-2 h-px bg-white/12" />
-        <div className="space-y-4">
-          <p className="text-sm font-medium text-white/90">
-            O intermitente foi trabalhar neste dia?
-          </p>
-          <div className="grid grid-cols-2 gap-3">
-            <ChoiceButton onClick={() => onConfirmar(false)} variant="danger">
-              Não
-            </ChoiceButton>
-            {!diaUtil ? (
-              <ChoiceButton onClick={() => onConfirmar(true)} variant="primary">
-                Sim
-              </ChoiceButton>
-            ) : (
-              <ChoiceButton onClick={() => setFoiTrabalhar(true)} variant="primary">
-                Sim
-              </ChoiceButton>
-            )}
-          </div>
-          {diaUtil && foiTrabalhar ? (
-            <div className="rounded-2xl border border-white/12 bg-white/5 p-4">
-              <p className="mb-3 text-sm font-medium text-white/90">
-                Se trabalhou, foi por pelo menos 6 horas?
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                <ChoiceButton
-                  onClick={() => onConfirmar(true, false)}
-                  variant="warning"
-                >
-                  Menos de 6h
-                </ChoiceButton>
-                <ChoiceButton
-                  onClick={() => onConfirmar(true, true)}
-                  variant="primary"
-                >
-                  6h ou mais
-                </ChoiceButton>
-              </div>
-            </div>
-          ) : null}
-        </div>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function DialogUploadAtestado({
-  open,
-  onClose,
-  onConfirmar,
-}: {
-  open: boolean
-  onClose: () => void
-  onConfirmar: (arquivo: File) => void
-}) {
-  const [erro, setErro] = useState<string | null>(null)
-  const [arquivo, setArquivo] = useState<File | null>(null)
-  const [prevOpen, setPrevOpen] = useState(open)
-
-  if (open !== prevOpen) {
-    setPrevOpen(open)
-    if (open) {
-      setErro(null)
-      setArquivo(null)
-    }
-  }
-
-  function escolher(file: File | null) {
-    setErro(null)
-    if (!file) {
-      setArquivo(null)
-      return
-    }
-    const permitido =
-      file.type === "application/pdf" ||
-      file.type === "image/jpeg" ||
-      file.type === "image/png" ||
-      file.type === "image/heic" ||
-      /\.(pdf|jpe?g|png|heic)$/i.test(file.name)
-    if (!permitido) {
-      setErro("Envie um arquivo PDF, JPG, PNG ou HEIC.")
-      setArquivo(null)
-      return
-    }
-    if (file.size > ATESTADO_MAX_BYTES) {
-      setErro("O arquivo deve ter no máximo 15 MB.")
-      setArquivo(null)
-      return
-    }
-    setArquivo(file)
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent
-        className="glass-modal border-0 bg-transparent p-8 text-white sm:max-w-md"
-        style={{ backdropFilter: "blur(10px) saturate(140%) brightness(1.05)" }}
-      >
-        <DialogHeader>
-          <p className="text-[10px] uppercase tracking-[0.3em] text-amber-200/80">
-            Arquivo
-          </p>
-          <DialogTitle className="text-display text-3xl text-white">
-            Anexar <em className="italic text-[#e8c275]">atestado</em>
-          </DialogTitle>
-          <DialogDescription className="text-white/65">
-            PDF, JPG, PNG ou HEIC, com até 15 MB.
-          </DialogDescription>
-        </DialogHeader>
-        <label className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-amber-300/35 bg-amber-300/8 px-5 py-8 text-center transition hover:border-amber-300/60 hover:bg-amber-300/12">
-          <Upload className="mb-3 size-7 text-amber-200" />
-          <span className="text-sm font-medium text-white/90">
-            {arquivo ? arquivo.name : "Selecionar arquivo"}
-          </span>
-          <span className="mt-1 text-xs text-white/50">
-            {arquivo ? formatarBytes(arquivo.size) : "Clique para anexar"}
-          </span>
-          <input
-            type="file"
-            accept={ATESTADO_ACCEPT}
-            className="sr-only"
-            onChange={(e) => escolher(e.currentTarget.files?.[0] ?? null)}
-          />
-        </label>
-        {erro ? (
-          <p className="rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
-            {erro}
-          </p>
-        ) : null}
-        <DialogFooter className="mt-2 sm:justify-between">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onClose}
-            className="text-white/65 hover:bg-white/10 hover:text-white"
-          >
-            Cancelar
-          </Button>
-          <Button
-            type="button"
-            disabled={!arquivo}
-            onClick={() => arquivo && onConfirmar(arquivo)}
-            className="bg-amber-300 text-[#0a1224] hover:bg-amber-200 disabled:opacity-50"
-          >
-            Próximo
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function DialogConfirmarAtestado({
-  open,
-  atestado,
-  onCancelar,
-  onConfirmar,
-}: {
-  open: boolean
-  atestado: AtestadoEmConstrucao
-  onCancelar: () => void
-  onConfirmar: () => void
-}) {
-  return (
-    <Dialog open={open} onOpenChange={(o) => !o && onCancelar()}>
-      <DialogContent
-        className="glass-modal border-0 bg-transparent p-8 text-white sm:max-w-md"
-        style={{ backdropFilter: "blur(10px) saturate(140%) brightness(1.05)" }}
-      >
-        <DialogHeader>
-          <p className="text-[10px] uppercase tracking-[0.3em] text-amber-200/80">
-            Confirmar
-          </p>
-          <DialogTitle className="text-display text-3xl text-white">
-            Conferir <em className="italic text-[#e8c275]">atestado</em>
-          </DialogTitle>
-          <DialogDescription className="text-white/65">
-            Revise o período e o arquivo antes de aplicar aos dias.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3 rounded-2xl border border-white/12 bg-white/5 p-4 text-sm text-white/75">
-          <p>
-            Período:{" "}
-            <strong className="text-white">
-              {atestado.dataInicio && atestado.dataFim
-                ? `${formatarDataNumerica(atestado.dataInicio)} a ${formatarDataNumerica(atestado.dataFim)}`
-                : "Não informado"}
-            </strong>
-          </p>
-          <p>
-            Arquivo:{" "}
-            <strong className="text-white">
-              {atestado.arquivo
-                ? `${atestado.arquivo.name} (${formatarBytes(atestado.arquivo.size)})`
-                : "Não anexado"}
-            </strong>
-          </p>
-          <p className="text-xs leading-relaxed text-white/55">
-            Dias cobertos por atestado serão destacados. Se houver falta manual
-            no mesmo dia, ela não será enviada para desconto em duplicidade.
-          </p>
-        </div>
-        <DialogFooter className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-2">
-          <Button
-            variant="ghost"
-            onClick={onCancelar}
-            className="text-white/85 hover:bg-white/10 hover:text-white"
-          >
-            Voltar
-          </Button>
-          <Button
-            onClick={onConfirmar}
-            className="bg-amber-300 text-[#0a1224] hover:bg-amber-200"
-          >
-            Confirmar
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function DialogConfirmarRemoverAtestado({
-  open,
-  atestado,
-  onCancelar,
-  onConfirmar,
-}: {
-  open: boolean
-  atestado: Atestado | null
-  quantidadeNoDia: number
-  onCancelar: () => void
-  onConfirmar: () => void
-}) {
-  return (
-    <Dialog open={open} onOpenChange={(o) => !o && onCancelar()}>
-      <DialogContent
-        className="glass-modal border-0 bg-transparent p-8 text-white sm:max-w-sm"
-        style={{ backdropFilter: "blur(10px) saturate(140%) brightness(1.05)" }}
-      >
-        <DialogHeader>
-          <p className="text-[10px] uppercase tracking-[0.3em] text-amber-200/80">
-            Atestado
-          </p>
-          <DialogTitle className="text-display text-2xl text-white">
-            Retirar este atestado?
-          </DialogTitle>
-          <DialogDescription className="text-white/65">
-            {atestado
-              ? `Isso retirará o atestado de ${formatarDataNumerica(atestado.dataInicio)} a ${formatarDataNumerica(atestado.dataFim)}.`
-              : "Isso retirará o atestado selecionado."}
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-2">
-          <Button
-            variant="ghost"
-            onClick={onCancelar}
-            className="text-white/85 hover:bg-white/10 hover:text-white"
-          >
-            Cancelar
-          </Button>
-          <Button
-            onClick={onConfirmar}
-            className="bg-amber-300 text-[#0a1224] hover:bg-amber-200"
-          >
-            Retirar
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
 
 /* ─── Dialog: Selecionar sábados extras ─── */
 
@@ -2770,6 +2103,93 @@ function DialogConfirmarRemoverSabado({
             className="bg-blue-300 text-[#0a1224] hover:bg-blue-200"
           >
             Remover
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/* ─── Dialog: Dia já cobertto por atestado/declaração (read-only info) ─── */
+
+type DialogDiaComDocumentoProps = {
+  data: string | null
+  documentos: Atestado[]
+  onClose: () => void
+}
+
+function DialogDiaComDocumento({
+  data,
+  documentos,
+  onClose,
+}: DialogDiaComDocumentoProps) {
+  if (!data) return null
+  return (
+    <Dialog open={!!data} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent
+        className="glass-modal border-0 bg-transparent p-8 text-white sm:max-w-md"
+        style={{ backdropFilter: "blur(10px) saturate(140%) brightness(1.05)" }}
+      >
+        <DialogHeader>
+          <p className="text-[10px] uppercase tracking-[0.3em] text-amber-200/80">
+            Dia com documento
+          </p>
+          <DialogTitle className="text-display text-3xl capitalize text-white">
+            {formatarDiaCompleto(data)}
+          </DialogTitle>
+          <DialogDescription className="text-white/65">
+            Este dia já tem documento lançado. Para corrigir ou remover,
+            acesse a área <span className="text-white/90">Atestados e declarações</span>.
+          </DialogDescription>
+        </DialogHeader>
+
+        <ul className="mt-2 space-y-2.5">
+          {documentos.map((doc) => {
+            const rotulo =
+              doc.tipoDocumento === "atestado"
+                ? "Atestado médico"
+                : doc.periodos.length === 2
+                  ? "Declaração integral"
+                  : doc.periodos[0] === "manha"
+                    ? "Declaração matutina"
+                    : "Declaração vespertina"
+            const periodo =
+              doc.dataInicio === doc.dataFim
+                ? formatarDataNumerica(doc.dataInicio)
+                : `${formatarDataNumerica(doc.dataInicio)} a ${formatarDataNumerica(doc.dataFim)}`
+            return (
+              <li
+                key={doc.id}
+                className="rounded-2xl border border-white/12 bg-white/5 p-4 text-sm text-white/80"
+              >
+                <p className="font-medium text-white/95">{rotulo}</p>
+                <p className="mt-1 text-xs text-white/55">{periodo}</p>
+                {doc.nomeArquivo && (
+                  <p className="mt-1 text-xs text-white/45">{doc.nomeArquivo}</p>
+                )}
+                {doc.mondayItemUrl && (
+                  <a
+                    href={doc.mondayItemUrl}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-amber-200 transition hover:text-amber-100"
+                  >
+                    <ExternalLink className="size-3.5" />
+                    Abrir no Controle de Atestados
+                  </a>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+
+        <DialogFooter className="mt-2 sm:justify-end">
+          <Button
+            variant="ghost"
+            onClick={onClose}
+            className="text-white/85 hover:bg-white/10 hover:text-white"
+          >
+            Fechar
           </Button>
         </DialogFooter>
       </DialogContent>

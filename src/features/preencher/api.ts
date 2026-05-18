@@ -172,13 +172,17 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
     atestados: [
       {
         id: "atest-mock-1",
+        tipoDocumento: "atestado",
         dataInicio: "2026-04-22",
         dataFim: "2026-04-24",
+        periodos: [],
         primeiroDiaFoiTrabalhar: true,
         primeiroDiaTrabalhouSeisHoras: false,
         nomeArquivo: "atestado-exemplo.pdf",
         tamanhoArquivo: 284_000,
         mondayItemId: "mock",
+        mondayItemUrl:
+          "https://contato-serv.monday.com/boards/18298015951/pulses/000000",
       },
     ],
   },
@@ -231,38 +235,48 @@ function snapshot(m: MockState): ProcessamentoDados {
   }
 }
 
-function mapAtestado(raw: {
-  id?: string
-  data_inicio?: string
-  data_fim?: string
-  dataInicio?: string
-  dataFim?: string
-  primeiro_dia_foi_trabalhar?: boolean
-  primeiroDiaFoiTrabalhar?: boolean
-  primeiro_dia_trabalhou_seis_horas?: boolean
-  primeiroDiaTrabalhouSeisHoras?: boolean
-  nome_arquivo?: string
-  nomeArquivo?: string
-  tamanho_arquivo?: number
-  tamanhoArquivo?: number
-  monday_item_id?: string | null
-  mondayItemId?: string | null
-  arquivo_url?: string | null
-  arquivoUrl?: string | null
-}): Atestado {
+function mapAtestado(raw: Record<string, unknown>): Atestado {
+  const tipoDocRaw =
+    (raw.tipoDocumento as string | undefined) ??
+    (raw.tipo_documento as string | undefined) ??
+    "atestado"
+  const tipoDocumento: Atestado["tipoDocumento"] =
+    tipoDocRaw === "declaracao" ? "declaracao" : "atestado"
+  const periodosRaw =
+    (raw.periodos as unknown[] | undefined) ??
+    (raw.tipo_periodo
+      ? [String(raw.tipo_periodo)]
+      : [])
+  const periodos = (periodosRaw as string[])
+    .filter((p) => p === "manha" || p === "tarde") as Atestado["periodos"]
+
   return {
-    id: raw.id ?? crypto.randomUUID(),
-    dataInicio: raw.dataInicio ?? raw.data_inicio ?? "",
-    dataFim: raw.dataFim ?? raw.data_fim ?? "",
+    id: String(raw.id ?? crypto.randomUUID()),
+    tipoDocumento,
+    dataInicio: String(raw.dataInicio ?? raw.data_inicio ?? ""),
+    dataFim: String(raw.dataFim ?? raw.data_fim ?? ""),
+    periodos,
     primeiroDiaFoiTrabalhar:
-      raw.primeiroDiaFoiTrabalhar ?? raw.primeiro_dia_foi_trabalhar ?? false,
+      (raw.primeiroDiaFoiTrabalhar as boolean | undefined) ??
+      (raw.primeiro_dia_foi_trabalhar as boolean | undefined) ??
+      false,
     primeiroDiaTrabalhouSeisHoras:
-      raw.primeiroDiaTrabalhouSeisHoras ??
-      raw.primeiro_dia_trabalhou_seis_horas,
-    nomeArquivo: raw.nomeArquivo ?? raw.nome_arquivo ?? "Atestado",
-    tamanhoArquivo: raw.tamanhoArquivo ?? raw.tamanho_arquivo ?? 0,
-    mondayItemId: raw.mondayItemId ?? raw.monday_item_id ?? null,
-    arquivoUrl: raw.arquivoUrl ?? raw.arquivo_url ?? null,
+      (raw.primeiroDiaTrabalhouSeisHoras as boolean | undefined) ??
+      (raw.primeiro_dia_trabalhou_seis_horas as boolean | undefined),
+    nomeArquivo: String(raw.nomeArquivo ?? raw.nome_arquivo ?? "Documento"),
+    tamanhoArquivo: Number(raw.tamanhoArquivo ?? raw.tamanho_arquivo ?? 0),
+    mondayItemId:
+      (raw.mondayItemId as string | null | undefined) ??
+      (raw.monday_item_id as string | null | undefined) ??
+      null,
+    mondayItemUrl:
+      (raw.mondayItemUrl as string | null | undefined) ??
+      (raw.monday_item_url as string | null | undefined) ??
+      null,
+    arquivoUrl:
+      (raw.arquivoUrl as string | null | undefined) ??
+      (raw.arquivo_url as string | null | undefined) ??
+      null,
   }
 }
 
@@ -282,18 +296,6 @@ function payloadFinalizarSnake(
     dias_extras: payload.diasExtras ?? [],
     dias_desativados: payload.diasDesativados ?? [],
     sabados_extras: payload.sabadosExtras ?? [],
-    atestados: (payload.atestados ?? []).map((a) => ({
-      id: a.id,
-      data_inicio: a.dataInicio,
-      data_fim: a.dataFim,
-      primeiro_dia_foi_trabalhar: a.primeiroDiaFoiTrabalhar,
-      primeiro_dia_trabalhou_seis_horas:
-        a.primeiroDiaTrabalhouSeisHoras ?? null,
-      nome_arquivo: a.nomeArquivo,
-      tamanho_arquivo: a.tamanhoArquivo,
-      monday_item_id: a.mondayItemId ?? null,
-      arquivo_url: a.arquivoUrl ?? null,
-    })),
     eh_correcao: payload.ehCorrecao ?? false,
   }
 }
@@ -374,7 +376,6 @@ export async function finalizarProcessamento(
       mock.diasExtras = payload.diasExtras ?? []
       mock.diasDesativados = payload.diasDesativados ?? []
       mock.sabadosExtras = payload.sabadosExtras ?? []
-      mock.atestados = payload.atestados ?? []
       if (ehReedicao || payload.ehCorrecao) {
         mock.editado = true
         mock.editadoEm = new Date().toISOString()
@@ -391,27 +392,13 @@ export async function finalizarProcessamento(
   }))
 
   const bodyJson = payloadFinalizarSnake(uuid, payload, respostas)
-  const arquivos = payload.arquivosAtestados
-  const temArquivos = !!arquivos && arquivos.size > 0
   const res = await fetch(
     `${BASE_URL}/intermitente-finalizar?uuid=${encodeURIComponent(uuid)}`,
-    temArquivos
-      ? {
-          method: "POST",
-          body: (() => {
-            const form = new FormData()
-            form.append("payload", JSON.stringify(bodyJson))
-            for (const [id, file] of arquivos) {
-              form.append(`atestado_${id}`, file, file.name)
-            }
-            return form
-          })(),
-        }
-      : {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(bodyJson),
-        },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyJson),
+    },
   )
   if (!res.ok) {
     const err = new Error(`Erro ${res.status}`) as Error & { status?: number }

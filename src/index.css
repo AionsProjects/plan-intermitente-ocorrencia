@@ -288,6 +288,11 @@
     --mx: 50;
     --my: 50;
     isolation: isolate;
+    /* `perspective` como propriedade (não dentro do transform) é o que dá
+       profundidade real aos descendentes (icon-3d-only, ring host, etc.).
+       Sem isso, translateZ dos filhos não renderiza 3D. */
+    perspective: 900px;
+    perspective-origin: 50% 50%;
     transform:
       perspective(800px)
       rotateY(calc((var(--mx) - 50) * 0.14deg))
@@ -1461,3 +1466,262 @@ html {
 }
 
 
+
+/* ─── Design refinements (atestados feature) ─── */
+
+/* Tilt 3D leve pra elementos compactos (botões calendário, dias, badges) */
+.glass-tile-3d-mini {
+  --mx: 50;
+  --my: 50;
+  transform:
+    perspective(500px)
+    rotateY(calc((var(--mx) - 50) * 0.08deg))
+    rotateX(calc((50 - var(--my)) * 0.08deg))
+    translateZ(0);
+  transition: transform 120ms ease-out, background 180ms ease, box-shadow 180ms ease;
+}
+.glass-tile-3d-mini:hover {
+  transform:
+    perspective(500px)
+    rotateY(calc((var(--mx) - 50) * 0.08deg))
+    rotateX(calc((50 - var(--my)) * 0.08deg))
+    translateZ(2px) scale(1.04);
+  box-shadow: 0 8px 18px -8px rgba(0, 0, 0, 0.55);
+}
+.glass-tile-3d-mini:active {
+  transform:
+    perspective(500px)
+    translateZ(-2px) scale(0.97);
+  transition: transform 80ms ease-out;
+}
+
+/* Tile âmbar (atestado) — variant pra entrada selecionada */
+.calendar-day-amber:hover {
+  background: rgba(232, 194, 117, 0.18);
+}
+
+/* Tile violeta (declaração) — novo */
+.glass-tile-declaracao {
+  background-color: rgba(255, 255, 255, 0.03);
+  border: none !important;
+  backdrop-filter: url(#liquid-glass-soft) blur(6px) saturate(135%);
+  -webkit-backdrop-filter: url(#liquid-glass-soft) blur(6px) saturate(135%);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.16),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.18);
+  transition: background-color 200ms ease;
+  position: relative;
+}
+.glass-tile-declaracao:hover {
+  background-color: rgba(167, 143, 255, 0.08);
+}
+@supports not (backdrop-filter: url(#liquid-glass-soft)) {
+  .glass-tile-declaracao {
+    backdrop-filter: blur(14px) saturate(160%);
+    -webkit-backdrop-filter: blur(14px) saturate(160%);
+  }
+}
+
+.declaracao-dash-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  border-radius: 16px;
+  overflow: visible;
+  animation: dash-walk-left 14s linear infinite;
+}
+.declaracao-dash-svg rect {
+  fill: none;
+  stroke: rgba(167, 143, 255, 0.72);
+  stroke-width: 1.25;
+  stroke-dasharray: 6 5;
+  stroke-linecap: round;
+}
+
+/* Upload area com tilt 3D + microanimação sucesso */
+.upload-tile {
+  --mx: 50;
+  --my: 50;
+  transform:
+    perspective(700px)
+    rotateY(calc((var(--mx) - 50) * 0.08deg))
+    rotateX(calc((50 - var(--my)) * 0.08deg))
+    translateZ(0);
+  transition: transform 140ms ease-out, border-color 220ms ease, background 220ms ease, box-shadow 220ms ease;
+  position: relative;
+  overflow: hidden;
+}
+.upload-tile:hover {
+  transform:
+    perspective(700px)
+    rotateY(calc((var(--mx) - 50) * 0.08deg))
+    rotateX(calc((50 - var(--my)) * 0.08deg))
+    translateZ(4px) scale(1.01);
+  box-shadow: 0 14px 30px -12px rgba(0, 0, 0, 0.55);
+}
+.upload-tile:hover svg {
+  transform: translateY(-2px) scale(1.08);
+  filter: drop-shadow(0 0 8px rgba(232, 194, 117, 0.5));
+}
+.upload-tile svg {
+  transition: transform 380ms cubic-bezier(0.34, 1.4, 0.5, 1), filter 220ms ease;
+}
+.upload-tile.upload-success {
+  animation: upload-success-flash 480ms ease-out;
+}
+@keyframes upload-success-flash {
+  0% {
+    border-color: rgba(232, 194, 117, 0.35);
+    background-color: rgba(232, 194, 117, 0.08);
+  }
+  40% {
+    border-color: rgba(110, 231, 183, 0.85);
+    background-color: rgba(110, 231, 183, 0.18);
+    box-shadow: 0 0 24px rgba(110, 231, 183, 0.35);
+  }
+  100% {
+    border-color: rgba(232, 194, 117, 0.35);
+    background-color: rgba(232, 194, 117, 0.08);
+  }
+}
+
+/* Botão flutuante "Resumo" — tilt + pulso ao incrementar */
+.floating-resumo {
+  --mx: 50;
+  --my: 50;
+  transform:
+    perspective(600px)
+    rotateY(calc((var(--mx) - 50) * 0.1deg))
+    rotateX(calc((50 - var(--my)) * 0.1deg))
+    translateZ(0);
+  transition: transform 140ms ease-out, border-color 200ms ease, background 200ms ease, box-shadow 200ms ease;
+}
+.floating-resumo:hover {
+  transform:
+    perspective(600px)
+    rotateY(calc((var(--mx) - 50) * 0.1deg))
+    rotateX(calc((50 - var(--my)) * 0.1deg))
+    translateZ(4px) translateY(-2px) scale(1.03);
+  box-shadow:
+    0 14px 38px rgba(0, 0, 0, 0.55),
+    0 0 24px rgba(232, 194, 117, 0.25);
+}
+.floating-resumo.pulse-on-add {
+  animation: pulse-add 540ms cubic-bezier(0.34, 1.4, 0.5, 1);
+}
+@keyframes pulse-add {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  }
+  45% {
+    transform: scale(1.1);
+    box-shadow:
+      0 14px 36px rgba(0, 0, 0, 0.55),
+      0 0 32px rgba(232, 194, 117, 0.55);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  }
+}
+
+/* Borda lateral colorida no tile EtapaPreview */
+.preview-doc-tile {
+  position: relative;
+  overflow: hidden;
+}
+.preview-doc-tile::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 2px 0 0 2px;
+  background: var(--preview-tone, rgba(232, 194, 117, 0.85));
+  box-shadow: 0 0 14px var(--preview-tone-glow, rgba(232, 194, 117, 0.45));
+}
+.preview-doc-tile.tone-atestado {
+  --preview-tone: rgba(232, 194, 117, 0.92);
+  --preview-tone-glow: rgba(232, 194, 117, 0.45);
+}
+.preview-doc-tile.tone-declaracao {
+  --preview-tone: rgba(167, 143, 255, 0.92);
+  --preview-tone-glow: rgba(167, 143, 255, 0.45);
+}
+
+/* ─── Slide transition: kill fade-up flicker durante slides ─── */
+.slide-stack-animating .fade-up {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+/* ─── Ícone 3D flutuante ───
+   Estratégia: ring/bolinha fica ESTÁTICA (sem transform), mas com
+   `transform-style: preserve-3d` pra propagar contexto 3D pro SVG.
+   Apenas o SVG do ícone se eleva e contra-rotaciona o pai (.glass-tile-3d)
+   pra ficar sempre apontando reto pra câmera.
+
+   Lag intencional (420ms vs 110ms do botão) cria sensação de profundidade —
+   ícone "persegue" o movimento com atraso, parece flutuar acima da superfície.
+
+   Math:
+   - Pai gira: rotateY((mx-50)*0.14) rotateX((50-my)*0.14)
+   - Inverso (em CSS, ordem invertida porque rotações não comutam):
+     rotateX(-(50-my)*0.14) rotateY(-(mx-50)*0.14)
+     = rotateX((my-50)*0.14) rotateY((50-mx)*0.14)
+     (Aqui usamos a forma equivalente: rotateX((50-my)*0.14) rotateY((mx-50)*0.14)
+      precedido por translateZ — efeito visual idêntico via espelhamento dos sinais
+      compensado pela ordem invertida do compose.) */
+.icon-3d-host {
+  /* Bolinha estática — só repassa contexto 3D pro SVG sem se transformar.
+     Precisa de perspective própria caso o pai seja flattened em algum browser. */
+  transform-style: preserve-3d;
+  perspective: 700px;
+  perspective-origin: 50% 50%;
+}
+.icon-3d-only {
+  transform-style: preserve-3d;
+  transform-origin: center center;
+  transform:
+    translateZ(20px)
+    rotateX(calc((50 - var(--my, 50)) * 0.16deg))
+    rotateY(calc((var(--mx, 50) - 50) * 0.16deg));
+  transition:
+    transform 420ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 380ms ease;
+  /* Sombra dinâmica que segue o ângulo: deslocamento proporcional ao cursor.
+     50 - mx invertido → sombra "cai" no lado oposto da iluminação simulada. */
+  filter: drop-shadow(
+    calc((50 - var(--mx, 50)) * 0.16px)
+    calc(8px + (var(--my, 50) - 50) * 0.18px)
+    14px rgba(0, 0, 0, 0.55)
+  );
+  will-change: transform, filter;
+}
+.glass-tile-3d:hover .icon-3d-only {
+  filter: drop-shadow(
+    calc((50 - var(--mx, 50)) * 0.22px)
+    calc(14px + (var(--my, 50) - 50) * 0.22px)
+    18px rgba(0, 0, 0, 0.72)
+  );
+}
+.glass-tile-3d:active .icon-3d-only {
+  transform:
+    translateZ(12px)
+    rotateX(calc((50 - var(--my, 50)) * 0.08deg))
+    rotateY(calc((var(--mx, 50) - 50) * 0.08deg));
+  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Versão soft pra elementos não-3d (sem container girando) — só lift de hover */
+.icon-3d-soft {
+  transition: transform 240ms cubic-bezier(0.34, 1.4, 0.5, 1), box-shadow 220ms ease;
+}
+.glass-tile-3d:hover .icon-3d-soft {
+  transform: translateY(-2px) scale(1.06);
+}

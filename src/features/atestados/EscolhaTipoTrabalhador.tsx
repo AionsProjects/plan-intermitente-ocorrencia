@@ -1,0 +1,84 @@
+import { Briefcase, Hammer, Sparkles } from "lucide-react"
+
+import type { TipoTrabalhador } from "./types"
+
+type Props = {
+  onSelecionar: (tipo: TipoTrabalhador) => void
+}
+
+export function EscolhaTipoTrabalhador({ onSelecionar }: Props) {
+  function handleTiltMove(e: React.MouseEvent<HTMLButtonElement>) {
+    const r = e.currentTarget.getBoundingClientRect()
+    const mx = ((e.clientX - r.left) / r.width) * 100
+    const my = ((e.clientY - r.top) / r.height) * 100
+    e.currentTarget.style.setProperty("--mx", String(mx))
+    e.currentTarget.style.setProperty("--my", String(my))
+  }
+  function handleTiltLeave(e: React.MouseEvent<HTMLButtonElement>) {
+    e.currentTarget.style.setProperty("--mx", "50")
+    e.currentTarget.style.setProperty("--my", "50")
+  }
+
+  return (
+    <div>
+      <p className="text-[11px] uppercase tracking-[0.32em] text-white/55">
+        Aionscorp · Atestados e declarações
+      </p>
+      <h1 className="text-display mt-3 text-5xl leading-[1.05] text-white">
+        Qual <em className="italic text-[#e8c275]">tipo</em> de trabalhador?
+      </h1>
+      <p className="mt-4 max-w-md text-sm leading-relaxed text-white/65">
+        Escolha o regime do colaborador para lançar atestado médico ou
+        declaração de comparecimento.
+      </p>
+
+      <div className="mt-8 grid gap-3 sm:gap-3.5">
+        <button
+          type="button"
+          onClick={() => onSelecionar("intermitente")}
+          onMouseMove={handleTiltMove}
+          onMouseLeave={handleTiltLeave}
+          className="glass-tile glass-tile-3d group relative flex min-h-[5.5rem] items-center justify-between rounded-2xl px-5 py-4 text-left"
+        >
+          <div className="flex min-w-0 items-center gap-3.5">
+            <div className="icon-3d-host flex size-11 shrink-0 items-center justify-center rounded-full bg-[#e8c275]/12 ring-1 ring-[#e8c275]/35">
+              <Hammer className="icon-3d-only size-5 text-[#e8c275]" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-base font-medium leading-tight text-white/95">
+                Intermitente
+              </p>
+              <p className="mt-1 text-sm leading-snug text-white/55">
+                Lançar documento vinculado a uma convocação ativa.
+              </p>
+            </div>
+          </div>
+          <Sparkles className="size-4 shrink-0 text-[#e8c275]/60 transition-transform group-hover:scale-110" />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onSelecionar("clt")}
+          onMouseMove={handleTiltMove}
+          onMouseLeave={handleTiltLeave}
+          className="glass-tile glass-tile-3d group relative flex min-h-[5.5rem] items-center justify-between rounded-2xl px-5 py-4 text-left"
+        >
+          <div className="flex min-w-0 items-center gap-3.5">
+            <div className="icon-3d-host flex size-11 shrink-0 items-center justify-center rounded-full bg-[#a78fff]/12 ring-1 ring-[#a78fff]/35">
+              <Briefcase className="icon-3d-only size-5 text-[#b6a4ff]" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-base font-medium leading-tight text-white/95">
+                CLT
+              </p>
+              <p className="mt-1 text-sm leading-snug text-white/55">
+                Celetista — operacional digita o nome manualmente (sem RM).
+              </p>
+            </div>
+          </div>
+          <Sparkles className="size-4 shrink-0 text-[#b6a4ff]/60 transition-transform group-hover:scale-110" />
+        </button>
+      </div>
+    </div>
+  )
+}

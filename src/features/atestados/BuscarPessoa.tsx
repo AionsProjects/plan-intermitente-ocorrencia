@@ -8,7 +8,7 @@ import {
   UserSearch,
 } from "lucide-react"
 
-import { useBuscarEmpregado } from "./useConvocacao"
+import { useBuscarEmpregado } from "@/features/convocar/useConvocacao"
 import type { EmpregadoRM } from "./types"
 
 const VISIVEIS = 3
@@ -58,7 +58,7 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
   )
 }
 
-export function BuscarEmpregado({ onSelecionar }: Props) {
+export function BuscarPessoa({ onSelecionar }: Props) {
   const [valor, setValor] = useState("")
   const [expandido, setExpandido] = useState(false)
   const { data, isFetching, isError, ativo } = useBuscarEmpregado(valor)
@@ -81,14 +81,14 @@ export function BuscarEmpregado({ onSelecionar }: Props) {
   return (
     <div>
       <p className="text-[11px] uppercase tracking-[0.32em] text-white/55">
-        Aionscorp · Convocar intermitente
+        Aionscorp · Atestados e declarações
       </p>
       <h1 className="text-display mt-3 text-5xl leading-[1.05] text-white">
-        Buscar <em className="italic text-[#e8c275]">empregado</em>
+        Buscar <em className="italic text-[#e8c275]">intermitente</em>
       </h1>
       <p className="mt-4 max-w-md text-sm leading-relaxed text-white/65">
-        Digite parte do nome para localizar o intermitente no RM. Selecione um
-        resultado para preencher a convocação.
+        Digite parte do nome para localizar o intermitente no RM. Em seguida,
+        escolha a convocação onde o documento será lançado.
       </p>
 
       <div className="mt-8">
@@ -128,7 +128,7 @@ export function BuscarEmpregado({ onSelecionar }: Props) {
 
         {ativo && !isFetching && resultados.length === 0 && !isError && (
           <p className="mt-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/60">
-            Nenhum empregado encontrado para "{valor}".
+            Nenhum intermitente encontrado para "{valor}".
           </p>
         )}
 

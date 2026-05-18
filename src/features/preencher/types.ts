@@ -28,15 +28,25 @@ export type RespostaDia = {
   minutosAtraso?: number
 }
 
+export type TipoDocumento = "atestado" | "declaracao"
+export type PeriodoTurno = "manha" | "tarde"
+
+// Atestado/declaração agora vivem na feature /atestados. Aqui o tipo é
+// read-only: representa o que o WF2 devolveu pra renderizar tiles
+// informativos com link pro board Controle de Atestados. Criação,
+// remoção e correção de docs acontecem em /atestados.
 export type Atestado = {
   id: string
+  tipoDocumento: TipoDocumento
   dataInicio: string
   dataFim: string
+  periodos: PeriodoTurno[]
   primeiroDiaFoiTrabalhar: boolean
   primeiroDiaTrabalhouSeisHoras?: boolean
   nomeArquivo: string
   tamanhoArquivo: number
   mondayItemId?: string | null
+  mondayItemUrl?: string | null
   arquivoUrl?: string | null
 }
 
@@ -46,8 +56,6 @@ export type PayloadFinalizar = {
   diasExtras?: string[]
   diasDesativados?: string[]
   sabadosExtras?: string[]
-  atestados?: Atestado[]
-  arquivosAtestados?: Map<string, File>
   ehCorrecao?: boolean
 }
 
