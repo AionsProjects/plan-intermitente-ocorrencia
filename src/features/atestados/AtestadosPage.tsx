@@ -6,13 +6,11 @@ import { SlideStack, type SlideDirection } from "@/components/SlideStack"
 
 import { BuscarPessoa } from "./BuscarPessoa"
 import { EscolhaTipoTrabalhador } from "./EscolhaTipoTrabalhador"
-import { PainelConvocacoes } from "./PainelConvocacoes"
 import { ResumoSessao } from "./ResumoSessao"
 import { TelaSucesso } from "./TelaSucesso"
 import { WizardDocumento } from "./WizardDocumento"
 import { useLancarDocumentos } from "./useAtestados"
 import type {
-  ConvocacaoResumida,
   DocumentoLancamento,
   EmpregadoRM,
   LancarDocumentosResultado,
@@ -22,34 +20,28 @@ import type {
 
 type Etapa =
   | { tipo: "tipo-trabalhador" }
-  | { tipo: "busca-pessoa"; tipoTrabalhador: "intermitente" }
-  | {
-      tipo: "convocacoes"
-      tipoTrabalhador: "intermitente"
-      empregado: EmpregadoRM
-    }
+  | { tipo: "busca-pessoa"; tipoTrabalhador: TipoTrabalhador }
   | {
       tipo: "wizard-intermitente"
       empregado: EmpregadoRM
-      convocacao: ConvocacaoResumida
     }
-  | { tipo: "wizard-clt" }
+  | {
+      tipo: "wizard-clt"
+      empregado: EmpregadoRM
+    }
   | { tipo: "sucesso"; resultado: LancarDocumentosResultado; totalEnviado: number }
 
 const ORDEM: Record<Etapa["tipo"], number> = {
   "tipo-trabalhador": 0,
   "busca-pessoa": 1,
-  convocacoes: 2,
-  "wizard-intermitente": 3,
-  "wizard-clt": 3,
-  sucesso: 4,
+  "wizard-intermitente": 2,
+  "wizard-clt": 2,
+  sucesso: 3,
 }
 
 function etapaKey(e: Etapa): string {
-  if (e.tipo === "convocacoes") return `conv-${e.empregado.chapa}`
-  if (e.tipo === "wizard-intermitente")
-    return `wiz-${e.empregado.chapa}-${e.convocacao.uuid}`
-  if (e.tipo === "wizard-clt") return "wiz-clt"
+  if (e.tipo === "wizard-intermitente") return `wiz-${e.empregado.chapa}`
+  if (e.tipo === "wizard-clt") return `wiz-clt-${e.empregado.chapa}`
   if (e.tipo === "sucesso") return "sucesso"
   if (e.tipo === "busca-pessoa") return `busca-${e.tipoTrabalhador}`
   return "tipo-trabalhador"
@@ -82,12 +74,12 @@ export function AtestadosPage() {
   }
 
   function voltarParaEtapa() {
-    if (etapa.tipo === "convocacoes" || etapa.tipo === "wizard-intermitente") {
+    if (etapa.tipo === "wizard-intermitente") {
       ir({ tipo: "busca-pessoa", tipoTrabalhador: "intermitente" })
       return
     }
     if (etapa.tipo === "wizard-clt") {
-      ir({ tipo: "tipo-trabalhador" })
+      ir({ tipo: "busca-pessoa", tipoTrabalhador: "clt" })
       return
     }
     if (etapa.tipo === "busca-pessoa") {
@@ -98,11 +90,7 @@ export function AtestadosPage() {
   }
 
   function escolherTipoTrabalhador(tipo: TipoTrabalhador) {
-    if (tipo === "intermitente") {
-      ir({ tipo: "busca-pessoa", tipoTrabalhador: "intermitente" })
-    } else {
-      ir({ tipo: "wizard-clt" })
-    }
+    ir({ tipo: "busca-pessoa", tipoTrabalhador: tipo })
   }
 
   function adicionarDocumentoSessao(doc: DocumentoLancamento) {
@@ -142,28 +130,16 @@ export function AtestadosPage() {
       return <EscolhaTipoTrabalhador onSelecionar={escolherTipoTrabalhador} />
     }
     if (etapa.tipo === "busca-pessoa") {
+      const tipoCorrente = etapa.tipoTrabalhador
       return (
         <BuscarPessoa
+          tipoTrabalhador={tipoCorrente}
           onSelecionar={(empregado) =>
-            ir({
-              tipo: "convocacoes",
-              tipoTrabalhador: "intermitente",
-              empregado,
-            })
-          }
-        />
-      )
-    }
-    if (etapa.tipo === "convocacoes") {
-      return (
-        <PainelConvocacoes
-          empregado={etapa.empregado}
-          onSelecionar={(convocacao) =>
-            ir({
-              tipo: "wizard-intermitente",
-              empregado: etapa.empregado,
-              convocacao,
-            })
+            ir(
+              tipoCorrente === "clt"
+                ? { tipo: "wizard-clt", empregado }
+                : { tipo: "wizard-intermitente", empregado },
+            )
           }
         />
       )
@@ -173,14 +149,10 @@ export function AtestadosPage() {
         <WizardDocumento
           modo="intermitente"
           empregado={etapa.empregado}
-          convocacao={etapa.convocacao}
+          convocacao={null}
           documentosSessao={sessao.documentos}
           onCancelar={() =>
-            ir({
-              tipo: "convocacoes",
-              tipoTrabalhador: "intermitente",
-              empregado: etapa.empregado,
-            })
+            ir({ tipo: "busca-pessoa", tipoTrabalhador: "intermitente" })
           }
           onAdicionar={(doc) => {
             adicionarDocumentoSessao(doc)
@@ -193,13 +165,13 @@ export function AtestadosPage() {
       return (
         <WizardDocumento
           modo="clt"
-          empregado={null}
+          empregado={etapa.empregado}
           convocacao={null}
           documentosSessao={sessao.documentos}
-          onCancelar={() => ir({ tipo: "tipo-trabalhador" })}
+          onCancelar={() => ir({ tipo: "busca-pessoa", tipoTrabalhador: "clt" })}
           onAdicionar={(doc) => {
             adicionarDocumentoSessao(doc)
-            ir({ tipo: "tipo-trabalhador" })
+            ir({ tipo: "busca-pessoa", tipoTrabalhador: "clt" })
           }}
         />
       )

@@ -3,12 +3,14 @@ type ChoiceVariant = "ghost" | "primary" | "danger" | "warning"
 export function ChoiceButton({
   children,
   variant = "ghost",
+  selected = false,
   className = "",
   onMouseMove,
   onMouseLeave,
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ChoiceVariant
+  selected?: boolean
 }) {
   function handleMove(e: React.MouseEvent<HTMLButtonElement>) {
     const r = e.currentTarget.getBoundingClientRect()
@@ -36,7 +38,7 @@ export function ChoiceButton({
       {...props}
       onMouseMove={handleMove}
       onMouseLeave={handleLeave}
-      className={`choice-btn ${variantClass} ${className}`}
+      className={`choice-btn ${variantClass} ${selected ? "choice-btn--selected" : ""} ${className}`}
     >
       {children}
     </button>

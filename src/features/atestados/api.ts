@@ -11,8 +11,82 @@ import type {
 const BASE_URL = import.meta.env.VITE_N8N_BASE_URL ?? ""
 const USE_MOCK = !BASE_URL
 
-// Reusa autocomplete RM do convocar (WF8)
+// Reusa autocomplete RM intermitente do convocar (WF8)
 export { buscarEmpregado } from "@/features/convocar/api"
+
+// Busca celetista no RM — endpoint próprio (separado do WF8 de intermitente).
+// SQL no RM filtra apenas CLT; mesma shape EmpregadoRM.
+const MOCK_CELETISTAS: import("./types").EmpregadoRM[] = [
+  {
+    nome: "MARIA SILVA CLT",
+    chapa: "100001",
+    cpf: "00000000010",
+    funcao: "ANALISTA DE PESSOAL",
+    admissao: "2022-03-14",
+    secao: "01.01.0001.01.0001",
+    codcoligada: 3,
+  },
+  {
+    nome: "JOAO PEREIRA CELETISTA",
+    chapa: "100002",
+    cpf: "00000000011",
+    funcao: "ASSISTENTE ADMINISTRATIVO",
+    admissao: "2021-08-02",
+    secao: "01.01.0001.01.0001",
+    codcoligada: 3,
+  },
+  {
+    nome: "ANA SOUZA CLT",
+    chapa: "100003",
+    cpf: "00000000012",
+    funcao: "MOTORISTA",
+    admissao: "2024-01-22",
+    secao: "01.01.0001.01.0001",
+    codcoligada: 3,
+  },
+]
+
+function normaliza(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toUpperCase()
+    .trim()
+}
+
+export async function buscarCeletista(
+  nome: string,
+): Promise<import("./types").EmpregadoRM[]> {
+  const query = nome.trim()
+  if (query.length < 3) return []
+  if (USE_MOCK) {
+    await new Promise((r) => setTimeout(r, 250))
+    const q = normaliza(query)
+    return MOCK_CELETISTAS.filter((e) => normaliza(e.nome).includes(q))
+  }
+  const res = await fetch(
+    `${BASE_URL}/celetista-buscar-empregado?nome=${encodeURIComponent(query)}`,
+  )
+  if (!res.ok) {
+    const err = new Error(`Erro ${res.status}`) as Error & { status?: number }
+    err.status = res.status
+    throw err
+  }
+  const raw = await res.json()
+  const lista: unknown[] = raw.resultados ?? []
+  return lista.map((r) => {
+    const o = r as Record<string, unknown>
+    return {
+      nome: String(o.nome ?? ""),
+      chapa: String(o.chapa ?? ""),
+      cpf: String(o.cpf ?? ""),
+      funcao: String(o.funcao ?? ""),
+      admissao: String(o.admissao ?? ""),
+      secao: String(o.secao ?? ""),
+      codcoligada: Number(o.codcoligada ?? 3),
+    }
+  })
+}
 
 const MOCK_CONVOCACOES: Record<string, ConvocacaoResumida[]> = {
   "999001": [
@@ -226,9 +300,6 @@ export async function lancarDocumentos(
       // legado (compat com docs antigos)
       tipo_documento_legado: d.tipoDocumento ?? null,
       periodos: d.periodos ?? [],
-      primeiro_dia_foi_trabalhar: d.primeiroDiaFoiTrabalhar ?? null,
-      primeiro_dia_trabalhou_seis_horas:
-        d.primeiroDiaTrabalhouSeisHoras ?? null,
     })),
   }
   fd.append("payload", JSON.stringify(payload))

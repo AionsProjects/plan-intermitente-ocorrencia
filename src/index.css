@@ -1170,6 +1170,26 @@
   z-index: 2;
 }
 
+/* Estado "selecionado" persistente — usado por seletores de opção (radio-like)
+   tipo Horário de almoço. Mantém o gold permanentemente, sem depender do hover. */
+.choice-btn--selected {
+  background: linear-gradient(135deg, #f0cc7d 0%, #d4a64a 55%, #8a6420 130%);
+  border-color: rgba(255, 236, 194, 0.6);
+  color: #0a1224;
+  box-shadow:
+    0 0 36px 4px rgba(232, 194, 117, 0.35),
+    0 12px 28px -6px rgba(232, 194, 117, 0.55),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.5),
+    inset 0 -1px 0 0 rgba(138, 100, 32, 0.35);
+}
+.choice-btn--selected:hover {
+  box-shadow:
+    0 0 48px 6px rgba(232, 194, 117, 0.45),
+    0 16px 36px -6px rgba(232, 194, 117, 0.7),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.55),
+    inset 0 -1px 0 0 rgba(138, 100, 32, 0.4);
+}
+
 /* Variante "primary" â€” comeÃ§a neutra (igual ghost), sÃ³ "acende" dourada
    no hover. Evita que o cÃ©rebro prÃ©-ative o "Sim" antes do usuÃ¡rio decidir. */
 .choice-btn--primary:hover {
@@ -1724,4 +1744,62 @@ html {
 }
 .glass-tile-3d:hover .icon-3d-soft {
   transform: translateY(-2px) scale(1.06);
+}
+
+/* ─── Resumo dock — animação macOS-like ─── */
+.resumo-dock-preview {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  right: 0;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(8px) scale(0.85);
+  transform-origin: bottom right;
+  transition:
+    opacity 280ms cubic-bezier(0.34, 1.46, 0.5, 1),
+    transform 320ms cubic-bezier(0.34, 1.46, 0.5, 1);
+  filter: drop-shadow(0 16px 32px rgba(0, 0, 0, 0.55));
+}
+.resumo-dock:hover .resumo-dock-preview {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+.resumo-dock-preview-card {
+  min-width: 220px;
+  max-width: 280px;
+  border-radius: 16px;
+  padding: 14px 16px;
+  background: rgba(10, 18, 36, 0.92);
+  border: 1px solid rgba(232, 194, 117, 0.32);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 236, 194, 0.16),
+    0 0 24px rgba(232, 194, 117, 0.18);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+}
+/* Setinha apontando pro botão (estilo dock macOS) */
+.resumo-dock-preview-card::after {
+  content: "";
+  position: absolute;
+  bottom: -6px;
+  right: 36px;
+  width: 12px;
+  height: 12px;
+  background: rgba(10, 18, 36, 0.92);
+  border-right: 1px solid rgba(232, 194, 117, 0.32);
+  border-bottom: 1px solid rgba(232, 194, 117, 0.32);
+  transform: rotate(45deg);
+}
+
+/* Bounce sutil no botão principal quando dock abre */
+.resumo-dock:hover .floating-resumo {
+  transform:
+    perspective(600px)
+    rotateY(calc((var(--mx, 50) - 50) * 0.1deg))
+    rotateX(calc((50 - var(--my, 50)) * 0.1deg))
+    translateZ(4px) translateY(-3px) scale(1.04);
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.6),
+    0 0 32px rgba(232, 194, 117, 0.35);
 }

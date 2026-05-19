@@ -699,9 +699,137 @@ Antes de declarar um app no padrão Aionscorp:
 
 ---
 
+### Dock flutuante macOS-like (preview ao hover)
+
+Botão fixed canto inferior que, ao hover, revela card-preview acima com lista compacta + setinha tipo callout do dock macOS. Click no botão abre dialog completo.
+
+Pattern usado pelo `ResumoSessao` em `/atestados` (`src/features/atestados/ResumoSessao.tsx`). Aplicável a qualquer botão fixed que acumula estado (carrinho, fila, contador de notificações).
+
+#### Estrutura HTML
+
+```jsx
+<div className="resumo-dock group fixed bottom-6 right-6 z-40">
+  <div className="resumo-dock-preview">
+    <div className="resumo-dock-preview-card">
+      <p className="text-[9px] uppercase tracking-[0.28em] text-amber-100/65">
+        Sessão · {total} docs
+      </p>
+      <ul className="mt-2 space-y-1.5">
+        {grupos.slice(0, 4).map((g) => (
+          <li key={g.id} className="flex items-center justify-between gap-3 text-xs text-white/85">
+            <span className="truncate">{g.nome}</span>
+            <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-100">
+              {g.count}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 text-[9px] uppercase tracking-[0.22em] text-amber-100/55">
+        Clique pra abrir
+      </p>
+    </div>
+  </div>
+
+  <button onClick={onAbrir} className="floating-resumo ...">
+    {/* botão flutuante padrão */}
+  </button>
+</div>
+```
+
+#### CSS (cole em `index.css`)
+
+```css
+.resumo-dock-preview {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  right: 0;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(8px) scale(0.85);
+  transform-origin: bottom right;
+  transition:
+    opacity 280ms cubic-bezier(0.34, 1.46, 0.5, 1),
+    transform 320ms cubic-bezier(0.34, 1.46, 0.5, 1);
+  filter: drop-shadow(0 16px 32px rgba(0, 0, 0, 0.55));
+}
+.resumo-dock:hover .resumo-dock-preview {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+.resumo-dock-preview-card {
+  min-width: 220px;
+  max-width: 280px;
+  border-radius: 16px;
+  padding: 14px 16px;
+  background: rgba(10, 18, 36, 0.92);
+  border: 1px solid rgba(232, 194, 117, 0.32);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 236, 194, 0.16),
+    0 0 24px rgba(232, 194, 117, 0.18);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+}
+/* Setinha apontando pro botão (estilo callout dock) */
+.resumo-dock-preview-card::after {
+  content: "";
+  position: absolute;
+  bottom: -6px;
+  right: 36px;
+  width: 12px;
+  height: 12px;
+  background: rgba(10, 18, 36, 0.92);
+  border-right: 1px solid rgba(232, 194, 117, 0.32);
+  border-bottom: 1px solid rgba(232, 194, 117, 0.32);
+  transform: rotate(45deg);
+}
+/* Magnification — botão "respira" quando dock abre */
+.resumo-dock:hover .floating-resumo {
+  transform:
+    perspective(600px)
+    rotateY(calc((var(--mx, 50) - 50) * 0.1deg))
+    rotateX(calc((50 - var(--my, 50)) * 0.1deg))
+    translateZ(4px) translateY(-3px) scale(1.04);
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.6),
+    0 0 32px rgba(232, 194, 117, 0.35);
+}
+```
+
+#### Regras críticas
+
+- **`transform-origin: bottom right`** — card cresce do canto inferior direito (origem do botão). Sem isso vira fade simples sem efeito dock.
+- **`cubic-bezier(0.34, 1.46, 0.5, 1)`** — overshoot leve (max 1.46) simula spring do macOS sem virar bobby spring. Easing diferente pra opacity (280ms) e transform (320ms) cria "ele se ilumina antes de chegar".
+- **`pointer-events: none` no estado fechado** — preview não bloqueia cliques no que está atrás.
+- **`pointer-events: auto` ao abrir** — recupera clicabilidade pra usuário interagir com preview sem fechar.
+- **Setinha via `::after rotate(45deg)`** — triangle CSS clássico mas com `border-right + border-bottom` (não `solid`) pra integrar com o glass border do card.
+- **Magnification do botão (`scale 1.04 + translateZ`)** — segue mesma física dos tiles 3D do projeto. Não exagerar (acima de 1.08 vira cartoonish).
+- **Filter `drop-shadow` no preview** — projeta sombra respeitando bordas arredondadas do card. Diferente de `box-shadow` que cria caixa retangular invisível.
+
+#### Quando usar / não usar
+
+**Use:**
+- Botão fixed com contador (carrinho, fila, sessão acumulada, notificações)
+- Conteúdo do preview cabe em ~280px width / 4-5 itens
+- Click no botão abre experiência completa (dialog/painel)
+
+**Não use:**
+- Conteúdo precisa de mais que 5 linhas → vira painel, não preview
+- Botão único não-fixed sem acúmulo (use Tooltip do Radix)
+- Mobile only — hover não existe em touch (fallback: tap mostra preview, second tap abre)
+
+#### Variações sugeridas
+
+- **Tom violet** pra notificações: trocar `rgba(232, 194, 117, *)` → `rgba(167, 143, 255, *)` em border/glow/badge.
+- **Esquerda em vez de direita**: invertir `transform-origin: bottom left` + `left: 0` no preview + setinha em `left: 36px`.
+- **Pulse on add**: combinar com `@keyframes pulse-add` (ver `src/index.css`) — animação dispara via classe condicional quando contador incrementa.
+
+---
+
 ## 12. Referências externas inspiradoras
 
 - Apple "Liquid Glass" (WWDC 2025) — efeito-mãe
+- Apple macOS Dock — magnification + spring (pattern do dock flutuante acima)
 - Linear, Raycast — uso disciplinado de glass + dark + accent dourado
 - shadcn/ui — primitives base do design system
 - Radix UI — primitives sem estilo (Dialog, Popover, etc.)
