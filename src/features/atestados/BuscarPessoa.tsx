@@ -63,8 +63,11 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
 export function BuscarPessoa({ tipoTrabalhador, onSelecionar }: Props) {
   const [valor, setValor] = useState("")
   const [expandido, setExpandido] = useState(false)
-  const intermitente = useBuscarEmpregado(valor)
-  const celetista = useBuscarCeletista(valor)
+  // Só dispara o hook do modo ativo — evita request duplicada no endpoint
+  // não usado quando troca de modo.
+  const ehCLT = tipoTrabalhador === "clt"
+  const intermitente = useBuscarEmpregado(ehCLT ? "" : valor)
+  const celetista = useBuscarCeletista(ehCLT ? valor : "")
   const ativo = tipoTrabalhador === "clt" ? celetista.ativo : intermitente.ativo
   const data = tipoTrabalhador === "clt" ? celetista.data : intermitente.data
   const isFetching =
