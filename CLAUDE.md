@@ -2,9 +2,32 @@
 
 App web pra **gerenciar convocações de intermitentes** no monday: cria convocação, registra ocorrências dia-a-dia (faltou/atrasou) e permite correção via protocolo. Acesso via link único da convocação (registrar ocorrência) ou via **hub principal** (criar convocação / corrigir).
 
-## Estado atual do projeto (2026-05)
+## Estado atual do projeto (2026-05-19)
 
-**Funcionando end-to-end (mock + real, produção na VM):**
+### Iterações recentes consolidadas
+
+- **`/atestados` standalone** com modos Intermitente e CLT, ambos via busca RM (não tem mais input manual de nome CLT).
+- **Form alinhado ao board Atestado Ponta** (`18298015951`, view `223887647`) — 13 campos do formulário oficial monday: nome (RM), modalidade contrato (auto INTERMITENTE/CELETISTA), tipo doc (19 opções, GlassSelect com busca), dias atestado (calculado), saída/retorno (texto + chips exemplos), almoço (Tirou/Não tirou/NDA), emissão (= dataInicio), acompanhante (opcional, default Sem acompanhamento), contrato colaborador (8 opções), unidade condicional por contrato (CETAM/DETRAN/SEMSA/COORDENADORIAS/INTERIOR/ESCOLA com fallback "UNIDADE NÃO ENCONTRADA" + texto livre), arquivos (PDF/JPG/PNG/HEIC 15MB), observação (opcional).
+- **Cálculo de desconto VR/VT saiu do WF Lancar Documentos** — agora apenas cria item no board Controle de Atestados + anexa arquivo. Automação futura separada cruzará atestado×convocação pra calcular desconto VR/VT.
+- **Calendário restrito ao mês corrente** (sem nav prev/next). Click data inicial → dialog "quantos dias?" 1-60. Dias com convocação ativa ganham ponto verde discreto (intermitente only). Cor âmbar pro range selecionado; halo verde sobreposto quando dia de atestado coincide com convocação.
+- **Removido**: `EtapaIdentificacaoCLT` (input manual), `EtapaPerguntasPrimeiroDia` (foi trabalhar/6h), `PainelConvocacoes` (era etapa pra escolher convocação), campo Emissão editável separado.
+- **Resumo flutuante (dock macOS-like)**: botão "Resumo (N)" canto inferior direito; hover expande preview-card pra cima com lista de pessoas adicionadas; click abre dialog modal completo. Animação spring `cubic-bezier(0.34, 1.46, 0.5, 1)`.
+- **Flicker fixes** (`src/index.css`): texto de ChoiceButton/glass-tile-3d ganha `translateZ(0)` + `backface-visibility: hidden` (não pisca quando pai tilta 3D); `.slide-stack-animating` mata animation em todos descendentes (não só `fade-up`); `.icon-3d-only` drop-shadow estático (era recalculado a cada frame).
+- **BuscarPessoa otimizado**: hook do modo NÃO ativo passa query vazia → react-query desabilita fetch → só endpoint do modo ativo dispara request.
+
+### Endpoints n8n consolidados (2026-05-19)
+
+| Endpoint | Quem chama | Estado |
+|---|---|---|
+| `GET /convocar-buscar-empregado?nome=` | `/convocar` e `/atestados` (modo intermitente) | WF8 estável (`BEN 2`, filtra `CODCATEGORIAESOCIAL=111`) |
+| `GET /celetista-buscar-empregado?nome=` | `/atestados` (modo CLT) | Webhook ativo. HTTP Request pro RM precisa ajuste de método/URL (Codex pendente). SQL nomeada no RM filtra `CODCATEGORIAESOCIAL <> '111'` + `CODSITUACAO <> 'D'`. |
+| `GET /intermitente-convocacoes-empregado?chapa=&mes=` | `/atestados` (intermitente, visual only) | Funcionando. Frontend usa só pra ponto verde. |
+| `POST /intermitente-lancar-documentos` (multipart) | `/atestados` (ambos modos) | Funcionando. Backend só cria item Controle. Desconto = automação futura. |
+| `POST /intermitente-finalizar` (JSON) | `/preencher` | JSON-only sem atestado. |
+| `POST /intermitente-convocar` (multipart) | `/convocar` | WF7 estável. |
+| `POST /intermitente-cancelar-convocacao` | `/preencher` cancelamento | Estável. |
+
+### Funcionando end-to-end (mock + real, produção na VM):
 
 ### Frontend (SPA React)
 - **Hub principal** (`/`) — eyebrow `ClipboardCheck` + título display "Escolha o próximo passo" + 3 tiles `glass-tile-3d` (Nova convocação / Atestados e declarações / Atualizar ocorrência) com tilt 3D no mousemove. Rodapé com link discreto "Abrir testes" → `/teste`. Actions vêm de array tipado com `tone: "blue" | "amber" | "gold"`.
