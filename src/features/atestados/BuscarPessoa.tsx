@@ -9,11 +9,13 @@ import {
 } from "lucide-react"
 
 import { useBuscarEmpregado } from "@/features/convocar/useConvocacao"
-import type { EmpregadoRM } from "./types"
+import { useBuscarCeletista } from "./useAtestados"
+import type { EmpregadoRM, TipoTrabalhador } from "./types"
 
 const VISIVEIS = 3
 
 type Props = {
+  tipoTrabalhador: TipoTrabalhador
   onSelecionar: (empregado: EmpregadoRM) => void
 }
 
@@ -58,10 +60,17 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
   )
 }
 
-export function BuscarPessoa({ onSelecionar }: Props) {
+export function BuscarPessoa({ tipoTrabalhador, onSelecionar }: Props) {
   const [valor, setValor] = useState("")
   const [expandido, setExpandido] = useState(false)
-  const { data, isFetching, isError, ativo } = useBuscarEmpregado(valor)
+  const intermitente = useBuscarEmpregado(valor)
+  const celetista = useBuscarCeletista(valor)
+  const ativo = tipoTrabalhador === "clt" ? celetista.ativo : intermitente.ativo
+  const data = tipoTrabalhador === "clt" ? celetista.data : intermitente.data
+  const isFetching =
+    tipoTrabalhador === "clt" ? celetista.isFetching : intermitente.isFetching
+  const isError =
+    tipoTrabalhador === "clt" ? celetista.isError : intermitente.isError
   const resultados = useMemo(() => data ?? [], [data])
   const visiveis = expandido ? resultados : resultados.slice(0, VISIVEIS)
   const ocultos = Math.max(0, resultados.length - VISIVEIS)
@@ -84,11 +93,17 @@ export function BuscarPessoa({ onSelecionar }: Props) {
         Aionscorp · Atestados e declarações
       </p>
       <h1 className="text-display mt-3 text-5xl leading-[1.05] text-white">
-        Buscar <em className="italic text-[#e8c275]">intermitente</em>
+        Buscar{" "}
+        <em
+          className={`italic ${tipoTrabalhador === "clt" ? "text-[#b6a4ff]" : "text-[#e8c275]"}`}
+        >
+          {tipoTrabalhador === "clt" ? "celetista" : "intermitente"}
+        </em>
       </h1>
       <p className="mt-4 max-w-md text-sm leading-relaxed text-white/65">
-        Digite parte do nome para localizar o intermitente no RM. Em seguida,
-        escolha a convocação onde o documento será lançado.
+        Digite parte do nome para localizar o{" "}
+        {tipoTrabalhador === "clt" ? "celetista" : "intermitente"} no RM.
+        Selecione um resultado para preencher os dados pessoais.
       </p>
 
       <div className="mt-8">

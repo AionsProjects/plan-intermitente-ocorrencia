@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react"
 import {
-  addMonths,
   endOfMonth,
   endOfWeek,
   format,
@@ -8,12 +7,12 @@ import {
   parseISO,
   startOfMonth,
   startOfWeek,
-  subMonths,
 } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import {
   ArrowLeft,
   Building2,
+  CalendarClock,
   ChevronRight,
   ClipboardPaste,
   Pencil,
@@ -21,16 +20,23 @@ import {
   Upload,
 } from "lucide-react"
 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+
 import { SlideStack, type SlideDirection } from "@/components/SlideStack"
 
 import { ChoiceButton } from "./ChoiceButton"
+import { useConvocacoesEmpregado } from "./useAtestados"
 import {
   DOC_ACCEPT,
   DOC_MAX_BYTES,
   criarIdLocal,
-  dataDentroPeriodo,
   formatarBytes,
-  isDomingoIso,
   isSabadoIso,
   listarDiasPeriodo,
 } from "./shared"
@@ -51,7 +57,6 @@ import {
 } from "./opcoesAtestadoForm"
 import type {
   ConvocacaoResumida,
-  DocumentoExistente,
   DocumentoLancamento,
   EmpregadoRM,
 } from "./types"
@@ -68,7 +73,6 @@ type Props = {
 }
 
 type Etapa =
-  | { tipo: "identificacao-clt" } // só CLT — pede nome + contrato
   | { tipo: "tipo-doc" }
   | { tipo: "calendario" }
   | { tipo: "dados-trabalho" }
@@ -78,7 +82,6 @@ type Etapa =
   | { tipo: "preview" }
 
 const ORDEM: Record<Etapa["tipo"], number> = {
-  "identificacao-clt": 0,
   "tipo-doc": 1,
   calendario: 2,
   "dados-trabalho": 3,
@@ -108,32 +111,6 @@ function sabadosAtivosDaConvocacao(conv: ConvocacaoResumida): string[] {
   return out
 }
 
-function diasCobertosPorDocsExistentes(
-  docsExistentes: DocumentoExistente[],
-): Map<string, DocumentoExistente[]> {
-  const map = new Map<string, DocumentoExistente[]>()
-  for (const d of docsExistentes) {
-    for (const dia of listarDiasPeriodo(d.dataInicio, d.dataFim)) {
-      map.set(dia, [...(map.get(dia) ?? []), d])
-    }
-  }
-  return map
-}
-
-function diasCobertosPorSessao(
-  documentosSessao: DocumentoLancamento[],
-  uuidConvocacao: string,
-): Map<string, DocumentoLancamento[]> {
-  const map = new Map<string, DocumentoLancamento[]>()
-  for (const d of documentosSessao) {
-    if (d.uuidConvocacao !== uuidConvocacao) continue
-    for (const dia of listarDiasPeriodo(d.dataInicio, d.dataFim)) {
-      map.set(dia, [...(map.get(dia) ?? []), d])
-    }
-  }
-  return map
-}
-
 type Draft = {
   // identidade (CLT preenche; intermitente vem da convocação)
   empregadoNome: string
@@ -142,6 +119,7 @@ type Draft = {
   tipoDocumentacaoLabel: TipoDocumentacaoLabel | ""
   dataInicio: string
   dataFim: string
+  /** Emissão sempre = dataInicio; campo mantido só pra compat com draftInicial. */
   emissaoAtestado: string
   // trabalho
   saidaRetornoTexto: string
@@ -156,7 +134,7 @@ type Draft = {
 }
 
 function draftInicial(
-  modo: ModoWizard,
+  _modo: ModoWizard,
   empregado: EmpregadoRM | null,
   convocacao: ConvocacaoResumida | null,
 ): Draft {
@@ -165,7 +143,7 @@ function draftInicial(
     (c) => c.label === contratoConv.toUpperCase(),
   )
   return {
-    empregadoNome: modo === "clt" ? "" : empregado?.nome ?? "",
+    empregadoNome: empregado?.nome ?? "",
     contratoColaborador: contratoValido
       ? (contratoValido.label as ContratoColaboradorLabel)
       : "",
@@ -183,6 +161,7 @@ function draftInicial(
   }
 }
 
+
 export function WizardDocumento({
   modo,
   empregado,
@@ -191,8 +170,7 @@ export function WizardDocumento({
   onCancelar,
   onAdicionar,
 }: Props) {
-  const etapaInicial: Etapa =
-    modo === "clt" ? { tipo: "identificacao-clt" } : { tipo: "tipo-doc" }
+  const etapaInicial: Etapa = { tipo: "tipo-doc" }
   const [etapa, setEtapa] = useState<Etapa>(etapaInicial)
   const [direcao, setDirecao] = useState<SlideDirection>("forward")
   const [draft, setDraft] = useState<Draft>(() =>
@@ -203,21 +181,31 @@ export function WizardDocumento({
     () => (convocacao ? sabadosAtivosDaConvocacao(convocacao) : []),
     [convocacao],
   )
-  const docsExistentesPorDia = useMemo(
-    () =>
-      convocacao
-        ? diasCobertosPorDocsExistentes(convocacao.documentosExistentes)
-        : new Map<string, DocumentoExistente[]>(),
-    [convocacao],
-  )
-  const sessaoPorDia = useMemo(
-    () =>
-      convocacao
-        ? diasCobertosPorSessao(documentosSessao, convocacao.uuid)
-        : new Map<string, DocumentoLancamento[]>(),
-    [documentosSessao, convocacao],
-  )
 
+  // Busca convocações do empregado pra marcar dias de trabalho no calendário
+  // (ponto verde). Backend cruza atestado×convocação no envio final.
+  const mesAtual = (() => {
+    const hoje = new Date()
+    return `${hoje.getUTCFullYear()}-${String(hoje.getUTCMonth() + 1).padStart(2, "0")}`
+  })()
+  const convocacoesQuery = useConvocacoesEmpregado(
+    modo === "intermitente" && empregado?.chapa ? empregado.chapa : "",
+    mesAtual,
+  )
+  const diasConvocados = useMemo(() => {
+    if (modo !== "intermitente") return new Set<string>()
+    const convs = convocacoesQuery.data ?? []
+    const set = new Set<string>()
+    for (const c of convs) {
+      // Ignora convocações canceladas / bloqueadas
+      const status = (c.statusConvocacao ?? "").toLowerCase()
+      if (status.includes("cancel") || status.includes("bloque")) continue
+      for (const dia of listarDiasPeriodo(c.dataInicio, c.dataFim)) {
+        set.add(dia)
+      }
+    }
+    return set
+  }, [modo, convocacoesQuery.data])
   function ir(nova: Etapa) {
     const novaOrdem = ORDEM[nova.tipo]
     const atualOrdem = ORDEM[etapa.tipo]
@@ -229,9 +217,6 @@ export function WizardDocumento({
     if (etapa.tipo === etapaInicial.tipo) {
       onCancelar()
       return
-    }
-    if (etapa.tipo === "tipo-doc" && modo === "clt") {
-      return ir({ tipo: "identificacao-clt" })
     }
     if (etapa.tipo === "calendario") return ir({ tipo: "tipo-doc" })
     if (etapa.tipo === "dados-trabalho") return ir({ tipo: "calendario" })
@@ -250,54 +235,22 @@ export function WizardDocumento({
     return !!unidadeColumnIdParaContrato(contrato)
   }
 
-  // Validações (modo intermitente — CLT pula bloqueios de docExistentes)
-  function diaTemAtestadoBloqueante(dia: string): boolean {
-    if (modo === "clt") return false
-    const existentes = docsExistentesPorDia.get(dia) ?? []
-    if (existentes.some((d) => d.tipoDocumento === "atestado")) return true
-    const sessao = sessaoPorDia.get(dia) ?? []
-    if (sessao.some((d) => d.tipoDocumento === "atestado")) return true
-    return false
-  }
-
   function diaPermitido(dia: string): { ok: boolean; motivo?: string } {
-    if (modo === "clt") {
-      // CLT só bloqueia dias sobrepostos na sessão atual mesmo nome.
-      if (
-        documentosSessao.some(
-          (d) =>
-            d.modalidadeContrato === "CELETISTA" &&
-            d.empregadoNome.trim().toUpperCase() ===
-              draft.empregadoNome.trim().toUpperCase() &&
-            dia >= d.dataInicio &&
-            dia <= d.dataFim,
-        )
-      ) {
-        return { ok: false, motivo: "Já há documento nesta data para esta pessoa." }
+    // Intermitente e CLT agora ambos vêm do RM com chapa.
+    // Bloqueia só conflito local: mesma chapa + mesma modalidade já cobrindo
+    // o dia na sessão atual. Backend valida o resto.
+    if (empregado?.chapa) {
+      const modalidade = modo === "clt" ? "CELETISTA" : "INTERMITENTE"
+      const colide = documentosSessao.some(
+        (d) =>
+          d.modalidadeContrato === modalidade &&
+          d.chapa === empregado.chapa &&
+          dia >= d.dataInicio &&
+          dia <= d.dataFim,
+      )
+      if (colide) {
+        return { ok: false, motivo: "Já há documento nesta data para esta chapa na sessão." }
       }
-      return { ok: true }
-    }
-    if (!convocacao) return { ok: false, motivo: "Sem convocação." }
-    if (!dataDentroPeriodo(dia, convocacao.dataInicio, convocacao.dataFim)) {
-      return { ok: false, motivo: "Fora do período da convocação." }
-    }
-    if (isDomingoIso(dia)) {
-      return { ok: false, motivo: "Domingo não conta na convocação." }
-    }
-    if (isSabadoIso(dia) && !sabadosAtivos.includes(dia)) {
-      return { ok: false, motivo: "Sábado não está ativo nesta convocação." }
-    }
-    if (diaTemAtestadoBloqueante(dia)) {
-      return { ok: false, motivo: "Já existe atestado neste dia." }
-    }
-    return { ok: true }
-  }
-
-  function rangeValido(inicio: string, fim: string): { ok: boolean; motivo?: string } {
-    const dias = listarDiasPeriodo(inicio, fim)
-    for (const d of dias) {
-      const r = diaPermitido(d)
-      if (!r.ok) return { ok: false, motivo: `${d}: ${r.motivo}` }
     }
     return { ok: true }
   }
@@ -329,7 +282,7 @@ export function WizardDocumento({
       diasAtestado: diffDias(draft.dataInicio, draft.dataFim),
       dataInicio: draft.dataInicio,
       dataFim: draft.dataFim,
-      emissaoAtestado: draft.emissaoAtestado || draft.dataInicio,
+      emissaoAtestado: draft.dataInicio,
       saidaRetornoTexto: draft.saidaRetornoTexto,
       horarioAlmocoLabel: draft.horarioAlmocoLabel,
       acompanhanteLabel: draft.acompanhanteLabel,
@@ -347,15 +300,6 @@ export function WizardDocumento({
   }
 
   function renderEtapa(): React.ReactNode {
-    if (etapa.tipo === "identificacao-clt") {
-      return (
-        <EtapaIdentificacaoCLT
-          draft={draft}
-          onChange={setDraft}
-          onContinuar={() => ir({ tipo: "tipo-doc" })}
-        />
-      )
-    }
     if (etapa.tipo === "tipo-doc") {
       return (
         <EtapaTipoDocumentacao
@@ -368,24 +312,23 @@ export function WizardDocumento({
       )
     }
     if (etapa.tipo === "calendario") {
-      const tituloMin = convocacao?.dataInicio ?? "2024-01-01"
       const ehDiaUnico =
         draft.tipoDocumentacaoLabel === "Declaração Médica" ||
         draft.tipoDocumentacaoLabel === "Declaração Acompanhamento"
       return (
         <EtapaCalendario
-          tituloMin={tituloMin}
-          modo={modo}
-          convocacao={convocacao}
           ehDiaUnico={ehDiaUnico}
           diaPermitido={diaPermitido}
-          rangeValido={rangeValido}
+          diasConvocados={diasConvocados}
+          carregandoConvocacoes={
+            modo === "intermitente" ? convocacoesQuery.isFetching : false
+          }
+          mostraConvocacao={modo === "intermitente"}
           onConfirmar={(di, df) => {
             setDraft((p) => ({
               ...p,
               dataInicio: di,
               dataFim: df,
-              emissaoAtestado: p.emissaoAtestado || di,
             }))
             ir({ tipo: "dados-trabalho" })
           }}
@@ -454,43 +397,68 @@ export function WizardDocumento({
         className="mb-5 inline-flex items-center gap-1.5 text-xs text-white/55 transition hover:text-white/85"
       >
         <ArrowLeft className="size-3.5" />
-        {etapa.tipo === etapaInicial.tipo
-          ? modo === "clt"
-            ? "Sair"
-            : "Trocar convocação"
-          : "Voltar"}
+        {etapa.tipo === etapaInicial.tipo ? "Trocar pessoa" : "Voltar"}
       </button>
 
-      {modo === "intermitente" && convocacao && (
-        <div className="mb-5 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs text-white/65 backdrop-blur">
-          <p className="truncate">
-            <span className="text-white/90">{empregado?.nome ?? "—"}</span>
-            {" · "}
-            <span className="text-white/55">
-              {format(parseISO(convocacao.dataInicio), "dd/MM", { locale: ptBR })}
-              {" — "}
-              {format(parseISO(convocacao.dataFim), "dd/MM", { locale: ptBR })}
+      {modo === "intermitente" && empregado && (
+        <div className="mb-5 rounded-2xl border border-amber-300/25 bg-amber-300/[0.04] px-4 py-3 backdrop-blur">
+          <div className="flex items-center gap-2">
+            <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.22em] text-amber-100">
+              Intermitente · RM
             </span>
-            {" · "}
-            <span className="text-white/55">{convocacao.contrato}</span>
-          </p>
+            <span className="truncate text-sm font-medium text-white/95">
+              {empregado.nome}
+            </span>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-white/60">
+            <span>
+              Chapa <strong className="text-white/85">{empregado.chapa || "—"}</strong>
+            </span>
+            {empregado.funcao && (
+              <span className="text-white/45">·</span>
+            )}
+            {empregado.funcao && <span>{empregado.funcao}</span>}
+            {empregado.secao && (
+              <span className="text-white/45">·</span>
+            )}
+            {empregado.secao && (
+              <span>Seção <span className="text-white/75">{empregado.secao}</span></span>
+            )}
+            {empregado.admissao && (
+              <span className="text-white/45">·</span>
+            )}
+            {empregado.admissao && (
+              <span>Adm. <span className="text-white/75">{empregado.admissao}</span></span>
+            )}
+          </div>
         </div>
       )}
 
-      {modo === "clt" && etapa.tipo !== "identificacao-clt" && draft.empregadoNome && (
-        <div className="mb-5 rounded-2xl border border-violet-300/25 bg-violet-300/[0.05] px-4 py-3 text-xs text-violet-100 backdrop-blur">
-          <p className="truncate">
-            <span className="rounded-full border border-violet-300/30 bg-violet-300/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.22em]">
-              CLT
-            </span>{" "}
-            <span className="ml-2 text-white/90">{draft.empregadoNome}</span>
-            {draft.contratoColaborador && (
-              <>
-                {" · "}
-                <span className="text-white/55">{draft.contratoColaborador}</span>
-              </>
+      {modo === "clt" && empregado && (
+        <div className="mb-5 rounded-2xl border border-violet-300/25 bg-violet-300/[0.04] px-4 py-3 backdrop-blur">
+          <div className="flex items-center gap-2">
+            <span className="rounded-full border border-violet-300/30 bg-violet-300/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.22em] text-violet-100">
+              CLT · RM
+            </span>
+            <span className="truncate text-sm font-medium text-white/95">
+              {empregado.nome}
+            </span>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-white/60">
+            <span>
+              Chapa <strong className="text-white/85">{empregado.chapa || "—"}</strong>
+            </span>
+            {empregado.funcao && <span className="text-white/45">·</span>}
+            {empregado.funcao && <span>{empregado.funcao}</span>}
+            {empregado.secao && <span className="text-white/45">·</span>}
+            {empregado.secao && (
+              <span>Seção <span className="text-white/75">{empregado.secao}</span></span>
             )}
-          </p>
+            {empregado.admissao && <span className="text-white/45">·</span>}
+            {empregado.admissao && (
+              <span>Adm. <span className="text-white/75">{empregado.admissao}</span></span>
+            )}
+          </div>
         </div>
       )}
 
@@ -504,85 +472,6 @@ export function WizardDocumento({
 // ============================================================================
 // ETAPAS
 // ============================================================================
-
-function EtapaIdentificacaoCLT({
-  draft,
-  onChange,
-  onContinuar,
-}: {
-  draft: Draft
-  onChange: (next: Draft | ((p: Draft) => Draft)) => void
-  onContinuar: () => void
-}) {
-  const valido =
-    draft.empregadoNome.trim().length >= 3 && !!draft.contratoColaborador
-
-  return (
-    <div>
-      <p className="text-[11px] uppercase tracking-[0.32em] text-violet-200/85">
-        CLT · Identificação
-      </p>
-      <h2 className="text-display mt-3 text-4xl leading-[1.05] text-white">
-        Quem é o <em className="italic text-[#b6a4ff]">colaborador</em>?
-      </h2>
-      <p className="mt-3 max-w-md text-sm leading-relaxed text-white/65">
-        Digite o nome completo do celetista e selecione o contrato. CLT não tem
-        cadastro no RM — operacional preenche manualmente.
-      </p>
-
-      <div className="mt-7 space-y-4">
-        <div>
-          <label className="text-[10px] uppercase tracking-[0.3em] text-white/55">
-            Nome do Colaborador
-          </label>
-          <input
-            type="text"
-            autoFocus
-            maxLength={255}
-            value={draft.empregadoNome}
-            onChange={(e) =>
-              onChange((p) => ({
-                ...p,
-                empregadoNome: e.target.value.toUpperCase(),
-              }))
-            }
-            placeholder="NOME COMPLETO EM MAIÚSCULO"
-            className="mt-3 w-full rounded-2xl border border-white/12 bg-white/[0.04] px-4 py-3 text-white placeholder:text-white/30 focus:border-violet-300/50 focus:outline-none"
-          />
-        </div>
-
-        <div>
-          <label className="text-[10px] uppercase tracking-[0.3em] text-white/55">
-            Contrato do Colaborador
-          </label>
-          <SelectGlass
-            valor={draft.contratoColaborador}
-            opcoes={CONTRATOS_COLABORADOR.map((c) => c.label)}
-            placeholder="Selecione o contrato"
-            onChange={(v) =>
-              onChange((p) => ({
-                ...p,
-                contratoColaborador: v as ContratoColaboradorLabel,
-                unidadeLabel: null,
-                unidadeNaoEncontradaTexto: "",
-              }))
-            }
-          />
-        </div>
-      </div>
-
-      <div className="mt-7 flex justify-end">
-        <ChoiceButton
-          variant="primary"
-          disabled={!valido}
-          onClick={() => valido && onContinuar()}
-        >
-          Próximo
-        </ChoiceButton>
-      </div>
-    </div>
-  )
-}
 
 function EtapaTipoDocumentacao({
   atual,
@@ -617,67 +506,80 @@ function EtapaTipoDocumentacao({
 }
 
 function EtapaCalendario({
-  tituloMin,
-  modo,
-  convocacao,
   ehDiaUnico,
   diaPermitido,
-  rangeValido,
+  diasConvocados,
+  carregandoConvocacoes,
+  mostraConvocacao,
   onConfirmar,
 }: {
-  tituloMin: string
-  modo: ModoWizard
-  convocacao: ConvocacaoResumida | null
   ehDiaUnico: boolean
   diaPermitido: (dia: string) => { ok: boolean; motivo?: string }
-  rangeValido: (i: string, f: string) => { ok: boolean; motivo?: string }
+  diasConvocados: Set<string>
+  carregandoConvocacoes: boolean
+  mostraConvocacao: boolean
   onConfirmar: (dataInicio: string, dataFim: string) => void
 }) {
-  const [inicio, setInicio] = useState<string | null>(null)
-  const [fim, setFim] = useState<string | null>(null)
-  const [mesVisivel, setMesVisivel] = useState(() => parseISO(tituloMin))
+  // Mês corrente é o ÚNICO permitido — operacional não pode lançar atestado
+  // de mês passado nem futuro.
+  const hoje = new Date()
+  const mesAtual = useMemo(() => startOfMonth(hoje), [])
+  const fimMesAtual = useMemo(() => endOfMonth(hoje), [])
+
+  const [diaInicio, setDiaInicio] = useState<string | null>(null)
+  const [dialogAberto, setDialogAberto] = useState(false)
+  const [quantidadeDias, setQuantidadeDias] = useState("1")
+  const [diaFim, setDiaFim] = useState<string | null>(null)
   const [erro, setErro] = useState<string | null>(null)
 
-  const diasDoMes = useMemo(() => {
-    const inicioMes = startOfWeek(startOfMonth(mesVisivel), { weekStartsOn: 0 })
-    const fimMes = endOfWeek(endOfMonth(mesVisivel), { weekStartsOn: 0 })
+  const diasGrade = useMemo(() => {
+    const inicio = startOfWeek(mesAtual, { weekStartsOn: 0 })
+    const fim = endOfWeek(fimMesAtual, { weekStartsOn: 0 })
     const out: Date[] = []
-    const d = new Date(inicioMes)
-    while (d <= fimMes) {
+    const d = new Date(inicio)
+    while (d <= fim) {
       out.push(new Date(d))
       d.setDate(d.getDate() + 1)
     }
     return out
-  }, [mesVisivel])
+  }, [mesAtual, fimMesAtual])
 
-  function selecionar(iso: string) {
+  function clicarDia(iso: string) {
     setErro(null)
     if (ehDiaUnico) {
-      setInicio(iso)
-      setFim(iso)
+      setDiaInicio(iso)
+      setDiaFim(iso)
       return
     }
-    if (!inicio || (inicio && fim)) {
-      setInicio(iso)
-      setFim(null)
-      return
-    }
-    let i = inicio
-    let f = iso
-    if (iso < inicio) {
-      i = iso
-      f = inicio
-    }
-    const r = rangeValido(i, f)
-    if (!r.ok) {
-      setErro(r.motivo ?? "Range inválido.")
-      setInicio(iso)
-      setFim(null)
-      return
-    }
-    setInicio(i)
-    setFim(f)
+    setDiaInicio(iso)
+    setDiaFim(null)
+    setQuantidadeDias("1")
+    setDialogAberto(true)
   }
+
+  function confirmarQuantidade() {
+    if (!diaInicio) return
+    const n = Math.max(1, Math.min(60, Number(quantidadeDias) || 1))
+    const inicio = new Date(diaInicio + "T00:00:00Z")
+    const fim = new Date(inicio)
+    fim.setUTCDate(fim.getUTCDate() + n - 1)
+    const fimIso = fim.toISOString().slice(0, 10)
+    const fimMesAtualIso = format(fimMesAtual, "yyyy-MM-dd")
+    if (fimIso > fimMesAtualIso) {
+      setErro(
+        `Período passa do mês corrente. Máximo ${fimMesAtualIso}. Reduza a quantidade de dias.`,
+      )
+      return
+    }
+    setDiaFim(fimIso)
+    setDialogAberto(false)
+  }
+
+  // Dias destacados no calendário entre inicio e fim
+  const diasDestacados = useMemo(() => {
+    if (!diaInicio || !diaFim) return new Set<string>()
+    return new Set(listarDiasPeriodo(diaInicio, diaFim))
+  }, [diaInicio, diaFim])
 
   return (
     <div>
@@ -691,39 +593,46 @@ function EtapaCalendario({
           </>
         ) : (
           <>
-            Datas de <em className="italic text-[#e8c275]">cobertura</em>
+            Data de <em className="italic text-[#e8c275]">início</em>
           </>
         )}
       </h2>
       <p className="mt-3 max-w-md text-sm leading-relaxed text-white/65">
-        {modo === "clt"
-          ? "Sem restrição de convocação. Selecione o período do documento."
-          : convocacao
-            ? `Dentro do período da convocação (${format(parseISO(convocacao.dataInicio), "dd/MM")} — ${format(parseISO(convocacao.dataFim), "dd/MM")}).`
-            : "Selecione o período."}
+        {ehDiaUnico
+          ? "Clique no dia do comparecimento."
+          : "Clique na data inicial. O sistema vai perguntar quantos dias de ausência."}
+      </p>
+      <p className="mt-1 text-xs text-white/45">
+        Restrito ao mês corrente · {format(hoje, "MMMM 'de' yyyy", { locale: ptBR })}.
+        {carregandoConvocacoes && " Carregando convocações…"}
       </p>
 
+      <div className="mt-4 flex flex-wrap items-center gap-3 text-[10px] uppercase tracking-[0.18em] text-white/55">
+        {mostraConvocacao && (
+          <span className="inline-flex items-center gap-1.5">
+            <span className="size-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]" />
+            Dia de convocação
+          </span>
+        )}
+        <span className="inline-flex items-center gap-1.5">
+          <span className="size-2 rounded-full bg-amber-300" />
+          Atestado
+        </span>
+        {mostraConvocacao && (
+          <span className="inline-flex items-center gap-1.5">
+            <span className="relative inline-flex size-2 items-center justify-center rounded-full bg-amber-300">
+              <span className="absolute inset-0 rounded-full bg-emerald-400/55" />
+            </span>
+            Atestado + convocação
+          </span>
+        )}
+      </div>
+
       <div className="mt-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => setMesVisivel((m) => subMonths(m, 1))}
-            className="inline-flex size-9 items-center justify-center rounded-xl border border-white/12 bg-white/[0.04] text-white/75 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
-            aria-label="Mês anterior"
-          >
-            <ArrowLeft className="size-4" />
-          </button>
+        <div className="flex items-center justify-center">
           <p className="text-display text-lg capitalize text-white/95">
-            {format(mesVisivel, "MMMM 'de' yyyy", { locale: ptBR })}
+            {format(mesAtual, "MMMM 'de' yyyy", { locale: ptBR })}
           </p>
-          <button
-            type="button"
-            onClick={() => setMesVisivel((m) => addMonths(m, 1))}
-            className="inline-flex size-9 items-center justify-center rounded-xl border border-white/12 bg-white/[0.04] text-white/75 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
-            aria-label="Próximo mês"
-          >
-            <ArrowLeft className="size-4 rotate-180" />
-          </button>
         </div>
 
         <div className="grid grid-cols-7 gap-1">
@@ -735,44 +644,70 @@ function EtapaCalendario({
               {d}
             </div>
           ))}
-          {diasDoMes.map((dia) => {
+          {diasGrade.map((dia) => {
             const iso = format(dia, "yyyy-MM-dd")
-            const permitido = diaPermitido(iso).ok
-            const noMes = isSameMonth(dia, mesVisivel)
-            const selecionado = iso === inicio || iso === fim
-            const noRange = inicio && fim && iso > inicio && iso < fim
+            const noMes = isSameMonth(dia, mesAtual)
+            const permitido = noMes && diaPermitido(iso).ok
+            const ehInicio = iso === diaInicio
+            const noRange = diasDestacados.has(iso) && iso !== diaInicio
+            const ehConvocacao = diasConvocados.has(iso)
+            const ehAtestadoOuRange = ehInicio || noRange
+            const overlap = ehAtestadoOuRange && ehConvocacao
+
+            // Cor por estado:
+            //  - selecionado/range = âmbar (atestado)
+            //  - dias com convocação ganham ponto verde discreto inferior
+            //  - overlap (atestado em dia de convocação) = âmbar + halo verde
+            //    + ponto verde (ainda visível) → mistura visual
+            let cls = ""
+            if (ehInicio) {
+              cls = overlap
+                ? "bg-amber-300 text-[#0a1224] shadow-[0_0_22px_rgba(232,194,117,0.55),inset_0_0_0_1px_rgba(52,211,153,0.65)]"
+                : "bg-amber-300 text-[#0a1224] shadow-[0_0_18px_rgba(232,194,117,0.45)]"
+            } else if (noRange) {
+              cls = overlap
+                ? "bg-amber-300/22 text-amber-100 ring-1 ring-emerald-400/40"
+                : "bg-amber-300/16 text-amber-100"
+            } else if (permitido) {
+              cls = "text-white/90 hover:bg-amber-300/15 hover:text-amber-100 glass-tile-3d-mini"
+            } else if (noMes) {
+              cls = "cursor-not-allowed text-white/18"
+            } else {
+              cls = "cursor-not-allowed text-white/10"
+            }
+
             return (
               <button
                 key={iso}
                 type="button"
                 disabled={!permitido}
-                onClick={() => selecionar(iso)}
-                className={`flex h-10 w-full items-center justify-center rounded-xl text-sm font-medium transition ${
-                  selecionado
-                    ? "bg-amber-300 text-[#0a1224] shadow-[0_0_18px_rgba(232,194,117,0.45)]"
-                    : noRange
-                      ? "bg-amber-300/16 text-amber-100"
-                      : permitido
-                        ? "text-white/90 hover:bg-amber-300/15 hover:text-amber-100 glass-tile-3d-mini"
-                        : noMes
-                          ? "cursor-not-allowed text-white/18"
-                          : "cursor-not-allowed text-white/10"
-                }`}
+                onClick={() => clicarDia(iso)}
+                className={`relative flex h-10 w-full items-center justify-center rounded-xl text-sm font-medium transition ${cls}`}
               >
-                {dia.getDate()}
+                <span>{dia.getDate()}</span>
+                {ehConvocacao && noMes && (
+                  <span
+                    aria-label="Convocação ativa"
+                    className={`pointer-events-none absolute bottom-1 left-1/2 size-1.5 -translate-x-1/2 rounded-full ${
+                      ehInicio
+                        ? "bg-emerald-700 shadow-[0_0_6px_rgba(6,95,70,0.6)]"
+                        : ehAtestadoOuRange
+                          ? "bg-emerald-500"
+                          : "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]"
+                    }`}
+                  />
+                )}
               </button>
             )
           })}
         </div>
 
         <p className="text-center text-xs text-white/55">
-          {inicio && fim
-            ? inicio === fim
-              ? format(parseISO(inicio), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
-              : `${format(parseISO(inicio), "dd/MM/yyyy")} a ${format(parseISO(fim), "dd/MM/yyyy")}`
-            : inicio
-              ? "Agora selecione a data final."
-              : "Selecione a data inicial."}
+          {diaInicio && diaFim
+            ? diaInicio === diaFim
+              ? `${format(parseISO(diaInicio), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })} · 1 dia`
+              : `${format(parseISO(diaInicio), "dd/MM")} a ${format(parseISO(diaFim), "dd/MM/yyyy")} · ${diasDestacados.size} dias`
+            : "Selecione a data inicial."}
         </p>
 
         {erro && (
@@ -785,13 +720,133 @@ function EtapaCalendario({
       <div className="mt-6 flex justify-end">
         <ChoiceButton
           variant="primary"
-          disabled={!inicio || !fim}
-          onClick={() => inicio && fim && onConfirmar(inicio, fim)}
+          disabled={!diaInicio || !diaFim}
+          onClick={() => diaInicio && diaFim && onConfirmar(diaInicio, diaFim)}
         >
           Próximo
         </ChoiceButton>
       </div>
+
+      {dialogAberto && diaInicio && (
+        <DialogQuantidadeDias
+          dataInicio={diaInicio}
+          quantidade={quantidadeDias}
+          onChange={setQuantidadeDias}
+          onConfirmar={confirmarQuantidade}
+          onCancelar={() => {
+            setDialogAberto(false)
+            if (!diaFim) setDiaInicio(null)
+          }}
+        />
+      )}
     </div>
+  )
+}
+
+function DialogQuantidadeDias({
+  dataInicio,
+  quantidade,
+  onChange,
+  onConfirmar,
+  onCancelar,
+}: {
+  dataInicio: string
+  quantidade: string
+  onChange: (v: string) => void
+  onConfirmar: () => void
+  onCancelar: () => void
+}) {
+  const n = Number(quantidade) || 0
+  const valido = n >= 1 && n <= 60
+
+  function bump(delta: number) {
+    const novo = Math.max(1, Math.min(60, (n || 0) + delta))
+    onChange(String(novo))
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onCancelar()}>
+      <DialogContent
+        className="glass-modal border-0 bg-transparent p-7 text-white sm:max-w-sm"
+        style={{ backdropFilter: "blur(10px) saturate(140%) brightness(1.05)" }}
+      >
+        <DialogHeader>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex size-7 items-center justify-center rounded-full bg-amber-300/15 ring-1 ring-amber-300/40">
+              <CalendarClock className="size-3.5 text-amber-200" />
+            </span>
+            <p className="text-[10px] uppercase tracking-[0.3em] text-amber-200/85">
+              Período do atestado
+            </p>
+          </div>
+          <DialogTitle className="text-display mt-2 text-2xl text-white">
+            Quantos <em className="italic text-[#e8c275]">dias</em> de ausência?
+          </DialogTitle>
+          <DialogDescription className="text-white/65">
+            Início em{" "}
+            <strong className="text-white">
+              {format(parseISO(dataInicio), "dd 'de' MMMM", { locale: ptBR })}
+            </strong>
+            . O sistema vai destacar todos os dias do atestado no calendário.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="my-2 h-px bg-white/12" />
+
+        <div className="flex items-center justify-center gap-3">
+          <button
+            type="button"
+            aria-label="Diminuir"
+            onClick={() => bump(-1)}
+            disabled={n <= 1}
+            className="glass-tile-3d-mini inline-flex size-11 items-center justify-center rounded-2xl border border-white/12 bg-white/[0.04] text-xl text-white/85 transition hover:border-amber-300/40 hover:bg-amber-300/10 hover:text-amber-100 disabled:opacity-30"
+          >
+            −
+          </button>
+          <input
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            value={quantidade}
+            autoFocus
+            onChange={(e) => onChange(e.target.value.replace(/[^\d]/g, ""))}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && valido) onConfirmar()
+            }}
+            className="w-28 rounded-2xl border border-amber-300/40 bg-amber-300/8 px-3 py-4 text-center text-4xl font-semibold text-amber-100 focus:border-amber-300/80 focus:outline-none focus:ring-2 focus:ring-amber-300/30"
+          />
+          <button
+            type="button"
+            aria-label="Aumentar"
+            onClick={() => bump(1)}
+            disabled={n >= 60}
+            className="glass-tile-3d-mini inline-flex size-11 items-center justify-center rounded-2xl border border-white/12 bg-white/[0.04] text-xl text-white/85 transition hover:border-amber-300/40 hover:bg-amber-300/10 hover:text-amber-100 disabled:opacity-30"
+          >
+            +
+          </button>
+        </div>
+        <p className="mt-2 text-center text-[11px] text-white/45">
+          {n === 1 ? "1 dia" : n > 0 ? `${n} dias` : "Mínimo 1 · máximo 60"}
+        </p>
+
+        <div className="mt-6 flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={onCancelar}
+            className="text-xs text-white/55 transition hover:text-white/85"
+          >
+            Cancelar
+          </button>
+          <ChoiceButton
+            variant="primary"
+            disabled={!valido}
+            onClick={onConfirmar}
+          >
+            Confirmar
+          </ChoiceButton>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -804,12 +859,18 @@ function EtapaDadosTrabalho({
   onChange: (next: Draft | ((p: Draft) => Draft)) => void
   onContinuar: () => void
 }) {
-  const mostraAcompanhante = !!draft.tipoDocumentacaoLabel &&
-    TIPOS_COM_ACOMPANHANTE.has(draft.tipoDocumentacaoLabel as TipoDocumentacaoLabel)
+  // Form Atestado Ponta tem campo "Acompanhante?" NÃO obrigatório → sempre
+  // mostra como opcional. Tipos de acompanhamento ganham destaque (default
+  // sugerido). Demais: default "Sem acompanhamento", operacional pode mudar.
+  const tipoDocAcomp =
+    !!draft.tipoDocumentacaoLabel &&
+    TIPOS_COM_ACOMPANHANTE.has(
+      draft.tipoDocumentacaoLabel as TipoDocumentacaoLabel,
+    )
   const valido =
     draft.saidaRetornoTexto.trim().length > 0 &&
     !!draft.horarioAlmocoLabel &&
-    !!draft.emissaoAtestado
+    !!draft.contratoColaborador
 
   return (
     <div>
@@ -821,6 +882,25 @@ function EtapaDadosTrabalho({
       </h2>
 
       <div className="mt-6 space-y-5">
+        <div>
+          <label className="text-[10px] uppercase tracking-[0.3em] text-white/55">
+            Contrato do colaborador
+          </label>
+          <SelectGlass
+            valor={draft.contratoColaborador}
+            opcoes={CONTRATOS_COLABORADOR.map((c) => c.label)}
+            placeholder="Selecione o contrato"
+            onChange={(v) =>
+              onChange((p) => ({
+                ...p,
+                contratoColaborador: v as ContratoColaboradorLabel,
+                unidadeLabel: null,
+                unidadeNaoEncontradaTexto: "",
+              }))
+            }
+          />
+        </div>
+
         <div>
           <label className="text-[10px] uppercase tracking-[0.3em] text-white/55">
             Saída e/ou retorno ao trabalho
@@ -860,7 +940,7 @@ function EtapaDadosTrabalho({
             {HORARIOS_ALMOCO.map((h) => (
               <ChoiceButton
                 key={h.id}
-                variant={draft.horarioAlmocoLabel === h.label ? "primary" : "ghost"}
+                selected={draft.horarioAlmocoLabel === h.label}
                 onClick={() =>
                   onChange((p) => ({
                     ...p,
@@ -874,35 +954,28 @@ function EtapaDadosTrabalho({
           </div>
         </div>
 
+
         <div>
-          <label className="text-[10px] uppercase tracking-[0.3em] text-white/55">
-            Emissão do atestado
+          <label className="flex items-center gap-2 text-[10px] uppercase tracking-[0.3em] text-white/55">
+            Acompanhante
+            <span className="rounded-full border border-white/15 bg-white/[0.04] px-2 py-0.5 text-[9px] tracking-normal text-white/45">
+              opcional
+            </span>
+            {tipoDocAcomp && (
+              <span className="rounded-full border border-amber-300/40 bg-amber-300/10 px-2 py-0.5 text-[9px] tracking-normal text-amber-100">
+                relevante
+              </span>
+            )}
           </label>
-          <input
-            type="date"
-            value={draft.emissaoAtestado}
-            onChange={(e) =>
-              onChange((p) => ({ ...p, emissaoAtestado: e.target.value }))
+          <SelectGlass
+            valor={draft.acompanhanteLabel}
+            opcoes={ACOMPANHANTES.map((a) => a.label)}
+            placeholder="Sem acompanhamento"
+            onChange={(v) =>
+              onChange((p) => ({ ...p, acompanhanteLabel: v as AcompanhanteLabel }))
             }
-            className="mt-3 w-full rounded-2xl border border-white/12 bg-white/[0.04] px-4 py-3 text-white focus:border-amber-300/50 focus:outline-none"
           />
         </div>
-
-        {mostraAcompanhante && (
-          <div className="fade-up">
-            <label className="text-[10px] uppercase tracking-[0.3em] text-white/55">
-              Acompanhante
-            </label>
-            <SelectGlass
-              valor={draft.acompanhanteLabel}
-              opcoes={ACOMPANHANTES.map((a) => a.label)}
-              placeholder="Selecione"
-              onChange={(v) =>
-                onChange((p) => ({ ...p, acompanhanteLabel: v as AcompanhanteLabel }))
-              }
-            />
-          </div>
-        )}
       </div>
 
       <div className="mt-6 flex justify-end">
@@ -1172,7 +1245,6 @@ function EtapaPreview({
         )}
         <Linha label="Tipo" valor={draft.tipoDocumentacaoLabel} />
         <Linha label="Período" valor={`${periodo} (${dias} ${dias === 1 ? "dia" : "dias"})`} />
-        <Linha label="Emissão" valor={format(parseISO(draft.emissaoAtestado), "dd/MM/yyyy")} />
         <Linha label="Saída/Retorno" valor={draft.saidaRetornoTexto} />
         <Linha label="Almoço" valor={draft.horarioAlmocoLabel} />
         {draft.acompanhanteLabel !== "Sem acompanhamento" && (

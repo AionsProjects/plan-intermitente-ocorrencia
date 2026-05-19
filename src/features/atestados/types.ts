@@ -101,8 +101,6 @@ export type DocumentoLancamento = {
   // ------- legado opcional (declaração antiga) -------
   tipoDocumento?: TipoDocumento
   periodos?: PeriodoTurno[]
-  primeiroDiaFoiTrabalhar?: boolean
-  primeiroDiaTrabalhouSeisHoras?: boolean
 }
 
 export type SessaoLancamento = {

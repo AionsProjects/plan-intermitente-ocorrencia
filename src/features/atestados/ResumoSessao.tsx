@@ -76,25 +76,58 @@ export function ResumoSessao({
   return (
     <>
       {total > 0 && (
-        <button
-          type="button"
-          onClick={onAbrir}
-          onMouseMove={handleTiltMove}
-          onMouseLeave={handleTiltLeave}
-          className={`floating-resumo fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 rounded-full border border-amber-300/40 bg-[#0a1224]/85 px-5 py-3 text-sm font-medium text-amber-100 shadow-[0_8px_24px_rgba(0,0,0,0.45)] backdrop-blur-xl hover:border-amber-300/70 hover:bg-[#0a1224]/95 ${
-            pulse ? "pulse-on-add" : ""
-          }`}
-        >
-          <span className="flex size-6 items-center justify-center rounded-full bg-amber-300/20 text-xs font-semibold text-amber-100">
-            {total}
-          </span>
-          Resumo
-          {sessao.ultimaPessoa && (
-            <span className="ml-1 hidden text-xs text-amber-100/55 sm:inline">
-              · última: {sessao.ultimaPessoa.nome.split(" ")[0]}
+        <div className="resumo-dock group fixed bottom-6 right-6 z-40">
+          <div className="resumo-dock-preview">
+            <div className="resumo-dock-preview-card">
+              <p className="text-[9px] uppercase tracking-[0.28em] text-amber-100/65">
+                Sessão · {total} {total === 1 ? "doc" : "docs"}
+              </p>
+              <ul className="mt-2 space-y-1.5">
+                {grupos.slice(0, 4).map((g) => (
+                  <li
+                    key={g.chapa || g.nome}
+                    className="flex items-center justify-between gap-3 text-xs text-white/85"
+                  >
+                    <span className="truncate">
+                      {g.nome.split(" ").slice(0, 2).join(" ")}
+                    </span>
+                    <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-100">
+                      {g.docs.length}
+                    </span>
+                  </li>
+                ))}
+                {grupos.length > 4 && (
+                  <li className="text-[10px] text-white/45">
+                    +{grupos.length - 4} pessoas
+                  </li>
+                )}
+              </ul>
+              <p className="mt-3 text-[9px] uppercase tracking-[0.22em] text-amber-100/55">
+                Clique pra abrir
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onAbrir}
+            onMouseMove={handleTiltMove}
+            onMouseLeave={handleTiltLeave}
+            className={`floating-resumo relative inline-flex items-center gap-2 rounded-full border border-amber-300/40 bg-[#0a1224]/85 px-5 py-3 text-sm font-medium text-amber-100 shadow-[0_8px_24px_rgba(0,0,0,0.45)] backdrop-blur-xl hover:border-amber-300/70 hover:bg-[#0a1224]/95 ${
+              pulse ? "pulse-on-add" : ""
+            }`}
+          >
+            <span className="flex size-6 items-center justify-center rounded-full bg-amber-300/20 text-xs font-semibold text-amber-100">
+              {total}
             </span>
-          )}
-        </button>
+            Resumo
+            {sessao.ultimaPessoa && (
+              <span className="ml-1 hidden text-xs text-amber-100/55 sm:inline">
+                · última: {sessao.ultimaPessoa.nome.split(" ")[0]}
+              </span>
+            )}
+          </button>
+        </div>
       )}
 
       <Dialog open={open} onOpenChange={(o) => !o && onFechar()}>
