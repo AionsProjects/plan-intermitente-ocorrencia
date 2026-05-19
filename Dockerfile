@@ -8,7 +8,9 @@ WORKDIR /app
 # VITE_N8N_BASE_URL é injetada no bundle no momento do build.
 # Passe via --build-arg ou docker compose `build.args`. Vazio = modo mock.
 ARG VITE_N8N_BASE_URL=""
+ARG VITE_N8N_ANTIGO_BASE_URL=""
 ENV VITE_N8N_BASE_URL=$VITE_N8N_BASE_URL
+ENV VITE_N8N_ANTIGO_BASE_URL=$VITE_N8N_ANTIGO_BASE_URL
 
 # Instala deps com cache eficiente (só refaz npm ci se package*.json mudar)
 COPY package.json package-lock.json ./

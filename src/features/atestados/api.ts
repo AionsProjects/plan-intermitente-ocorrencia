@@ -9,6 +9,7 @@ import type {
 } from "./types"
 
 const BASE_URL = import.meta.env.VITE_N8N_BASE_URL ?? ""
+const ANTIGO_BASE_URL = import.meta.env.VITE_N8N_ANTIGO_BASE_URL || BASE_URL
 const USE_MOCK = !BASE_URL
 
 // Reusa autocomplete RM intermitente do convocar (WF8)
@@ -65,7 +66,7 @@ export async function buscarCeletista(
     return MOCK_CELETISTAS.filter((e) => normaliza(e.nome).includes(q))
   }
   const res = await fetch(
-    `${BASE_URL}/celetista-buscar-empregado?nome=${encodeURIComponent(query)}`,
+    `${ANTIGO_BASE_URL}/celetista-buscar-empregado?nome=${encodeURIComponent(query)}`,
   )
   if (!res.ok) {
     const err = new Error(`Erro ${res.status}`) as Error & { status?: number }

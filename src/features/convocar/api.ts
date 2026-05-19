@@ -7,7 +7,7 @@ import type {
 } from "./types"
 import { OPCOES_CONVOCACAO_FALLBACK } from "./types"
 
-const BASE_URL = import.meta.env.VITE_N8N_BASE_URL ?? ""
+const BASE_URL = import.meta.env.VITE_N8N_ANTIGO_BASE_URL || import.meta.env.VITE_N8N_BASE_URL || ""
 const USE_MOCK = !BASE_URL
 
 export class ConvocacaoApiError extends Error {
