@@ -15,7 +15,8 @@ App web pra **gerenciar convocações de intermitentes** no monday: cria convoca
 - **Calendário restrito ao mês corrente** (sem nav prev/next). Click data inicial → dialog "quantos dias?" 1-60. Dias com convocação ativa ganham ponto verde (intermitente only).
 - **Resumo flutuante (dock macOS-like)** + badge bounce no contador `{N}` ao adicionar doc (scale 1→1.45→1 spring overshoot 480ms).
 - **Cancelamento parcial NÃO finaliza mais** (`/preencher`). Bug reportado pelo DP: lançou atraso 420min dia 1 + cancelamento parcial dias 2-10. Só cancelamento foi persistido — atraso perdido (porque cancelamento renderizava TelaCancelamentoConvocacao em tela cheia, desmontando painel antes de Finalizar). Agora cancelamento parcial fecha dialog e mantém painel aberto. Cancelamento TOTAL continua finalizando direto (comportamento preservado).
-- **Tile cancelado parcialmente** vira 2 botões separados (`.dia-meia-left` + `.dia-meia-right`) com `clip-path: polygon` diagonal — corte ascendente entre as peças. Cada metade tem tilt 3D **independente** via `--mx`/`--my` próprios (mousemove). Esquerda desce mais (`translateY(10px) rotate(-1.6deg)`), direita sobe leve (`translateY(-5px) rotate(1.2deg)`). Conteúdo duplicado com `width: calc(200% + 5px)` → texto unificado aparece cortado entre as peças. Glow âmbar-laranja via `::after` (gradient lateral 14px) automaticamente segue diagonal. Sombra difusa via 3 drop-shadows empilhados (ambient + contact + lateral). Click em qualquer metade → `DialogReverterCancelamento`.
+- **Tile cancelado parcialmente**: visual simples — tile escuro `rgba(12,10,10,0.92)` + `<CancelXIcon />` (2 linhas vermelhas formando ✕ com breath sutil contínuo) + texto "Dia cancelado". Mantém `glass-tile-3d` (tilt mousemove preservado). Click abre `DialogReverterCancelamento`. Animação no botão "Cancelar convocação" do header: metamorfose X → ⊘ (sinal de proibido) com circle se desenhando + 6 partículas radiais.
+- **Split de convocação** (`/preencher`): operacional pode dividir convocação em 2 partes com contratos diferentes (ex: 01-07/05 CETAM + 08-20/05 SEDUC). Botão violeta "Dividir convocação" / "Editar divisão" no header com ícone `SplitIcon` (2 retângulos que se afastam + lâmina rosa rasga + sparkles). Wizard 4 etapas (calendário com bloqueio de primeiro/último/cancelado → 2 GlassSelect P1≠P2 → confirmação → sucesso). Quando split ativo: render do grid se divide em 2 `<SplitSection>` (border-left tonal âmbar/sky + header eyebrow + nome contrato + grid de dias). Persistência via `POST /intermitente-aplicar-split` (coluna Split JSON no item ENTRADA). Ao Finalizar: WF3 estendido cria 2 subitems no item ENTRADA com agregados separados por parte (item Histórico parent mantém agregados consolidados). Coexiste com cancelamento parcial.
 - **Flicker fixes consolidados** (`src/index.css`):
   - SlideStack sem opacity/scale no Slot — slide horizontal puro (iOS Settings pattern). Eliminou ghosting em texto Instrument Serif.
   - Google Fonts URL com `display=optional` (era `swap`) — sem FOUT mid-slide.
@@ -33,10 +34,11 @@ App web pra **gerenciar convocações de intermitentes** no monday: cria convoca
 | `GET /celetista-buscar-empregado?nome=` | `/atestados` (CLT) | Funcionando. SQL no RM filtra os 7 contratos válidos. Retorna `codigo`/`secaoCodigo`/`localUnidade`/`contrato` extras (frontend usa pra auto-preencher). |
 | `GET /intermitente-convocacoes-empregado?chapa=&mes=` | `/atestados` (intermitente, visual only) | Funcionando. Frontend usa só pra ponto verde no calendário. |
 | `POST /intermitente-lancar-documentos` (multipart) | `/atestados` (ambos modos) | Funcionando. Só cria item Controle de Atestados + anexa arquivo. Desconto = automação futura. |
-| `POST /intermitente-finalizar` (JSON) | `/preencher` | JSON-only sem atestado. Backend deve filtrar respostas locais de dias cancelados (frontend já filtra). |
+| `POST /intermitente-finalizar` (JSON) | `/preencher` | JSON-only sem atestado. **Pendência Codex (split)**: ler `payload.split` (já enviado); se presente, particionar respostas/dias por data corte, calcular agregados por parte, criar 2 subitems no item ENTRADA via `create_subitem` (idempotente via lookup por `name`). Item Histórico parent mantém agregados consolidados (comportamento atual). |
 | `POST /intermitente-convocar` (multipart) | `/convocar` | WF7 estável. |
 | `POST /intermitente-cancelar-convocacao` | `/preencher` cancelamento | Aceita `tipo: "total"` \| `"parcial"`. **Pendência Codex**: aceitar `tipo: "reverter"` → limpar `Cancelamento Início`, set `Status Convocação=Válida`, `Status Cancelamento=null`, reverter desconto criado. |
-| `GET /intermitente-ler` (WF2) | `/preencher` | **Pendência Codex**: devolver `data_inicio_cancelamento` (`date_mm3b88ta` do board ENTRADA) + `status_cancelamento` (mapeado de `color_mm3a8ana`) no JSON pra frontend pintar dias queimados. |
+| `POST /intermitente-aplicar-split` *(novo)* | `/preencher` (wizard Dividir) | **Pendência Codex**: criar WF que aceita `{tipo: "aplicar", data_inicio_parte2, contrato_parte1, contrato_parte2}` ou `{tipo: "reverter"}`. Escreve coluna `Split JSON` (long_text, criar) no item ENTRADA via `change_simple_column_value`. Retorna `{ok, split}`. Frontend já chama (mock-pronto-split disponível). |
+| `GET /intermitente-ler` (WF2) | `/preencher` | **Pendência Codex**: (1) devolver `data_inicio_cancelamento` (`date_mm3b88ta`) + `status_cancelamento` (mapeado de `color_mm3a8ana`) pro tile cancelado. (2) devolver `split` parseado da nova coluna `Split JSON` pro tile split (`{data_inicio_parte2, contrato_parte1, contrato_parte2}` ou null). |
 
 ### Funcionando end-to-end (mock + real, produção na VM):
 
@@ -78,8 +80,21 @@ App web pra **gerenciar convocações de intermitentes** no monday: cria convoca
 - Atualizar: `git pull && docker compose up -d --build`.
 
 **Pendente:**
-- **WF2 `/intermitente-ler` devolver `data_inicio_cancelamento` + `status_cancelamento`** (frontend já mapeia, hoje vem vazio em backend real).
-- **WF `/intermitente-cancelar-convocacao` aceitar `tipo: "reverter"`** — limpar Cancelamento Início, set Status=Válida, reverter desconto.
+
+**Split de convocação (alta prioridade — frontend pronto, esperando backend):**
+1. **Monday — board ENTRADA `18408773953`** (bloqueante):
+   - Adicionar coluna `Split JSON` (`long_text`). Anotar `column_id` gerado.
+   - Habilitar subitems no board.
+   - Criar template de colunas dos subitems: `Name`, Data Início, Data Fim, Contrato, Respostas JSON, Qtd Faltas, Qtd Atrasos, Total Minutos Atraso, Dias Extras, Dias Desativados, Sábados Extras, Status.
+2. **WF2 `intermitente-ler` estender**: devolver `split` parseado da coluna nova.
+3. **WF novo `intermitente-aplicar-split`**: `POST /intermitente-aplicar-split?uuid=<uuid>` aceita `{tipo: "aplicar"|"reverter"}`, escreve Split JSON via `change_simple_column_value`. Resposta `{ok, split}`.
+4. **WF3 `intermitente-finalizar` estender**: ler Split JSON, particionar respostas/dias por data, criar 2 subitems no item ENTRADA via `create_subitem`. Idempotente (lookup por `name`).
+
+**Cancelamento parcial (média prioridade):**
+- WF2 devolver `data_inicio_cancelamento` (`date_mm3b88ta`) + `status_cancelamento` (mapeado de `color_mm3a8ana`).
+- WF `intermitente-cancelar-convocacao` aceitar `tipo: "reverter"` → limpar Cancelamento Início, set Status=Válida, reverter desconto.
+
+**Outros:**
 - Configurar job de expiração: monday Automation no board histórico → *"When Expira Em arrives → Change Status to Expirado"* OU n8n cron diário.
 - Estender SQL `BEN 2` no RM TOTVS pra incluir CPF (hoje vem vazio).
 - Implementar endpoint n8n `GET /intermitente-convocar-opcoes` (frontend já consome com fallback local).
