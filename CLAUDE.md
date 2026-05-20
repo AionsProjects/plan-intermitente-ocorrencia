@@ -2,30 +2,41 @@
 
 App web pra **gerenciar convocações de intermitentes** no monday: cria convocação, registra ocorrências dia-a-dia (faltou/atrasou) e permite correção via protocolo. Acesso via link único da convocação (registrar ocorrência) ou via **hub principal** (criar convocação / corrigir).
 
-## Estado atual do projeto (2026-05-19)
+## Estado atual do projeto (2026-05-20)
 
 ### Iterações recentes consolidadas
 
-- **`/atestados` standalone** com modos Intermitente e CLT, ambos via busca RM (não tem mais input manual de nome CLT).
-- **Form alinhado ao board Atestado Ponta** (`18298015951`, view `223887647`) — 13 campos do formulário oficial monday: nome (RM), modalidade contrato (auto INTERMITENTE/CELETISTA), tipo doc (19 opções, GlassSelect com busca), dias atestado (calculado), saída/retorno (texto + chips exemplos), almoço (Tirou/Não tirou/NDA), emissão (= dataInicio), acompanhante (opcional, default Sem acompanhamento), contrato colaborador (8 opções), unidade condicional por contrato (CETAM/DETRAN/SEMSA/COORDENADORIAS/INTERIOR/ESCOLA com fallback "UNIDADE NÃO ENCONTRADA" + texto livre), arquivos (PDF/JPG/PNG/HEIC 15MB), observação (opcional).
-- **Cálculo de desconto VR/VT saiu do WF Lancar Documentos** — agora apenas cria item no board Controle de Atestados + anexa arquivo. Automação futura separada cruzará atestado×convocação pra calcular desconto VR/VT.
-- **Calendário restrito ao mês corrente** (sem nav prev/next). Click data inicial → dialog "quantos dias?" 1-60. Dias com convocação ativa ganham ponto verde discreto (intermitente only). Cor âmbar pro range selecionado; halo verde sobreposto quando dia de atestado coincide com convocação.
-- **Removido**: `EtapaIdentificacaoCLT` (input manual), `EtapaPerguntasPrimeiroDia` (foi trabalhar/6h), `PainelConvocacoes` (era etapa pra escolher convocação), campo Emissão editável separado.
-- **Resumo flutuante (dock macOS-like)**: botão "Resumo (N)" canto inferior direito; hover expande preview-card pra cima com lista de pessoas adicionadas; click abre dialog modal completo. Animação spring `cubic-bezier(0.34, 1.46, 0.5, 1)`.
-- **Flicker fixes** (`src/index.css`): texto de ChoiceButton/glass-tile-3d ganha `translateZ(0)` + `backface-visibility: hidden` (não pisca quando pai tilta 3D); `.slide-stack-animating` mata animation em todos descendentes (não só `fade-up`); `.icon-3d-only` drop-shadow estático (era recalculado a cada frame).
-- **BuscarPessoa otimizado**: hook do modo NÃO ativo passa query vazia → react-query desabilita fetch → só endpoint do modo ativo dispara request.
+- **`/atestados` standalone** com modos Intermitente e CLT, ambos via busca RM. Form alinhado ao board Atestado Ponta (`18298015951`, view `223887647`) — 13 campos. Header RM mostra Cód. seção (font-mono).
+- **CLT consome campos novos do RM**: `codigo` / `secaoCodigo` (código da seção, ex: `01.01.0004.01.0001`), `localUnidade` (descrição amigável, ex: "DETRAN - MANAUS"), `contrato` (já inferido pelo n8n).
+- **Mapa Seção→Contrato determinístico** (`src/features/atestados/mapaSecaoContrato.ts`): 3º octeto do `Codigo` da seção define contrato. Derivado do dump completo de celetistas (`todos.CSV`, 1132 funcionários). Mapa: `0004`→DETRAN, `0010`→SEDUC SEDE, `0011.01`→SEDUC ESCOLA, `0011.02`→SEDUC INTERIOR, `0074`→CETAM, `0079`→TRE PB, `0085`→SEMSA. Seções fora do mapa (estagiários, aprendizes, afastados) ficam vazias — operacional escolhe manual (SQL no RM agora só retorna esses 7 contratos, então fallback inalcançável na prática).
+- **Contrato readonly no WizardDocumento**: campo `contrato_colaborador` deixa de ser SelectGlass editável — vira chip âmbar read-only `[RM] <contrato>` já inferido. Fallback select só aparece se mapa retornar vazio.
+- **Bug 2x Voltar resolvido**: AtestadosPage renderizava Voltar global + WizardDocumento Voltar interno duplicado. Global escondido quando etapa = `wizard-intermitente`|`wizard-clt`.
+- **Cálculo de desconto VR/VT saiu do WF Lancar Documentos** — apenas cria item no board Controle de Atestados + anexa arquivo. Automação futura cruzará atestado×convocação.
+- **Calendário restrito ao mês corrente** (sem nav prev/next). Click data inicial → dialog "quantos dias?" 1-60. Dias com convocação ativa ganham ponto verde (intermitente only).
+- **Resumo flutuante (dock macOS-like)** + badge bounce no contador `{N}` ao adicionar doc (scale 1→1.45→1 spring overshoot 480ms).
+- **Cancelamento parcial NÃO finaliza mais** (`/preencher`). Bug reportado pelo DP: lançou atraso 420min dia 1 + cancelamento parcial dias 2-10. Só cancelamento foi persistido — atraso perdido (porque cancelamento renderizava TelaCancelamentoConvocacao em tela cheia, desmontando painel antes de Finalizar). Agora cancelamento parcial fecha dialog e mantém painel aberto. Cancelamento TOTAL continua finalizando direto (comportamento preservado).
+- **Tile cancelado parcialmente** vira 2 botões separados (`.dia-meia-left` + `.dia-meia-right`) com `clip-path: polygon` diagonal — corte ascendente entre as peças. Cada metade tem tilt 3D **independente** via `--mx`/`--my` próprios (mousemove). Esquerda desce mais (`translateY(10px) rotate(-1.6deg)`), direita sobe leve (`translateY(-5px) rotate(1.2deg)`). Conteúdo duplicado com `width: calc(200% + 5px)` → texto unificado aparece cortado entre as peças. Glow âmbar-laranja via `::after` (gradient lateral 14px) automaticamente segue diagonal. Sombra difusa via 3 drop-shadows empilhados (ambient + contact + lateral). Click em qualquer metade → `DialogReverterCancelamento`.
+- **Flicker fixes consolidados** (`src/index.css`):
+  - SlideStack sem opacity/scale no Slot — slide horizontal puro (iOS Settings pattern). Eliminou ghosting em texto Instrument Serif.
+  - Google Fonts URL com `display=optional` (era `swap`) — sem FOUT mid-slide.
+  - `prefers-reduced-motion` global — zera animations + mantém 80ms em transitions de hover.
+  - `.choice-btn > *` com `translateZ(0)` + `backface-visibility: hidden` — texto não pisca quando pai tilta 3D.
+  - `.slide-stack-animating *` mata animation em todos descendentes.
+  - `.icon-3d-only` drop-shadow estático (era recalculado a cada frame).
+- **BuscarPessoa otimizado**: hook do modo NÃO ativo passa query vazia → só endpoint do modo ativo dispara request.
 
-### Endpoints n8n consolidados (2026-05-19)
+### Endpoints n8n consolidados (2026-05-20)
 
 | Endpoint | Quem chama | Estado |
 |---|---|---|
-| `GET /convocar-buscar-empregado?nome=` | `/convocar` e `/atestados` (modo intermitente) | WF8 estável (`BEN 2`, filtra `CODCATEGORIAESOCIAL=111`) |
-| `GET /celetista-buscar-empregado?nome=` | `/atestados` (modo CLT) | Webhook ativo. HTTP Request pro RM precisa ajuste de método/URL (Codex pendente). SQL nomeada no RM filtra `CODCATEGORIAESOCIAL <> '111'` + `CODSITUACAO <> 'D'`. |
-| `GET /intermitente-convocacoes-empregado?chapa=&mes=` | `/atestados` (intermitente, visual only) | Funcionando. Frontend usa só pra ponto verde. |
-| `POST /intermitente-lancar-documentos` (multipart) | `/atestados` (ambos modos) | Funcionando. Backend só cria item Controle. Desconto = automação futura. |
-| `POST /intermitente-finalizar` (JSON) | `/preencher` | JSON-only sem atestado. |
+| `GET /convocar-buscar-empregado?nome=` | `/convocar` e `/atestados` (intermitente) | WF8 estável (`BEN 2`, `CODCATEGORIAESOCIAL=111`) |
+| `GET /celetista-buscar-empregado?nome=` | `/atestados` (CLT) | Funcionando. SQL no RM filtra os 7 contratos válidos. Retorna `codigo`/`secaoCodigo`/`localUnidade`/`contrato` extras (frontend usa pra auto-preencher). |
+| `GET /intermitente-convocacoes-empregado?chapa=&mes=` | `/atestados` (intermitente, visual only) | Funcionando. Frontend usa só pra ponto verde no calendário. |
+| `POST /intermitente-lancar-documentos` (multipart) | `/atestados` (ambos modos) | Funcionando. Só cria item Controle de Atestados + anexa arquivo. Desconto = automação futura. |
+| `POST /intermitente-finalizar` (JSON) | `/preencher` | JSON-only sem atestado. Backend deve filtrar respostas locais de dias cancelados (frontend já filtra). |
 | `POST /intermitente-convocar` (multipart) | `/convocar` | WF7 estável. |
-| `POST /intermitente-cancelar-convocacao` | `/preencher` cancelamento | Estável. |
+| `POST /intermitente-cancelar-convocacao` | `/preencher` cancelamento | Aceita `tipo: "total"` \| `"parcial"`. **Pendência Codex**: aceitar `tipo: "reverter"` → limpar `Cancelamento Início`, set `Status Convocação=Válida`, `Status Cancelamento=null`, reverter desconto criado. |
+| `GET /intermitente-ler` (WF2) | `/preencher` | **Pendência Codex**: devolver `data_inicio_cancelamento` (`date_mm3b88ta` do board ENTRADA) + `status_cancelamento` (mapeado de `color_mm3a8ana`) no JSON pra frontend pintar dias queimados. |
 
 ### Funcionando end-to-end (mock + real, produção na VM):
 
@@ -35,7 +46,7 @@ App web pra **gerenciar convocações de intermitentes** no monday: cria convoca
   1. **Buscar empregado** — autocomplete por nome (search-as-you-type, debounce 250ms, min 3 chars, highlight das letras buscadas, 3 visíveis + "ver todos")
   2. **Formulário convocação** — 15 campos + bloco read-only com dados do RM (Nome, Chapa, CPF, Função, Admissão, Seção). Selects e DatePicker custom via Dialog (mesmo padrão visual do `DialogDia` de registrar ocorrência). Opções dos selects vêm de `useOpcoesConvocacao()` (lazy load do n8n com fallback local).
   3. **Tela sucesso** — ID do item + URL do board monday + CTA "Nova convocação"
-- **Preencher** (`/preencher/:uuid`) — painel com modal por dia, perguntas no positivo ("foi trabalhar?", "chegou no horário?"), adicionar/apagar dias com bolha estourando, fluxo de correção via protocolo `PROT-XXXX-XXXX`. **Cancelar convocação** (ícone fogo no header) abre wizard: parcial (calendário → escolhe data → tela `confirmar_parcial` exige clique "Confirmar") ou total (data = primeiro dia → tela `confirmar_total`). Toda mutação passa por etapa de confirmação — sem accidental cancel. **Adicionar sábados extras** (botão azul `CalendarPlus`, só aparece se `trabalhaSabado=NÃO`) — calendário multi-seleção dos sábados do período; tiles ficam com borda azul tracejada animada (`.glass-tile-extra` + `.extra-dash-svg`); remoção individual com confirmação; finalizar dispara boleto VT extra (ver `Mapeamento.md` §6.1). **Atestados/declarações** lançados via `/atestados` aparecem aqui como tiles read-only (`glass-tile-atestado` + `atestado-dash-svg`); click abre `DialogDiaComDocumento` com link pro item no board Controle de Atestados (sem opção de remover).
+- **Preencher** (`/preencher/:uuid`) — painel com modal por dia, perguntas no positivo ("foi trabalhar?", "chegou no horário?"), adicionar/apagar dias com bolha estourando, fluxo de correção via protocolo `PROT-XXXX-XXXX`. **Cancelar convocação** (ícone fogo no header) abre wizard: parcial (calendário → escolhe data → tela `confirmar_parcial` exige clique "Confirmar") ou total (data = primeiro dia → tela `confirmar_total`). **Cancelamento parcial NÃO finaliza o registro** — fecha dialog, painel continua aberto, operacional ainda precisa lançar respostas dos dias não-cancelados e clicar "Finalizar". Cancelamento total continua finalizando direto. Dias `>= dataInicioCancelamento` ficam visualmente "cortados ao meio" (`.dia-cortado` + 2 `.dia-meia-left/right` com `clip-path` diagonal, tilt 3D independente por metade, glow âmbar via `::after`, sombra difusa via 3 drop-shadows empilhados). Click em qualquer metade abre `DialogReverterCancelamento` — confirmar reverte cancelamento (envia `tipo: "reverter"` ao backend). **Adicionar sábados extras** (botão azul `CalendarPlus`, só aparece se `trabalhaSabado=NÃO`) — calendário multi-seleção dos sábados do período; tiles ficam com borda azul tracejada animada (`.glass-tile-extra` + `.extra-dash-svg`); remoção individual com confirmação; finalizar dispara boleto VT extra. **Atestados/declarações** lançados via `/atestados` aparecem como tiles read-only (`glass-tile-atestado` + `atestado-dash-svg`); click abre `DialogDiaComDocumento` com link pro item no board Controle de Atestados.
 - **Atestados e declarações** (`/atestados`) — feature standalone (sem dependência de link único de convocação). Fluxo: Hub → tile → escolhe tipo trabalhador (Intermitente / CLT em breve) → autocomplete RM (mesmo WF8 do `/convocar`) → painel de convocações do mês via `GET /intermitente-convocacoes-empregado?chapa=…` → escolhe convocação → WizardDocumento interno (tipo atestado vs declaração → calendário com regras de bloqueio → turnos só pra declaração → perguntas condicionais → upload → preview). Adicionar à sessão → abre `ResumoSessao` modal listando todos os docs acumulados (cross-pessoa). Botão flutuante "Resumo (N)" sempre visível. Concluir = POST batch `intermitente-lancar-documentos` (multipart `payload` JSON + binários `doc_<id>`). Regras de bloqueio no frontend: atestado bloqueia qualquer doc nas datas, declaração não em dia com atestado, declaração 1 dia, declaração não duplica turno, sábado só se ativo, atestado multi-dia não cruza sábado inativo.
 - **Corrigir** (`/corrigir`) — input do protocolo + lista de recentes (localStorage) + atalho flask pro `PROT-DEMO-1234`.
 - **Teste** (`/teste`) — área de mocks (4 UUIDs `mock-*` + chave demo). Acessível só via link "Abrir testes" no rodapé do hub.
@@ -67,9 +78,10 @@ App web pra **gerenciar convocações de intermitentes** no monday: cria convoca
 - Atualizar: `git pull && docker compose up -d --build`.
 
 **Pendente:**
+- **WF2 `/intermitente-ler` devolver `data_inicio_cancelamento` + `status_cancelamento`** (frontend já mapeia, hoje vem vazio em backend real).
+- **WF `/intermitente-cancelar-convocacao` aceitar `tipo: "reverter"`** — limpar Cancelamento Início, set Status=Válida, reverter desconto.
 - Configurar job de expiração: monday Automation no board histórico → *"When Expira Em arrives → Change Status to Expirado"* OU n8n cron diário.
 - Estender SQL `BEN 2` no RM TOTVS pra incluir CPF (hoje vem vazio).
-- Atualizar `DEPLOY.md` se host n8n mudou pra `antigoaionscorp-n8n.cloudfy.live`.
 - Implementar endpoint n8n `GET /intermitente-convocar-opcoes` (frontend já consome com fallback local).
 - Renderizar UI do erro 409 conflito no `/convocar` (api.ts já lança `ConvocacaoApiError` com `.conflito` — falta painel mostrando link do item existente + datas + status).
 - Confirmar labels do `STATUS_CONVOCACAO` no board ENTRADA (mapeados hoje: `Válida`, `Cancelada`/`Cancelado`, `Cancelada parcialmente`/`Cancelado parcialmente`, `Bloqueada - conflito`).
@@ -334,10 +346,13 @@ Retorna (snake_case, convertido pra camelCase em `features/preencher/api.ts`):
   nome, contrato, data_inicio, data_fim, dias: string[],
   expira_em, concluido_em, protocolo, editado, editado_em,
   respostas: [{data, tipo, minutos_atraso?}],
-  dias_extras: string[], dias_desativados: string[]
+  dias_extras: string[], dias_desativados: string[],
+  // Cancelamento parcial (pendência Codex incluir no payload):
+  data_inicio_cancelamento?: string | null,  // do board ENTRADA, col date_mm3b88ta
+  status_cancelamento?: "valida" | "cancelada_parcial" | "cancelada"
 }
 ```
-- 200 → renderiza painel (`aguardando`), tela obrigado (`concluido`), tela erro (`expirado`)
+- 200 → renderiza painel (`aguardando`), tela obrigado (`concluido`), tela erro (`expirado`). Dias `>= data_inicio_cancelamento` pintados com visual cortado (`.dia-cortado` no front).
 - 404 → "Link não encontrado"
 
 ### POST `/webhook/intermitente-finalizar?uuid=<uuid>` (WF3)
@@ -391,11 +406,14 @@ Retorna `{uuid, nome}` ou 404.
 
 Retorna `{resultados: EmpregadoRM[]}`. Mínimo 3 chars no nome. Consulta `BEN 2` no RM com `LIKE %nome%`. CPF vazio até estender SQL.
 
-### POST `/webhook/intermitente-cancelar-convocacao?uuid=<uuid>` (WF Cancelar Convocação, novo)
+### POST `/webhook/intermitente-cancelar-convocacao?uuid=<uuid>` (WF Cancelar Convocação)
 
-Body total: `{tipo: "total", data_inicio_cancelamento: null}`. Body parcial: `{tipo: "parcial", data_inicio_cancelamento: "YYYY-MM-DD"}`.
+Body:
+- **Total**: `{tipo: "total", data_inicio_cancelamento: null}` — finaliza convocação. Renderiza `TelaCancelamentoConvocacao` no frontend.
+- **Parcial**: `{tipo: "parcial", data_inicio_cancelamento: "YYYY-MM-DD"}` — **NÃO finaliza**. Frontend fecha dialog e mantém painel aberto pra operacional lançar respostas dos dias não-cancelados antes de clicar "Finalizar". Backend só atualiza data + status.
+- **Reverter** (pendência Codex implementar): `{tipo: "reverter", data_inicio_cancelamento: null}` — limpa `Cancelamento Início` (`date_mm3b88ta`) = null, set `Status Convocação` (`color_mm3a8ana`) = "Válida", `Status Cancelamento` (`color_mm3b9v4n` no Histórico) = null, reverter (deletar ou marcar cancelado) item criado na Base de Desconto (`18400981023`).
 
-Retorna `{ok, tipo, data_inicio_cancelamento, desconto}`. Atualiza Entrada (`color_mm3a8ana`, e `date_mm3b88ta` no parcial), Histórico (`color_mm3b9v4n`) e Base de Desconto (`18400981023`). Bloqueia duplicidade de cancelamento e deve retornar `409` se houver desconto existente `PARCIAL` ou `FINALIZADO`.
+Retorna `{ok, tipo, data_inicio_cancelamento, desconto}`. Atualiza Entrada (`color_mm3a8ana`, e `date_mm3b88ta` no parcial), Histórico (`color_mm3b9v4n`) e Base de Desconto (`18400981023`). Bloqueia duplicidade de cancelamento — retorna `409` se houver desconto existente `PARCIAL` ou `FINALIZADO`.
 
 ### POST `/webhook/intermitente-convocar` (WF7) — multipart/form-data
 
