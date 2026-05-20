@@ -105,21 +105,13 @@ export function SlideStack({ slideKey, direction, children }: Props) {
         {animando ? (
           dirAnim === "forward" ? (
             <>
-              <Slot state={pos === "inicio" ? "active" : "exit"}>
-                {outgoing.children}
-              </Slot>
-              <Slot state={pos === "inicio" ? "enter" : "active"}>
-                {children}
-              </Slot>
+              <Slot>{outgoing.children}</Slot>
+              <Slot>{children}</Slot>
             </>
           ) : (
             <>
-              <Slot state={pos === "inicio" ? "enter" : "active"}>
-                {children}
-              </Slot>
-              <Slot state={pos === "inicio" ? "active" : "exit"}>
-                {outgoing.children}
-              </Slot>
+              <Slot>{children}</Slot>
+              <Slot>{outgoing.children}</Slot>
             </>
           )
         ) : (
@@ -130,25 +122,24 @@ export function SlideStack({ slideKey, direction, children }: Props) {
   )
 }
 
+/**
+ * Slot sem opacity/scale/transition próprios — confia 100% no movimento
+ * horizontal do trilho. Antes tinha fade `0.18 → 1` em paralelo ao slide,
+ * o que criava "ghosting" perceptível em textos display (Instrument Serif).
+ * iOS Settings transition pattern: conteúdo entrante chega cheio e cinema.
+ */
 function Slot({
   children,
   full = false,
-  state = "active",
 }: {
   children: React.ReactNode
   full?: boolean
-  state?: "active" | "enter" | "exit"
 }) {
-  const isActive = state === "active"
   return (
     <div
       style={{
         width: full ? "100%" : "50%",
         flexShrink: 0,
-        opacity: isActive ? 1 : 0.18,
-        transform: isActive ? "scale(1)" : "scale(0.985)",
-        transition: `opacity ${DUR}ms ${EASE}, transform ${DUR}ms ${EASE}`,
-        willChange: isActive ? undefined : "opacity, transform",
       }}
     >
       {children}

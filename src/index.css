@@ -1,4 +1,7 @@
-﻿@import url("https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600;700&display=swap");
+﻿/* `display=optional` evita FOUT: se a fonte não chegar no primeiro paint,
+   o browser usa fallback (Georgia/system-ui) PERMANENTEMENTE pra essa
+   navegação. Sem swap = sem flash de texto trocando peso/largura mid-slide. */
+@import url("https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600;700&display=optional");
 
 @import "tailwindcss";
 @import "tw-animate-css";
@@ -1655,6 +1658,26 @@ html {
   }
 }
 
+/* Bounce do badge contador no dock — sobreposição ao pulse-on-add do botão.
+   Spring overshoot pra dar peso tátil "+1 entrou na fila". */
+.badge-bounce {
+  animation: badge-bounce 480ms cubic-bezier(0.34, 1.56, 0.5, 1);
+}
+@keyframes badge-bounce {
+  0% {
+    transform: scale(1);
+    background-color: rgba(252, 211, 77, 0.2);
+  }
+  40% {
+    transform: scale(1.45);
+    background-color: rgba(252, 211, 77, 0.55);
+  }
+  100% {
+    transform: scale(1);
+    background-color: rgba(252, 211, 77, 0.2);
+  }
+}
+
 /* Borda lateral colorida no tile EtapaPreview */
 .preview-doc-tile {
   position: relative;
@@ -1810,4 +1833,36 @@ html {
   box-shadow:
     0 18px 40px rgba(0, 0, 0, 0.6),
     0 0 32px rgba(232, 194, 117, 0.35);
+}
+
+/* ─── Accessibility: respeitar preferência de movimento reduzido ───
+   Operacional usa o app o dia inteiro. Quem ativou reduced-motion no SO
+   ganha experiência sem transformações 3D, fade-ups, slides longos. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 80ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* Mantém transição curta pra hovers básicos (não vira "click cru") mas
+     remove tudo que move/escala significativo. */
+  .fade-up,
+  .pulse-on-add,
+  .plane-takeoff {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+  .glass-tile-3d,
+  .choice-btn,
+  .icon-3d-host,
+  .icon-3d-only,
+  .floating-resumo {
+    transform: none !important;
+  }
 }
