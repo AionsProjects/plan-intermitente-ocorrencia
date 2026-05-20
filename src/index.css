@@ -1902,65 +1902,54 @@ html {
   border-radius: inherit;
 }
 
-/* Triângulo superior-esquerdo (metade "fixa") — tilt 3D contrário ao
-   da direita pra dar sensação de "duas peças soltas". Usa --mx/--my
-   propagadas pelo .glass-tile-3d pai. */
+/* Triângulo superior-esquerdo — DESCE (fica mais embaixo que a direita).
+   Tilt 3D próprio via --mx/--my propagadas pelo .glass-tile-3d pai.
+   drop-shadow laranja apontando pra borda interna do corte =
+   "queimadura" do corte rápido quente. */
 .tile-cut-left {
   clip-path: polygon(0 0, 100% 0, 0 100%);
   background: linear-gradient(
     140deg,
-    rgba(70, 24, 16, 0.5) 0%,
-    rgba(25, 8, 5, 0.85) 100%
+    rgba(70, 24, 16, 0.55) 0%,
+    rgba(25, 8, 5, 0.88) 100%
   );
   z-index: 1;
-  box-shadow: inset -1px -1px 0 rgba(220, 80, 50, 0.18);
   transform:
+    translate(-3px, 6px)
     perspective(600px)
     rotateY(calc((var(--mx, 50) - 50) * 0.06deg))
-    rotateX(calc((50 - var(--my, 50)) * 0.06deg));
-  transform-origin: 0 0;
+    rotateX(calc((50 - var(--my, 50)) * 0.06deg))
+    rotate(-0.5deg);
+  transform-origin: 0 100%;
   transition: transform 110ms ease-out;
+  /* Glow quente na borda interna (direção bottom-right da metade esquerda) */
+  filter:
+    drop-shadow(2px 2px 0 rgba(255, 110, 50, 0.7))
+    drop-shadow(3px 3px 6px rgba(220, 60, 25, 0.45));
 }
 
-/* Triângulo inferior-direito (metade "caída") — desloca + tilt 3D
-   invertido em relação à esquerda. Resultado: parece duas peças
-   independentes respondendo ao cursor. */
+/* Triângulo inferior-direito — SOBE levemente (fica mais em cima
+   que a esquerda). Tilt 3D invertido pra parecer peça independente. */
 .tile-cut-right {
   clip-path: polygon(100% 0, 100% 100%, 0 100%);
   background: linear-gradient(
     140deg,
-    rgba(45, 14, 9, 0.65) 0%,
+    rgba(45, 14, 9, 0.7) 0%,
     rgba(10, 4, 2, 0.92) 100%
   );
   z-index: 2;
-  box-shadow:
-    -3px -3px 8px rgba(0, 0, 0, 0.55),
-    inset 1px 1px 0 rgba(200, 70, 40, 0.22);
   transform:
-    translate(3px, 4px)
+    translate(4px, -3px)
     perspective(600px)
     rotateY(calc((var(--mx, 50) - 50) * -0.08deg))
     rotateX(calc((50 - var(--my, 50)) * -0.08deg))
-    rotate(0.6deg);
-  transform-origin: 100% 100%;
+    rotate(0.4deg);
+  transform-origin: 100% 0;
   transition: transform 110ms ease-out;
-}
-
-/* Linha de corte diagonal — gradiente fino vermelho-laranja sobre a diagonal */
-.tile-cut-line {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 3;
-  background: linear-gradient(
-    140deg,
-    transparent calc(50% - 0.8px),
-    rgba(255, 100, 50, 0.45) calc(50% - 0.4px),
-    rgba(220, 50, 20, 0.7) 50%,
-    rgba(120, 30, 10, 0.6) calc(50% + 0.4px),
-    transparent calc(50% + 1.2px)
-  );
-  filter: drop-shadow(0 0 3px rgba(220, 60, 25, 0.35));
+  /* Glow quente na borda interna (direção top-left da metade direita) */
+  filter:
+    drop-shadow(-2px -2px 0 rgba(255, 110, 50, 0.7))
+    drop-shadow(-3px -3px 6px rgba(220, 60, 25, 0.45));
 }
 
 /* Conteúdo do tile (texto) fica acima das metades */

@@ -867,13 +867,12 @@ function DiaItem({
 
         {isCancelado && (
           <>
-            {/* Tile cortado ao meio na diagonal — duas metades visualmente
-                separadas, direita desloca pra baixo-direita. Tilt 3D do botão
-                pai continua aplicado ao container; metades herdam + ganham
-                offset próprio. */}
+            {/* Tile cortado ao meio na diagonal — duas metades com gap
+                visível: esquerda desce (mais embaixo), direita sobe
+                levemente. Glow laranja-vermelho na borda do corte via
+                drop-shadow (respeita clip-path) → efeito de corte quente. */}
             <span className="tile-cut tile-cut-left" aria-hidden="true" />
             <span className="tile-cut tile-cut-right" aria-hidden="true" />
-            <span className="tile-cut-line" aria-hidden="true" />
           </>
         )}
 
