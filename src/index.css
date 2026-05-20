@@ -1868,93 +1868,106 @@ html {
 }
 
 /* ─── Tile de dia cancelado parcialmente ─────────────────────────────
-   Visual de "corte ao meio na diagonal": duas metades sobrepostas via
-   clip-path, com a metade direita deslocada levemente pra baixo-direita
-   pra sugerir queda. Tilt 3D do botão pai continua — clip-path não
-   interfere com transform. Cores discretas (bordô escuro + linha
-   vermelho-laranja sutil), sem animação pulsante. */
-.glass-tile-cancelado {
-  background-color: rgba(28, 10, 8, 0.88) !important;
+   Render: 2 botões lado a lado (.dia-meia-left + .dia-meia-right) com
+   gap visível entre eles. Cada metade tem TILT 3D INDEPENDENTE
+   (--mx/--my setadas pelo próprio mousemove). Conteúdo é duplicado
+   nas duas metades com overflow: hidden — cada uma exibe só sua
+   porção, criando ilusão de "tile cortado com texto partido".
+   Esquerda desce mais que a direita pra parecer peças soltas. */
+.dia-cortado {
+  position: relative;
+  display: flex;
+  width: 100%;
+  perspective: 800px;
+  min-height: 6.25rem;
+  gap: 6px;
+}
+
+.dia-meia {
+  --mx: 50;
+  --my: 50;
+  position: relative;
+  flex: 1;
+  height: auto;
+  min-height: 6.25rem;
+  overflow: hidden;
+  border-radius: 1rem;
+  cursor: pointer;
+  background-color: rgba(28, 10, 8, 0.9);
   background-image: linear-gradient(
     180deg,
     rgba(60, 20, 14, 0.45) 0%,
-    rgba(15, 6, 4, 0.85) 100%
+    rgba(15, 6, 4, 0.88) 100%
   );
+  border: 1px solid rgba(180, 60, 40, 0.18);
+  transform-style: preserve-3d;
+  transition:
+    transform 110ms ease-out,
+    box-shadow 200ms ease,
+    border-color 200ms ease;
+  box-shadow: 0 8px 20px -8px rgba(80, 20, 10, 0.55);
+}
+
+.dia-meia:hover {
+  border-color: rgba(220, 80, 50, 0.32);
   box-shadow:
-    0 10px 24px -10px rgba(80, 20, 10, 0.55),
-    inset 0 0 0 1px rgba(180, 60, 40, 0.18);
-  overflow: visible;
-  isolation: isolate;
+    0 14px 30px -10px rgba(120, 35, 15, 0.65),
+    inset 0 0 0 1px rgba(220, 80, 50, 0.18);
 }
 
-.glass-tile-cancelado:hover {
+/* Esquerda desce mais que a direita + tilt próprio.
+   Glow laranja na borda interna (direita do botão esquerdo) sugere
+   corte rápido quente. */
+.dia-meia-left {
+  transform:
+    perspective(700px)
+    rotateY(calc((var(--mx) - 50) * 0.16deg))
+    rotateX(calc((50 - var(--my)) * 0.16deg))
+    translateY(6px)
+    rotate(-0.6deg);
   box-shadow:
-    0 14px 32px -10px rgba(120, 35, 15, 0.65),
-    inset 0 0 0 1px rgba(220, 80, 50, 0.28);
+    0 10px 22px -8px rgba(80, 20, 10, 0.6),
+    inset -2px 0 0 rgba(255, 110, 50, 0.45),
+    2px 0 6px rgba(220, 60, 25, 0.35);
 }
 
-/* Duas metades triangulares que cobrem o tile com gradientes escuros.
-   Diagonal vai do canto superior-esquerdo ao inferior-direito. */
-.tile-cut {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: inherit;
-}
-
-/* Triângulo superior-esquerdo — DESCE (fica mais embaixo que a direita).
-   Tilt 3D próprio via --mx/--my propagadas pelo .glass-tile-3d pai.
-   drop-shadow laranja apontando pra borda interna do corte =
-   "queimadura" do corte rápido quente. */
-.tile-cut-left {
-  clip-path: polygon(0 0, 100% 0, 0 100%);
-  background: linear-gradient(
-    140deg,
-    rgba(70, 24, 16, 0.55) 0%,
-    rgba(25, 8, 5, 0.88) 100%
-  );
-  z-index: 1;
+/* Direita fica mais em cima — peça separada. */
+.dia-meia-right {
   transform:
-    translate(-3px, 6px)
-    perspective(600px)
-    rotateY(calc((var(--mx, 50) - 50) * 0.06deg))
-    rotateX(calc((50 - var(--my, 50)) * 0.06deg))
-    rotate(-0.5deg);
-  transform-origin: 0 100%;
-  transition: transform 110ms ease-out;
-  /* Glow quente na borda interna (direção bottom-right da metade esquerda) */
-  filter:
-    drop-shadow(2px 2px 0 rgba(255, 110, 50, 0.7))
-    drop-shadow(3px 3px 6px rgba(220, 60, 25, 0.45));
-}
-
-/* Triângulo inferior-direito — SOBE levemente (fica mais em cima
-   que a esquerda). Tilt 3D invertido pra parecer peça independente. */
-.tile-cut-right {
-  clip-path: polygon(100% 0, 100% 100%, 0 100%);
-  background: linear-gradient(
-    140deg,
-    rgba(45, 14, 9, 0.7) 0%,
-    rgba(10, 4, 2, 0.92) 100%
-  );
-  z-index: 2;
-  transform:
-    translate(4px, -3px)
-    perspective(600px)
-    rotateY(calc((var(--mx, 50) - 50) * -0.08deg))
-    rotateX(calc((50 - var(--my, 50)) * -0.08deg))
+    perspective(700px)
+    rotateY(calc((var(--mx) - 50) * 0.16deg))
+    rotateX(calc((50 - var(--my)) * 0.16deg))
+    translateY(-2px)
     rotate(0.4deg);
-  transform-origin: 100% 0;
-  transition: transform 110ms ease-out;
-  /* Glow quente na borda interna (direção top-left da metade direita) */
-  filter:
-    drop-shadow(-2px -2px 0 rgba(255, 110, 50, 0.7))
-    drop-shadow(-3px -3px 6px rgba(220, 60, 25, 0.45));
+  box-shadow:
+    0 10px 22px -8px rgba(80, 20, 10, 0.6),
+    inset 2px 0 0 rgba(255, 110, 50, 0.45),
+    -2px 0 6px rgba(220, 60, 25, 0.35);
 }
 
-/* Conteúdo do tile (texto) fica acima das metades */
-.glass-tile-cancelado > p,
-.glass-tile-cancelado > div {
-  position: relative;
-  z-index: 4;
+/* Conteúdo dobra-largura, posicionado pra metade-esquerda mostrar lado
+   esquerdo do texto e metade-direita mostrar lado direito.
+   Resultado visual: texto único cortado entre as 2 peças. */
+.dia-meia-conteudo {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  /* Cada meia mostra 50% do total + 3px de gap por lado */
+  width: calc(200% + 6px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 1rem 0.75rem;
+  pointer-events: none;
+  text-align: center;
+}
+
+.dia-meia-left .dia-meia-conteudo {
+  left: 0;
+}
+
+.dia-meia-right .dia-meia-conteudo {
+  right: 0;
 }
