@@ -2,6 +2,11 @@ export type StatusProcessamento = "aguardando" | "concluido" | "expirado"
 
 export type TipoOcorrencia = "falta" | "atraso" | "sem_ocorrencia"
 
+export type StatusCancelamento =
+  | "valida"
+  | "cancelada_parcial"
+  | "cancelada"
+
 export type ProcessamentoDados = {
   uuid: string
   nome: string
@@ -20,6 +25,10 @@ export type ProcessamentoDados = {
   trabalhaSabado: boolean
   sabadosExtras?: string[]
   atestados?: Atestado[]
+  // Cancelamento parcial: dias >= dataInicioCancelamento ficam "queimados"
+  // no painel (escuros + animação de fogo). null = sem cancelamento.
+  dataInicioCancelamento?: string | null
+  statusCancelamento?: StatusCancelamento | null
 }
 
 export type RespostaDia = {
@@ -59,7 +68,7 @@ export type PayloadFinalizar = {
   ehCorrecao?: boolean
 }
 
-export type TipoCancelamentoConvocacao = "total" | "parcial"
+export type TipoCancelamentoConvocacao = "total" | "parcial" | "reverter"
 
 export type PayloadCancelarConvocacao = {
   tipo: TipoCancelamentoConvocacao

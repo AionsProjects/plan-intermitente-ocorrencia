@@ -232,6 +232,8 @@ function snapshot(m: MockState): ProcessamentoDados {
     trabalhaSabado: m.trabalhaSabado,
     sabadosExtras: [...m.sabadosExtras],
     atestados: m.atestados.map((a) => ({ ...a })),
+    dataInicioCancelamento: m.dataInicioCancelamento ?? null,
+    statusCancelamento: m.statusCancelamento ?? null,
   }
 }
 
@@ -357,7 +359,26 @@ export async function buscarProcessamento(
     atestados: Array.isArray(raw.atestados)
       ? raw.atestados.map(mapAtestado)
       : [],
+    dataInicioCancelamento:
+      (raw.data_inicio_cancelamento as string | null | undefined) ?? null,
+    statusCancelamento:
+      normalizaStatusCancelamento(raw.status_cancelamento) ?? null,
   }
+}
+
+function normalizaStatusCancelamento(
+  raw: unknown,
+): import("./types").StatusCancelamento | null {
+  if (!raw) return null
+  const norm = String(raw)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim()
+  if (norm.includes("parcial")) return "cancelada_parcial"
+  if (norm.includes("cancel")) return "cancelada"
+  if (norm.includes("valid")) return "valida"
+  return null
 }
 
 export async function finalizarProcessamento(
@@ -438,12 +459,26 @@ export async function cancelarConvocacao(
         "nao_encontrado",
       )
     }
+    // Aplica mutação no mock state pra próxima leitura refletir
+    if (payload.tipo === "reverter") {
+      mock.dataInicioCancelamento = null
+      mock.statusCancelamento = "valida"
+    } else if (payload.tipo === "parcial") {
+      mock.dataInicioCancelamento = payload.dataInicioCancelamento
+      mock.statusCancelamento = "cancelada_parcial"
+    } else if (payload.tipo === "total") {
+      mock.dataInicioCancelamento = null
+      mock.statusCancelamento = "cancelada"
+      // Total finaliza convocação
+      mock.status = "concluido"
+      mock.concluidoEm = mock.concluidoEm ?? new Date().toISOString()
+    }
     return {
       ok: true,
       tipo: payload.tipo,
       dataInicioCancelamento: payload.dataInicioCancelamento,
       desconto: {
-        acao: "create",
+        acao: payload.tipo === "reverter" ? "skip" : "create",
         descontoVR: 0,
         descontoVT: 0,
         motivo: "mock",
