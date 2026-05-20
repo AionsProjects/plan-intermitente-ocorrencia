@@ -29,6 +29,16 @@ export type ProcessamentoDados = {
   // no painel (escuros + animação de fogo). null = sem cancelamento.
   dataInicioCancelamento?: string | null
   statusCancelamento?: StatusCancelamento | null
+  // Split de convocação: dias >= dataInicioParte2 ganham visual violeta
+  // (.glass-tile-parte2). null = sem split. Ao finalizar, backend cria
+  // 2 subitems no item ENTRADA com contratos distintos.
+  split?: SplitConvocacao | null
+}
+
+export type SplitConvocacao = {
+  dataInicioParte2: string
+  contratoParte1: string
+  contratoParte2: string
 }
 
 export type RespostaDia = {
@@ -66,6 +76,23 @@ export type PayloadFinalizar = {
   diasDesativados?: string[]
   sabadosExtras?: string[]
   ehCorrecao?: boolean
+  /** Quando setado, backend cria 2 subitems no item ENTRADA (Parte 1 / Parte 2)
+   *  com contratos distintos. Sem split = comportamento atual (1 item). */
+  split?: SplitConvocacao | null
+}
+
+export type PayloadAplicarSplit =
+  | {
+      tipo: "aplicar"
+      dataInicioParte2: string
+      contratoParte1: string
+      contratoParte2: string
+    }
+  | { tipo: "reverter" }
+
+export type ResultadoAplicarSplit = {
+  ok: boolean
+  split: SplitConvocacao | null
 }
 
 export type TipoCancelamentoConvocacao = "total" | "parcial" | "reverter"

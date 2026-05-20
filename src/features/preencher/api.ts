@@ -1,10 +1,13 @@
 import type {
   Atestado,
+  PayloadAplicarSplit,
   PayloadCancelarConvocacao,
   PayloadFinalizar,
   ProcessamentoDados,
   RespostaDia,
+  ResultadoAplicarSplit,
   ResultadoCancelarConvocacao,
+  SplitConvocacao,
 } from "./types"
 
 const BASE_URL = import.meta.env.VITE_N8N_BASE_URL ?? ""
@@ -71,6 +74,26 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
     trabalhaSabado: false,
     sabadosExtras: [],
     atestados: [],
+  },
+  "mock-pronto-split": {
+    uuid: "mock-pronto-split",
+    nome: "Maria Oliveira",
+    contrato: "CETAM",
+    dataInicio: "2026-05-01",
+    dataFim: "2026-05-20",
+    dias: mockDias("2026-05-01", "2026-05-20"),
+    status: "aguardando",
+    concluidoEm: null,
+    protocolo: null,
+    editado: false,
+    editadoEm: null,
+    respostasAnteriores: [],
+    diasExtras: [],
+    diasDesativados: [],
+    trabalhaSabado: false,
+    sabadosExtras: [],
+    atestados: [],
+    split: null,
   },
   "mock-concluido": {
     uuid: "mock-concluido",
@@ -234,6 +257,7 @@ function snapshot(m: MockState): ProcessamentoDados {
     atestados: m.atestados.map((a) => ({ ...a })),
     dataInicioCancelamento: m.dataInicioCancelamento ?? null,
     statusCancelamento: m.statusCancelamento ?? null,
+    split: m.split ? { ...m.split } : null,
   }
 }
 
@@ -299,6 +323,13 @@ function payloadFinalizarSnake(
     dias_desativados: payload.diasDesativados ?? [],
     sabados_extras: payload.sabadosExtras ?? [],
     eh_correcao: payload.ehCorrecao ?? false,
+    split: payload.split
+      ? {
+          data_inicio_parte2: payload.split.dataInicioParte2,
+          contrato_parte1: payload.split.contratoParte1,
+          contrato_parte2: payload.split.contratoParte2,
+        }
+      : null,
   }
 }
 
@@ -363,7 +394,20 @@ export async function buscarProcessamento(
       (raw.data_inicio_cancelamento as string | null | undefined) ?? null,
     statusCancelamento:
       normalizaStatusCancelamento(raw.status_cancelamento) ?? null,
+    split: mapSplit(raw.split),
   }
+}
+
+function mapSplit(raw: unknown): SplitConvocacao | null {
+  if (!raw || typeof raw !== "object") return null
+  const o = raw as Record<string, unknown>
+  const dataInicioParte2 = String(
+    o.dataInicioParte2 ?? o.data_inicio_parte2 ?? "",
+  )
+  const contratoParte1 = String(o.contratoParte1 ?? o.contrato_parte1 ?? "")
+  const contratoParte2 = String(o.contratoParte2 ?? o.contrato_parte2 ?? "")
+  if (!dataInicioParte2 || !contratoParte1 || !contratoParte2) return null
+  return { dataInicioParte2, contratoParte1, contratoParte2 }
 }
 
 function normalizaStatusCancelamento(
@@ -513,6 +557,76 @@ export async function cancelarConvocacao(
     dataInicioCancelamento:
       data.data_inicio_cancelamento ?? payload.dataInicioCancelamento,
     desconto: data.desconto,
+  }
+}
+
+export class AplicarSplitApiError extends Error {
+  status?: number
+  erro?: string
+
+  constructor(message: string, status?: number, erro?: string) {
+    super(message)
+    this.name = "AplicarSplitApiError"
+    this.status = status
+    this.erro = erro
+  }
+}
+
+export async function aplicarSplit(
+  uuid: string,
+  payload: PayloadAplicarSplit,
+): Promise<ResultadoAplicarSplit> {
+  if (USE_MOCK || isMockUuid(uuid)) {
+    await new Promise((r) => setTimeout(r, 500))
+    const mock = MOCK_PROCESSAMENTOS[uuid]
+    if (!mock) {
+      throw new AplicarSplitApiError(
+        "Processamento não encontrado.",
+        404,
+        "nao_encontrado",
+      )
+    }
+    if (payload.tipo === "reverter") {
+      mock.split = null
+    } else {
+      mock.split = {
+        dataInicioParte2: payload.dataInicioParte2,
+        contratoParte1: payload.contratoParte1,
+        contratoParte2: payload.contratoParte2,
+      }
+    }
+    return { ok: true, split: mock.split }
+  }
+
+  const body =
+    payload.tipo === "reverter"
+      ? { tipo: "reverter" as const }
+      : {
+          tipo: "aplicar" as const,
+          data_inicio_parte2: payload.dataInicioParte2,
+          contrato_parte1: payload.contratoParte1,
+          contrato_parte2: payload.contratoParte2,
+        }
+
+  const res = await fetch(
+    `${BASE_URL}/intermitente-aplicar-split?uuid=${encodeURIComponent(uuid)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  )
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new AplicarSplitApiError(
+      data.mensagem || `Erro ${res.status}`,
+      res.status,
+      data.erro,
+    )
+  }
+  return {
+    ok: data.ok !== false,
+    split: mapSplit(data.split),
   }
 }
 

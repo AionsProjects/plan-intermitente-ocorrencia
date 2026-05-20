@@ -41,10 +41,18 @@ import {
 import { Label } from "@/components/ui/label"
 
 import {
+  useAplicarSplit,
   useCancelarConvocacao,
   useFinalizarProcessamento,
 } from "./useProcessamento"
-import type { Atestado, DiaInfo, ProcessamentoDados, RespostaDia } from "./types"
+import type {
+  Atestado,
+  DiaInfo,
+  ProcessamentoDados,
+  RespostaDia,
+} from "./types"
+import { GlassSelect } from "@/features/convocar/GlassSelect"
+import { CONTRATOS } from "@/features/convocar/types"
 import {
   gerarProtocolo,
   salvarProtocolo,
@@ -67,6 +75,13 @@ type EtapaCancelamento =
   | "sucesso_parcial"
 
 type EtapaSabados = "fechado" | "calendario" | "confirmar_remover"
+
+type EtapaSplit =
+  | "fechado"
+  | "calendario"
+  | "contratos"
+  | "confirmar"
+  | "sucesso"
 
 function formatarDiaCompleto(iso: string): string {
   return format(parseISO(iso), "EEEE, dd 'de' MMMM", { locale: ptBR })
@@ -192,6 +207,21 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
   const [etapaSabados, setEtapaSabados] = useState<EtapaSabados>("fechado")
   const [sabadoARemover, setSabadoARemover] = useState<string | null>(null)
 
+  // Wizard de split (dividir convocação em 2 subitems com contratos diferentes)
+  const [etapaSplit, setEtapaSplit] = useState<EtapaSplit>("fechado")
+  const [splitDataParte2, setSplitDataParte2] = useState<string | null>(null)
+  const [splitContratoP1, setSplitContratoP1] = useState<string>("")
+  const [splitContratoP2, setSplitContratoP2] = useState<string>("")
+  const [splitErro, setSplitErro] = useState<string | null>(null)
+
+  // Set de dias da Parte 2 do split (vigente no backend). Visual violeta.
+  const diasParte2 = useMemo<Set<string>>(() => {
+    const inicio = dados.split?.dataInicioParte2
+    if (!inicio) return new Set()
+    return new Set(dados.dias.filter((d) => d >= inicio))
+  }, [dados.split?.dataInicioParte2, dados.dias])
+  const splitAtivo = !!dados.split
+
   // Set de dias "queimados" pelo cancelamento parcial vigente no backend.
   // Todo dia >= dataInicioCancelamento (do ProcessamentoDados, NÃO o state
   // local do wizard de cancelamento) entra no set.
@@ -212,6 +242,7 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
 
   const finalizar = useFinalizarProcessamento(dados.uuid)
   const cancelarConvocacao = useCancelarConvocacao(dados.uuid)
+  const aplicarSplitMut = useAplicarSplit(dados.uuid)
   const erroEnvio =
     finalizar.error instanceof Error
       ? finalizar.error.message
@@ -219,6 +250,8 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
 
   const diasConvocacao = useMemo(() => [...dados.dias].sort(), [dados.dias])
   const primeiroDiaConvocacao = diasConvocacao[0] ?? dados.dataInicio
+  const ultimoDiaConvocacao =
+    diasConvocacao[diasConvocacao.length - 1] ?? dados.dataFim
 
   function salvarResposta(resposta: RespostaDia) {
     setRespostas((prev) => ({ ...prev, [resposta.data]: resposta }))
@@ -379,6 +412,8 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
       diasDesativados: diasInfo.filter((d) => !d.ativo).map((d) => d.data),
       sabadosExtras,
       ehCorrecao: !!ehCorrecao,
+      // Split: se ativo, WF3 detecta e cria 2 subitems no item ENTRADA.
+      split: dados.split ?? null,
     }
     const resultado = await finalizar.mutateAsync(payload)
     salvarProtocolo({
@@ -460,6 +495,67 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
         err instanceof Error
           ? err.message
           : "Erro ao reverter cancelamento. Tente novamente.",
+      )
+    }
+  }
+
+  function abrirSplit() {
+    setSplitErro(null)
+    // Se split já ativo, pré-carrega valores pra edição
+    if (dados.split) {
+      setSplitDataParte2(dados.split.dataInicioParte2)
+      setSplitContratoP1(dados.split.contratoParte1)
+      setSplitContratoP2(dados.split.contratoParte2)
+    } else {
+      setSplitDataParte2(null)
+      setSplitContratoP1(dados.contrato ?? "")
+      setSplitContratoP2(dados.contrato ?? "")
+    }
+    setEtapaSplit("calendario")
+  }
+
+  function fecharSplit() {
+    if (aplicarSplitMut.isPending) return
+    setEtapaSplit("fechado")
+    setSplitErro(null)
+  }
+
+  async function executarAplicarSplit() {
+    if (!splitDataParte2 || !splitContratoP1 || !splitContratoP2) return
+    if (splitContratoP1 === splitContratoP2) {
+      setSplitErro("Contratos devem ser diferentes.")
+      return
+    }
+    setSplitErro(null)
+    try {
+      await aplicarSplitMut.mutateAsync({
+        tipo: "aplicar",
+        dataInicioParte2: splitDataParte2,
+        contratoParte1: splitContratoP1,
+        contratoParte2: splitContratoP2,
+      })
+      setEtapaSplit("sucesso")
+      // Auto-fecha após breve toast
+      setTimeout(() => setEtapaSplit("fechado"), 1500)
+    } catch (err) {
+      setSplitErro(
+        err instanceof Error
+          ? err.message
+          : "Erro ao aplicar divisão. Tente novamente.",
+      )
+    }
+  }
+
+  async function executarReverterSplit() {
+    setSplitErro(null)
+    try {
+      await aplicarSplitMut.mutateAsync({ tipo: "reverter" })
+      setEtapaSplit("fechado")
+    } catch (err) {
+      setSplitErro(
+        err instanceof Error
+          ? err.message
+          : "Erro ao reverter divisão. Tente novamente.",
       )
     }
   }
@@ -571,6 +667,17 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
                     </span>
                   </button>
                 )}
+                <button
+                  type="button"
+                  className="btn-action-expand btn-dividir-convocacao"
+                  onClick={abrirSplit}
+                  aria-label={splitAtivo ? "Editar divisão" : "Dividir convocação"}
+                >
+                  <SplitIcon />
+                  <span className="btn-label text-violet-200">
+                    {splitAtivo ? "Editar divisão" : "Dividir convocação"}
+                  </span>
+                </button>
               </div>
             </div>
           </div>
@@ -595,6 +702,7 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
                 podeRemoverExtra={!sabadosJaPagos.has(diaInfo.data)}
                 isCancelado={diasCancelados.has(diaInfo.data)}
                 onAbrirReverter={() => setReverterAberto(true)}
+                isParte2={diasParte2.has(diaInfo.data)}
               />
             ))}
           </ul>
@@ -708,6 +816,27 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
         }}
         onConfirmar={executarReverter}
       />
+      <DialogSplit
+        etapa={etapaSplit}
+        carregando={aplicarSplitMut.isPending}
+        erro={splitErro}
+        dias={dados.dias}
+        diasCancelados={diasCancelados}
+        primeiroDiaConvocacao={primeiroDiaConvocacao}
+        ultimoDiaConvocacao={ultimoDiaConvocacao}
+        contratoOriginal={dados.contrato ?? ""}
+        splitAtivo={splitAtivo}
+        splitDataParte2={splitDataParte2}
+        splitContratoP1={splitContratoP1}
+        splitContratoP2={splitContratoP2}
+        onSelecionarData={setSplitDataParte2}
+        onSelecionarContratoP1={setSplitContratoP1}
+        onSelecionarContratoP2={setSplitContratoP2}
+        onAvancar={(novaEtapa) => setEtapaSplit(novaEtapa)}
+        onCancelar={fecharSplit}
+        onConfirmar={executarAplicarSplit}
+        onReverter={executarReverterSplit}
+      />
     </div>
   )
 }
@@ -728,6 +857,7 @@ type DiaItemProps = {
   podeRemoverExtra?: boolean
   isCancelado: boolean
   onAbrirReverter: () => void
+  isParte2: boolean
 }
 
 function DiaItem({
@@ -744,6 +874,7 @@ function DiaItem({
   podeRemoverExtra = true,
   isCancelado,
   onAbrirReverter,
+  isParte2,
 }: DiaItemProps) {
   const isDisabled = !diaInfo.ativo
   const isExtra = diaInfo.tipo === "extra"
@@ -757,8 +888,9 @@ function DiaItem({
 
   const tileBase =
     "group relative flex h-full w-full flex-col items-center justify-center gap-1.5 rounded-2xl px-3 py-4 text-left"
-  // Cancelado tem prioridade sobre os outros estados — mantém glass-tile-3d
-  // pra preservar tilt mousemove, sobrepõe fogo via .glass-tile-cancelado.
+  // Prioridade: cancelado > disabled > atestado > extra > parte2 > normal.
+  // P2 fica abaixo das outras marcações — cancelado/atestado em zona P2
+  // mantém visual primário; mas o tile P2 puro ganha visual violeta.
   const tileStyle = isCancelado
     ? "glass-tile glass-tile-3d glass-tile-cancelado"
     : isDisabled
@@ -769,7 +901,9 @@ function DiaItem({
           : "glass-tile-atestado"
         : isExtra
           ? "glass-tile-extra"
-          : "glass-tile glass-tile-3d"
+          : isParte2
+            ? "glass-tile glass-tile-3d glass-tile-parte2"
+            : "glass-tile glass-tile-3d"
 
   const shakeClass = modoApagar && diaInfo.ativo ? "shake-mode" : ""
 
@@ -2363,6 +2497,333 @@ function DialogDiaComDocumento({
             Fechar
           </Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/* ─── Ícone de dividir convocação ─── */
+
+function SplitIcon() {
+  // 2 retângulos com gap diagonal — sugere divisão.
+  // Anim hover via CSS: retângulos se afastam um pouco.
+  return (
+    <span className="split-icon" aria-hidden="true">
+      <svg viewBox="0 0 20 20" fill="none" className="split-icon-svg">
+        <rect
+          className="split-icon-left"
+          x="2"
+          y="3"
+          width="6.5"
+          height="14"
+          rx="1.6"
+          fill="rgba(167, 139, 250, 0.18)"
+          stroke="rgba(196, 181, 253, 0.85)"
+          strokeWidth="1.3"
+        />
+        <rect
+          className="split-icon-right"
+          x="11.5"
+          y="3"
+          width="6.5"
+          height="14"
+          rx="1.6"
+          fill="rgba(167, 139, 250, 0.18)"
+          stroke="rgba(196, 181, 253, 0.85)"
+          strokeWidth="1.3"
+        />
+      </svg>
+    </span>
+  )
+}
+
+/* ─── Dialog: Dividir convocação em 2 subitems ─── */
+
+type DialogSplitProps = {
+  etapa: EtapaSplit
+  carregando: boolean
+  erro: string | null
+  dias: string[]
+  diasCancelados: Set<string>
+  primeiroDiaConvocacao: string
+  ultimoDiaConvocacao: string
+  contratoOriginal: string
+  splitAtivo: boolean
+  splitDataParte2: string | null
+  splitContratoP1: string
+  splitContratoP2: string
+  onSelecionarData: (d: string) => void
+  onSelecionarContratoP1: (c: string) => void
+  onSelecionarContratoP2: (c: string) => void
+  onAvancar: (etapa: EtapaSplit) => void
+  onCancelar: () => void
+  onConfirmar: () => void
+  onReverter: () => void
+}
+
+function DialogSplit({
+  etapa,
+  carregando,
+  erro,
+  dias,
+  diasCancelados,
+  primeiroDiaConvocacao,
+  ultimoDiaConvocacao,
+  contratoOriginal,
+  splitAtivo,
+  splitDataParte2,
+  splitContratoP1,
+  splitContratoP2,
+  onSelecionarData,
+  onSelecionarContratoP1,
+  onSelecionarContratoP2,
+  onAvancar,
+  onCancelar,
+  onConfirmar,
+  onReverter,
+}: DialogSplitProps) {
+  const aberto = etapa !== "fechado"
+
+  function dataInvalida(d: string): string | null {
+    if (d === primeiroDiaConvocacao)
+      return "Não pode ser o primeiro dia (P1 ficaria vazia)."
+    if (d === ultimoDiaConvocacao)
+      return "Não pode ser o último dia (P2 ficaria vazia)."
+    if (diasCancelados.has(d)) return "Dia está em zona cancelada."
+    return null
+  }
+
+  function diasP1(): string[] {
+    if (!splitDataParte2) return []
+    return dias.filter((d) => d < splitDataParte2)
+  }
+  function diasP2(): string[] {
+    if (!splitDataParte2) return []
+    return dias.filter((d) => d >= splitDataParte2)
+  }
+
+  const contratosIguais =
+    !!splitContratoP1 &&
+    !!splitContratoP2 &&
+    splitContratoP1 === splitContratoP2
+
+  function rangeStr(arr: string[]): string {
+    if (arr.length === 0) return "—"
+    if (arr.length === 1) return formatarDataNumerica(arr[0])
+    return `${formatarDataNumerica(arr[0])} – ${formatarDataNumerica(arr[arr.length - 1])}`
+  }
+
+  return (
+    <Dialog open={aberto} onOpenChange={(o) => !o && onCancelar()}>
+      <DialogContent
+        className="glass-modal border-0 bg-transparent p-8 text-white sm:max-w-lg"
+        style={{
+          backdropFilter: "blur(10px) saturate(140%) brightness(1.05)",
+        }}
+      >
+        <DialogHeader>
+          <p className="text-[10px] uppercase tracking-[0.3em] text-violet-200/80">
+            Dividir convocação
+          </p>
+          <DialogTitle className="text-display text-3xl text-white">
+            {etapa === "calendario"
+              ? "Escolha a data de divisão"
+              : etapa === "contratos"
+                ? "Contratos de cada parte"
+                : etapa === "confirmar"
+                  ? "Confirme a divisão"
+                  : "Divisão aplicada"}
+          </DialogTitle>
+          <DialogDescription className="text-white/65">
+            {etapa === "calendario"
+              ? "O dia escolhido será o primeiro da Parte 2. Os anteriores ficam na Parte 1."
+              : etapa === "contratos"
+                ? "Cada parte vai virar um subitem no monday. Contratos devem ser diferentes."
+                : etapa === "confirmar"
+                  ? "Aplicar a divisão agora não finaliza — você ainda preenche faltas/atrasos antes de enviar."
+                  : "Pronto. As partes já aparecem no painel."}
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* ─── Etapa: calendário ─── */}
+        {etapa === "calendario" && (
+          <div className="mt-4">
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+              {dias.map((d) => {
+                const motivo = dataInvalida(d)
+                const selecionado = splitDataParte2 === d
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    disabled={!!motivo}
+                    onClick={() => onSelecionarData(d)}
+                    className={`rounded-xl border px-3 py-2 text-sm transition ${
+                      selecionado
+                        ? "border-violet-300/60 bg-violet-300/20 text-white"
+                        : motivo
+                          ? "cursor-not-allowed border-white/8 bg-white/[0.02] text-white/30"
+                          : "border-white/15 bg-white/[0.04] text-white/85 hover:border-violet-300/40 hover:bg-violet-300/10"
+                    }`}
+                    title={motivo ?? undefined}
+                  >
+                    {formatarDataNumerica(d)}
+                  </button>
+                )
+              })}
+            </div>
+            <div className="mt-5 flex justify-between gap-3">
+              <Button
+                variant="ghost"
+                onClick={onCancelar}
+                className="text-white/85 hover:bg-white/10 hover:text-white"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => onAvancar("contratos")}
+                disabled={!splitDataParte2}
+                className="bg-violet-300 text-[#1a0a40] hover:bg-violet-200 disabled:opacity-50"
+              >
+                Avançar
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Etapa: contratos ─── */}
+        {etapa === "contratos" && splitDataParte2 && (
+          <div className="mt-4 space-y-4">
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-white/65">
+              <p>
+                <strong className="text-white/90">Parte 1:</strong>{" "}
+                {rangeStr(diasP1())}
+              </p>
+              <p className="mt-1">
+                <strong className="text-white/90">Parte 2:</strong>{" "}
+                {rangeStr(diasP2())}
+              </p>
+            </div>
+
+            <GlassSelect
+              label="Contrato Parte 1"
+              value={splitContratoP1}
+              onChange={onSelecionarContratoP1}
+              options={CONTRATOS}
+              placeholder={contratoOriginal || "Selecione..."}
+            />
+            <GlassSelect
+              label="Contrato Parte 2"
+              value={splitContratoP2}
+              onChange={onSelecionarContratoP2}
+              options={CONTRATOS}
+              placeholder="Selecione..."
+            />
+
+            {contratosIguais && (
+              <p className="rounded-xl border border-rose-300/30 bg-rose-300/10 px-3 py-2 text-xs text-rose-100">
+                Os contratos devem ser diferentes.
+              </p>
+            )}
+
+            <div className="flex justify-between gap-3">
+              <Button
+                variant="ghost"
+                onClick={() => onAvancar("calendario")}
+                className="text-white/85 hover:bg-white/10 hover:text-white"
+              >
+                Voltar
+              </Button>
+              <Button
+                onClick={() => onAvancar("confirmar")}
+                disabled={
+                  !splitContratoP1 || !splitContratoP2 || contratosIguais
+                }
+                className="bg-violet-300 text-[#1a0a40] hover:bg-violet-200 disabled:opacity-50"
+              >
+                Avançar
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Etapa: confirmar ─── */}
+        {etapa === "confirmar" && splitDataParte2 && (
+          <div className="mt-4 space-y-4">
+            <div className="space-y-3">
+              <div className="rounded-xl border border-violet-300/25 bg-violet-300/[0.05] px-4 py-3">
+                <p className="text-[10px] uppercase tracking-[0.22em] text-violet-200/85">
+                  Parte 1
+                </p>
+                <p className="mt-1 text-sm text-white/90">
+                  {rangeStr(diasP1())}{" "}
+                  <span className="text-violet-200/85">
+                    · {splitContratoP1}
+                  </span>
+                </p>
+              </div>
+              <div className="rounded-xl border border-violet-300/25 bg-violet-300/[0.05] px-4 py-3">
+                <p className="text-[10px] uppercase tracking-[0.22em] text-violet-200/85">
+                  Parte 2
+                </p>
+                <p className="mt-1 text-sm text-white/90">
+                  {rangeStr(diasP2())}{" "}
+                  <span className="text-violet-200/85">
+                    · {splitContratoP2}
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            {erro && (
+              <p className="rounded-xl border border-rose-300/30 bg-rose-300/10 px-3 py-2 text-xs text-rose-100">
+                {erro}
+              </p>
+            )}
+
+            <div className="flex items-center justify-between gap-3">
+              {splitAtivo && (
+                <Button
+                  variant="ghost"
+                  onClick={onReverter}
+                  disabled={carregando}
+                  className="text-orange-200/85 hover:bg-orange-300/10 hover:text-orange-100"
+                >
+                  Reverter divisão
+                </Button>
+              )}
+              <div className="ml-auto flex gap-3">
+                <Button
+                  variant="ghost"
+                  onClick={() => onAvancar("contratos")}
+                  disabled={carregando}
+                  className="text-white/85 hover:bg-white/10 hover:text-white"
+                >
+                  Voltar
+                </Button>
+                <Button
+                  onClick={onConfirmar}
+                  disabled={carregando}
+                  className="bg-violet-300 text-[#1a0a40] hover:bg-violet-200 disabled:opacity-60"
+                >
+                  {carregando
+                    ? "Aplicando…"
+                    : splitAtivo
+                      ? "Salvar alterações"
+                      : "Aplicar divisão"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Etapa: sucesso ─── */}
+        {etapa === "sucesso" && (
+          <div className="mt-6 flex items-center justify-center gap-2 text-violet-200">
+            <Sparkles className="size-4" />
+            Divisão aplicada
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   )
