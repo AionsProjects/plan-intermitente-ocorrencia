@@ -960,24 +960,43 @@ function EtapaDadosTrabalho({
       </h2>
 
       <div className="mt-6 space-y-5">
-        <div>
-          <label className="text-[10px] uppercase tracking-[0.3em] text-white/55">
-            Contrato do colaborador
-          </label>
-          <SelectGlass
-            valor={draft.contratoColaborador}
-            opcoes={CONTRATOS_COLABORADOR.map((c) => c.label)}
-            placeholder="Selecione o contrato"
-            onChange={(v) =>
-              onChange((p) => ({
-                ...p,
-                contratoColaborador: v as ContratoColaboradorLabel,
-                unidadeLabel: null,
-                unidadeNaoEncontradaTexto: "",
-              }))
-            }
-          />
-        </div>
+        {draft.contratoColaborador ? (
+          <div>
+            <label className="text-[10px] uppercase tracking-[0.3em] text-white/55">
+              Contrato do colaborador
+            </label>
+            <div className="mt-3 flex items-center gap-2 rounded-2xl border border-amber-300/25 bg-amber-300/[0.05] px-4 py-3">
+              <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-2 py-0.5 text-[9px] uppercase tracking-[0.22em] text-amber-100">
+                RM
+              </span>
+              <span className="text-sm font-medium text-white/90">
+                {draft.contratoColaborador}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <label className="text-[10px] uppercase tracking-[0.3em] text-rose-200/85">
+              Contrato do colaborador — não inferido
+            </label>
+            <SelectGlass
+              valor={draft.contratoColaborador}
+              opcoes={CONTRATOS_COLABORADOR.map((c) => c.label)}
+              placeholder="Selecione o contrato"
+              onChange={(v) =>
+                onChange((p) => ({
+                  ...p,
+                  contratoColaborador: v as ContratoColaboradorLabel,
+                  unidadeLabel: null,
+                  unidadeNaoEncontradaTexto: "",
+                }))
+              }
+            />
+            <p className="mt-2 text-[10px] text-rose-200/70">
+              Seção do RM fora do mapa conhecido. Escolha manualmente.
+            </p>
+          </div>
+        )}
 
         <div>
           <label className="text-[10px] uppercase tracking-[0.3em] text-white/55">

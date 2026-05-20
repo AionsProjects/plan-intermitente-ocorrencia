@@ -13,7 +13,10 @@
       "Bash(npm ls *)",
       "Bash(netstat -ano)",
       "Bash(tasklist //FI \"PID eq 7816\")",
-      "Bash(taskkill *)"
+      "Bash(taskkill *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
     ]
   }
 }

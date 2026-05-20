@@ -185,7 +185,12 @@ export function AtestadosPage() {
     )
   }
 
-  const mostrarVoltar = etapa.tipo !== "sucesso"
+  // Wizard tem botão Voltar próprio (navega entre etapas internas). Esconde
+  // o Voltar global pra não duplicar visualmente.
+  const mostrarVoltar =
+    etapa.tipo !== "sucesso" &&
+    etapa.tipo !== "wizard-intermitente" &&
+    etapa.tipo !== "wizard-clt"
 
   return (
     <div className="relative z-10 min-h-svh">
