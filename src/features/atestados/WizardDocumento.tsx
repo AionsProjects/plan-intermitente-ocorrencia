@@ -40,6 +40,7 @@ import {
   isSabadoIso,
   listarDiasPeriodo,
 } from "./shared"
+import { contratoDoCodigoSecao } from "./mapaSecaoContrato"
 import {
   ACOMPANHANTES,
   CONTRATOS_COLABORADOR,
@@ -178,14 +179,19 @@ function draftInicial(
   // Prioridade do contrato:
   // 1) Convocação (intermitente acoplado — não usado mais, mas mantém compat)
   // 2) Campo `contrato` vindo direto do RM (celetista — backend inferiu)
-  // 3) Infere a partir do localUnidade/secao do RM
+  // 3) Mapa determinístico via código de seção (3º octeto do TBSECAO.CODIGO).
+  //    Derivado do dump completo de celetistas — mais robusto que parse de texto.
+  // 4) Infere a partir do localUnidade/secao do RM (fallback texto)
   const contratoConv = matchContrato(convocacao?.contrato)
   const contratoRM = matchContrato(empregado?.contrato)
+  const contratoDaSecao = contratoDoCodigoSecao(
+    empregado?.codigo ?? empregado?.secaoCodigo,
+  )
   const contratoInferido = inferContratoDoLocal(
     empregado?.localUnidade ?? empregado?.secao,
   )
   const contratoColaborador: ContratoColaboradorLabel | "" =
-    contratoConv || contratoRM || contratoInferido || ""
+    contratoConv || contratoRM || contratoDaSecao || contratoInferido || ""
 
   // Unidade default: prefere localUnidade (descrição amigável). Só preenche
   // se a unidade existir nas opções conhecidas do contrato selecionado.
