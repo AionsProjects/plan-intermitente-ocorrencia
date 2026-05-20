@@ -117,7 +117,11 @@ export function ResumoSessao({
               pulse ? "pulse-on-add" : ""
             }`}
           >
-            <span className="flex size-6 items-center justify-center rounded-full bg-amber-300/20 text-xs font-semibold text-amber-100">
+            <span
+              className={`flex size-6 items-center justify-center rounded-full bg-amber-300/20 text-xs font-semibold text-amber-100 ${
+                pulse ? "badge-bounce" : ""
+              }`}
+            >
               {total}
             </span>
             Resumo
