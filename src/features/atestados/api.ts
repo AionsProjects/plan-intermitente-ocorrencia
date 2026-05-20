@@ -77,14 +77,29 @@ export async function buscarCeletista(
   const lista: unknown[] = raw.resultados ?? []
   return lista.map((r) => {
     const o = r as Record<string, unknown>
+    // Campos do endpoint celetista atualizado:
+    //   codigo / secaoCodigo = código RM da seção (ex: "01.01.0004.01.0001")
+    //   localUnidade = descrição amigável (ex: "DETRAN - MANAUS")
+    //   contrato = inferido pelo n8n a partir do localUnidade (ex: "DETRAN")
+    const secaoCodigo = String(
+      o.secaoCodigo ?? o.secao_codigo ?? o.codigo ?? "",
+    )
+    const localUnidade = String(
+      o.localUnidade ?? o.local_unidade ?? "",
+    )
+    const secao = String(o.secao ?? localUnidade ?? "")
     return {
       nome: String(o.nome ?? ""),
       chapa: String(o.chapa ?? ""),
       cpf: String(o.cpf ?? ""),
       funcao: String(o.funcao ?? ""),
       admissao: String(o.admissao ?? ""),
-      secao: String(o.secao ?? ""),
+      secao,
       codcoligada: Number(o.codcoligada ?? 3),
+      codigo: secaoCodigo || undefined,
+      secaoCodigo: secaoCodigo || undefined,
+      localUnidade: localUnidade || undefined,
+      contrato: o.contrato ? String(o.contrato) : undefined,
     }
   })
 }

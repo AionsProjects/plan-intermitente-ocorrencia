@@ -133,20 +133,70 @@ type Draft = {
   arquivo: File | null
 }
 
+/** Tenta achar contrato válido por label exato. */
+function matchContrato(
+  candidato: string | undefined | null,
+): ContratoColaboradorLabel | "" {
+  if (!candidato) return ""
+  const norm = candidato.toUpperCase().trim()
+  const match = CONTRATOS_COLABORADOR.find((c) => c.label === norm)
+  return match ? (match.label as ContratoColaboradorLabel) : ""
+}
+
+/**
+ * Infere contrato a partir do localUnidade/secao do RM quando o backend
+ * não devolve `contrato` explicitamente. Procura substring de cada label
+ * conhecido dentro do texto.
+ *
+ * Ex: "DETRAN - MANAUS" → "DETRAN"
+ *     "SEMSA - ADM" → "SEMSA"
+ *     "SEDUC INTERIOR - COORDENADORIA 3" → "SEDUC INTERIOR"
+ */
+function inferContratoDoLocal(
+  texto: string | undefined | null,
+): ContratoColaboradorLabel | "" {
+  if (!texto) return ""
+  const norm = texto.toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+  // Ordem importa: labels mais específicos antes (ex: "SEDUC INTERIOR" antes de "SEDUC SEDE")
+  const ordenado = [...CONTRATOS_COLABORADOR].sort(
+    (a, b) => b.label.length - a.label.length,
+  )
+  for (const c of ordenado) {
+    const labelNorm = c.label.normalize("NFD").replace(/[̀-ͯ]/g, "")
+    if (norm.includes(labelNorm)) {
+      return c.label as ContratoColaboradorLabel
+    }
+  }
+  return ""
+}
+
 function draftInicial(
   _modo: ModoWizard,
   empregado: EmpregadoRM | null,
   convocacao: ConvocacaoResumida | null,
 ): Draft {
-  const contratoConv = convocacao?.contrato ?? ""
-  const contratoValido = CONTRATOS_COLABORADOR.find(
-    (c) => c.label === contratoConv.toUpperCase(),
+  // Prioridade do contrato:
+  // 1) Convocação (intermitente acoplado — não usado mais, mas mantém compat)
+  // 2) Campo `contrato` vindo direto do RM (celetista — backend inferiu)
+  // 3) Infere a partir do localUnidade/secao do RM
+  const contratoConv = matchContrato(convocacao?.contrato)
+  const contratoRM = matchContrato(empregado?.contrato)
+  const contratoInferido = inferContratoDoLocal(
+    empregado?.localUnidade ?? empregado?.secao,
   )
+  const contratoColaborador: ContratoColaboradorLabel | "" =
+    contratoConv || contratoRM || contratoInferido || ""
+
+  // Unidade default: prefere localUnidade (descrição amigável). Só preenche
+  // se a unidade existir nas opções conhecidas do contrato selecionado.
+  // Caso contrário deixa null pra operacional escolher / fallback "UNIDADE
+  // NÃO ENCONTRADA".
+  const unidadeCandidata =
+    empregado?.localUnidade ?? empregado?.secao ?? ""
+
   return {
     empregadoNome: empregado?.nome ?? "",
-    contratoColaborador: contratoValido
-      ? (contratoValido.label as ContratoColaboradorLabel)
-      : "",
+    contratoColaborador,
     tipoDocumentacaoLabel: "",
     dataInicio: "",
     dataFim: "",
@@ -154,7 +204,7 @@ function draftInicial(
     saidaRetornoTexto: "",
     horarioAlmocoLabel: "",
     acompanhanteLabel: "Sem acompanhamento",
-    unidadeLabel: null,
+    unidadeLabel: unidadeCandidata || null,
     unidadeNaoEncontradaTexto: "",
     observacao: "",
     arquivo: null,
@@ -424,6 +474,17 @@ export function WizardDocumento({
             {empregado.secao && (
               <span>Seção <span className="text-white/75">{empregado.secao}</span></span>
             )}
+            {(empregado.codigo || empregado.secaoCodigo) && (
+              <span className="text-white/45">·</span>
+            )}
+            {(empregado.codigo || empregado.secaoCodigo) && (
+              <span>
+                Cód.{" "}
+                <span className="font-mono text-white/65">
+                  {empregado.codigo || empregado.secaoCodigo}
+                </span>
+              </span>
+            )}
             {empregado.admissao && (
               <span className="text-white/45">·</span>
             )}
@@ -453,6 +514,17 @@ export function WizardDocumento({
             {empregado.secao && <span className="text-white/45">·</span>}
             {empregado.secao && (
               <span>Seção <span className="text-white/75">{empregado.secao}</span></span>
+            )}
+            {(empregado.codigo || empregado.secaoCodigo) && (
+              <span className="text-white/45">·</span>
+            )}
+            {(empregado.codigo || empregado.secaoCodigo) && (
+              <span>
+                Cód.{" "}
+                <span className="font-mono text-white/65">
+                  {empregado.codigo || empregado.secaoCodigo}
+                </span>
+              </span>
             )}
             {empregado.admissao && <span className="text-white/45">·</span>}
             {empregado.admissao && (
