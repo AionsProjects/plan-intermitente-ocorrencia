@@ -1880,7 +1880,7 @@ html {
   width: 100%;
   perspective: 900px;
   min-height: 6.5rem;
-  gap: 9px;
+  gap: 5px;
   padding: 8px 0;
 }
 
@@ -1926,7 +1926,13 @@ html {
     translate(-2px, 10px)
     rotate(-1.6deg);
   transform-origin: 50% 50%;
-  filter: drop-shadow(-4px 6px 8px rgba(0, 0, 0, 0.55));
+  /* Múltiplos drop-shadows empilhados → sombra realista difusa em vez
+     de bloco único duro. Primeiro shadow longo+macio = ambient,
+     segundo curto+denso = contact shadow, terceiro lateral sutil. */
+  filter:
+    drop-shadow(0 14px 18px rgba(0, 0, 0, 0.35))
+    drop-shadow(0 4px 6px rgba(0, 0, 0, 0.45))
+    drop-shadow(-2px 2px 3px rgba(0, 0, 0, 0.25));
 }
 
 /* Direita: clip-path simétrica — borda esquerda recua no topo, fica
@@ -1941,7 +1947,10 @@ html {
     translate(2px, -5px)
     rotate(1.2deg);
   transform-origin: 50% 50%;
-  filter: drop-shadow(4px 6px 8px rgba(0, 0, 0, 0.55));
+  filter:
+    drop-shadow(0 14px 18px rgba(0, 0, 0, 0.35))
+    drop-shadow(0 4px 6px rgba(0, 0, 0, 0.45))
+    drop-shadow(2px 2px 3px rgba(0, 0, 0, 0.25));
 }
 
 /* Glow quente na borda interna do corte — pintado via pseudo-element
