@@ -1033,46 +1033,54 @@
   50%      { opacity: 1; transform: scale(1.25) rotate(180deg); }
 }
 
-/* ─── Ribbon de contrato no tile (split ativo) ─────────────────
-   Faixa diagonal cobrindo apenas o canto superior direito do tile.
-   P1 = vermelho, P2 = azul. Texto rotacionado 45°. */
-.dia-ribbon {
-  position: absolute;
-  top: 10px;
-  right: -28px;
-  width: 90px;
-  padding: 2px 0;
-  transform: rotate(45deg);
-  text-align: center;
-  font-size: 0.5rem;
-  letter-spacing: 0.1em;
+/* ─── Sections do split (cada parte agrupa seus dias) ───────────
+   Container sutil em vez de ribbon chamativo. Header com eyebrow
+   + divisor + nome do contrato. Tones discretos (amber pra P1,
+   sky pra P2). Sem fundo colorido — só borda esquerda e label. */
+.split-section {
+  position: relative;
+  border-left: 2px solid transparent;
+  padding-left: 1rem;
+}
+.split-section-amber {
+  border-left-color: rgba(232, 194, 117, 0.45);
+}
+.split-section-sky {
+  border-left-color: rgba(125, 211, 252, 0.45);
+}
+.split-section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding-bottom: 0.5rem;
+}
+.split-section-eyebrow {
+  font-size: 0.625rem;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.95);
-  font-weight: 600;
-  pointer-events: none;
-  z-index: 3;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  box-shadow:
-    0 2px 6px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.5);
 }
-.dia-ribbon-red {
-  background: linear-gradient(
-    135deg,
-    rgba(248, 113, 113, 0.95) 0%,
-    rgba(185, 28, 28, 0.92) 100%
-  );
-  text-shadow: 0 1px 2px rgba(80, 0, 0, 0.55);
+.split-section-amber .split-section-eyebrow {
+  color: rgba(232, 194, 117, 0.85);
 }
-.dia-ribbon-blue {
+.split-section-sky .split-section-eyebrow {
+  color: rgba(125, 211, 252, 0.85);
+}
+.split-section-divider {
+  flex: 0 0 18px;
+  height: 1px;
   background: linear-gradient(
-    135deg,
-    rgba(96, 165, 250, 0.95) 0%,
-    rgba(29, 78, 216, 0.92) 100%
+    to right,
+    rgba(255, 255, 255, 0.18),
+    rgba(255, 255, 255, 0.04)
   );
-  text-shadow: 0 1px 2px rgba(0, 20, 80, 0.55);
+}
+.split-section-contrato {
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.85);
 }
 
 /* ─── Botão "Adicionar atestado" (âmbar) ─── */

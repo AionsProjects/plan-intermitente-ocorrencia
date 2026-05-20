@@ -599,6 +599,30 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
     )
   }
 
+  // Helper pra render do tile do dia — usado em ambos modos (split + normal)
+  function renderDiaItem(diaInfo: DiaInfo, i: number) {
+    return (
+      <DiaItem
+        key={diaInfo.data}
+        diaInfo={diaInfo}
+        resposta={respostas[diaInfo.data]}
+        index={i}
+        modoApagar={modoApagar}
+        onEdit={() => {
+          if (!modoApagar && diaInfo.ativo) setDiaEditando(diaInfo.data)
+        }}
+        onApagar={() => handleClickDiaApagar(diaInfo)}
+        onReativar={() => reativarDia(diaInfo.data)}
+        onRemoverExtra={() => pedirRemoverSabado(diaInfo.data)}
+        atestadosNoDia={atestadosPorData.get(diaInfo.data) ?? []}
+        onAbrirAtestadoInfo={() => abrirInfoDocumento(diaInfo.data)}
+        podeRemoverExtra={!sabadosJaPagos.has(diaInfo.data)}
+        isCancelado={diasCancelados.has(diaInfo.data)}
+        onAbrirReverter={() => setReverterAberto(true)}
+      />
+    )
+  }
+
   return (
     <div className="relative z-10 min-h-svh">
       {ehTeste && <BannerTeste />}
@@ -681,38 +705,34 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
             </div>
           </div>
 
-          {/* Day grid: 2 per row, last odd item spans both columns */}
-          <ul className="mt-7 grid grid-cols-2 gap-2.5 dia-grid">
-            {diasInfo.map((diaInfo, i) => (
-              <DiaItem
-                key={diaInfo.data}
-                diaInfo={diaInfo}
-                resposta={respostas[diaInfo.data]}
-                index={i}
-                modoApagar={modoApagar}
-                onEdit={() => {
-                  if (!modoApagar && diaInfo.ativo) setDiaEditando(diaInfo.data)
-                }}
-                onApagar={() => handleClickDiaApagar(diaInfo)}
-                onReativar={() => reativarDia(diaInfo.data)}
-                onRemoverExtra={() => pedirRemoverSabado(diaInfo.data)}
-                atestadosNoDia={atestadosPorData.get(diaInfo.data) ?? []}
-                onAbrirAtestadoInfo={() => abrirInfoDocumento(diaInfo.data)}
-                podeRemoverExtra={!sabadosJaPagos.has(diaInfo.data)}
-                isCancelado={diasCancelados.has(diaInfo.data)}
-                onAbrirReverter={() => setReverterAberto(true)}
-                isParte2={diasParte2.has(diaInfo.data)}
-                splitContratos={
-                  splitAtivo && dados.split
-                    ? {
-                        p1: dados.split.contratoParte1,
-                        p2: dados.split.contratoParte2,
-                      }
-                    : null
-                }
-              />
-            ))}
-          </ul>
+          {/* Day grid: 2 per row, last odd item spans both columns.
+              Quando split ativo, divide em 2 sections com header de contrato. */}
+          {splitAtivo && dados.split ? (
+            <div className="mt-7 space-y-7">
+              <SplitSection
+                eyebrow="Contrato 1"
+                contrato={dados.split.contratoParte1}
+                tone="amber"
+              >
+                {diasInfo
+                  .filter((d) => !diasParte2.has(d.data))
+                  .map((diaInfo, i) => renderDiaItem(diaInfo, i))}
+              </SplitSection>
+              <SplitSection
+                eyebrow="Contrato 2"
+                contrato={dados.split.contratoParte2}
+                tone="sky"
+              >
+                {diasInfo
+                  .filter((d) => diasParte2.has(d.data))
+                  .map((diaInfo, i) => renderDiaItem(diaInfo, i))}
+              </SplitSection>
+            </div>
+          ) : (
+            <ul className="mt-7 grid grid-cols-2 gap-2.5 dia-grid">
+              {diasInfo.map((diaInfo, i) => renderDiaItem(diaInfo, i))}
+            </ul>
+          )}
 
           {/* Desconsiderar mode banner */}
           {modoApagar && (
@@ -864,8 +884,6 @@ type DiaItemProps = {
   podeRemoverExtra?: boolean
   isCancelado: boolean
   onAbrirReverter: () => void
-  isParte2: boolean
-  splitContratos?: { p1: string; p2: string } | null
 }
 
 function DiaItem({
@@ -882,8 +900,6 @@ function DiaItem({
   podeRemoverExtra = true,
   isCancelado,
   onAbrirReverter,
-  isParte2,
-  splitContratos,
 }: DiaItemProps) {
   const isDisabled = !diaInfo.ativo
   const isExtra = diaInfo.tipo === "extra"
@@ -1017,17 +1033,6 @@ function DiaItem({
             <rect x="0" y="0" width="100%" height="100%" rx="16" ry="16" />
           </svg>
         ) : null}
-
-        {/* Ribbon diagonal de contrato (split ativo) — cobre canto superior
-            direito. P1 vermelho, P2 azul. */}
-        {splitContratos && (
-          <span
-            className={`dia-ribbon ${isParte2 ? "dia-ribbon-blue" : "dia-ribbon-red"}`}
-            aria-label={`Contrato ${isParte2 ? "Parte 2" : "Parte 1"}: ${isParte2 ? splitContratos.p2 : splitContratos.p1}`}
-          >
-            {isParte2 ? splitContratos.p2 : splitContratos.p1}
-          </span>
-        )}
 
         {/* Tile cancelado tem render próprio (2 botões) — não cai aqui. */}
 
@@ -2521,6 +2526,33 @@ function DialogDiaComDocumento({
 }
 
 /* ─── Ícone de dividir convocação ─── */
+
+/* ─── Section wrapper de cada parte do split ─── */
+
+type SplitSectionProps = {
+  eyebrow: string
+  contrato: string
+  tone: "amber" | "sky"
+  children: React.ReactNode
+}
+
+function SplitSection({
+  eyebrow,
+  contrato,
+  tone,
+  children,
+}: SplitSectionProps) {
+  return (
+    <section className={`split-section split-section-${tone}`}>
+      <header className="split-section-header">
+        <span className="split-section-eyebrow">{eyebrow}</span>
+        <span className="split-section-divider" aria-hidden="true" />
+        <span className="split-section-contrato">{contrato}</span>
+      </header>
+      <ul className="mt-3 grid grid-cols-2 gap-2.5 dia-grid">{children}</ul>
+    </section>
+  )
+}
 
 function SplitIcon() {
   // 2 retângulos + lâmina vibrante que rasga o meio no hover.
