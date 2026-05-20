@@ -1878,9 +1878,11 @@ html {
   position: relative;
   display: flex;
   width: 100%;
-  perspective: 800px;
-  min-height: 6.25rem;
-  gap: 6px;
+  perspective: 900px;
+  min-height: 6.5rem;
+  gap: 14px;
+  /* Padding vertical absorve overflow do translateY/rotate das peças */
+  padding: 8px 0;
 }
 
 .dia-meia {
@@ -1899,50 +1901,52 @@ html {
     rgba(60, 20, 14, 0.45) 0%,
     rgba(15, 6, 4, 0.88) 100%
   );
-  border: 1px solid rgba(180, 60, 40, 0.18);
+  border: 1px solid rgba(180, 60, 40, 0.22);
   transform-style: preserve-3d;
   transition:
     transform 110ms ease-out,
     box-shadow 200ms ease,
     border-color 200ms ease;
-  box-shadow: 0 8px 20px -8px rgba(80, 20, 10, 0.55);
 }
 
 .dia-meia:hover {
-  border-color: rgba(220, 80, 50, 0.32);
-  box-shadow:
-    0 14px 30px -10px rgba(120, 35, 15, 0.65),
-    inset 0 0 0 1px rgba(220, 80, 50, 0.18);
+  border-color: rgba(220, 80, 50, 0.4);
 }
 
-/* Esquerda desce mais que a direita + tilt próprio.
-   Glow laranja na borda interna (direita do botão esquerdo) sugere
-   corte rápido quente. */
+/* Esquerda desce 12px + rotate -2deg — claramente caída.
+   Sombra projetada `-8px 8px` aponta pro fundo, halo quente vermelho
+   indica corte em alta temperatura. Inset glow forte na borda direita
+   (linha de corte) com largura 3px + spread blur 8-14px → barra
+   laranja brilhante visível. */
 .dia-meia-left {
   transform:
     perspective(700px)
-    rotateY(calc((var(--mx) - 50) * 0.16deg))
-    rotateX(calc((50 - var(--my)) * 0.16deg))
-    translateY(6px)
-    rotate(-0.6deg);
+    rotateY(calc((var(--mx) - 50) * 0.18deg))
+    rotateX(calc((50 - var(--my)) * 0.18deg))
+    translate(-2px, 12px)
+    rotate(-2deg);
+  transform-origin: 100% 50%;
   box-shadow:
-    0 10px 22px -8px rgba(80, 20, 10, 0.6),
-    inset -2px 0 0 rgba(255, 110, 50, 0.45),
-    2px 0 6px rgba(220, 60, 25, 0.35);
+    0 12px 24px -6px rgba(0, 0, 0, 0.65),
+    -8px 8px 16px -8px rgba(180, 40, 15, 0.4),
+    inset -3px 0 0 rgba(255, 120, 60, 0.85),
+    inset -8px 0 14px -4px rgba(255, 80, 30, 0.5);
 }
 
-/* Direita fica mais em cima — peça separada. */
+/* Direita sobe 6px + rotate +1.5deg — peça aparentemente "solta". */
 .dia-meia-right {
   transform:
     perspective(700px)
-    rotateY(calc((var(--mx) - 50) * 0.16deg))
-    rotateX(calc((50 - var(--my)) * 0.16deg))
-    translateY(-2px)
-    rotate(0.4deg);
+    rotateY(calc((var(--mx) - 50) * 0.18deg))
+    rotateX(calc((50 - var(--my)) * 0.18deg))
+    translate(2px, -6px)
+    rotate(1.5deg);
+  transform-origin: 0 50%;
   box-shadow:
-    0 10px 22px -8px rgba(80, 20, 10, 0.6),
-    inset 2px 0 0 rgba(255, 110, 50, 0.45),
-    -2px 0 6px rgba(220, 60, 25, 0.35);
+    0 12px 24px -6px rgba(0, 0, 0, 0.65),
+    8px 8px 16px -8px rgba(180, 40, 15, 0.4),
+    inset 3px 0 0 rgba(255, 120, 60, 0.85),
+    inset 8px 0 14px -4px rgba(255, 80, 30, 0.5);
 }
 
 /* Conteúdo dobra-largura, posicionado pra metade-esquerda mostrar lado
@@ -1952,8 +1956,8 @@ html {
   position: absolute;
   top: 0;
   height: 100%;
-  /* Cada meia mostra 50% do total + 3px de gap por lado */
-  width: calc(200% + 6px);
+  /* Cada meia mostra 50% do total + metade do gap por lado */
+  width: calc(200% + 14px);
   display: flex;
   flex-direction: column;
   align-items: center;
