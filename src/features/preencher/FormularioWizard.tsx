@@ -878,15 +878,13 @@ function DiaItem({
 
         {isCancelado && (
           <>
-            {/* Borda tracejada animada vermelho-queimado */}
-            <svg className="cancelado-dash-svg" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <rect x="0" y="0" width="100%" height="100%" rx="16" ry="16" />
-            </svg>
-            {/* 3 camadas de chamas com keyframes desalinhados */}
-            <span className="tile-fire tile-fire-outer" aria-hidden="true" />
-            <span className="tile-fire tile-fire-mid" aria-hidden="true" />
-            <span className="tile-fire tile-fire-inner" aria-hidden="true" />
-            <span className="tile-fire-glow" aria-hidden="true" />
+            {/* Tile cortado ao meio na diagonal — duas metades visualmente
+                separadas, direita desloca pra baixo-direita. Tilt 3D do botão
+                pai continua aplicado ao container; metades herdam + ganham
+                offset próprio. */}
+            <span className="tile-cut tile-cut-left" aria-hidden="true" />
+            <span className="tile-cut tile-cut-right" aria-hidden="true" />
+            <span className="tile-cut-line" aria-hidden="true" />
           </>
         )}
 
