@@ -2555,28 +2555,17 @@ function SplitSection({
 }
 
 function SplitIcon() {
-  // Idle: 1 retângulo único (convocação inteira).
-  // Hover: encolhe + 2 metades surgem do centro e se afastam,
-  // lâmina rosa risca o meio + sparkles. Semântica "1 vira 2".
+  // Idle: 2 retângulos próximos com pequeno gap central.
+  // Hover: retângulos se afastam (translateX ± rotate), lâmina rosa
+  // risca o meio (stroke-dashoffset), sparkles burst sequencial.
   return (
     <span className="split-icon" aria-hidden="true">
       <svg viewBox="0 0 20 20" fill="none" className="split-icon-svg">
         <rect
-          className="split-whole"
-          x="3"
+          className="split-icon-left"
+          x="2"
           y="3"
-          width="14"
-          height="14"
-          rx="1.8"
-          fill="rgba(167, 139, 250, 0.22)"
-          stroke="rgba(196, 181, 253, 0.9)"
-          strokeWidth="1.4"
-        />
-        <rect
-          className="split-half split-half-left"
-          x="3"
-          y="3"
-          width="6.5"
+          width="7"
           height="14"
           rx="1.6"
           fill="rgba(167, 139, 250, 0.22)"
@@ -2584,10 +2573,10 @@ function SplitIcon() {
           strokeWidth="1.4"
         />
         <rect
-          className="split-half split-half-right"
-          x="10.5"
+          className="split-icon-right"
+          x="11"
           y="3"
-          width="6.5"
+          width="7"
           height="14"
           rx="1.6"
           fill="rgba(167, 139, 250, 0.22)"

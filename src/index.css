@@ -929,21 +929,11 @@
   filter: drop-shadow(0 0 2px rgba(167, 139, 250, 0.3));
   transition: filter 220ms ease;
 }
-.split-icon .split-whole {
+.split-icon .split-icon-left,
+.split-icon .split-icon-right {
   transform-origin: 10px 10px;
   transform-box: fill-box;
-  transition:
-    opacity 220ms ease,
-    transform 300ms cubic-bezier(0.6, 0.05, 0.2, 1);
-}
-.split-icon .split-half {
-  opacity: 0;
-  transform-origin: 10px 10px;
-  transform-box: fill-box;
-  transform: scaleX(0.05);
-  transition:
-    opacity 280ms ease 200ms,
-    transform 400ms cubic-bezier(0.34, 1.4, 0.5, 1) 200ms;
+  transition: transform 320ms cubic-bezier(0.34, 1.4, 0.5, 1);
 }
 .split-icon .split-icon-blade {
   opacity: 0;
@@ -961,33 +951,25 @@
 .btn-dividir-convocacao:focus-visible .split-icon-svg {
   filter: drop-shadow(0 0 6px rgba(167, 139, 250, 0.65));
 }
-.btn-dividir-convocacao:hover .split-whole,
-.btn-dividir-convocacao:focus-visible .split-whole {
-  opacity: 0;
-  transform: scaleX(0.05);
+.btn-dividir-convocacao:hover .split-icon-left,
+.btn-dividir-convocacao:focus-visible .split-icon-left {
+  transform: translateX(-2.5px) rotate(-4deg);
 }
-.btn-dividir-convocacao:hover .split-half-left,
-.btn-dividir-convocacao:focus-visible .split-half-left {
-  opacity: 1;
-  transform: scaleX(1) translateX(-2.5px) rotate(-4deg);
-}
-.btn-dividir-convocacao:hover .split-half-right,
-.btn-dividir-convocacao:focus-visible .split-half-right {
-  opacity: 1;
-  transform: scaleX(1) translateX(2.5px) rotate(4deg);
+.btn-dividir-convocacao:hover .split-icon-right,
+.btn-dividir-convocacao:focus-visible .split-icon-right {
+  transform: translateX(2.5px) rotate(4deg);
 }
 .btn-dividir-convocacao:hover .split-icon-blade,
 .btn-dividir-convocacao:focus-visible .split-icon-blade {
-  animation: split-blade-strike 380ms cubic-bezier(0.6, 0.05, 0.2, 1) 100ms
-    forwards;
+  animation: split-blade-strike 380ms cubic-bezier(0.6, 0.05, 0.2, 1) forwards;
 }
 .btn-dividir-convocacao:hover .split-icon-spark-1,
 .btn-dividir-convocacao:focus-visible .split-icon-spark-1 {
-  animation: split-spark-burst 520ms ease-out 360ms forwards;
+  animation: split-spark-burst 520ms ease-out 260ms forwards;
 }
 .btn-dividir-convocacao:hover .split-icon-spark-2,
 .btn-dividir-convocacao:focus-visible .split-icon-spark-2 {
-  animation: split-spark-burst 520ms ease-out 460ms forwards;
+  animation: split-spark-burst 520ms ease-out 360ms forwards;
 }
 @keyframes split-blade-strike {
   0%   { opacity: 0.6; stroke-dashoffset: 22; transform: scaleY(0.6); }
