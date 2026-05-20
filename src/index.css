@@ -1868,137 +1868,104 @@ html {
 }
 
 /* ─── Tile de dia cancelado parcialmente ─────────────────────────────
-   Mantém .glass-tile-3d (tilt mousemove preservado). Sobrepõe fundo escuro
-   âmbar-queimado + 3 camadas de chamas que pulsam infinitamente
-   (reusa keyframes flame-flicker-outer/mid/inner já existentes).
-   mix-blend-mode: screen pra brilhar no fundo sem cortar texto.
-   pointer-events: none nas chamas → botão 3D continua clicável. */
+   Visual de "corte ao meio na diagonal": duas metades sobrepostas via
+   clip-path, com a metade direita deslocada levemente pra baixo-direita
+   pra sugerir queda. Tilt 3D do botão pai continua — clip-path não
+   interfere com transform. Cores discretas (bordô escuro + linha
+   vermelho-laranja sutil), sem animação pulsante. */
 .glass-tile-cancelado {
-  --tile-fire-base: rgba(20, 8, 4, 0.92);
-  background-color: var(--tile-fire-base) !important;
+  background-color: rgba(28, 10, 8, 0.88) !important;
   background-image: linear-gradient(
     180deg,
-    rgba(40, 16, 8, 0.6) 0%,
-    rgba(15, 6, 3, 0.85) 100%
+    rgba(60, 20, 14, 0.45) 0%,
+    rgba(15, 6, 4, 0.85) 100%
   );
   box-shadow:
-    0 12px 28px -10px rgba(120, 30, 0, 0.65),
-    inset 0 0 0 1px rgba(255, 110, 60, 0.18),
-    inset 0 -8px 16px -6px rgba(255, 80, 30, 0.25);
-  overflow: hidden;
+    0 10px 24px -10px rgba(80, 20, 10, 0.55),
+    inset 0 0 0 1px rgba(180, 60, 40, 0.18);
+  overflow: visible;
   isolation: isolate;
 }
 
 .glass-tile-cancelado:hover {
   box-shadow:
-    0 16px 36px -10px rgba(180, 50, 0, 0.75),
-    inset 0 0 0 1px rgba(255, 140, 70, 0.32),
-    inset 0 -10px 20px -6px rgba(255, 100, 40, 0.35);
+    0 14px 32px -10px rgba(120, 35, 15, 0.65),
+    inset 0 0 0 1px rgba(220, 80, 50, 0.28);
 }
 
-/* Borda tracejada quente (paralelo do extra-dash-svg/atestado-dash-svg) */
-.cancelado-dash-svg {
+/* Duas metades triangulares que cobrem o tile com gradientes escuros.
+   Diagonal vai do canto superior-esquerdo ao inferior-direito. */
+.tile-cut {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
   pointer-events: none;
-  z-index: 1;
-}
-.cancelado-dash-svg rect {
-  fill: none;
-  stroke: rgba(255, 130, 60, 0.55);
-  stroke-width: 1.5;
-  stroke-dasharray: 6 5;
-  animation: dash-walk-cancelado 1400ms linear infinite;
-}
-@keyframes dash-walk-cancelado {
-  to { stroke-dashoffset: -22; }
+  border-radius: inherit;
 }
 
-/* Chamas: 3 blobs radiais animados, cada um pivota da base do tile.
-   Durações primas relativas (740/980/1320ms) → padrão nunca alinha. */
-.tile-fire {
-  position: absolute;
-  pointer-events: none;
-  border-radius: 9999px;
-  filter: blur(7px);
-  mix-blend-mode: screen;
-  transform-origin: 50% 100%;
+/* Triângulo superior-esquerdo (metade "fixa") — tilt 3D contrário ao
+   da direita pra dar sensação de "duas peças soltas". Usa --mx/--my
+   propagadas pelo .glass-tile-3d pai. */
+.tile-cut-left {
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+  background: linear-gradient(
+    140deg,
+    rgba(70, 24, 16, 0.5) 0%,
+    rgba(25, 8, 5, 0.85) 100%
+  );
+  z-index: 1;
+  box-shadow: inset -1px -1px 0 rgba(220, 80, 50, 0.18);
+  transform:
+    perspective(600px)
+    rotateY(calc((var(--mx, 50) - 50) * 0.06deg))
+    rotateX(calc((50 - var(--my, 50)) * 0.06deg));
+  transform-origin: 0 0;
+  transition: transform 110ms ease-out;
+}
+
+/* Triângulo inferior-direito (metade "caída") — desloca + tilt 3D
+   invertido em relação à esquerda. Resultado: parece duas peças
+   independentes respondendo ao cursor. */
+.tile-cut-right {
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+  background: linear-gradient(
+    140deg,
+    rgba(45, 14, 9, 0.65) 0%,
+    rgba(10, 4, 2, 0.92) 100%
+  );
   z-index: 2;
-  will-change: transform;
-}
-.tile-fire-outer {
-  bottom: -10%;
-  left: 10%;
-  width: 80%;
-  height: 75%;
-  background: radial-gradient(
-    ellipse at 50% 85%,
-    rgba(255, 170, 60, 0.55) 0%,
-    rgba(255, 90, 20, 0.32) 45%,
-    transparent 75%
-  );
-  animation: flame-flicker-outer 1320ms ease-in-out infinite;
-}
-.tile-fire-mid {
-  bottom: -6%;
-  left: 22%;
-  width: 56%;
-  height: 65%;
-  background: radial-gradient(
-    ellipse at 50% 85%,
-    rgba(255, 200, 90, 0.6) 0%,
-    rgba(255, 110, 30, 0.4) 45%,
-    transparent 78%
-  );
-  animation: flame-flicker-mid 980ms ease-in-out infinite;
-}
-.tile-fire-inner {
-  bottom: -2%;
-  left: 35%;
-  width: 30%;
-  height: 55%;
-  background: radial-gradient(
-    ellipse at 50% 85%,
-    rgba(255, 240, 160, 0.75) 0%,
-    rgba(255, 150, 40, 0.5) 40%,
-    transparent 80%
-  );
-  animation: flame-flicker-inner 740ms ease-in-out infinite;
-}
-/* Glow estático na base do tile pra dar peso visual */
-.tile-fire-glow {
-  position: absolute;
-  bottom: -4px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 70%;
-  height: 12px;
-  border-radius: 9999px;
-  background: radial-gradient(
-    ellipse at center,
-    rgba(254, 215, 102, 0.5) 0%,
-    rgba(239, 68, 68, 0.25) 45%,
-    transparent 75%
-  );
-  filter: blur(4px);
-  opacity: 0.8;
-  pointer-events: none;
-  z-index: 1;
+  box-shadow:
+    -3px -3px 8px rgba(0, 0, 0, 0.55),
+    inset 1px 1px 0 rgba(200, 70, 40, 0.22);
+  transform:
+    translate(3px, 4px)
+    perspective(600px)
+    rotateY(calc((var(--mx, 50) - 50) * -0.08deg))
+    rotateX(calc((50 - var(--my, 50)) * -0.08deg))
+    rotate(0.6deg);
+  transform-origin: 100% 100%;
+  transition: transform 110ms ease-out;
 }
 
-/* Conteúdo do tile (texto) fica acima das chamas */
+/* Linha de corte diagonal — gradiente fino vermelho-laranja sobre a diagonal */
+.tile-cut-line {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  background: linear-gradient(
+    140deg,
+    transparent calc(50% - 0.8px),
+    rgba(255, 100, 50, 0.45) calc(50% - 0.4px),
+    rgba(220, 50, 20, 0.7) 50%,
+    rgba(120, 30, 10, 0.6) calc(50% + 0.4px),
+    transparent calc(50% + 1.2px)
+  );
+  filter: drop-shadow(0 0 3px rgba(220, 60, 25, 0.35));
+}
+
+/* Conteúdo do tile (texto) fica acima das metades */
 .glass-tile-cancelado > p,
 .glass-tile-cancelado > div {
   position: relative;
-  z-index: 3;
-}
-
-/* Reduced motion: para o fogo, mantém só o fundo escuro + glow estático */
-@media (prefers-reduced-motion: reduce) {
-  .tile-fire,
-  .cancelado-dash-svg rect {
-    animation: none !important;
-  }
+  z-index: 4;
 }
