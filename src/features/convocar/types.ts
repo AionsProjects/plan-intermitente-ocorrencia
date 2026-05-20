@@ -6,6 +6,12 @@ export type EmpregadoRM = {
   admissao: string // YYYY-MM-DD
   secao: string
   codcoligada: number
+  // Campos extras vindos do endpoint celetista (opcionais — intermitente
+  // não retorna esses). Quando ausentes, podem ser inferidos via fallback.
+  codigo?: string         // código da seção (ex: "01.01.0004.01.0001")
+  secaoCodigo?: string    // alias de codigo
+  localUnidade?: string   // ex: "DETRAN - MANAUS"
+  contrato?: string       // contrato inferido pelo n8n a partir de localUnidade
 }
 
 export type MondayLabel = string
