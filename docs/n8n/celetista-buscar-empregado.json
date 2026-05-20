@@ -1,0 +1,205 @@
+{
+  "name": "Celetista - Buscar Empregado RM",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "celetista-buscar-empregado",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        6352,
+        1888
+      ],
+      "id": "96d88339-9c42-4da3-a78e-b5dce87fbbb1",
+      "name": "Webhook",
+      "webhookId": "celetista-buscar-empregado-wh"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ==============================================================\n// Celetista - Buscar empregado no RM (autocomplete CLT)\n// Entrada:  ?nome=<string> (minimo 3 caracteres)\n// Saida:    { resultados: [{nome, chapa, cpf, funcao, admissao, secao, codcoligada}, ...] }\n// SQL:      consulta nomeada no RM (cadastrada com nome proprio CLT).\n//           Filtra por PFU.CODCATEGORIAESOCIAL <> '111' (exclui intermitentes)\n//           + PFU.CODSITUACAO <> 'D' (exclui demitidos)\n//           + PFU.NOME LIKE :NOME.\n// SQL esperada no RM:\n// SELECT PFU.NOME AS 'Nome', PFU.CHAPA AS 'Chapa', PPE.CPF AS 'CPF',\n//        PFC.NOME AS 'Fun??o', PFU.DATAADMISSAO AS 'Admiss?o', PSE.DESCRICAO AS 'Se??o'\n// FROM PFUNC PFU (NOLOCK)\n// INNER JOIN PFCOMPL PCC (NOLOCK) ON PCC.CODCOLIGADA = PFU.CODCOLIGADA AND PCC.CHAPA = PFU.CHAPA\n// INNER JOIN PSECAO PSE (NOLOCK) ON PSE.CODCOLIGADA = PFU.CODCOLIGADA AND PSE.CODIGO = PFU.CODSECAO\n// INNER JOIN PPESSOA PPE (NOLOCK) ON PPE.CODIGO = PFU.CODPESSOA\n// INNER JOIN PFUNCAO PFC (NOLOCK) ON PFC.CODCOLIGADA = PFU.CODCOLIGADA AND PFC.CODIGO = PFU.CODFUNCAO\n// WHERE PFU.CODCOLIGADA = :$CODCOLIGADA\n//   AND PFU.CODSITUACAO <> 'D'\n//   AND PFU.CODCATEGORIAESOCIAL <> '111'\n//   AND PFU.NOME LIKE :NOME.\n// ==============================================================\n\nconst nomeRaw = ($json.query?.nome || '').toString().trim();\n\nif (nomeRaw.length < 3) {\n  return [{\n    json: {\n      _statusCode: 200,\n      _skip: true,\n      resultados: []\n    }\n  }];\n}\n\n// Trocar PFP CLT pelo nome real da SQL cadastrada no RM TOTVS, se mudar.\nconst SQL_NAME = encodeURIComponent('PFP CLT');\nconst nomeParaRM = encodeURIComponent('%' + nomeRaw + '%');\nconst urlRM = 'https://contatoservicos165112.rm.cloudtotvs.com.br:8051/api/framework/v1/consultaSQLServer/RealizaConsulta/' + SQL_NAME + '/3/P/?parameters=$CODCOLIGADA%3D3%3BNOME%3D' + nomeParaRM;\n\nreturn [{\n  json: {\n    nomeRaw,\n    urlRM\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6576,
+        1888
+      ],
+      "id": "d3a8de88-be82-4de2-8552-02b2471940d5",
+      "name": "Preparar URL"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "skip-check",
+              "leftValue": "={{ $json._skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        6800,
+        1888
+      ],
+      "id": "2d9d770c-77e5-4db6-a42a-8e52008694e4",
+      "name": "Query curta?"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.urlRM }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        7024,
+        1984
+      ],
+      "id": "a77b37c5-55b6-4e1b-8475-e3b24a820226",
+      "name": "Consultar RM",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "S3pKAv6O75vlOFh8",
+          "name": "rm mike"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ==============================================================\n// Celetista - Normaliza resposta do RM em shape camelCase\n// Mapeamento dos campos da SQL CLT:\n//   'Nome'            -> nome\n//   'Chapa'           -> chapa\n//   'CPF'             -> cpf\n//   'Funcao'          -> funcao\n//   'Admissao'        -> admissao (YYYY-MM-DD)\n//   'Secao'           -> secao\n//\n// Nota: o HTTP Request do n8n quebra a resposta JSON-array do RM\n//       em N items (1 por linha). Por isso iteramos $input.all().\n// ==============================================================\n\nfunction normalizaAdmissao(v) {\n  if (!v) return '';\n  const s = String(v).trim();\n  const m = s.match(/^(\\d{4}-\\d{2}-\\d{2})/);\n  if (m) return m[1];\n  const m2 = s.match(/^(\\d{2})\\/(\\d{2})\\/(\\d{4})/);\n  if (m2) return m2[3] + '-' + m2[2] + '-' + m2[1];\n  return s;\n}\n\nfunction extrairLinhas(item) {\n  const j = item?.json;\n  if (!j) return [];\n  if (Array.isArray(j)) return j;\n  if (Array.isArray(j.body)) return j.body;\n  if (Array.isArray(j.value)) return j.value;\n  if (Array.isArray(j.data)) return j.data;\n  if (j['Nome'] || j['Chapa'] || j.nome) return [j];\n  return [];\n}\n\nconst todos = $input.all();\nconst linhas = todos.flatMap(extrairLinhas);\n\nconst resultados = linhas\n  .map((r) => ({\n    nome: String(r['Nome'] || r.nome || '').trim(),\n    chapa: String(r['Chapa'] || r.chapa || '').trim(),\n    cpf: String(r['CPF'] || r.cpf || '').trim(),\n    funcao: String(r['Função'] || r['Funcao'] || r.funcao || '').trim(),\n    admissao: normalizaAdmissao(r['Admissão'] || r['Admissao'] || r.admissao),\n    secao: String(r['Seção'] || r['Secao'] || r.secao || '').trim(),\n    codcoligada: 3\n  }))\n  .filter((e) => e.nome.length > 0);\n\nconst vistos = new Set();\nconst dedup = [];\nfor (const r of resultados) {\n  const key = r.chapa || r.nome;\n  if (vistos.has(key)) continue;\n  vistos.add(key);\n  dedup.push(r);\n}\n\nreturn [{\n  json: {\n    _statusCode: 200,\n    resultados: dedup\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7248,
+        1984
+      ],
+      "id": "a21f4034-e82d-4f5d-bee2-38b0fd785422",
+      "name": "Moldar resposta"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ resultados: $json.resultados || [] }) }}",
+        "options": {
+          "responseCode": "={{ $json._statusCode || 200 }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        7472,
+        1872
+      ],
+      "id": "40d4492a-a6cf-4ef7-a00b-522cb2245166",
+      "name": "Responder"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Preparar URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar URL": {
+      "main": [
+        [
+          {
+            "node": "Query curta?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query curta?": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Consultar RM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar RM": {
+      "main": [
+        [
+          {
+            "node": "Moldar resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Moldar resposta": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -1880,8 +1880,7 @@ html {
   width: 100%;
   perspective: 900px;
   min-height: 6.5rem;
-  gap: 14px;
-  /* Padding vertical absorve overflow do translateY/rotate das peças */
+  gap: 9px;
   padding: 8px 0;
 }
 
@@ -1895,58 +1894,89 @@ html {
   overflow: hidden;
   border-radius: 1rem;
   cursor: pointer;
-  background-color: rgba(28, 10, 8, 0.9);
+  /* Tom mais escuro, menos vermelho — quase preto com toque marrom-bordô */
+  background-color: rgba(18, 10, 8, 0.92);
   background-image: linear-gradient(
     180deg,
-    rgba(60, 20, 14, 0.45) 0%,
-    rgba(15, 6, 4, 0.88) 100%
+    rgba(38, 18, 12, 0.5) 0%,
+    rgba(8, 4, 2, 0.94) 100%
   );
-  border: 1px solid rgba(180, 60, 40, 0.22);
+  border: 1px solid rgba(120, 50, 35, 0.25);
   transform-style: preserve-3d;
+  /* Sem transition no transform → tilt 3D acompanha cursor 1:1, sem lag.
+     Mantém transição em shadow/border pra hover/leave suaves. */
   transition:
-    transform 110ms ease-out,
     box-shadow 200ms ease,
     border-color 200ms ease;
 }
 
 .dia-meia:hover {
-  border-color: rgba(220, 80, 50, 0.4);
+  border-color: rgba(180, 70, 45, 0.42);
 }
 
-/* Esquerda desce 12px + rotate -2deg — claramente caída.
-   Sombra projetada `-8px 8px` aponta pro fundo, halo quente vermelho
-   indica corte em alta temperatura. Inset glow forte na borda direita
-   (linha de corte) com largura 3px + spread blur 8-14px → barra
-   laranja brilhante visível. */
+/* Esquerda: clip-path diagonal — borda direita inclina pra dentro na base.
+   Resultado: corte ascendente (\) entre as duas peças.
+   tilt 3D próprio, pivota do centro pra resposta imediata ao cursor. */
 .dia-meia-left {
+  clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 100%, 0 100%);
   transform:
     perspective(700px)
-    rotateY(calc((var(--mx) - 50) * 0.18deg))
-    rotateX(calc((50 - var(--my)) * 0.18deg))
-    translate(-2px, 12px)
-    rotate(-2deg);
-  transform-origin: 100% 50%;
-  box-shadow:
-    0 12px 24px -6px rgba(0, 0, 0, 0.65),
-    -8px 8px 16px -8px rgba(180, 40, 15, 0.4),
-    inset -3px 0 0 rgba(255, 120, 60, 0.85),
-    inset -8px 0 14px -4px rgba(255, 80, 30, 0.5);
+    rotateY(calc((var(--mx) - 50) * 0.14deg))
+    rotateX(calc((50 - var(--my)) * 0.14deg))
+    translate(-2px, 10px)
+    rotate(-1.6deg);
+  transform-origin: 50% 50%;
+  filter: drop-shadow(-4px 6px 8px rgba(0, 0, 0, 0.55));
 }
 
-/* Direita sobe 6px + rotate +1.5deg — peça aparentemente "solta". */
+/* Direita: clip-path simétrica — borda esquerda recua no topo, fica
+   reta na base. Bordas internas paralelas com a esquerda = corte
+   diagonal contínuo. */
 .dia-meia-right {
+  clip-path: polygon(18px 0, 100% 0, 100% 100%, 0 100%);
   transform:
     perspective(700px)
-    rotateY(calc((var(--mx) - 50) * 0.18deg))
-    rotateX(calc((50 - var(--my)) * 0.18deg))
-    translate(2px, -6px)
-    rotate(1.5deg);
-  transform-origin: 0 50%;
-  box-shadow:
-    0 12px 24px -6px rgba(0, 0, 0, 0.65),
-    8px 8px 16px -8px rgba(180, 40, 15, 0.4),
-    inset 3px 0 0 rgba(255, 120, 60, 0.85),
-    inset 8px 0 14px -4px rgba(255, 80, 30, 0.5);
+    rotateY(calc((var(--mx) - 50) * 0.14deg))
+    rotateX(calc((50 - var(--my)) * 0.14deg))
+    translate(2px, -5px)
+    rotate(1.2deg);
+  transform-origin: 50% 50%;
+  filter: drop-shadow(4px 6px 8px rgba(0, 0, 0, 0.55));
+}
+
+/* Glow quente na borda interna do corte — pintado via pseudo-element
+   ::after que é automaticamente cortado pelo clip-path do parent,
+   então o glow já segue a diagonal. Cor menos saturada (laranja-âmbar
+   apagado, não vermelho berrante). */
+.dia-meia-left::after,
+.dia-meia-right::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 14px;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.dia-meia-left::after {
+  right: 0;
+  background: linear-gradient(
+    to left,
+    rgba(220, 110, 60, 0.7) 0%,
+    rgba(180, 70, 30, 0.35) 40%,
+    transparent 100%
+  );
+}
+
+.dia-meia-right::after {
+  left: 0;
+  background: linear-gradient(
+    to right,
+    rgba(220, 110, 60, 0.7) 0%,
+    rgba(180, 70, 30, 0.35) 40%,
+    transparent 100%
+  );
 }
 
 /* Conteúdo dobra-largura, posicionado pra metade-esquerda mostrar lado
