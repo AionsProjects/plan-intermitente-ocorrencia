@@ -806,58 +806,6 @@ function DiaItem({
     e.currentTarget.style.setProperty("--my", "50")
   }
 
-  // Render especial: tile cancelado vira 2 botões independentes (metade esq
-  // + metade dir) com tilt 3D próprio. Conteúdo é duplicado em ambos com
-  // overflow: hidden — cada metade exibe só sua porção do texto, dando
-  // impressão de "tile cortado ao meio com peças separadas".
-  if (isCancelado) {
-    const conteudo = (
-      <div className="dia-meia-conteudo">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-orange-300/65">
-          {formatarDiaSemana(diaInfo.data)}
-        </p>
-        <p className="text-display text-2xl leading-none text-orange-100/85">
-          {formatarDiaCurto(diaInfo.data)}
-        </p>
-        <div className="mt-1 text-xs">
-          <span className="inline-flex items-center gap-1.5 text-orange-300/85">
-            Cancelado
-          </span>
-        </div>
-      </div>
-    )
-    return (
-      <li
-        className={`fade-up ${shakeClass}`.trim()}
-        style={{ animationDelay: `${200 + index * 60}ms` }}
-      >
-        <div className="dia-cortado">
-          <button
-            type="button"
-            className="dia-meia dia-meia-left"
-            onClick={onAbrirReverter}
-            onMouseMove={handleMove}
-            onMouseLeave={handleLeave}
-            aria-label={`${formatarDiaCurto(diaInfo.data)} cancelado — reverter`}
-          >
-            {conteudo}
-          </button>
-          <button
-            type="button"
-            className="dia-meia dia-meia-right"
-            onClick={onAbrirReverter}
-            onMouseMove={handleMove}
-            onMouseLeave={handleLeave}
-            aria-hidden="true"
-            tabIndex={-1}
-          >
-            {conteudo}
-          </button>
-        </div>
-      </li>
-    )
-  }
-
   return (
     <li
       className={`fade-up ${shakeClass}`.trim()}
@@ -894,8 +842,9 @@ function DiaItem({
         </p>
         <div className="mt-1 text-xs">
           {isCancelado ? (
-            <span className="inline-flex items-center gap-1.5 text-orange-300/85">
-              Cancelado
+            <span className="dia-cancelado-badge inline-flex items-center gap-1.5 text-orange-200/85">
+              <CancelFlameIcon />
+              Dia cancelado
             </span>
           ) : isDisabled ? (
             <span className="inline-flex items-center gap-1.5 text-violet-300/75">
