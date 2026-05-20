@@ -911,7 +911,8 @@
     inset 0 1px 0 0 rgba(221, 214, 254, 0.3);
 }
 
-/* Ícone Split: 2 retângulos + lâmina rosa rasgando o meio + sparkles */
+/* Ícone Split: 1 retângulo (idle) → 2 metades que separam (hover).
+   Lâmina rosa risca o meio + sparkles. */
 .split-icon {
   position: relative;
   display: inline-flex;
@@ -928,10 +929,21 @@
   filter: drop-shadow(0 0 2px rgba(167, 139, 250, 0.3));
   transition: filter 220ms ease;
 }
-.split-icon .split-icon-left,
-.split-icon .split-icon-right {
-  transform-origin: 50% 50%;
-  transition: transform 320ms cubic-bezier(0.34, 1.4, 0.5, 1);
+.split-icon .split-whole {
+  transform-origin: 10px 10px;
+  transform-box: fill-box;
+  transition:
+    opacity 220ms ease,
+    transform 300ms cubic-bezier(0.6, 0.05, 0.2, 1);
+}
+.split-icon .split-half {
+  opacity: 0;
+  transform-origin: 10px 10px;
+  transform-box: fill-box;
+  transform: scaleX(0.05);
+  transition:
+    opacity 280ms ease 200ms,
+    transform 400ms cubic-bezier(0.34, 1.4, 0.5, 1) 200ms;
 }
 .split-icon .split-icon-blade {
   opacity: 0;
@@ -949,25 +961,33 @@
 .btn-dividir-convocacao:focus-visible .split-icon-svg {
   filter: drop-shadow(0 0 6px rgba(167, 139, 250, 0.65));
 }
-.btn-dividir-convocacao:hover .split-icon-left,
-.btn-dividir-convocacao:focus-visible .split-icon-left {
-  transform: translateX(-2.5px) rotate(-4deg);
+.btn-dividir-convocacao:hover .split-whole,
+.btn-dividir-convocacao:focus-visible .split-whole {
+  opacity: 0;
+  transform: scaleX(0.05);
 }
-.btn-dividir-convocacao:hover .split-icon-right,
-.btn-dividir-convocacao:focus-visible .split-icon-right {
-  transform: translateX(2.5px) rotate(4deg);
+.btn-dividir-convocacao:hover .split-half-left,
+.btn-dividir-convocacao:focus-visible .split-half-left {
+  opacity: 1;
+  transform: scaleX(1) translateX(-2.5px) rotate(-4deg);
+}
+.btn-dividir-convocacao:hover .split-half-right,
+.btn-dividir-convocacao:focus-visible .split-half-right {
+  opacity: 1;
+  transform: scaleX(1) translateX(2.5px) rotate(4deg);
 }
 .btn-dividir-convocacao:hover .split-icon-blade,
 .btn-dividir-convocacao:focus-visible .split-icon-blade {
-  animation: split-blade-strike 380ms cubic-bezier(0.6, 0.05, 0.2, 1) forwards;
+  animation: split-blade-strike 380ms cubic-bezier(0.6, 0.05, 0.2, 1) 100ms
+    forwards;
 }
 .btn-dividir-convocacao:hover .split-icon-spark-1,
 .btn-dividir-convocacao:focus-visible .split-icon-spark-1 {
-  animation: split-spark-burst 520ms ease-out 260ms forwards;
+  animation: split-spark-burst 520ms ease-out 360ms forwards;
 }
 .btn-dividir-convocacao:hover .split-icon-spark-2,
 .btn-dividir-convocacao:focus-visible .split-icon-spark-2 {
-  animation: split-spark-burst 520ms ease-out 360ms forwards;
+  animation: split-spark-burst 520ms ease-out 460ms forwards;
 }
 @keyframes split-blade-strike {
   0%   { opacity: 0.6; stroke-dashoffset: 22; transform: scaleY(0.6); }
@@ -979,7 +999,9 @@
   100% { opacity: 0; transform: scale(0.7); }
 }
 
-/* Ícone Sábados Extras: calendar + 2 sparkles twinkling no hover */
+/* Ícone Sábados Extras: page flip — front (calendar com bolinha)
+   gira -180° revelando back (calendar com "+"). 3D real via
+   perspective + backface-visibility. */
 .sabados-icon {
   position: relative;
   display: inline-flex;
@@ -988,49 +1010,41 @@
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
+  perspective: 600px;
+  transform-style: preserve-3d;
 }
-.sabados-icon-svg {
+.sabados-card {
+  position: absolute;
+  inset: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform-origin: 50% 50%;
+  transition: transform 650ms cubic-bezier(0.6, 0.05, 0.2, 1),
+              filter 220ms ease;
+  filter: drop-shadow(0 0 2px rgba(110, 160, 255, 0.3));
+}
+.sabados-card svg {
   width: 100%;
   height: 100%;
   overflow: visible;
-  filter: drop-shadow(0 0 2px rgba(110, 160, 255, 0.3));
-  transition: filter 220ms ease;
-  transform-origin: center;
 }
-.sabados-icon .sabados-sparkle {
-  opacity: 0;
-  transform-origin: center;
-  transform-box: fill-box;
+.sabados-card-front {
+  transform: rotateX(0deg);
 }
-.sabados-icon .sabados-icon-day {
-  transition: fill 220ms ease, r 220ms ease;
+.sabados-card-back {
+  transform: rotateX(180deg);
 }
-.btn-add-sabados:hover .sabados-icon-svg,
-.btn-add-sabados:focus-visible .sabados-icon-svg {
+.btn-add-sabados:hover .sabados-card-front,
+.btn-add-sabados:focus-visible .sabados-card-front {
+  transform: rotateX(-180deg);
+}
+.btn-add-sabados:hover .sabados-card-back,
+.btn-add-sabados:focus-visible .sabados-card-back {
+  transform: rotateX(0deg);
   filter: drop-shadow(0 0 6px rgba(110, 160, 255, 0.6));
-  animation: sabados-calendar-wiggle 620ms cubic-bezier(0.34, 1.4, 0.5, 1);
-}
-.btn-add-sabados:hover .sabados-sparkle-1,
-.btn-add-sabados:focus-visible .sabados-sparkle-1 {
-  animation: sabados-twinkle 900ms ease-in-out 80ms infinite;
-}
-.btn-add-sabados:hover .sabados-sparkle-2,
-.btn-add-sabados:focus-visible .sabados-sparkle-2 {
-  animation: sabados-twinkle 900ms ease-in-out 380ms infinite;
-}
-.btn-add-sabados:hover .sabados-icon-day,
-.btn-add-sabados:focus-visible .sabados-icon-day {
-  fill: rgba(180, 220, 255, 0.95);
-}
-@keyframes sabados-calendar-wiggle {
-  0%   { transform: rotate(0deg) scale(1); }
-  25%  { transform: rotate(-7deg) scale(1.15) translateY(-1px); }
-  55%  { transform: rotate(5deg) scale(1.1); }
-  100% { transform: rotate(0deg) scale(1.05); }
-}
-@keyframes sabados-twinkle {
-  0%, 100% { opacity: 0; transform: scale(0.4) rotate(0deg); }
-  50%      { opacity: 1; transform: scale(1.25) rotate(180deg); }
 }
 
 /* ─── Sections do split (cada parte agrupa seus dias) ───────────

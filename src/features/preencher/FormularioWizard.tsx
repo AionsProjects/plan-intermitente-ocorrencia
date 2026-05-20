@@ -2555,14 +2555,26 @@ function SplitSection({
 }
 
 function SplitIcon() {
-  // 2 retângulos + lâmina vibrante que rasga o meio no hover.
-  // Sparkles violeta saem do corte. Sensação de "facada de divisão".
+  // Idle: 1 retângulo único (convocação inteira).
+  // Hover: encolhe + 2 metades surgem do centro e se afastam,
+  // lâmina rosa risca o meio + sparkles. Semântica "1 vira 2".
   return (
     <span className="split-icon" aria-hidden="true">
       <svg viewBox="0 0 20 20" fill="none" className="split-icon-svg">
         <rect
-          className="split-icon-left"
-          x="2"
+          className="split-whole"
+          x="3"
+          y="3"
+          width="14"
+          height="14"
+          rx="1.8"
+          fill="rgba(167, 139, 250, 0.22)"
+          stroke="rgba(196, 181, 253, 0.9)"
+          strokeWidth="1.4"
+        />
+        <rect
+          className="split-half split-half-left"
+          x="3"
           y="3"
           width="6.5"
           height="14"
@@ -2572,8 +2584,8 @@ function SplitIcon() {
           strokeWidth="1.4"
         />
         <rect
-          className="split-icon-right"
-          x="11.5"
+          className="split-half split-half-right"
+          x="10.5"
           y="3"
           width="6.5"
           height="14"
@@ -2612,67 +2624,112 @@ function SplitIcon() {
 }
 
 function SabadosExtrasIcon() {
-  // Calendar grid + 2 sparkles que aparecem twinkling no hover.
-  // Sugere "data extra/bonus" — mais característico que CalendarPlus.
+  // Page flip: 2 cards sobrepostos.
+  // Front (idle visível): calendar com bolinha do "dia normal".
+  // Back (atrás idle, rotateX 180): calendar com "+" no lugar da bolinha.
+  // Hover: front gira -180° (some atrás), back gira pra 0° (revela).
+  // Sensação: calendar passa a página revelando o dia extra.
   return (
     <span className="sabados-icon" aria-hidden="true">
-      <svg viewBox="0 0 20 20" fill="none" className="sabados-icon-svg">
-        <rect
-          x="2.5"
-          y="4.5"
-          width="13"
-          height="12"
-          rx="1.8"
-          fill="rgba(110, 160, 255, 0.12)"
-          stroke="rgba(160, 200, 255, 0.9)"
-          strokeWidth="1.35"
-        />
-        <line
-          x1="2.5"
-          y1="8"
-          x2="15.5"
-          y2="8"
-          stroke="rgba(160, 200, 255, 0.9)"
-          strokeWidth="1.35"
-        />
-        <line
-          x1="6"
-          y1="2.5"
-          x2="6"
-          y2="5.5"
-          stroke="rgba(160, 200, 255, 0.9)"
-          strokeWidth="1.35"
-          strokeLinecap="round"
-        />
-        <line
-          x1="12"
-          y1="2.5"
-          x2="12"
-          y2="5.5"
-          stroke="rgba(160, 200, 255, 0.9)"
-          strokeWidth="1.35"
-          strokeLinecap="round"
-        />
-        <circle
-          cx="9"
-          cy="12"
-          r="1.4"
-          fill="rgba(110, 160, 255, 0.5)"
-          className="sabados-icon-day"
-        />
-        <g className="sabados-sparkle sabados-sparkle-1">
-          <path
-            d="M16.5 4 L17 5.5 L18.5 6 L17 6.5 L16.5 8 L16 6.5 L14.5 6 L16 5.5 Z"
-            fill="rgba(180, 220, 255, 0.95)"
+      <span className="sabados-card sabados-card-front">
+        <svg viewBox="0 0 20 20" fill="none">
+          <rect
+            x="2.5"
+            y="4.5"
+            width="13"
+            height="12"
+            rx="1.8"
+            fill="rgba(110, 160, 255, 0.12)"
+            stroke="rgba(160, 200, 255, 0.9)"
+            strokeWidth="1.35"
           />
-        </g>
-        <g className="sabados-sparkle sabados-sparkle-2">
-          <path
-            d="M3.5 14 L3.9 15 L4.9 15.4 L3.9 15.8 L3.5 16.8 L3.1 15.8 L2.1 15.4 L3.1 15 Z"
-            fill="rgba(150, 200, 255, 0.9)"
+          <line
+            x1="2.5"
+            y1="8"
+            x2="15.5"
+            y2="8"
+            stroke="rgba(160, 200, 255, 0.9)"
+            strokeWidth="1.35"
           />
-        </g>
-      </svg>
+          <line
+            x1="6"
+            y1="2.5"
+            x2="6"
+            y2="5.5"
+            stroke="rgba(160, 200, 255, 0.9)"
+            strokeWidth="1.35"
+            strokeLinecap="round"
+          />
+          <line
+            x1="12"
+            y1="2.5"
+            x2="12"
+            y2="5.5"
+            stroke="rgba(160, 200, 255, 0.9)"
+            strokeWidth="1.35"
+            strokeLinecap="round"
+          />
+          <circle cx="9" cy="12" r="1.4" fill="rgba(110, 160, 255, 0.5)" />
+        </svg>
+      </span>
+      <span className="sabados-card sabados-card-back">
+        <svg viewBox="0 0 20 20" fill="none">
+          <rect
+            x="2.5"
+            y="4.5"
+            width="13"
+            height="12"
+            rx="1.8"
+            fill="rgba(110, 160, 255, 0.18)"
+            stroke="rgba(180, 220, 255, 0.95)"
+            strokeWidth="1.35"
+          />
+          <line
+            x1="2.5"
+            y1="8"
+            x2="15.5"
+            y2="8"
+            stroke="rgba(180, 220, 255, 0.95)"
+            strokeWidth="1.35"
+          />
+          <line
+            x1="6"
+            y1="2.5"
+            x2="6"
+            y2="5.5"
+            stroke="rgba(180, 220, 255, 0.95)"
+            strokeWidth="1.35"
+            strokeLinecap="round"
+          />
+          <line
+            x1="12"
+            y1="2.5"
+            x2="12"
+            y2="5.5"
+            stroke="rgba(180, 220, 255, 0.95)"
+            strokeWidth="1.35"
+            strokeLinecap="round"
+          />
+          <line
+            x1="9"
+            y1="10"
+            x2="9"
+            y2="14.5"
+            stroke="rgba(200, 230, 255, 1)"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+          />
+          <line
+            x1="6.75"
+            y1="12.25"
+            x2="11.25"
+            y2="12.25"
+            stroke="rgba(200, 230, 255, 1)"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+          />
+        </svg>
+      </span>
     </span>
   )
 }
