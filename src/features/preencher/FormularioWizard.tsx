@@ -1710,10 +1710,14 @@ function TrashCanIcon() {
 }
 
 function CancelXIcon() {
-  // SVG: 2 linhas diagonais formando X. Vermelho com glow.
-  // Hover: re-desenha (stroke-dashoffset) com defasagem entre as duas
-  // linhas + scale pulse + halo radial expandindo (efeito carimbo).
-  // Idle dentro de .dia-cancelado-badge: respiração sutil.
+  // SVG: X (2 linhas diagonais) que se metamorfoseia em sinal de proibido
+  // (⊘ = ring + barra) no hover do botão Cancelar Convocação.
+  // - x-stroke-1 (\) some + rotaciona pra dentro
+  // - x-stroke-2 (/) permanece como barra do proibido
+  // - x-ring aparece (stroke-dashoffset 57→0 + scale-up)
+  // - 6 partículas radiais disparam no impacto (~460ms)
+  // - SVG inteiro pulse spring após metamorfose
+  // Dentro de .dia-cancelado-badge: X estático com breathe, sem ring/partículas.
   return (
     <span className="cancel-x-icon" aria-hidden="true">
       <svg
@@ -1722,6 +1726,7 @@ function CancelXIcon() {
         fill="none"
         aria-hidden="true"
       >
+        <circle className="x-ring" cx="12" cy="12" r="9" />
         <line
           className="x-stroke x-stroke-1"
           x1="6" y1="6" x2="18" y2="18"
@@ -1732,6 +1737,12 @@ function CancelXIcon() {
         />
       </svg>
       <span className="cancel-x-glow" aria-hidden="true" />
+      <span className="x-particle" style={{ "--angle": "0deg" } as React.CSSProperties} />
+      <span className="x-particle" style={{ "--angle": "60deg" } as React.CSSProperties} />
+      <span className="x-particle" style={{ "--angle": "120deg" } as React.CSSProperties} />
+      <span className="x-particle" style={{ "--angle": "180deg" } as React.CSSProperties} />
+      <span className="x-particle" style={{ "--angle": "240deg" } as React.CSSProperties} />
+      <span className="x-particle" style={{ "--angle": "300deg" } as React.CSSProperties} />
     </span>
   )
 }
