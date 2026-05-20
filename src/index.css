@@ -934,7 +934,7 @@
    Listras verticais respiram (subtle).
    ============================================================ */
 .trash-can-svg,
-.cancel-flame-icon {
+.cancel-x-icon {
   position: relative;
   display: inline-flex;
   width: 1.05rem;
@@ -966,75 +966,102 @@
 }
 
 /* ============================================================
-   Cancel flame icon — fogo realista multi-camada
-   3 chamas (outer/mid/inner) com flicker em durações desalinhadas
-   (740ms / 980ms / 1320ms) → padrão não-cíclico perceptível, parece fogo
-   de verdade. Brasa embaixo respira em ritmo próprio.
-   Anima só quando hover do .btn-cancel-convocacao.
+   Cancel X icon — 2 linhas diagonais vermelhas formando X.
+   Idle: X visível com glow sutil + respiração.
+   Hover: re-desenho das 2 linhas com defasagem (stroke-dashoffset),
+   scale pulse spring, halo radial expandindo → efeito "carimbo".
    ============================================================ */
-.cancel-flame-icon {
+.cancel-x-icon {
   width: 1.1rem;
   height: 1.1rem;
 }
 
-.cancel-flame-svg {
+.cancel-x-svg {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   overflow: visible;
-  filter: drop-shadow(0 0 4px rgba(185, 28, 28, 0.35));
-  transition: filter 180ms ease;
+  transition: transform 180ms cubic-bezier(0.34, 1.46, 0.5, 1);
 }
 
-.cancel-flame-svg .flame-outer,
-.cancel-flame-svg .flame-mid,
-.cancel-flame-svg .flame-inner {
-  transform-box: fill-box;
-  transform-origin: 50% 100%;
+.cancel-x-svg .x-stroke {
+  stroke: rgba(239, 68, 68, 0.95);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  /* Comprimento total da diagonal de (6,6) → (18,18) ≈ 17px.
+     dasharray 20 cobre com folga; offset 0 = totalmente desenhado. */
+  stroke-dasharray: 20;
+  stroke-dashoffset: 0;
+  filter: drop-shadow(0 0 2px rgba(239, 68, 68, 0.45));
+  transition:
+    stroke 200ms ease,
+    filter 200ms ease;
 }
 
-.flame-base-glow {
+/* Halo radial vermelho — invisível idle, expande no hover */
+.cancel-x-glow {
   position: absolute;
-  bottom: -2px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 0.7rem;
-  height: 0.3rem;
+  inset: -6px;
   border-radius: 9999px;
   background: radial-gradient(
-    ellipse at center,
-    rgba(254, 215, 102, 0.55) 0%,
-    rgba(239, 68, 68, 0.25) 45%,
-    transparent 75%
+    circle,
+    rgba(239, 68, 68, 0.55) 0%,
+    rgba(185, 28, 28, 0.3) 35%,
+    transparent 70%
   );
-  filter: blur(2px);
   opacity: 0;
-  transition: opacity 200ms ease;
+  transform: scale(0.5);
   pointer-events: none;
+  transition: opacity 220ms ease;
 }
 
-/* Estado hover: liga animações e intensifica drop-shadow */
-.btn-cancel-convocacao:hover .cancel-flame-svg,
-.btn-cancel-convocacao:focus-visible .cancel-flame-svg {
-  filter: drop-shadow(0 0 7px rgba(239, 68, 68, 0.55));
+/* HOVER do botão "Cancelar convocação" — carimbo */
+.btn-cancel-convocacao:hover .cancel-x-svg .x-stroke,
+.btn-cancel-convocacao:focus-visible .cancel-x-svg .x-stroke {
+  stroke: rgba(248, 113, 113, 1);
+  filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.75));
 }
-.btn-cancel-convocacao:hover .flame-base-glow,
-.btn-cancel-convocacao:focus-visible .flame-base-glow {
-  opacity: 0.9;
-  animation: flame-base-pulse 620ms ease-in-out infinite;
+.btn-cancel-convocacao:hover .cancel-x-svg .x-stroke-1,
+.btn-cancel-convocacao:focus-visible .cancel-x-svg .x-stroke-1 {
+  animation: x-redraw 380ms cubic-bezier(0.6, 0.05, 0.2, 1) forwards;
 }
-.btn-cancel-convocacao:hover .cancel-flame-svg .flame-outer,
-.btn-cancel-convocacao:focus-visible .cancel-flame-svg .flame-outer {
-  animation: flame-flicker-outer 1320ms ease-in-out infinite;
+.btn-cancel-convocacao:hover .cancel-x-svg .x-stroke-2,
+.btn-cancel-convocacao:focus-visible .cancel-x-svg .x-stroke-2 {
+  animation: x-redraw 380ms cubic-bezier(0.6, 0.05, 0.2, 1) 130ms forwards;
 }
-.btn-cancel-convocacao:hover .cancel-flame-svg .flame-mid,
-.btn-cancel-convocacao:focus-visible .cancel-flame-svg .flame-mid {
-  animation: flame-flicker-mid 980ms ease-in-out infinite;
+.btn-cancel-convocacao:hover .cancel-x-svg,
+.btn-cancel-convocacao:focus-visible .cancel-x-svg {
+  animation: x-stamp-pulse 640ms cubic-bezier(0.34, 1.46, 0.5, 1) 360ms;
 }
-.btn-cancel-convocacao:hover .cancel-flame-svg .flame-inner,
-.btn-cancel-convocacao:focus-visible .cancel-flame-svg .flame-inner {
-  animation: flame-flicker-inner 740ms ease-in-out infinite;
+.btn-cancel-convocacao:hover .cancel-x-glow,
+.btn-cancel-convocacao:focus-visible .cancel-x-glow {
+  opacity: 1;
+  animation: x-glow-expand 560ms ease-out 200ms;
+}
+
+@keyframes x-redraw {
+  0%   { stroke-dashoffset: 20; }
+  100% { stroke-dashoffset: 0; }
+}
+@keyframes x-stamp-pulse {
+  0%   { transform: scale(1) rotate(0deg); }
+  35%  { transform: scale(1.28) rotate(-3deg); }
+  60%  { transform: scale(0.95) rotate(1deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+@keyframes x-glow-expand {
+  0%   { transform: scale(0.4); opacity: 0; }
+  45%  { transform: scale(1.25); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.55; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cancel-x-svg .x-stroke,
+  .cancel-x-svg,
+  .cancel-x-glow {
+    animation: none !important;
+  }
 }
 
 /* Keyframes do fogo — 9+ stops por camada com lean L/R + scale assimétrico.
@@ -1885,28 +1912,29 @@ html {
   border-color: rgba(140, 80, 60, 0.32) !important;
 }
 
-/* Flame icon dentro do tile cancelado fica sempre animado
-   (no botão "Cancelar convocação" só anima no :hover). */
-.dia-cancelado-badge .cancel-flame-svg .flame-outer {
-  animation: flame-flicker-outer 1320ms ease-in-out infinite;
-}
-.dia-cancelado-badge .cancel-flame-svg .flame-mid {
-  animation: flame-flicker-mid 980ms ease-in-out infinite;
-}
-.dia-cancelado-badge .cancel-flame-svg .flame-inner {
-  animation: flame-flicker-inner 740ms ease-in-out infinite;
-}
-.dia-cancelado-badge .cancel-flame-icon {
-  /* Mesmo tamanho do icon adjacente ao texto (ChevronLeft/FileText) */
+/* X dentro do tile cancelado: respiração sutil contínua (sem hover
+   required). Indica estado "cancelado" ativo sem chamar muita atenção. */
+.dia-cancelado-badge .cancel-x-icon {
   width: 0.9rem;
   height: 0.9rem;
 }
-.dia-cancelado-badge .flame-base-glow {
-  opacity: 0.7;
+.dia-cancelado-badge .cancel-x-svg .x-stroke {
+  animation: x-breathe 2.6s ease-in-out infinite;
+}
+
+@keyframes x-breathe {
+  0%, 100% {
+    stroke: rgba(239, 68, 68, 0.85);
+    filter: drop-shadow(0 0 1px rgba(239, 68, 68, 0.35));
+  }
+  50% {
+    stroke: rgba(248, 113, 113, 1);
+    filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.65));
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dia-cancelado-badge .cancel-flame-svg * {
+  .dia-cancelado-badge .cancel-x-svg .x-stroke {
     animation: none !important;
   }
 }

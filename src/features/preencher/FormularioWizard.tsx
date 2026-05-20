@@ -553,7 +553,7 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
                   onClick={abrirCancelamento}
                   aria-label="Cancelar convocação"
                 >
-                  <CancelFlameIcon />
+                  <CancelXIcon />
                   <span className="btn-label text-red-200">
                     Cancelar convocação
                   </span>
@@ -843,7 +843,7 @@ function DiaItem({
         <div className="mt-1 text-xs">
           {isCancelado ? (
             <span className="dia-cancelado-badge inline-flex items-center gap-1.5 text-orange-200/85">
-              <CancelFlameIcon />
+              <CancelXIcon />
               Dia cancelado
             </span>
           ) : isDisabled ? (
@@ -1709,41 +1709,29 @@ function TrashCanIcon() {
   )
 }
 
-function CancelFlameIcon() {
-  // SVG: 3 chamas concêntricas (outer/mid/inner) + brasas embaixo.
-  // Cada chama tem keyframe próprio com duração desalinhada — efeito fire
-  // realista sem ciclo perceptível. Só anima no hover do botão.
+function CancelXIcon() {
+  // SVG: 2 linhas diagonais formando X. Vermelho com glow.
+  // Hover: re-desenha (stroke-dashoffset) com defasagem entre as duas
+  // linhas + scale pulse + halo radial expandindo (efeito carimbo).
+  // Idle dentro de .dia-cancelado-badge: respiração sutil.
   return (
-    <span className="cancel-flame-icon" aria-hidden="true">
+    <span className="cancel-x-icon" aria-hidden="true">
       <svg
-        className="cancel-flame-svg"
+        className="cancel-x-svg"
         viewBox="0 0 24 24"
         fill="none"
         aria-hidden="true"
       >
-        <path
-          className="flame-outer"
-          d="M12 22c-4 0-7-2.7-7-6.4 0-2.8 1.8-4.6 3-6.2.6-.7.8-1.5.4-2.4 1.6.4 2.6 1.6 2.9 3.1.4-2.4 1.8-4 4.1-6.1 0 2.2.9 3.3 1.8 4.6 1.3 1.7 2.8 3.4 2.8 6 0 4-3 7.4-8 7.4Z"
-          fill="rgba(239, 68, 68, 0.42)"
-          stroke="rgba(248, 113, 113, 0.9)"
-          strokeWidth="1.4"
-          strokeLinejoin="round"
+        <line
+          className="x-stroke x-stroke-1"
+          x1="6" y1="6" x2="18" y2="18"
         />
-        <path
-          className="flame-mid"
-          d="M12 20.2c-2.6 0-4.6-1.7-4.6-4.2 0-1.7 1-3 1.9-4 .8-.8 1-1.7.7-2.7 1.4.6 2.1 1.7 2.3 3 .3-1.6 1.2-2.6 2.6-3.9.1 1.5.6 2.4 1.3 3.3.9 1.2 1.7 2.2 1.7 4.1 0 2.6-2 4.4-5.9 4.4Z"
-          fill="rgba(251, 146, 60, 0.6)"
-          stroke="rgba(251, 191, 36, 0.85)"
-          strokeWidth="1"
-          strokeLinejoin="round"
-        />
-        <path
-          className="flame-inner"
-          d="M12 18.4c-1.4 0-2.5-.9-2.5-2.3 0-1 .6-1.7 1.1-2.3.5-.5.6-1.1.4-1.7.8.4 1.2 1 1.4 1.8.2-1 .7-1.6 1.5-2.3 0 .9.3 1.5.8 2 .5.7 1 1.3 1 2.4 0 1.5-1.1 2.4-3.7 2.4Z"
-          fill="rgba(253, 224, 71, 0.85)"
+        <line
+          className="x-stroke x-stroke-2"
+          x1="18" y1="6" x2="6" y2="18"
         />
       </svg>
-      <span className="flame-base-glow" />
+      <span className="cancel-x-glow" aria-hidden="true" />
     </span>
   )
 }
