@@ -16,7 +16,6 @@ import { Link } from "react-router-dom"
 import {
   ArrowLeft,
   CalendarDays,
-  CalendarPlus,
   ChevronDown,
   ChevronUp,
   ExternalLink,
@@ -661,7 +660,7 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
                     onClick={() => setEtapaSabados("calendario")}
                     aria-label="Adicionar sábados"
                   >
-                    <CalendarPlus className="size-4 shrink-0 text-blue-300" />
+                    <SabadosExtrasIcon />
                     <span className="btn-label text-blue-200">
                       Adicionar sábados
                     </span>
@@ -703,6 +702,14 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
                 isCancelado={diasCancelados.has(diaInfo.data)}
                 onAbrirReverter={() => setReverterAberto(true)}
                 isParte2={diasParte2.has(diaInfo.data)}
+                splitContratos={
+                  splitAtivo && dados.split
+                    ? {
+                        p1: dados.split.contratoParte1,
+                        p2: dados.split.contratoParte2,
+                      }
+                    : null
+                }
               />
             ))}
           </ul>
@@ -858,6 +865,7 @@ type DiaItemProps = {
   isCancelado: boolean
   onAbrirReverter: () => void
   isParte2: boolean
+  splitContratos?: { p1: string; p2: string } | null
 }
 
 function DiaItem({
@@ -875,6 +883,7 @@ function DiaItem({
   isCancelado,
   onAbrirReverter,
   isParte2,
+  splitContratos,
 }: DiaItemProps) {
   const isDisabled = !diaInfo.ativo
   const isExtra = diaInfo.tipo === "extra"
@@ -888,9 +897,9 @@ function DiaItem({
 
   const tileBase =
     "group relative flex h-full w-full flex-col items-center justify-center gap-1.5 rounded-2xl px-3 py-4 text-left"
-  // Prioridade: cancelado > disabled > atestado > extra > parte2 > normal.
-  // P2 fica abaixo das outras marcações — cancelado/atestado em zona P2
-  // mantém visual primário; mas o tile P2 puro ganha visual violeta.
+  // Prioridade: cancelado > disabled > atestado > extra > normal.
+  // Split de convocação não muda o tileStyle — visual vem do ribbon
+  // diagonal no canto (.dia-ribbon-red / .dia-ribbon-blue).
   const tileStyle = isCancelado
     ? "glass-tile glass-tile-3d glass-tile-cancelado"
     : isDisabled
@@ -901,9 +910,7 @@ function DiaItem({
           : "glass-tile-atestado"
         : isExtra
           ? "glass-tile-extra"
-          : isParte2
-            ? "glass-tile glass-tile-3d glass-tile-parte2"
-            : "glass-tile glass-tile-3d"
+          : "glass-tile glass-tile-3d"
 
   const shakeClass = modoApagar && diaInfo.ativo ? "shake-mode" : ""
 
@@ -1010,6 +1017,17 @@ function DiaItem({
             <rect x="0" y="0" width="100%" height="100%" rx="16" ry="16" />
           </svg>
         ) : null}
+
+        {/* Ribbon diagonal de contrato (split ativo) — cobre canto superior
+            direito. P1 vermelho, P2 azul. */}
+        {splitContratos && (
+          <span
+            className={`dia-ribbon ${isParte2 ? "dia-ribbon-blue" : "dia-ribbon-red"}`}
+            aria-label={`Contrato ${isParte2 ? "Parte 2" : "Parte 1"}: ${isParte2 ? splitContratos.p2 : splitContratos.p1}`}
+          >
+            {isParte2 ? splitContratos.p2 : splitContratos.p1}
+          </span>
+        )}
 
         {/* Tile cancelado tem render próprio (2 botões) — não cai aqui. */}
 
@@ -2505,8 +2523,8 @@ function DialogDiaComDocumento({
 /* ─── Ícone de dividir convocação ─── */
 
 function SplitIcon() {
-  // 2 retângulos com gap diagonal — sugere divisão.
-  // Anim hover via CSS: retângulos se afastam um pouco.
+  // 2 retângulos + lâmina vibrante que rasga o meio no hover.
+  // Sparkles violeta saem do corte. Sensação de "facada de divisão".
   return (
     <span className="split-icon" aria-hidden="true">
       <svg viewBox="0 0 20 20" fill="none" className="split-icon-svg">
@@ -2517,9 +2535,9 @@ function SplitIcon() {
           width="6.5"
           height="14"
           rx="1.6"
-          fill="rgba(167, 139, 250, 0.18)"
-          stroke="rgba(196, 181, 253, 0.85)"
-          strokeWidth="1.3"
+          fill="rgba(167, 139, 250, 0.22)"
+          stroke="rgba(196, 181, 253, 0.9)"
+          strokeWidth="1.4"
         />
         <rect
           className="split-icon-right"
@@ -2528,10 +2546,100 @@ function SplitIcon() {
           width="6.5"
           height="14"
           rx="1.6"
-          fill="rgba(167, 139, 250, 0.18)"
-          stroke="rgba(196, 181, 253, 0.85)"
-          strokeWidth="1.3"
+          fill="rgba(167, 139, 250, 0.22)"
+          stroke="rgba(196, 181, 253, 0.9)"
+          strokeWidth="1.4"
         />
+        <line
+          className="split-icon-blade"
+          x1="10"
+          y1="0.5"
+          x2="10"
+          y2="19.5"
+          stroke="rgba(244, 114, 182, 0.95)"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+        />
+        <circle
+          className="split-icon-spark split-icon-spark-1"
+          cx="10"
+          cy="6"
+          r="0.9"
+          fill="rgba(244, 114, 182, 0.95)"
+        />
+        <circle
+          className="split-icon-spark split-icon-spark-2"
+          cx="10"
+          cy="14"
+          r="0.9"
+          fill="rgba(244, 114, 182, 0.95)"
+        />
+      </svg>
+    </span>
+  )
+}
+
+function SabadosExtrasIcon() {
+  // Calendar grid + 2 sparkles que aparecem twinkling no hover.
+  // Sugere "data extra/bonus" — mais característico que CalendarPlus.
+  return (
+    <span className="sabados-icon" aria-hidden="true">
+      <svg viewBox="0 0 20 20" fill="none" className="sabados-icon-svg">
+        <rect
+          x="2.5"
+          y="4.5"
+          width="13"
+          height="12"
+          rx="1.8"
+          fill="rgba(110, 160, 255, 0.12)"
+          stroke="rgba(160, 200, 255, 0.9)"
+          strokeWidth="1.35"
+        />
+        <line
+          x1="2.5"
+          y1="8"
+          x2="15.5"
+          y2="8"
+          stroke="rgba(160, 200, 255, 0.9)"
+          strokeWidth="1.35"
+        />
+        <line
+          x1="6"
+          y1="2.5"
+          x2="6"
+          y2="5.5"
+          stroke="rgba(160, 200, 255, 0.9)"
+          strokeWidth="1.35"
+          strokeLinecap="round"
+        />
+        <line
+          x1="12"
+          y1="2.5"
+          x2="12"
+          y2="5.5"
+          stroke="rgba(160, 200, 255, 0.9)"
+          strokeWidth="1.35"
+          strokeLinecap="round"
+        />
+        <circle
+          cx="9"
+          cy="12"
+          r="1.4"
+          fill="rgba(110, 160, 255, 0.5)"
+          className="sabados-icon-day"
+        />
+        <g className="sabados-sparkle sabados-sparkle-1">
+          <path
+            d="M16.5 4 L17 5.5 L18.5 6 L17 6.5 L16.5 8 L16 6.5 L14.5 6 L16 5.5 Z"
+            fill="rgba(180, 220, 255, 0.95)"
+          />
+        </g>
+        <g className="sabados-sparkle sabados-sparkle-2">
+          <path
+            d="M3.5 14 L3.9 15 L4.9 15.4 L3.9 15.8 L3.5 16.8 L3.1 15.8 L2.1 15.4 L3.1 15 Z"
+            fill="rgba(150, 200, 255, 0.9)"
+          />
+        </g>
       </svg>
     </span>
   )

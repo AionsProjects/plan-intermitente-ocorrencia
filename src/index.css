@@ -911,12 +911,12 @@
     inset 0 1px 0 0 rgba(221, 214, 254, 0.3);
 }
 
-/* Ícone Split: 2 retângulos se afastam no hover */
+/* Ícone Split: 2 retângulos + lâmina rosa rasgando o meio + sparkles */
 .split-icon {
   position: relative;
   display: inline-flex;
-  width: 1.1rem;
-  height: 1.1rem;
+  width: 1.15rem;
+  height: 1.15rem;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
@@ -926,52 +926,153 @@
   height: 100%;
   overflow: visible;
   filter: drop-shadow(0 0 2px rgba(167, 139, 250, 0.3));
-  transition: filter 200ms ease;
+  transition: filter 220ms ease;
 }
 .split-icon .split-icon-left,
 .split-icon .split-icon-right {
   transform-origin: 50% 50%;
-  transition: transform 280ms cubic-bezier(0.34, 1.4, 0.5, 1);
+  transition: transform 320ms cubic-bezier(0.34, 1.4, 0.5, 1);
+}
+.split-icon .split-icon-blade {
+  opacity: 0;
+  stroke-dasharray: 22;
+  stroke-dashoffset: 22;
+  transform-origin: 10px 10px;
+  filter: drop-shadow(0 0 3px rgba(244, 114, 182, 0.6));
+}
+.split-icon .split-icon-spark {
+  opacity: 0;
+  transform-origin: center;
+  transform-box: fill-box;
 }
 .btn-dividir-convocacao:hover .split-icon-svg,
 .btn-dividir-convocacao:focus-visible .split-icon-svg {
-  filter: drop-shadow(0 0 5px rgba(167, 139, 250, 0.6));
+  filter: drop-shadow(0 0 6px rgba(167, 139, 250, 0.65));
 }
 .btn-dividir-convocacao:hover .split-icon-left,
 .btn-dividir-convocacao:focus-visible .split-icon-left {
-  transform: translateX(-2px) rotate(-3deg);
+  transform: translateX(-2.5px) rotate(-4deg);
 }
 .btn-dividir-convocacao:hover .split-icon-right,
 .btn-dividir-convocacao:focus-visible .split-icon-right {
-  transform: translateX(2px) rotate(3deg);
+  transform: translateX(2.5px) rotate(4deg);
+}
+.btn-dividir-convocacao:hover .split-icon-blade,
+.btn-dividir-convocacao:focus-visible .split-icon-blade {
+  animation: split-blade-strike 380ms cubic-bezier(0.6, 0.05, 0.2, 1) forwards;
+}
+.btn-dividir-convocacao:hover .split-icon-spark-1,
+.btn-dividir-convocacao:focus-visible .split-icon-spark-1 {
+  animation: split-spark-burst 520ms ease-out 260ms forwards;
+}
+.btn-dividir-convocacao:hover .split-icon-spark-2,
+.btn-dividir-convocacao:focus-visible .split-icon-spark-2 {
+  animation: split-spark-burst 520ms ease-out 360ms forwards;
+}
+@keyframes split-blade-strike {
+  0%   { opacity: 0.6; stroke-dashoffset: 22; transform: scaleY(0.6); }
+  100% { opacity: 1; stroke-dashoffset: 0; transform: scaleY(1); }
+}
+@keyframes split-spark-burst {
+  0%   { opacity: 0; transform: scale(0.3); }
+  45%  { opacity: 1; transform: scale(1.6); }
+  100% { opacity: 0; transform: scale(0.7); }
 }
 
-/* ─── Tile "Parte 2" do split de convocação (violeta) ─── */
-.glass-tile-parte2 {
-  background-color: rgba(167, 139, 250, 0.06) !important;
-  background-image: linear-gradient(
-    180deg,
-    rgba(167, 139, 250, 0.08) 0%,
-    rgba(76, 60, 120, 0.04) 100%
-  );
-  border: 1px solid rgba(167, 139, 250, 0.18) !important;
+/* Ícone Sábados Extras: calendar + 2 sparkles twinkling no hover */
+.sabados-icon {
+  position: relative;
+  display: inline-flex;
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+}
+.sabados-icon-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 0 2px rgba(110, 160, 255, 0.3));
+  transition: filter 220ms ease;
+  transform-origin: center;
+}
+.sabados-icon .sabados-sparkle {
+  opacity: 0;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+.sabados-icon .sabados-icon-day {
+  transition: fill 220ms ease, r 220ms ease;
+}
+.btn-add-sabados:hover .sabados-icon-svg,
+.btn-add-sabados:focus-visible .sabados-icon-svg {
+  filter: drop-shadow(0 0 6px rgba(110, 160, 255, 0.6));
+  animation: sabados-calendar-wiggle 620ms cubic-bezier(0.34, 1.4, 0.5, 1);
+}
+.btn-add-sabados:hover .sabados-sparkle-1,
+.btn-add-sabados:focus-visible .sabados-sparkle-1 {
+  animation: sabados-twinkle 900ms ease-in-out 80ms infinite;
+}
+.btn-add-sabados:hover .sabados-sparkle-2,
+.btn-add-sabados:focus-visible .sabados-sparkle-2 {
+  animation: sabados-twinkle 900ms ease-in-out 380ms infinite;
+}
+.btn-add-sabados:hover .sabados-icon-day,
+.btn-add-sabados:focus-visible .sabados-icon-day {
+  fill: rgba(180, 220, 255, 0.95);
+}
+@keyframes sabados-calendar-wiggle {
+  0%   { transform: rotate(0deg) scale(1); }
+  25%  { transform: rotate(-7deg) scale(1.15) translateY(-1px); }
+  55%  { transform: rotate(5deg) scale(1.1); }
+  100% { transform: rotate(0deg) scale(1.05); }
+}
+@keyframes sabados-twinkle {
+  0%, 100% { opacity: 0; transform: scale(0.4) rotate(0deg); }
+  50%      { opacity: 1; transform: scale(1.25) rotate(180deg); }
 }
 
-.glass-tile-parte2:hover {
-  border-color: rgba(167, 139, 250, 0.32) !important;
-  box-shadow: 0 8px 24px -8px rgba(76, 60, 120, 0.5);
-}
-
-.glass-tile-parte2::before {
-  content: "P2";
+/* ─── Ribbon de contrato no tile (split ativo) ─────────────────
+   Faixa diagonal cobrindo apenas o canto superior direito do tile.
+   P1 = vermelho, P2 = azul. Texto rotacionado 45°. */
+.dia-ribbon {
   position: absolute;
-  top: 6px;
-  right: 8px;
-  font-size: 0.55rem;
-  letter-spacing: 0.18em;
-  color: rgba(196, 181, 253, 0.7);
+  top: 10px;
+  right: -28px;
+  width: 90px;
+  padding: 2px 0;
+  transform: rotate(45deg);
+  text-align: center;
+  font-size: 0.5rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.95);
+  font-weight: 600;
   pointer-events: none;
-  z-index: 2;
+  z-index: 3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+.dia-ribbon-red {
+  background: linear-gradient(
+    135deg,
+    rgba(248, 113, 113, 0.95) 0%,
+    rgba(185, 28, 28, 0.92) 100%
+  );
+  text-shadow: 0 1px 2px rgba(80, 0, 0, 0.55);
+}
+.dia-ribbon-blue {
+  background: linear-gradient(
+    135deg,
+    rgba(96, 165, 250, 0.95) 0%,
+    rgba(29, 78, 216, 0.92) 100%
+  );
+  text-shadow: 0 1px 2px rgba(0, 20, 80, 0.55);
 }
 
 /* ─── Botão "Adicionar atestado" (âmbar) ─── */
