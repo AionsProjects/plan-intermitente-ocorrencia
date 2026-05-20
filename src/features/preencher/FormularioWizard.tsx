@@ -187,8 +187,20 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
     string | null
   >(null)
   const [cancelamentoErro, setCancelamentoErro] = useState<string | null>(null)
+  const [reverterAberto, setReverterAberto] = useState(false)
+  const [reverterErro, setReverterErro] = useState<string | null>(null)
   const [etapaSabados, setEtapaSabados] = useState<EtapaSabados>("fechado")
   const [sabadoARemover, setSabadoARemover] = useState<string | null>(null)
+
+  // Set de dias "queimados" pelo cancelamento parcial vigente no backend.
+  // Todo dia >= dataInicioCancelamento (do ProcessamentoDados, NÃO o state
+  // local do wizard de cancelamento) entra no set.
+  const diasCancelados = useMemo<Set<string>>(() => {
+    const inicio = dados.dataInicioCancelamento
+    if (!inicio || dados.statusCancelamento !== "cancelada_parcial")
+      return new Set()
+    return new Set(dados.dias.filter((d) => d >= inicio))
+  }, [dados.dataInicioCancelamento, dados.statusCancelamento, dados.dias])
   // Atestados/declarações são read-only no /preencher (criação/correção é em /atestados).
   const atestados = useMemo<Atestado[]>(
     () => dados.atestados ?? [],
@@ -354,10 +366,14 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
     const payload = {
       // Atestado/declaração agora tem ledger no backend pra dedup; respostas
       // manuais em dia coberto seguem normais (o WF3 ignora se já tem doc).
-      respostas: diasAtivos.map(
-        (d) =>
-          respostas[d.data] ?? { data: d.data, tipo: "sem_ocorrencia" as const },
-      ),
+      // Dias queimados pelo cancelamento parcial são filtrados — backend
+      // trata como falta automaticamente via Cancelamento Início no Entrada.
+      respostas: diasAtivos
+        .filter((d) => !diasCancelados.has(d.data))
+        .map(
+          (d) =>
+            respostas[d.data] ?? { data: d.data, tipo: "sem_ocorrencia" as const },
+        ),
       protocolo,
       diasExtras: todasExtras,
       diasDesativados: diasInfo.filter((d) => !d.ativo).map((d) => d.data),
@@ -415,12 +431,35 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
         tipo: "parcial",
         dataInicioCancelamento: data,
       })
-      setEtapaCancelamento("sucesso_parcial")
+      // Cancelamento parcial NÃO finaliza mais a convocação.
+      // Fecha o dialog e volta pro painel — operacional ainda precisa lançar
+      // respostas dos dias não-cancelados e clicar "Finalizar".
+      // useProcessamento já invalida a query → refetch traz dataInicioCancelamento
+      // do backend e pinta os dias queimados.
+      setEtapaCancelamento("fechado")
+      setDataInicioCancelamento(null)
     } catch (err) {
       setCancelamentoErro(
         err instanceof Error
           ? err.message
           : "Erro ao cancelar parcialmente. Tente novamente.",
+      )
+    }
+  }
+
+  async function executarReverter() {
+    setReverterErro(null)
+    try {
+      await cancelarConvocacao.mutateAsync({
+        tipo: "reverter",
+        dataInicioCancelamento: null,
+      })
+      setReverterAberto(false)
+    } catch (err) {
+      setReverterErro(
+        err instanceof Error
+          ? err.message
+          : "Erro ao reverter cancelamento. Tente novamente.",
       )
     }
   }
@@ -440,10 +479,9 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
     void executarCancelamentoParcial(dataInicioCancelamento)
   }
 
-  if (
-    etapaCancelamento === "sucesso_total" ||
-    etapaCancelamento === "sucesso_parcial"
-  ) {
+  // Só cancelamento TOTAL renderiza tela cheia de sucesso (finaliza convocação).
+  // Parcial fecha o dialog e volta pro painel pra operacional completar.
+  if (etapaCancelamento === "sucesso_total") {
     return (
       <TelaCancelamentoConvocacao
         dados={dados}
@@ -555,6 +593,8 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
                 atestadosNoDia={atestadosPorData.get(diaInfo.data) ?? []}
                 onAbrirAtestadoInfo={() => abrirInfoDocumento(diaInfo.data)}
                 podeRemoverExtra={!sabadosJaPagos.has(diaInfo.data)}
+                isCancelado={diasCancelados.has(diaInfo.data)}
+                onAbrirReverter={() => setReverterAberto(true)}
               />
             ))}
           </ul>
@@ -656,6 +696,18 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
         }
         onClose={fecharInfoDocumento}
       />
+      <DialogReverterCancelamento
+        open={reverterAberto}
+        carregando={cancelarConvocacao.isPending}
+        erro={reverterErro}
+        dataInicioCancelamento={dados.dataInicioCancelamento ?? null}
+        onCancelar={() => {
+          if (cancelarConvocacao.isPending) return
+          setReverterAberto(false)
+          setReverterErro(null)
+        }}
+        onConfirmar={executarReverter}
+      />
     </div>
   )
 }
@@ -674,6 +726,8 @@ type DiaItemProps = {
   atestadosNoDia: Atestado[]
   onAbrirAtestadoInfo: () => void
   podeRemoverExtra?: boolean
+  isCancelado: boolean
+  onAbrirReverter: () => void
 }
 
 function DiaItem({
@@ -688,6 +742,8 @@ function DiaItem({
   atestadosNoDia,
   onAbrirAtestadoInfo,
   podeRemoverExtra = true,
+  isCancelado,
+  onAbrirReverter,
 }: DiaItemProps) {
   const isDisabled = !diaInfo.ativo
   const isExtra = diaInfo.tipo === "extra"
@@ -701,19 +757,28 @@ function DiaItem({
 
   const tileBase =
     "group relative flex h-full w-full flex-col items-center justify-center gap-1.5 rounded-2xl px-3 py-4 text-left"
-  const tileStyle = isDisabled
-    ? "glass-tile-disabled"
-    : isAtestado
-      ? ehDeclaracaoPura
-        ? "glass-tile-declaracao"
-        : "glass-tile-atestado"
-      : isExtra
-      ? "glass-tile-extra"
-      : "glass-tile glass-tile-3d"
+  // Cancelado tem prioridade sobre os outros estados — mantém glass-tile-3d
+  // pra preservar tilt mousemove, sobrepõe fogo via .glass-tile-cancelado.
+  const tileStyle = isCancelado
+    ? "glass-tile glass-tile-3d glass-tile-cancelado"
+    : isDisabled
+      ? "glass-tile-disabled"
+      : isAtestado
+        ? ehDeclaracaoPura
+          ? "glass-tile-declaracao"
+          : "glass-tile-atestado"
+        : isExtra
+          ? "glass-tile-extra"
+          : "glass-tile glass-tile-3d"
 
   const shakeClass = modoApagar && diaInfo.ativo ? "shake-mode" : ""
 
   function handleClick() {
+    // Cancelado captura primeiro: click abre dialog de reverter.
+    if (isCancelado) {
+      onAbrirReverter()
+      return
+    }
     if (modoApagar && diaInfo.ativo) {
       onApagar()
     } else if (isDisabled) {
@@ -726,9 +791,10 @@ function DiaItem({
     }
   }
 
-  // 3D tilt: cursor sets --mx/--my, CSS does perspective rotateX/Y
+  // 3D tilt: cursor sets --mx/--my, CSS does perspective rotateX/Y.
+  // Cancelado mantém tilt — fogo é overlay, botão ainda responde.
   function handleMove(e: React.MouseEvent<HTMLButtonElement>) {
-    if (isDisabled) return
+    if (isDisabled && !isCancelado) return
     const r = e.currentTarget.getBoundingClientRect()
     const mx = ((e.clientX - r.left) / r.width) * 100
     const my = ((e.clientY - r.top) / r.height) * 100
@@ -754,20 +820,32 @@ function DiaItem({
       >
         <p
           className={`text-[10px] uppercase tracking-[0.18em] ${
-            isDisabled ? "text-white/30" : "text-white/55"
+            isCancelado
+              ? "text-orange-300/55"
+              : isDisabled
+                ? "text-white/30"
+                : "text-white/55"
           }`}
         >
           {formatarDiaSemana(diaInfo.data)}
         </p>
         <p
           className={`text-display text-2xl leading-none ${
-            isDisabled ? "text-white/35 line-through" : "text-white/95"
+            isCancelado
+              ? "text-orange-200/60"
+              : isDisabled
+                ? "text-white/35 line-through"
+                : "text-white/95"
           }`}
         >
           {formatarDiaCurto(diaInfo.data)}
         </p>
         <div className="mt-1 text-xs">
-          {isDisabled ? (
+          {isCancelado ? (
+            <span className="inline-flex items-center gap-1.5 text-orange-300/85">
+              Cancelado
+            </span>
+          ) : isDisabled ? (
             <span className="inline-flex items-center gap-1.5 text-violet-300/75">
               <LampBroken />
               Desconsiderado
@@ -797,6 +875,20 @@ function DiaItem({
             <rect x="0" y="0" width="100%" height="100%" rx="16" ry="16" />
           </svg>
         ) : null}
+
+        {isCancelado && (
+          <>
+            {/* Borda tracejada animada vermelho-queimado */}
+            <svg className="cancelado-dash-svg" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <rect x="0" y="0" width="100%" height="100%" rx="16" ry="16" />
+            </svg>
+            {/* 3 camadas de chamas com keyframes desalinhados */}
+            <span className="tile-fire tile-fire-outer" aria-hidden="true" />
+            <span className="tile-fire tile-fire-mid" aria-hidden="true" />
+            <span className="tile-fire tile-fire-inner" aria-hidden="true" />
+            <span className="tile-fire-glow" aria-hidden="true" />
+          </>
+        )}
 
         {isExtra && !isDisabled && !isAtestado && (
           <svg
@@ -2123,6 +2215,77 @@ function DialogConfirmarRemoverSabado({
             className="bg-blue-300 text-[#0a1224] hover:bg-blue-200"
           >
             Remover
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/* ─── Dialog: Reverter cancelamento parcial ─── */
+
+type DialogReverterCancelamentoProps = {
+  open: boolean
+  carregando: boolean
+  erro: string | null
+  dataInicioCancelamento: string | null
+  onCancelar: () => void
+  onConfirmar: () => void
+}
+
+function DialogReverterCancelamento({
+  open,
+  carregando,
+  erro,
+  dataInicioCancelamento,
+  onCancelar,
+  onConfirmar,
+}: DialogReverterCancelamentoProps) {
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onCancelar()}>
+      <DialogContent
+        className="glass-modal border-0 bg-transparent p-8 text-white sm:max-w-sm"
+        style={{
+          backdropFilter: "blur(10px) saturate(140%) brightness(1.05)",
+        }}
+      >
+        <DialogHeader>
+          <p className="text-[10px] uppercase tracking-[0.3em] text-orange-300/80">
+            Cancelamento parcial
+          </p>
+          <DialogTitle className="text-display text-2xl text-white">
+            Reverter cancelamento?
+          </DialogTitle>
+          <DialogDescription className="text-white/65">
+            {dataInicioCancelamento
+              ? `Os dias cancelados a partir de ${formatarDataNumerica(
+                  dataInicioCancelamento,
+                )} voltarão a contar normalmente. Lembre de lançar atrasos/faltas antes de finalizar.`
+              : "Os dias cancelados voltarão a contar normalmente."}
+          </DialogDescription>
+        </DialogHeader>
+
+        {erro && (
+          <p className="mt-2 rounded-xl border border-rose-300/30 bg-rose-300/10 px-3 py-2 text-xs text-rose-100">
+            {erro}
+          </p>
+        )}
+
+        <DialogFooter className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-2">
+          <Button
+            variant="ghost"
+            onClick={onCancelar}
+            disabled={carregando}
+            className="text-white/85 hover:bg-white/10 hover:text-white"
+          >
+            Voltar
+          </Button>
+          <Button
+            onClick={onConfirmar}
+            disabled={carregando}
+            className="bg-orange-300 text-[#1a0a05] hover:bg-orange-200 disabled:opacity-60"
+          >
+            {carregando ? "Revertendo…" : "Reverter"}
           </Button>
         </DialogFooter>
       </DialogContent>
