@@ -96,6 +96,13 @@ function etapaKey(e: Etapa): string {
   return e.tipo
 }
 
+function formatCpf(raw: string): string {
+  // Aceita CPF cru (11 dígitos) ou já formatado. Retorna 000.000.000-00.
+  const digits = raw.replace(/\D/g, "")
+  if (digits.length !== 11) return raw
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`
+}
+
 function diffDias(inicio: string, fim: string): number {
   if (!inicio || !fim) return 0
   const a = new Date(inicio + "T00:00:00Z")
@@ -470,6 +477,15 @@ export function WizardDocumento({
             <span>
               Chapa <strong className="text-white/85">{empregado.chapa || "—"}</strong>
             </span>
+            {empregado.cpf && <span className="text-white/45">·</span>}
+            {empregado.cpf && (
+              <span>
+                CPF{" "}
+                <span className="font-mono text-white/75">
+                  {formatCpf(empregado.cpf)}
+                </span>
+              </span>
+            )}
             {empregado.funcao && (
               <span className="text-white/45">·</span>
             )}
@@ -515,6 +531,15 @@ export function WizardDocumento({
             <span>
               Chapa <strong className="text-white/85">{empregado.chapa || "—"}</strong>
             </span>
+            {empregado.cpf && <span className="text-white/45">·</span>}
+            {empregado.cpf && (
+              <span>
+                CPF{" "}
+                <span className="font-mono text-white/75">
+                  {formatCpf(empregado.cpf)}
+                </span>
+              </span>
+            )}
             {empregado.funcao && <span className="text-white/45">·</span>}
             {empregado.funcao && <span>{empregado.funcao}</span>}
             {empregado.secao && <span className="text-white/45">·</span>}

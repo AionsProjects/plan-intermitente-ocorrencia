@@ -288,6 +288,7 @@ export async function lancarDocumentos(
       // identidade / contexto
       modalidade_contrato: d.modalidadeContrato,
       empregado_nome: d.empregadoNome,
+      empregado_cpf: d.empregadoCpf || null,
       chapa: d.chapa || null,
       uuid_convocacao: d.uuidConvocacao || null,
       item_entrada_id: d.itemEntradaId ?? null,
