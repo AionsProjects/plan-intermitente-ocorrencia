@@ -1983,18 +1983,30 @@ html {
   --preview-tone-glow: rgba(167, 143, 255, 0.45);
 }
 
-/* ─── Slide transition: kill QUALQUER animação descendente durante slides ───
-   Antes só matava `.fade-up`, mas keyframes em qualquer elemento (dash-walk-left,
-   etc.) podem causar flash de entrada. Agora mata tudo enquanto Slot transita. */
-.slide-stack-animating *,
-.slide-stack-animating *::before,
-.slide-stack-animating *::after {
-  animation-duration: 0s !important;
-  animation-delay: 0s !important;
-}
+/* ─── Slide transition: estabiliza animations durante slide ───
+   Approach cirúrgico (substituiu kill global anterior que mudava
+   animation-duration de todos os descendentes — ao sair do slide,
+   propriedade voltava ao valor original e browser REINICIAVA
+   animations finitas como .fade-up → pisca perceptível).
+
+   Agora: .fade-up apenas fixa estado visual via opacity/transform
+   (sem mexer em animation-property). Animations infinitas que dão
+   flash na entrada (dashes, flame, lamp) são pausadas via
+   animation-play-state. Ao sair do slide, play-state volta a
+   "running" sem reiniciar o keyframe. */
 .slide-stack-animating .fade-up {
   opacity: 1 !important;
   transform: none !important;
+}
+.slide-stack-animating [class*="dash-walk"],
+.slide-stack-animating .lamp-flicker-yellow,
+.slide-stack-animating [class*="flame-flicker"],
+.slide-stack-animating [class*="flame-base-pulse"],
+.slide-stack-animating .atestado-dash-svg rect,
+.slide-stack-animating .declaracao-dash-svg rect,
+.slide-stack-animating .extra-dash-svg rect,
+.slide-stack-animating .cancelado-dash-svg rect {
+  animation-play-state: paused !important;
 }
 
 /* ─── Ícone 3D flutuante ───
