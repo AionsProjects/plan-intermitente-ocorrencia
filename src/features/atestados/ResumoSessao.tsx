@@ -18,6 +18,7 @@ type Props = {
   sessao: SessaoLancamento
   enviando: boolean
   open: boolean
+  erro?: string | null
   onAbrir: () => void
   onFechar: () => void
   onRemover: (id: string) => void
@@ -28,6 +29,7 @@ export function ResumoSessao({
   sessao,
   enviando,
   open,
+  erro,
   onAbrir,
   onFechar,
   onRemover,
@@ -175,6 +177,12 @@ export function ResumoSessao({
                 </li>
               ))}
             </ul>
+          )}
+
+          {erro && (
+            <p className="mt-4 rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-center text-sm text-rose-100">
+              {erro}
+            </p>
           )}
 
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-2">

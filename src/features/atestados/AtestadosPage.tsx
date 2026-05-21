@@ -1,4 +1,4 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { ArrowLeft } from "lucide-react"
 
@@ -56,6 +56,16 @@ export function AtestadosPage() {
   const [sessao, setSessao] = useState<SessaoLancamento>({ documentos: [] })
   const [resumoAberto, setResumoAberto] = useState(false)
   const [erroEnvio, setErroEnvio] = useState<string | null>(null)
+
+  // Auto-clear do erro após 5s. Cleanup cancela timer se erro muda
+  // ou componente desmonta — evita state update órfão.
+  useEffect(() => {
+    if (!erroEnvio) return
+    // Garante que dialog do Resumo abre pra mostrar o erro
+    setResumoAberto(true)
+    const t = window.setTimeout(() => setErroEnvio(null), 5000)
+    return () => window.clearTimeout(t)
+  }, [erroEnvio])
 
   const lancarMutation = useLancarDocumentos()
 
@@ -209,12 +219,6 @@ export function AtestadosPage() {
           <SlideStack slideKey={etapaKey(etapa)} direction={direcao}>
             {renderEtapa()}
           </SlideStack>
-
-          {erroEnvio && (
-            <p className="mt-6 rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-center text-sm text-rose-100">
-              {erroEnvio}
-            </p>
-          )}
         </div>
       </div>
 
@@ -222,8 +226,13 @@ export function AtestadosPage() {
         sessao={sessao}
         enviando={lancarMutation.isPending}
         open={resumoAberto}
+        erro={erroEnvio}
         onAbrir={() => setResumoAberto(true)}
-        onFechar={() => setResumoAberto(false)}
+        onFechar={() => {
+          setResumoAberto(false)
+          // Limpa erro ao fechar manual (sem esperar timer 5s)
+          if (erroEnvio) setErroEnvio(null)
+        }}
         onRemover={removerDocumentoSessao}
         onConcluir={() => void concluirEnvio()}
       />
