@@ -221,6 +221,14 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
   }, [dados.split?.dataInicioParte2, dados.dias])
   const splitAtivo = !!dados.split
 
+  // Auto-fecha dialog de split após etapa "sucesso" — useEffect com cleanup
+  // evita race condition se user navegar pra outra etapa antes dos 1500ms.
+  useEffect(() => {
+    if (etapaSplit !== "sucesso") return
+    const t = window.setTimeout(() => setEtapaSplit("fechado"), 1500)
+    return () => window.clearTimeout(t)
+  }, [etapaSplit])
+
   // Set de dias "queimados" pelo cancelamento parcial vigente no backend.
   // Todo dia >= dataInicioCancelamento (do ProcessamentoDados, NÃO o state
   // local do wizard de cancelamento) entra no set.
@@ -534,8 +542,6 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
         contratoParte2: splitContratoP2,
       })
       setEtapaSplit("sucesso")
-      // Auto-fecha após breve toast
-      setTimeout(() => setEtapaSplit("fechado"), 1500)
     } catch (err) {
       setSplitErro(
         err instanceof Error
@@ -784,86 +790,100 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
         </section>
       </main>
 
-      {/* Dialog: edit day occurrence */}
-      <DialogDia
-        dia={diaEditando}
-        respostaAtual={diaEditando ? respostas[diaEditando] : undefined}
-        onClose={() => setDiaEditando(null)}
-        onSalvar={salvarResposta}
-      />
-      <DialogCancelamento
-        etapa={etapaCancelamento}
-        dias={diasConvocacao}
-        dataInicioCancelamento={dataInicioCancelamento}
-        erro={cancelamentoErro}
-        isPending={cancelarConvocacao.isPending}
-        onClose={fecharCancelamento}
-        onEscolherParcial={() => {
-          setCancelamentoErro(null)
-          setEtapaCancelamento("calendario")
-        }}
-        onEscolherTotal={executarCancelamentoTotal}
-        onSelecionarData={escolherDataCancelamento}
-        onVoltarCalendario={() => setEtapaCancelamento("calendario")}
-        onConfirmarTotal={executarCancelamentoTotal}
-        onConfirmarParcial={confirmarCancelamentoParcial}
-      />
-      <DialogSelecionarSabados
-        open={etapaSabados === "calendario"}
-        sabadosDisponiveis={sabadosDisponiveis}
-        dataInicio={dados.dataInicio}
-        onClose={fecharSabados}
-        onConfirmar={(datas) => {
-          adicionarSabadosExtras(datas)
-          fecharSabados()
-        }}
-      />
-      <DialogConfirmarRemoverSabado
-        open={etapaSabados === "confirmar_remover"}
-        data={sabadoARemover}
-        onCancelar={fecharSabados}
-        onConfirmar={confirmarRemoverSabado}
-      />
-      <DialogDiaComDocumento
-        data={diaDocSelecionado}
-        documentos={
-          diaDocSelecionado ? atestadosPorData.get(diaDocSelecionado) ?? [] : []
-        }
-        onClose={fecharInfoDocumento}
-      />
-      <DialogReverterCancelamento
-        open={reverterAberto}
-        carregando={cancelarConvocacao.isPending}
-        erro={reverterErro}
-        dataInicioCancelamento={dados.dataInicioCancelamento ?? null}
-        onCancelar={() => {
-          if (cancelarConvocacao.isPending) return
-          setReverterAberto(false)
-          setReverterErro(null)
-        }}
-        onConfirmar={executarReverter}
-      />
-      <DialogSplit
-        etapa={etapaSplit}
-        carregando={aplicarSplitMut.isPending}
-        erro={splitErro}
-        dias={dados.dias}
-        diasCancelados={diasCancelados}
-        primeiroDiaConvocacao={primeiroDiaConvocacao}
-        ultimoDiaConvocacao={ultimoDiaConvocacao}
-        contratoOriginal={dados.contrato ?? ""}
-        splitAtivo={splitAtivo}
-        splitDataParte2={splitDataParte2}
-        splitContratoP1={splitContratoP1}
-        splitContratoP2={splitContratoP2}
-        onSelecionarData={setSplitDataParte2}
-        onSelecionarContratoP1={setSplitContratoP1}
-        onSelecionarContratoP2={setSplitContratoP2}
-        onAvancar={(novaEtapa) => setEtapaSplit(novaEtapa)}
-        onCancelar={fecharSplit}
-        onConfirmar={executarAplicarSplit}
-        onReverter={executarReverterSplit}
-      />
+      {/* Dialogs com conditional render — só montam quando ativos.
+          Evita stacking de backdrops + focus traps quando múltiplas
+          etapas pudessem coexistir, e libera DOM idle. */}
+      {diaEditando !== null && (
+        <DialogDia
+          dia={diaEditando}
+          respostaAtual={diaEditando ? respostas[diaEditando] : undefined}
+          onClose={() => setDiaEditando(null)}
+          onSalvar={salvarResposta}
+        />
+      )}
+      {etapaCancelamento !== "fechado" && (
+        <DialogCancelamento
+          etapa={etapaCancelamento}
+          dias={diasConvocacao}
+          dataInicioCancelamento={dataInicioCancelamento}
+          erro={cancelamentoErro}
+          isPending={cancelarConvocacao.isPending}
+          onClose={fecharCancelamento}
+          onEscolherParcial={() => {
+            setCancelamentoErro(null)
+            setEtapaCancelamento("calendario")
+          }}
+          onEscolherTotal={executarCancelamentoTotal}
+          onSelecionarData={escolherDataCancelamento}
+          onVoltarCalendario={() => setEtapaCancelamento("calendario")}
+          onConfirmarTotal={executarCancelamentoTotal}
+          onConfirmarParcial={confirmarCancelamentoParcial}
+        />
+      )}
+      {etapaSabados === "calendario" && (
+        <DialogSelecionarSabados
+          open
+          sabadosDisponiveis={sabadosDisponiveis}
+          dataInicio={dados.dataInicio}
+          onClose={fecharSabados}
+          onConfirmar={(datas) => {
+            adicionarSabadosExtras(datas)
+            fecharSabados()
+          }}
+        />
+      )}
+      {etapaSabados === "confirmar_remover" && (
+        <DialogConfirmarRemoverSabado
+          open
+          data={sabadoARemover}
+          onCancelar={fecharSabados}
+          onConfirmar={confirmarRemoverSabado}
+        />
+      )}
+      {diaDocSelecionado && (
+        <DialogDiaComDocumento
+          data={diaDocSelecionado}
+          documentos={atestadosPorData.get(diaDocSelecionado) ?? []}
+          onClose={fecharInfoDocumento}
+        />
+      )}
+      {reverterAberto && (
+        <DialogReverterCancelamento
+          open
+          carregando={cancelarConvocacao.isPending}
+          erro={reverterErro}
+          dataInicioCancelamento={dados.dataInicioCancelamento ?? null}
+          onCancelar={() => {
+            if (cancelarConvocacao.isPending) return
+            setReverterAberto(false)
+            setReverterErro(null)
+          }}
+          onConfirmar={executarReverter}
+        />
+      )}
+      {etapaSplit !== "fechado" && (
+        <DialogSplit
+          etapa={etapaSplit}
+          carregando={aplicarSplitMut.isPending}
+          erro={splitErro}
+          dias={dados.dias}
+          diasCancelados={diasCancelados}
+          primeiroDiaConvocacao={primeiroDiaConvocacao}
+          ultimoDiaConvocacao={ultimoDiaConvocacao}
+          contratoOriginal={dados.contrato ?? ""}
+          splitAtivo={splitAtivo}
+          splitDataParte2={splitDataParte2}
+          splitContratoP1={splitContratoP1}
+          splitContratoP2={splitContratoP2}
+          onSelecionarData={setSplitDataParte2}
+          onSelecionarContratoP1={setSplitContratoP1}
+          onSelecionarContratoP2={setSplitContratoP2}
+          onAvancar={(novaEtapa) => setEtapaSplit(novaEtapa)}
+          onCancelar={fecharSplit}
+          onConfirmar={executarAplicarSplit}
+          onReverter={executarReverterSplit}
+        />
+      )}
     </div>
   )
 }
@@ -913,17 +933,17 @@ function DiaItem({
 
   const tileBase =
     "group relative flex h-full w-full flex-col items-center justify-center gap-1.5 rounded-2xl px-3 py-4 text-left"
-  // Prioridade: cancelado > disabled > atestado > extra > normal.
-  // Split de convocação não muda o tileStyle — visual vem do ribbon
-  // diagonal no canto (.dia-ribbon-red / .dia-ribbon-blue).
+  // Prioridade: cancelado > atestado > disabled > extra > normal.
+  // Atestado prevalece sobre disabled — dia desconsiderado com documento
+  // ainda mostra visual âmbar/violeta. Sem isso, virava cinza confuso.
   const tileStyle = isCancelado
     ? "glass-tile glass-tile-3d glass-tile-cancelado"
-    : isDisabled
-      ? "glass-tile-disabled"
-      : isAtestado
-        ? ehDeclaracaoPura
-          ? "glass-tile-declaracao"
-          : "glass-tile-atestado"
+    : isAtestado
+      ? ehDeclaracaoPura
+        ? "glass-tile-declaracao"
+        : "glass-tile-atestado"
+      : isDisabled
+        ? "glass-tile-disabled"
         : isExtra
           ? "glass-tile-extra"
           : "glass-tile glass-tile-3d"

@@ -2223,3 +2223,32 @@ html {
 .dia-meia-right .dia-meia-conteudo {
   right: 0;
 }
+
+/* ─── Reduced-motion FINAL — kill switch global ───
+   Cobre todas as animações infinitas que escaparam dos blocos
+   anteriores: bg-hue-cycle do <html>, lamp-flicker do "Desconsiderado",
+   dash-walk-* dos SVG tracejados, flame-flicker dos legados, plus
+   qualquer keyframe genérico em descendentes. */
+@media (prefers-reduced-motion: reduce) {
+  html,
+  body {
+    animation: none !important;
+  }
+  .lamp-flicker-yellow,
+  .atestado-dash-svg rect,
+  .declaracao-dash-svg rect,
+  .extra-dash-svg rect,
+  .cancelado-dash-svg rect,
+  [class*="dash-walk"],
+  [class*="flame-flicker"],
+  [class*="flame-base-pulse"] {
+    animation: none !important;
+  }
+  /* Forçar todas animations infinitas a parar após 1 ciclo curto
+     (defensive) — não afeta animations finitas. */
+  *,
+  *::before,
+  *::after {
+    animation-iteration-count: 1 !important;
+  }
+}
