@@ -69,7 +69,7 @@ export function CorrecaoPage() {
 
   return (
     <div className="relative z-10 flex min-h-svh items-center justify-center px-4 py-12">
-      <div className="glass-strong relative w-full max-w-xl p-10 fade-up">
+      <div className="glass-strong relative w-full max-w-xl p-10">
         {/* Botão discreto de chave de teste — canto superior direito */}
         <button
           type="button"

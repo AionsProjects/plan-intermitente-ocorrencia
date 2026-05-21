@@ -47,7 +47,7 @@ export function TestePage() {
 
   return (
     <div className="relative z-10 flex min-h-svh items-center justify-center px-4 py-12">
-      <div className="glass-strong relative w-full max-w-xl p-10 fade-up">
+      <div className="glass-strong relative w-full max-w-xl p-10">
         <button
           type="button"
           onClick={() => navigate("/")}

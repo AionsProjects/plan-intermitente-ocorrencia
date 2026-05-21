@@ -195,7 +195,7 @@ export function AtestadosPage() {
   return (
     <div className="relative z-10 min-h-svh">
       <div className="flex justify-center px-4 py-12">
-        <div className="glass-strong relative w-full max-w-2xl p-8 sm:p-10 fade-up">
+        <div className="glass-strong relative w-full max-w-2xl p-8 sm:p-10">
           {mostrarVoltar && (
             <button
               type="button"

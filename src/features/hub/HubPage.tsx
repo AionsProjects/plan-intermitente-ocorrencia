@@ -48,7 +48,7 @@ export function HubPage() {
 
   return (
     <main className="relative z-10 flex min-h-svh items-center justify-center px-4 py-8 sm:px-6 sm:py-12">
-      <section className="glass-strong relative w-full max-w-2xl overflow-hidden px-5 py-6 fade-up sm:px-8 sm:py-8 lg:px-10 lg:py-10">
+      <section className="glass-strong relative w-full max-w-2xl overflow-hidden px-5 py-6 sm:px-8 sm:py-8 lg:px-10 lg:py-10">
         <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
 
         <header>
