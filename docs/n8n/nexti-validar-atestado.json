@@ -1,0 +1,594 @@
+{
+  "name": "Nexti - Validar Atestado",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "nexti-validar-atestado",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        400,
+        300
+      ],
+      "id": "nx-webhook",
+      "name": "Webhook (Monday automation)",
+      "webhookId": "nexti-validar-atestado-wh"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json || {};\nconst ev = body.event || body.body?.event || body.body || body;\nconst pulseId = ev.pulseId || ev.itemId || body.pulseId || body.itemId;\nconst boardId = ev.boardId || body.boardId;\n\nif (!pulseId) {\n  return [{ json: { _statusCode: 400, _skip: true, ok: false, decisao: 'erro', motivo: 'payload_sem_pulseId' } }];\n}\n\nreturn [{ json: { pulseId: Number(pulseId), boardId: boardId ? Number(boardId) : null, _skip: false } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        620,
+        300
+      ],
+      "id": "nx-parse-trigger",
+      "name": "Parse trigger"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "nx-if-skip-1",
+              "leftValue": "={{ $json._skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        840,
+        300
+      ],
+      "id": "nx-if-skip-1",
+      "name": "Erro payload?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.monday.com/v2",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "mondayComApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "API-Version",
+              "value": "2024-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query: 'query($id:[ID!]){ items(ids:$id){ id name column_values{ id text value } } }', variables: { id: [String($json.pulseId)] } }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1060,
+        380
+      ],
+      "id": "nx-monday-get",
+      "name": "Monday - Ler item",
+      "credentials": {
+        "mondayComApi": {
+          "id": "6I0ycSr6PQJkBYpc",
+          "name": "Ray0"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const vars = typeof $vars !== 'undefined' ? $vars : {};\nconst COL_CPF = vars.NEXTI_ATESTADO_COL_CPF || 'text_mm3j4nt3';\nconst COL_DATA_INICIO = vars.NEXTI_ATESTADO_COL_DATA_INICIO || 'date';\nconst COL_DATA_FIM = vars.NEXTI_ATESTADO_COL_DATA_FIM || '';\nconst COL_DIAS = vars.NEXTI_ATESTADO_COL_DIAS || 'numberjox5johv';\nconst BUFFER_DIAS = Number(vars.NEXTI_ATESTADO_BUFFER_DIAS ?? 2);\n\nfunction onlyDigits(s) { return String(s || '').replace(/\\D+/g, ''); }\nfunction isTodo(v) { return !v || String(v).startsWith('TODO_'); }\nfunction fail(status, motivo, extra = {}) {\n  return [{ json: { _statusCode: status, _skip: true, ok: false, decisao: 'erro', motivo, ...extra } }];\n}\nfunction parseDataIso(text, value) {\n  if (text && /^\\d{4}-\\d{2}-\\d{2}/.test(text)) return text.slice(0, 10);\n  if (value) {\n    try {\n      const v = typeof value === 'string' ? JSON.parse(value) : value;\n      if (v && v.date) return String(v.date).slice(0, 10);\n    } catch {}\n  }\n  return null;\n}\nfunction toDdMmYyyy000000(iso, deltaDias) {\n  if (!iso) return null;\n  const [y, m, d] = iso.split('-').map(Number);\n  const dt = new Date(Date.UTC(y, m - 1, d));\n  dt.setUTCDate(dt.getUTCDate() + (deltaDias || 0));\n  const dd = String(dt.getUTCDate()).padStart(2, '0');\n  const mm = String(dt.getUTCMonth() + 1).padStart(2, '0');\n  return dd + mm + String(dt.getUTCFullYear()) + '000000';\n}\nfunction addDaysIso(iso, days) {\n  if (!iso) return null;\n  const [y, m, d] = iso.split('-').map(Number);\n  const dt = new Date(Date.UTC(y, m - 1, d));\n  dt.setUTCDate(dt.getUTCDate() + days);\n  return dt.toISOString().slice(0, 10);\n}\nfunction numberFromText(v) {\n  const n = Number(String(v || '').replace(',', '.').replace(/[^0-9.-]/g, ''));\n  return Number.isFinite(n) ? n : 0;\n}\n\nconst resp = $json && $json.data ? $json : ($json.body || {});\nif (Array.isArray(resp.errors) && resp.errors.length) {\n  return fail(502, 'erro_monday_graphql', { errors: resp.errors });\n}\nconst item = resp?.data?.items?.[0];\nif (!item) return fail(404, 'item_monday_nao_encontrado');\n\nconst missing = [];\nif (isTodo(COL_CPF)) missing.push('NEXTI_ATESTADO_COL_CPF');\nif (isTodo(COL_DATA_INICIO)) missing.push('NEXTI_ATESTADO_COL_DATA_INICIO');\nif (isTodo(COL_DATA_FIM) && isTodo(COL_DIAS)) missing.push('NEXTI_ATESTADO_COL_DATA_FIM ou NEXTI_ATESTADO_COL_DIAS');\nif (missing.length) {\n  return fail(500, 'config_column_ids_ausente', {\n    item_id: item.id,\n    item_nome: item.name,\n    missing_config: missing,\n    colunas_disponiveis: (item.column_values || []).map((c) => ({ id: c.id, text: c.text })),\n  });\n}\n\nconst cols = (item.column_values || []).reduce((acc, c) => {\n  acc[c.id] = c;\n  return acc;\n}, {});\nconst cpf = onlyDigits(cols[COL_CPF]?.text);\nconst dataInicioIso = parseDataIso(cols[COL_DATA_INICIO]?.text, cols[COL_DATA_INICIO]?.value);\nconst diasAtestado = Math.max(1, Math.ceil(numberFromText(cols[COL_DIAS]?.text || cols[COL_DIAS]?.value) || 1));\nconst dataFimPorDias = dataInicioIso ? addDaysIso(dataInicioIso, diasAtestado - 1) : null;\nconst dataFimIso = parseDataIso(cols[COL_DATA_FIM]?.text, cols[COL_DATA_FIM]?.value) || dataFimPorDias || dataInicioIso;\n\nif (!cpf || cpf.length !== 11) {\n  return fail(200, 'cpf_ausente_ou_invalido', { item_id: item.id, item_nome: item.name });\n}\nif (!dataInicioIso) {\n  return fail(200, 'data_inicio_ausente', { item_id: item.id, item_nome: item.name, cpf });\n}\n\nreturn [{\n  json: {\n    _skip: false,\n    item_id: item.id,\n    item_nome: item.name,\n    cpf,\n    data_inicio_iso: dataInicioIso,\n    data_fim_iso: dataFimIso,\n    dias_atestado: diasAtestado,\n    start: toDdMmYyyy000000(dataInicioIso, -BUFFER_DIAS),\n    finish: toDdMmYyyy000000(dataFimIso, +BUFFER_DIAS),\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        380
+      ],
+      "id": "nx-extract",
+      "name": "Extrair CPF + datas"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "nx-if-skip-2",
+              "leftValue": "={{ $json._skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1500,
+        380
+      ],
+      "id": "nx-if-skip-2",
+      "name": "Dados ok?"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.nexti.com/persons/cpf",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "cpf",
+              "value": "={{ $json.cpf }}"
+            }
+          ]
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1720,
+        460
+      ],
+      "id": "nx-persons",
+      "name": "Nexti GET /persons/cpf",
+      "credentials": {
+        "oAuth2Api": {
+          "id": "TODO_NEXTI_CRED_ID",
+          "name": "Nexti API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const prev = $('Extrair CPF + datas').first().json;\nconst raw = $json?.body !== undefined ? $json.body : $json;\nconst pessoas = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : null);\n\nif (!Array.isArray(pessoas)) {\n  return [{ json: { _statusCode: 502, _skip: true, ok: false, decisao: 'erro', motivo: 'nexti_pessoas_resposta_invalida', cpf: prev.cpf, item_id: prev.item_id, item_nome: prev.item_nome, nexti_response: raw } }];\n}\nif (!pessoas.length) {\n  return [{ json: { _statusCode: 200, _skip: true, ok: true, decisao: 'sem_dados_nexti', motivo: 'cpf_nao_cadastrado_no_nexti', cpf: prev.cpf, item_id: prev.item_id, item_nome: prev.item_nome } }];\n}\n\nconst pessoa = pessoas.find((p) => p && p.personSituationId !== 3) || pessoas[0];\nif (pessoa?.personSituationId === 3) {\n  return [{ json: { _statusCode: 200, _skip: true, ok: true, decisao: 'revisar_manual', motivo: 'pessoa_demitida_no_nexti', cpf: prev.cpf, item_id: prev.item_id, item_nome: prev.item_nome, personId: pessoa.id, nome_nexti: pessoa.name || '', person_situation_id: pessoa.personSituationId, absences_encontradas: [] } }];\n}\n\nreturn [{ json: { _skip: false, cpf: prev.cpf, item_id: prev.item_id, item_nome: prev.item_nome, data_inicio_iso: prev.data_inicio_iso, data_fim_iso: prev.data_fim_iso, start: prev.start, finish: prev.finish, personId: pessoa.id, nome_nexti: pessoa.name || '', person_situation_id: pessoa.personSituationId } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1940,
+        460
+      ],
+      "id": "nx-pick-person",
+      "name": "Pick pessoa"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "nx-if-skip-3",
+              "leftValue": "={{ $json._skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2160,
+        460
+      ],
+      "id": "nx-if-skip-3",
+      "name": "Pessoa achada?"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.nexti.com/absences/person/{{ $json.personId }}/start/{{ $json.start }}/finish/{{ $json.finish }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "finish",
+              "value": "={{ $json.finish }}"
+            },
+            {
+              "name": "page",
+              "value": "0"
+            },
+            {
+              "name": "size",
+              "value": "50"
+            }
+          ]
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2380,
+        540
+      ],
+      "id": "nx-absences",
+      "name": "Nexti GET /absences",
+      "credentials": {
+        "oAuth2Api": {
+          "id": "TODO_NEXTI_CRED_ID",
+          "name": "Nexti API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const prev = $('Pick pessoa').first().json;\nconst raw = $json?.body !== undefined ? $json.body : $json;\nconst content = Array.isArray(raw?.content) ? raw.content : null;\n\nfunction ddmmyyyyToIso(s) {\n  if (!s || typeof s !== 'string' || s.length < 8) return null;\n  return s.slice(4, 8) + '-' + s.slice(2, 4) + '-' + s.slice(0, 2);\n}\nif (!Array.isArray(content)) {\n  return [{ json: { _statusCode: 502, _skip: true, ok: false, decisao: 'erro', motivo: 'nexti_absences_resposta_invalida', cpf: prev.cpf, item_id: prev.item_id, item_nome: prev.item_nome, personId: prev.personId, nome_nexti: prev.nome_nexti, absences_encontradas: [], nexti_response: raw } }];\n}\n\nconst di = prev.data_inicio_iso;\nconst df = prev.data_fim_iso;\nconst relevantes = content.filter((a) => {\n  if (!a || a.removed === true) return false;\n  const aStart = ddmmyyyyToIso(a.startDateTime) || di;\n  const aEnd = ddmmyyyyToIso(a.finishDateTime) || aStart;\n  return aStart <= df && aEnd >= di;\n});\n\nif (!relevantes.length) {\n  return [{ json: { _statusCode: 200, _skip: true, _final: true, ok: true, decisao: 'com_desconto', motivo: 'sem_ausencia_no_ponto_nexti', cpf: prev.cpf, item_id: prev.item_id, item_nome: prev.item_nome, personId: prev.personId, nome_nexti: prev.nome_nexti, absences_encontradas: [] } }];\n}\n\nreturn relevantes.map((a) => ({\n  json: {\n    _skip: false,\n    _ctx: { cpf: prev.cpf, item_id: prev.item_id, item_nome: prev.item_nome, personId: prev.personId, nome_nexti: prev.nome_nexti, data_inicio_iso: di, data_fim_iso: df },\n    absenceId: a.id,\n    absenceSituationId: a.absenceSituationId,\n    startDateTime: a.startDateTime,\n    finishDateTime: a.finishDateTime,\n    cidCode: a.cidCode || null,\n    note: a.note || '',\n  },\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2600,
+        540
+      ],
+      "id": "nx-filter-absences",
+      "name": "Filtrar absences"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "nx-if-skip-4",
+              "leftValue": "={{ $json._skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2820,
+        540
+      ],
+      "id": "nx-if-skip-4",
+      "name": "Tem absences?"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.nexti.com/absencesituations/{{ $json.absenceSituationId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3040,
+        620
+      ],
+      "id": "nx-situation",
+      "name": "Nexti GET /absencesituations",
+      "credentials": {
+        "oAuth2Api": {
+          "id": "TODO_NEXTI_CRED_ID",
+          "name": "Nexti API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const situationItems = $input.all();\nconst absenceItems = $('Filtrar absences').all();\nif (!situationItems.length) {\n  return [{ json: { _statusCode: 500, ok: false, decisao: 'erro', motivo: 'sem_situations_processadas' } }];\n}\nconst ctx = absenceItems[0]?.json?._ctx || {};\n\nfunction ddmmyyyyToIso(s) {\n  if (!s || typeof s !== 'string' || s.length < 8) return null;\n  return s.slice(4, 8) + '-' + s.slice(2, 4) + '-' + s.slice(0, 2);\n}\nfunction addDays(iso, days) {\n  const d = new Date(iso + 'T00:00:00Z');\n  d.setUTCDate(d.getUTCDate() + days);\n  return d.toISOString().slice(0, 10);\n}\nfunction coversPeriod(intervals, start, end) {\n  const ordered = intervals\n    .filter((i) => i.start && i.finish)\n    .sort((a, b) => a.start.localeCompare(b.start));\n  let cursor = start;\n  for (const i of ordered) {\n    if (i.finish < cursor) continue;\n    if (i.start > cursor) return false;\n    if (i.finish >= end) return true;\n    cursor = addDays(i.finish, 1);\n  }\n  return false;\n}\n\nconst encontradas = situationItems.map((it, index) => {\n  const source = absenceItems[index]?.json || {};\n  const respRaw = it.json?.body !== undefined ? it.json.body : it.json;\n  const sit = respRaw?.value || respRaw || {};\n  const absenceTypeId = Number(sit.absenceTypeId || 0) || null;\n  return {\n    absenceId: source.absenceId,\n    absenceSituationId: source.absenceSituationId,\n    start: source.startDateTime,\n    finish: source.finishDateTime,\n    start_iso: ddmmyyyyToIso(source.startDateTime),\n    finish_iso: ddmmyyyyToIso(source.finishDateTime) || ddmmyyyyToIso(source.startDateTime),\n    cidCode: source.cidCode || null,\n    situationName: sit.name || null,\n    initials: sit.initials || null,\n    absenceTypeId,\n  };\n});\n\nconst temDemissao = encontradas.some((e) => e.absenceTypeId === 3);\nconst justificadas = encontradas.filter((e) => e.absenceTypeId === 1).map((e) => ({ start: e.start_iso, finish: e.finish_iso }));\nconst coberturaJustificada = coversPeriod(justificadas, ctx.data_inicio_iso, ctx.data_fim_iso);\nconst temJustificadaParcial = justificadas.length > 0 && !coberturaJustificada;\nconst todasNaoJustificadas = encontradas.length > 0 && encontradas.every((e) => e.absenceTypeId === 2);\n\nlet decisao = 'revisar_manual';\nlet motivo = 'inconsistencia_tipos_ausencia';\nif (temDemissao) {\n  decisao = 'revisar_manual';\n  motivo = 'demissao_no_periodo';\n} else if (coberturaJustificada) {\n  decisao = 'sem_desconto';\n  motivo = 'ausencia_justificada_cobre_periodo_no_ponto_nexti';\n} else if (todasNaoJustificadas) {\n  decisao = 'com_desconto';\n  motivo = 'ausencia_nao_justificada_no_ponto_nexti';\n} else if (temJustificadaParcial) {\n  decisao = 'revisar_manual';\n  motivo = 'ausencia_justificada_parcial_no_ponto_nexti';\n}\n\nreturn [{\n  json: {\n    _statusCode: 200,\n    _final: true,\n    ok: true,\n    cpf: ctx.cpf,\n    item_id: ctx.item_id,\n    item_nome: ctx.item_nome,\n    personId: ctx.personId,\n    nome_nexti: ctx.nome_nexti,\n    decisao,\n    motivo,\n    absences_encontradas: encontradas,\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3260,
+        620
+      ],
+      "id": "nx-decide",
+      "name": "Decisao"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: $json.ok !== false, decisao: $json.decisao || 'erro', motivo: $json.motivo || null, cpf: $json.cpf || null, personId: $json.personId || null, nome: $json.nome_nexti || null, item_id: $json.item_id || null, item_nome: $json.item_nome || null, absences_encontradas: $json.absences_encontradas || [], missing_config: $json.missing_config || undefined }) }}",
+        "options": {
+          "responseCode": "={{ $json._statusCode || 200 }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        3480,
+        460
+      ],
+      "id": "nx-respond",
+      "name": "Responder"
+    }
+  ],
+  "connections": {
+    "Webhook (Monday automation)": {
+      "main": [
+        [
+          {
+            "node": "Parse trigger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse trigger": {
+      "main": [
+        [
+          {
+            "node": "Erro payload?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Erro payload?": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Monday - Ler item",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Monday - Ler item": {
+      "main": [
+        [
+          {
+            "node": "Extrair CPF + datas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair CPF + datas": {
+      "main": [
+        [
+          {
+            "node": "Dados ok?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dados ok?": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Nexti GET /persons/cpf",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nexti GET /persons/cpf": {
+      "main": [
+        [
+          {
+            "node": "Pick pessoa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick pessoa": {
+      "main": [
+        [
+          {
+            "node": "Pessoa achada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pessoa achada?": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Nexti GET /absences",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nexti GET /absences": {
+      "main": [
+        [
+          {
+            "node": "Filtrar absences",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrar absences": {
+      "main": [
+        [
+          {
+            "node": "Tem absences?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem absences?": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Nexti GET /absencesituations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nexti GET /absencesituations": {
+      "main": [
+        [
+          {
+            "node": "Decisao",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decisao": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
