@@ -276,9 +276,14 @@ function mapAtestado(raw: Record<string, unknown>): Atestado {
   const periodos = (periodosRaw as string[])
     .filter((p) => p === "manha" || p === "tarde") as Atestado["periodos"]
 
+  const labelRaw =
+    (raw.tipoDocumentacaoLabel as string | undefined) ??
+    (raw.tipo_documentacao_label as string | undefined) ??
+    null
   return {
     id: String(raw.id ?? crypto.randomUUID()),
     tipoDocumento,
+    tipoDocumentacaoLabel: labelRaw,
     dataInicio: String(raw.dataInicio ?? raw.data_inicio ?? ""),
     dataFim: String(raw.dataFim ?? raw.data_fim ?? ""),
     periodos,

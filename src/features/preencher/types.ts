@@ -57,6 +57,10 @@ export type PeriodoTurno = "manha" | "tarde"
 export type Atestado = {
   id: string
   tipoDocumento: TipoDocumento
+  /** Label granular do board Controle de Atestados (ex: "Atestado Médico",
+   *  "Licença-Maternidade"). Quando disponível, usar em vez de rotular
+   *  por tipoDocumento binário. */
+  tipoDocumentacaoLabel?: string | null
   dataInicio: string
   dataFim: string
   periodos: PeriodoTurno[]

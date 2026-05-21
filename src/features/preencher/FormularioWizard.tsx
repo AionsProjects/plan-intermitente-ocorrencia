@@ -156,13 +156,24 @@ function aplicarAtestadosNosDias(
 function respostasIniciais(
   dias: string[],
   prev: RespostaDia[] | undefined,
+  atestados: Atestado[] | undefined,
 ): Record<string, RespostaDia> {
   const base: Record<string, RespostaDia> = {}
   const prevMap = new Map((prev ?? []).map((r) => [r.data, r]))
+  const cobertoPorAtestado = (data: string) =>
+    (atestados ?? []).some((a) => atestadoCobreDia(a, data))
   for (const dia of dias) {
+    // Dia coberto por atestado/declaração SEMPRE entra como sem_ocorrencia.
+    // Backend/Nexti cuida do desconto via atestado. Sobrescreve qualquer
+    // resposta anterior (falta/atraso pré-atestado).
+    if (cobertoPorAtestado(dia)) {
+      base[dia] = { data: dia, tipo: "sem_ocorrencia" }
+      continue
+    }
     base[dia] = prevMap.get(dia) ?? { data: dia, tipo: "sem_ocorrencia" }
   }
   for (const r of prev ?? []) {
+    if (cobertoPorAtestado(r.data)) continue
     if (!base[r.data]) base[r.data] = r
   }
   return base
@@ -188,7 +199,7 @@ function diasInfoIniciais(dados: ProcessamentoDados): DiaInfo[] {
 
 export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: Props) {
   const [respostas, setRespostas] = useState<Record<string, RespostaDia>>(() =>
-    respostasIniciais(dados.dias, dados.respostasAnteriores),
+    respostasIniciais(dados.dias, dados.respostasAnteriores, dados.atestados),
   )
   const [diasInfo, setDiasInfo] = useState<DiaInfo[]>(() =>
     diasInfoIniciais(dados),
@@ -403,17 +414,23 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
     const todasExtras = diasInfo
       .filter((d) => !datasOriginais.has(d.data) && !sabadosExtrasSet.has(d.data))
       .map((d) => d.data)
+    const cobertoPorAtestado = (data: string) =>
+      atestados.some((a) => atestadoCobreDia(a, data))
     const payload = {
-      // Atestado/declaração agora tem ledger no backend pra dedup; respostas
-      // manuais em dia coberto seguem normais (o WF3 ignora se já tem doc).
-      // Dias queimados pelo cancelamento parcial são filtrados — backend
-      // trata como falta automaticamente via Cancelamento Início no Entrada.
+      // Atestado/declaração: backend/Nexti cuida do desconto. Front sempre
+      // envia sem_ocorrencia pros dias cobertos — sobrescreve falta/atraso
+      // pré-existente. Dias cancelados parcial são filtrados (Cancelamento
+      // Início no Entrada trata como falta automaticamente).
       respostas: diasAtivos
         .filter((d) => !diasCancelados.has(d.data))
-        .map(
-          (d) =>
-            respostas[d.data] ?? { data: d.data, tipo: "sem_ocorrencia" as const },
-        ),
+        .map((d) => {
+          if (cobertoPorAtestado(d.data)) {
+            return { data: d.data, tipo: "sem_ocorrencia" as const }
+          }
+          return (
+            respostas[d.data] ?? { data: d.data, tipo: "sem_ocorrencia" as const }
+          )
+        }),
       protocolo,
       diasExtras: todasExtras,
       diasDesativados: diasInfo.filter((d) => !d.ativo).map((d) => d.data),
@@ -2493,14 +2510,17 @@ function DialogDiaComDocumento({
 
         <ul className="mt-2 space-y-2.5">
           {documentos.map((doc) => {
+            // Label granular (vindo do board Controle de Atestados) tem
+            // prioridade sobre o rotulador binário atestado/declaração.
             const rotulo =
-              doc.tipoDocumento === "atestado"
+              doc.tipoDocumentacaoLabel ??
+              (doc.tipoDocumento === "atestado"
                 ? "Atestado médico"
                 : doc.periodos.length === 2
                   ? "Declaração integral"
                   : doc.periodos[0] === "manha"
                     ? "Declaração matutina"
-                    : "Declaração vespertina"
+                    : "Declaração vespertina")
             const periodo =
               doc.dataInicio === doc.dataFim
                 ? formatarDataNumerica(doc.dataInicio)
