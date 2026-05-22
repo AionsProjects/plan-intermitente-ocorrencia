@@ -122,4 +122,7 @@ export type DiaInfo = {
   data: string
   tipo: "padrao" | "extra" | "atestado"
   ativo: boolean
+  /** Nome do feriado nacional quando aplica. null/undefined = não é feriado.
+   *  Frontend bloqueia edição e mostra visual emerald no tile. */
+  feriado?: string | null
 }

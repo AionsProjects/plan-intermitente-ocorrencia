@@ -21,15 +21,30 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { isFeriadoNacional, nomeFeriadoNacional } from "@/lib/feriadosBr"
 
 type Props = {
   label: string
   value: string // YYYY-MM-DD ou ""
   onChange: (v: string) => void
   min?: string
+  /** Quando retorna true, dia fica disabled. Default: feriados nacionais BR. */
+  isDateDisabled?: (iso: string) => boolean
+  /** Texto pra tooltip nativo. Default: nome do feriado nacional. */
+  getDateLabel?: (iso: string) => string | null
 }
 
-export function GlassDatePicker({ label, value, onChange, min }: Props) {
+export function GlassDatePicker({
+  label,
+  value,
+  onChange,
+  min,
+  isDateDisabled = isFeriadoNacional,
+  getDateLabel = (iso) => {
+    const nome = nomeFeriadoNacional(iso)
+    return nome ? `Feriado nacional: ${nome}` : null
+  },
+}: Props) {
   const [aberto, setAberto] = useState(false)
   const [mesVisivel, setMesVisivel] = useState<Date>(() =>
     value ? parseISO(value) : new Date(),
@@ -64,6 +79,7 @@ export function GlassDatePicker({ label, value, onChange, min }: Props) {
   function selecionar(d: Date) {
     if (minDate && d < minDate) return
     const iso = format(d, "yyyy-MM-dd")
+    if (isDateDisabled(iso)) return
     onChange(iso)
     setAberto(false)
   }
@@ -143,22 +159,28 @@ export function GlassDatePicker({ label, value, onChange, min }: Props) {
               </div>
             ))}
             {dias.map((d) => {
+              const iso = format(d, "yyyy-MM-dd")
               const noMes = isSameMonth(d, mesVisivel)
               const sel = selecionado && isSameDay(d, selecionado)
               const ehHoje = isSameDay(d, new Date())
               const desabilitado = minDate && d < minDate
+              const feriadoLabel = getDateLabel(iso)
+              const eFeriado = isDateDisabled(iso)
               return (
                 <button
                   key={d.toISOString()}
                   type="button"
-                  disabled={!!desabilitado}
+                  disabled={!!desabilitado || eFeriado}
                   onClick={() => selecionar(d)}
+                  title={feriadoLabel ?? undefined}
                   className={`flex h-10 w-full items-center justify-center rounded-xl text-sm font-medium transition ${
                     sel
                       ? "bg-[#e8c275] text-[#0a1224] shadow-[0_0_18px_rgba(232,194,117,0.5)]"
-                      : noMes
-                        ? "text-white/90 hover:bg-white/10"
-                        : "text-white/30 hover:bg-white/5"
+                      : eFeriado && noMes
+                        ? "calendario-dia-feriado"
+                        : noMes
+                          ? "text-white/90 hover:bg-white/10"
+                          : "text-white/30 hover:bg-white/5"
                   } ${ehHoje && !sel ? "ring-1 ring-[#e8c275]/45" : ""} ${
                     desabilitado ? "cursor-not-allowed opacity-40" : ""
                   }`}

@@ -660,6 +660,43 @@
   background-color: rgba(110, 160, 255, 0.08);
 }
 
+/* ─── Tile de dia de FERIADO NACIONAL ────────────────────────────────
+   Visual emerald. Bloqueia edição de falta/atraso. Tile mantém
+   glass-tile-3d (tilt). Não tem badge "P2" — só fundo verde-petróleo
+   sutil + ícone palmeira no canto via ::before. */
+.glass-tile-feriado {
+  background-color: rgba(6, 78, 59, 0.55) !important;
+  background-image: linear-gradient(
+    180deg,
+    rgba(16, 185, 129, 0.10) 0%,
+    rgba(6, 78, 59, 0.42) 100%
+  );
+  border: 1px solid rgba(16, 185, 129, 0.22) !important;
+  cursor: default;
+}
+.glass-tile-feriado:hover {
+  border-color: rgba(16, 185, 129, 0.32) !important;
+  box-shadow: 0 8px 24px -8px rgba(6, 78, 59, 0.5);
+}
+.glass-tile-feriado::before {
+  content: "★";
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 0.7rem;
+  color: rgba(110, 231, 183, 0.65);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Dia bloqueado por feriado nos calendários de dialog (cancelamento,
+   sábados, split). Estilo discreto pra não confundir com selecionado. */
+.calendario-dia-feriado {
+  background-color: rgba(6, 78, 59, 0.35);
+  color: rgba(167, 243, 208, 0.85);
+  cursor: not-allowed;
+}
+
 .glass-tile-atestado {
   background-color: rgba(255, 255, 255, 0.03);
   border: none !important;

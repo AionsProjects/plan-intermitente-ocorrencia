@@ -52,6 +52,7 @@ import type {
 } from "./types"
 import { GlassSelect } from "@/features/convocar/GlassSelect"
 import { CONTRATOS } from "@/features/convocar/types"
+import { isFeriadoNacional, nomeFeriadoNacional } from "@/lib/feriadosBr"
 import {
   gerarProtocolo,
   salvarProtocolo,
@@ -193,6 +194,7 @@ function diasInfoIniciais(dados: ProcessamentoDados): DiaInfo[] {
       data: d,
       tipo: sabadosExtras.has(d) ? "extra" : "padrao",
       ativo: !desativados.has(d),
+      feriado: nomeFeriadoNacional(d),
     }))
   return aplicarAtestadosNosDias(base, dados.atestados ?? [], dados)
 }
@@ -322,7 +324,9 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
     while (cursor <= fim) {
       if (cursor.getUTCDay() === 6) {
         const iso = cursor.toISOString().slice(0, 10)
-        if (!existentes.has(iso)) out.push(iso)
+        // Sábado que cai em feriado nacional não é "extra" candidato —
+        // backend já não conta como dia trabalhável.
+        if (!existentes.has(iso) && !isFeriadoNacional(iso)) out.push(iso)
       }
       cursor.setUTCDate(cursor.getUTCDate() + 1)
     }
@@ -420,9 +424,11 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
       // Atestado/declaração: backend/Nexti cuida do desconto. Front sempre
       // envia sem_ocorrencia pros dias cobertos — sobrescreve falta/atraso
       // pré-existente. Dias cancelados parcial são filtrados (Cancelamento
-      // Início no Entrada trata como falta automaticamente).
+      // Início no Entrada trata como falta automaticamente). Feriado
+      // nacional também sai do payload — backend não deve gerar desconto.
       respostas: diasAtivos
         .filter((d) => !diasCancelados.has(d.data))
+        .filter((d) => !isFeriadoNacional(d.data))
         .map((d) => {
           if (cobertoPorAtestado(d.data)) {
             return { data: d.data, tipo: "sem_ocorrencia" as const }
@@ -941,6 +947,7 @@ function DiaItem({
   const isDisabled = !diaInfo.ativo
   const isExtra = diaInfo.tipo === "extra"
   const isAtestado = diaInfo.tipo === "atestado" || atestadosNoDia.length > 0
+  const isFeriado = !!diaInfo.feriado
   // Quando todos os docs no dia são declaração → visual violeta.
   // Misto ou atestado → visual âmbar (atestado tem prioridade).
   const ehDeclaracaoPura =
@@ -950,9 +957,10 @@ function DiaItem({
 
   const tileBase =
     "group relative flex h-full w-full flex-col items-center justify-center gap-1.5 rounded-2xl px-3 py-4 text-left"
-  // Prioridade: cancelado > atestado > disabled > extra > normal.
+  // Prioridade: cancelado > atestado > disabled > feriado > extra > normal.
   // Atestado prevalece sobre disabled — dia desconsiderado com documento
-  // ainda mostra visual âmbar/violeta. Sem isso, virava cinza confuso.
+  // ainda mostra visual âmbar/violeta. Feriado vence sobre extra/normal
+  // (sábado em feriado renderiza como feriado).
   const tileStyle = isCancelado
     ? "glass-tile glass-tile-3d glass-tile-cancelado"
     : isAtestado
@@ -961,9 +969,11 @@ function DiaItem({
         : "glass-tile-atestado"
       : isDisabled
         ? "glass-tile-disabled"
-        : isExtra
-          ? "glass-tile-extra"
-          : "glass-tile glass-tile-3d"
+        : isFeriado
+          ? "glass-tile glass-tile-3d glass-tile-feriado"
+          : isExtra
+            ? "glass-tile-extra"
+            : "glass-tile glass-tile-3d"
 
   const shakeClass = modoApagar && diaInfo.ativo ? "shake-mode" : ""
 
@@ -980,6 +990,9 @@ function DiaItem({
       return
     } else if (isAtestado) {
       onAbrirAtestadoInfo()
+    } else if (isFeriado) {
+      // Feriado nacional: bloqueia edição. Não abre dialog.
+      return
     } else if (!modoApagar) {
       onEdit()
     }
@@ -1053,6 +1066,15 @@ function DiaItem({
             >
               <FileText className="size-3" />
               {rotularDocumentoTile(atestadosNoDia)}
+            </span>
+          ) : isFeriado ? (
+            <span className="inline-flex flex-col items-center gap-0.5 text-emerald-200/90">
+              <span className="text-[10px] uppercase tracking-[0.18em]">
+                Feriado
+              </span>
+              <span className="text-[9px] text-emerald-200/65">
+                {diaInfo.feriado}
+              </span>
             </span>
           ) : (
             <BadgeResposta resposta={resposta} />
@@ -1846,20 +1868,25 @@ function CalendarioCancelamento({
           const permitido = diasPermitidos.has(iso)
           const selecionado = selected && isSameDay(dia, parseISO(selected))
           const noMes = isSameMonth(dia, mesVisivel)
+          const feriadoNome = nomeFeriadoNacional(iso)
+          const eFeriado = !!feriadoNome
           return (
             <button
               key={iso}
               type="button"
-              disabled={!permitido || disabled}
+              disabled={!permitido || disabled || eFeriado}
               onClick={() => onSelect(iso)}
+              title={eFeriado ? `Feriado nacional: ${feriadoNome}` : undefined}
               className={`flex h-10 w-full items-center justify-center rounded-xl text-sm font-medium transition ${
                 selecionado
                   ? "bg-orange-300 text-[#0a1224] shadow-[0_0_18px_rgba(251,146,60,0.45)]"
-                  : permitido
-                    ? "text-white/90 hover:bg-orange-300/15 hover:text-orange-100"
-                    : noMes
-                      ? "cursor-not-allowed text-white/18"
-                      : "cursor-not-allowed text-white/10"
+                  : eFeriado && noMes
+                    ? "calendario-dia-feriado"
+                    : permitido
+                      ? "text-white/90 hover:bg-orange-300/15 hover:text-orange-100"
+                      : noMes
+                        ? "cursor-not-allowed text-white/18"
+                        : "cursor-not-allowed text-white/10"
               }`}
             >
               {dia.getDate()}
@@ -2810,15 +2837,6 @@ function DialogSplit({
 }: DialogSplitProps) {
   const aberto = etapa !== "fechado"
 
-  function dataInvalida(d: string): string | null {
-    if (d === primeiroDiaConvocacao)
-      return "Não pode ser o primeiro dia (P1 ficaria vazia)."
-    if (d === ultimoDiaConvocacao)
-      return "Não pode ser o último dia (P2 ficaria vazia)."
-    if (diasCancelados.has(d)) return "Dia está em zona cancelada."
-    return null
-  }
-
   function diasP1(): string[] {
     if (!splitDataParte2) return []
     return dias.filter((d) => d < splitDataParte2)
@@ -2871,33 +2889,17 @@ function DialogSplit({
           </DialogDescription>
         </DialogHeader>
 
-        {/* ─── Etapa: calendário ─── */}
+        {/* ─── Etapa: calendário (7 cols visual, navega mês) ─── */}
         {etapa === "calendario" && (
           <div className="mt-4">
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-              {dias.map((d) => {
-                const motivo = dataInvalida(d)
-                const selecionado = splitDataParte2 === d
-                return (
-                  <button
-                    key={d}
-                    type="button"
-                    disabled={!!motivo}
-                    onClick={() => onSelecionarData(d)}
-                    className={`rounded-xl border px-3 py-2 text-sm transition ${
-                      selecionado
-                        ? "border-violet-300/60 bg-violet-300/20 text-white"
-                        : motivo
-                          ? "cursor-not-allowed border-white/8 bg-white/[0.02] text-white/30"
-                          : "border-white/15 bg-white/[0.04] text-white/85 hover:border-violet-300/40 hover:bg-violet-300/10"
-                    }`}
-                    title={motivo ?? undefined}
-                  >
-                    {formatarDataNumerica(d)}
-                  </button>
-                )
-              })}
-            </div>
+            <CalendarioSplit
+              dias={dias}
+              diasCancelados={diasCancelados}
+              primeiroDia={primeiroDiaConvocacao}
+              ultimoDia={ultimoDiaConvocacao}
+              selected={splitDataParte2}
+              onSelect={onSelecionarData}
+            />
             <div className="mt-5 flex justify-between gap-3">
               <Button
                 variant="ghost"
@@ -3052,5 +3054,119 @@ function DialogSplit({
         )}
       </DialogContent>
     </Dialog>
+  )
+}
+
+/* ─── Calendário do DialogSplit (7 colunas, paleta violeta) ──────────
+   Navega mês prev/next. Dia disabled quando:
+   - Fora do período da convocação (dias[])
+   - É o primeiro ou último dia (P1 ou P2 ficariam vazias)
+   - Dentro de zona cancelada parcial
+   - Feriado nacional
+*/
+function CalendarioSplit({
+  dias,
+  diasCancelados,
+  primeiroDia,
+  ultimoDia,
+  selected,
+  onSelect,
+}: {
+  dias: string[]
+  diasCancelados: Set<string>
+  primeiroDia: string
+  ultimoDia: string
+  selected: string | null
+  onSelect: (iso: string) => void
+}) {
+  const mesInicial = dias[0] ?? primeiroDia
+  const [mesVisivel, setMesVisivel] = useState(() => parseISO(mesInicial))
+
+  const diasPermitidos = useMemo(() => new Set(dias), [dias])
+  const diasDoMes = useMemo(() => {
+    const inicio = startOfWeek(startOfMonth(mesVisivel), { weekStartsOn: 0 })
+    const fim = endOfWeek(endOfMonth(mesVisivel), { weekStartsOn: 0 })
+    const out: Date[] = []
+    const d = new Date(inicio)
+    while (d <= fim) {
+      out.push(new Date(d))
+      d.setDate(d.getDate() + 1)
+    }
+    return out
+  }, [mesVisivel])
+
+  function motivoBloqueio(iso: string): string | null {
+    if (!diasPermitidos.has(iso)) return "Fora do período da convocação"
+    if (iso === primeiroDia) return "Primeiro dia da convocação"
+    if (iso === ultimoDia) return "Último dia da convocação"
+    if (diasCancelados.has(iso)) return "Dia em zona cancelada"
+    const feriado = nomeFeriadoNacional(iso)
+    if (feriado) return `Feriado nacional: ${feriado}`
+    return null
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => setMesVisivel((m) => subMonths(m, 1))}
+          className="inline-flex size-9 items-center justify-center rounded-xl border border-white/12 bg-white/[0.04] text-white/75 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
+        >
+          <ArrowLeft className="size-4" />
+        </button>
+        <p className="text-display text-lg capitalize text-white/95">
+          {format(mesVisivel, "MMMM 'de' yyyy", { locale: ptBR })}
+        </p>
+        <button
+          type="button"
+          onClick={() => setMesVisivel((m) => addMonths(m, 1))}
+          className="inline-flex size-9 items-center justify-center rounded-xl border border-white/12 bg-white/[0.04] text-white/75 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
+        >
+          <ArrowLeft className="size-4 rotate-180" />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-7 gap-1">
+        {["D", "S", "T", "Q", "Q", "S", "S"].map((d, i) => (
+          <div
+            key={i}
+            className="py-1 text-center text-[10px] uppercase tracking-wider text-white/40"
+          >
+            {d}
+          </div>
+        ))}
+        {diasDoMes.map((dia) => {
+          const iso = format(dia, "yyyy-MM-dd")
+          const motivo = motivoBloqueio(iso)
+          const selecionado = selected === iso
+          const noMes = isSameMonth(dia, mesVisivel)
+          const feriadoNome = nomeFeriadoNacional(iso)
+          const eFeriado = !!feriadoNome
+          return (
+            <button
+              key={iso}
+              type="button"
+              disabled={!!motivo}
+              onClick={() => onSelect(iso)}
+              title={motivo ?? undefined}
+              className={`flex h-10 w-full items-center justify-center rounded-xl text-sm font-medium transition ${
+                selecionado
+                  ? "bg-violet-300 text-[#1a0a40] shadow-[0_0_18px_rgba(167,139,250,0.55)]"
+                  : eFeriado && noMes
+                    ? "calendario-dia-feriado"
+                    : !motivo
+                      ? "text-white/90 hover:bg-violet-300/15 hover:text-violet-100"
+                      : noMes
+                        ? "cursor-not-allowed text-white/18"
+                        : "cursor-not-allowed text-white/10"
+              }`}
+            >
+              {dia.getDate()}
+            </button>
+          )
+        })}
+      </div>
+    </div>
   )
 }

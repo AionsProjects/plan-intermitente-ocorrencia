@@ -41,6 +41,7 @@ import {
   listarDiasPeriodo,
 } from "./shared"
 import { contratoDoCodigoSecao } from "./mapaSecaoContrato"
+import { nomeFeriadoNacional } from "@/lib/feriadosBr"
 import {
   ACOMPANHANTES,
   CONTRATOS_COLABORADOR,
@@ -299,6 +300,11 @@ export function WizardDocumento({
   }
 
   function diaPermitido(dia: string): { ok: boolean; motivo?: string } {
+    // Feriado nacional bloqueia: atestado em feriado não gera desconto.
+    const feriado = nomeFeriadoNacional(dia)
+    if (feriado) {
+      return { ok: false, motivo: `Feriado nacional: ${feriado}` }
+    }
     // Intermitente e CLT agora ambos vêm do RM com chapa.
     // Bloqueia só conflito local: mesma chapa + mesma modalidade já cobrindo
     // o dia na sessão atual. Backend valida o resto.
@@ -750,6 +756,8 @@ function EtapaCalendario({
           {diasGrade.map((dia) => {
             const iso = format(dia, "yyyy-MM-dd")
             const noMes = isSameMonth(dia, mesAtual)
+            const feriadoNome = nomeFeriadoNacional(iso)
+            const eFeriado = !!feriadoNome
             const permitido = noMes && diaPermitido(iso).ok
             const ehInicio = iso === diaInicio
             const noRange = diasDestacados.has(iso) && iso !== diaInicio
@@ -762,6 +770,7 @@ function EtapaCalendario({
             //  - dias com convocação ganham ponto verde discreto inferior
             //  - overlap (atestado em dia de convocação) = âmbar + halo verde
             //    + ponto verde (ainda visível) → mistura visual
+            //  - feriado nacional = emerald + bloqueado
             let cls = ""
             if (ehInicio) {
               cls = overlap
@@ -771,6 +780,8 @@ function EtapaCalendario({
               cls = overlap
                 ? "bg-amber-300/22 text-amber-100 ring-1 ring-emerald-400/40"
                 : "bg-amber-300/16 text-amber-100"
+            } else if (eFeriado && noMes) {
+              cls = "calendario-dia-feriado"
             } else if (permitido) {
               cls = "text-white/90 hover:bg-amber-300/15 hover:text-amber-100 glass-tile-3d-mini"
             } else if (noMes) {
@@ -783,6 +794,7 @@ function EtapaCalendario({
               <button
                 key={iso}
                 type="button"
+                title={eFeriado ? `Feriado nacional: ${feriadoNome}` : undefined}
                 disabled={!permitido}
                 onClick={() => clicarDia(iso)}
                 className={`relative flex h-10 w-full items-center justify-center rounded-xl text-sm font-medium transition ${cls}`}
