@@ -19,6 +19,7 @@ const NIVEL: Record<string, number> = {
 
 function nivel(pathname: string): number {
   if (pathname.startsWith("/preencher/")) return 2
+  if (pathname.startsWith("/descontos/")) return 2
   return NIVEL[pathname] ?? 1
 }
 
