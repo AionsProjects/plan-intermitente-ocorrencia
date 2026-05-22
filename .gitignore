@@ -30,3 +30,13 @@ dist-ssr
 
 # Claude Code worktrees (cada branch tem seu próprio dir local)
 .claude/worktrees/
+
+# Arquivos temporários de investigação n8n (ignorar)
+.n8n_backup/
+.wf_novo.json
+.wf_antigo.json
+.caju_cookie.txt
+cobranca.json
+n8n_all.json
+n8n_folder.json
+determinar.js
