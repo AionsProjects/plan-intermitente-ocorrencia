@@ -2,43 +2,53 @@
 
 App web pra **gerenciar convocações de intermitentes** no monday: cria convocação, registra ocorrências dia-a-dia (faltou/atrasou) e permite correção via protocolo. Acesso via link único da convocação (registrar ocorrência) ou via **hub principal** (criar convocação / corrigir).
 
-## Estado atual do projeto (2026-05-20)
+## Estado atual do projeto (2026-05-22)
 
 ### Iterações recentes consolidadas
 
-- **`/atestados` standalone** com modos Intermitente e CLT, ambos via busca RM. Form alinhado ao board Atestado Ponta (`18298015951`, view `223887647`) — 13 campos. Header RM mostra Cód. seção (font-mono).
-- **CLT consome campos novos do RM**: `codigo` / `secaoCodigo` (código da seção, ex: `01.01.0004.01.0001`), `localUnidade` (descrição amigável, ex: "DETRAN - MANAUS"), `contrato` (já inferido pelo n8n).
-- **Mapa Seção→Contrato determinístico** (`src/features/atestados/mapaSecaoContrato.ts`): 3º octeto do `Codigo` da seção define contrato. Derivado do dump completo de celetistas (`todos.CSV`, 1132 funcionários). Mapa: `0004`→DETRAN, `0010`→SEDUC SEDE, `0011.01`→SEDUC ESCOLA, `0011.02`→SEDUC INTERIOR, `0074`→CETAM, `0079`→TRE PB, `0085`→SEMSA. Seções fora do mapa (estagiários, aprendizes, afastados) ficam vazias — operacional escolhe manual (SQL no RM agora só retorna esses 7 contratos, então fallback inalcançável na prática).
-- **Contrato readonly no WizardDocumento**: campo `contrato_colaborador` deixa de ser SelectGlass editável — vira chip âmbar read-only `[RM] <contrato>` já inferido. Fallback select só aparece se mapa retornar vazio.
-- **Bug 2x Voltar resolvido**: AtestadosPage renderizava Voltar global + WizardDocumento Voltar interno duplicado. Global escondido quando etapa = `wizard-intermitente`|`wizard-clt`.
-- **Cálculo de desconto VR/VT saiu do WF Lancar Documentos** — apenas cria item no board Controle de Atestados + anexa arquivo. Automação futura cruzará atestado×convocação.
-- **Calendário restrito ao mês corrente** (sem nav prev/next). Click data inicial → dialog "quantos dias?" 1-60. Dias com convocação ativa ganham ponto verde (intermitente only).
-- **Resumo flutuante (dock macOS-like)** + badge bounce no contador `{N}` ao adicionar doc (scale 1→1.45→1 spring overshoot 480ms).
-- **Cancelamento parcial NÃO finaliza mais** (`/preencher`). Bug reportado pelo DP: lançou atraso 420min dia 1 + cancelamento parcial dias 2-10. Só cancelamento foi persistido — atraso perdido (porque cancelamento renderizava TelaCancelamentoConvocacao em tela cheia, desmontando painel antes de Finalizar). Agora cancelamento parcial fecha dialog e mantém painel aberto. Cancelamento TOTAL continua finalizando direto (comportamento preservado).
-- **Tile cancelado parcialmente**: visual simples — tile escuro `rgba(12,10,10,0.92)` + `<CancelXIcon />` (2 linhas vermelhas formando ✕ com breath sutil contínuo) + texto "Dia cancelado". Mantém `glass-tile-3d` (tilt mousemove preservado). Click abre `DialogReverterCancelamento`. Animação no botão "Cancelar convocação" do header: metamorfose X → ⊘ (sinal de proibido) com circle se desenhando + 6 partículas radiais.
-- **Split de convocação** (`/preencher`): operacional pode dividir convocação em 2 partes com contratos diferentes (ex: 01-07/05 CETAM + 08-20/05 SEDUC). Botão violeta "Dividir convocação" / "Editar divisão" no header com ícone `SplitIcon` (2 retângulos que se afastam + lâmina rosa rasga + sparkles). Wizard 4 etapas (calendário com bloqueio de primeiro/último/cancelado → 2 GlassSelect P1≠P2 → confirmação → sucesso). Quando split ativo: render do grid se divide em 2 `<SplitSection>` (border-left tonal âmbar/sky + header eyebrow + nome contrato + grid de dias). Persistência via `POST /intermitente-aplicar-split` (coluna Split JSON no item ENTRADA). Ao Finalizar: WF3 estendido cria 2 subitems no item ENTRADA com agregados separados por parte (item Histórico parent mantém agregados consolidados). Coexiste com cancelamento parcial.
-- **Flicker fixes consolidados** (`src/index.css`):
-  - SlideStack sem opacity/scale no Slot — slide horizontal puro (iOS Settings pattern). Eliminou ghosting em texto Instrument Serif.
-  - Google Fonts URL com `display=optional` (era `swap`) — sem FOUT mid-slide.
-  - `prefers-reduced-motion` global — zera animations + mantém 80ms em transitions de hover.
-  - `.choice-btn > *` com `translateZ(0)` + `backface-visibility: hidden` — texto não pisca quando pai tilta 3D.
-  - `.slide-stack-animating *` mata animation em todos descendentes.
-  - `.icon-3d-only` drop-shadow estático (era recalculado a cada frame).
-- **BuscarPessoa otimizado**: hook do modo NÃO ativo passa query vazia → só endpoint do modo ativo dispara request.
+- **`/atestados` standalone** com modos Intermitente e CLT, ambos via busca RM. Form alinhado ao board Atestado Ponta (`18298015951`, view `223887647`) — 13 campos + CPF (front mostra `formatCpf` no header RM). Header RM mostra Cód. seção (font-mono) + chip CPF (`empregado.cpf` formatado `000.000.000-00`). Payload `lancarDocumentos` envia `empregado_cpf` snake_case.
+- **CLT consome campos novos do RM**: `codigo` / `secaoCodigo` (código da seção, ex: `01.01.0004.01.0001`), `localUnidade` (descrição amigável, ex: "DETRAN - MANAUS"), `contrato` (já inferido pelo n8n). CPF idem (mesmo endpoint `celetista-buscar-empregado`).
+- **Mapa Seção→Contrato determinístico** (`src/features/atestados/mapaSecaoContrato.ts`): 3º octeto do `Codigo` da seção define contrato. Derivado do dump completo de celetistas (`todos.CSV`, 1132 funcionários). Mapa: `0004`→DETRAN, `0010`→SEDUC SEDE, `0011.01`→SEDUC ESCOLA, `0011.02`→SEDUC INTERIOR, `0074`→CETAM, `0079`→TRE PB, `0085`→SEMSA. SQL no RM agora só retorna esses 7 contratos.
+- **Contrato readonly no WizardDocumento**: campo `contrato_colaborador` chip âmbar read-only `[RM] <contrato>` já inferido. Fallback select só se mapa retornar vazio.
+- **Cancelamento parcial NÃO finaliza** (`/preencher`). Cancelamento TOTAL continua finalizando direto. Bug DP resolvido: cancelar parcial dia 2-10 com atraso lançado dia 1 = preserva atraso. Tile cancelado: tile escuro `rgba(12,10,10,0.92)` + `<CancelXIcon />` (2 linhas vermelhas + breath sutil) + "Dia cancelado". Click abre `DialogReverterCancelamento`. Animação header "Cancelar convocação": metamorfose X → ⊘ + 6 partículas radiais.
+- **Split de convocação** (`/preencher`): divide convocação em 2 partes com contratos diferentes. Botão violeta "Dividir convocação" / "Editar divisão" no header (ícone `SplitIcon` — 2 retângulos + lâmina rosa + sparkles). Wizard 4 etapas: calendário 7 cols com nav mês (refatorado de grid de botões), 2 GlassSelect P1≠P2, confirmação, sucesso. Render do grid quando ativo se divide em 2 `<SplitSection>` (border-left tonal âmbar/sky + header eyebrow + nome contrato). Persistência via `POST /intermitente-aplicar-split` (coluna Split JSON no item ENTRADA). Finalizar com split → WF3 cria 2 subitems no item ENTRADA.
+- **Atestados dia coberto bloqueado** no `/preencher`: `respostasIniciais` força `sem_ocorrencia` em dia com atestado vindo do WF2; `enviar()` filtra dia coberto antes do envio. `DialogDiaComDocumento` usa `tipoDocumentacaoLabel` granular (Atestado Médico, Licença-Maternidade etc) quando backend devolve.
+- **Feriados nacionais BR** (`src/lib/feriadosBr.ts`): 8 fixos + Sexta-feira Santa via algoritmo Meeus/Jones/Butcher. Hardcoded (descartei `date-holidays` que pesava 1.9MB — implementação local +7KB). Aplicado em: tile do grid `/preencher` (visual emerald `.glass-tile-feriado` + bloqueio click + ícone estrela ★), `CalendarioCancelamento`, `DialogSelecionarSabados`, `CalendarioSplit`, `GlassDatePicker` (props `isDateDisabled` + `getDateLabel` com defaults), `WizardDocumento` calendário atestado. Payload finalize filtra feriado.
+- **Tela `/descontos/:uuid`** — nova rota pra registro de retirada manual da conta Caju. Wizard 4 etapas (VR → VT → confirmar → sucesso toast 2s). Paleta sky (azul financeiro). 1 retirada por item (sem ledger). Mock: `mock-pendente`, `mock-registrado`, `mock-zerar`. Endpoints `/descontos-ler` e `/descontos-registrar-manual` (pendência Codex).
+- **Dialog stacking fix**: 8 dialogs do FormularioWizard com conditional render (`{cond && <Dialog>}`) em vez de `<Dialog open={cond}>`. Sem backdrops empilhados.
+- **DialogSplit useEffect cleanup**: timer auto-close 1500ms agora cancela se user navega entre etapas durante sucesso.
+- **prefers-reduced-motion** kill final cobrindo `bg-hue-cycle`, `lamp-flicker`, `*-dash-svg`, `flame-flicker`, `flame-base-pulse`, `dash-walk-*`.
+- **Erro envio em `/atestados`** renderiza dentro do dialog Resumo (não atrás do backdrop). Auto-clear 5s + abre dialog automático quando erro aparece.
+- **Slide flicker** root cause resolvido: regra antiga `.slide-stack-animating * { animation-duration: 0s }` reiniciava `.fade-up` ao fim do slide → pisca. Substituída por `animation-play-state: paused` específico em animations infinitas (dash/flame/lamp). Plus removido `fade-up` dos wrappers raiz das 5 páginas (HubPage, AtestadosPage, ConvocarPage, CorrecaoPage, TestePage) — slide já é a entrada.
+- **2 envs n8n**: `.env` documenta `VITE_N8N_BASE_URL` (novo `aionscorp-n8n.cloudfy.live`) + `VITE_N8N_ANTIGO_BASE_URL` (antigo, RM-dependent). Features que precisam de RM têm fallback automático em `api.ts`.
+- **BuscarPessoa otimizado**: hook do modo NÃO ativo passa query vazia → só endpoint do modo ativo dispara.
 
-### Endpoints n8n consolidados (2026-05-20)
+### Endpoints n8n consolidados (2026-05-22)
 
-| Endpoint | Quem chama | Estado |
-|---|---|---|
-| `GET /convocar-buscar-empregado?nome=` | `/convocar` e `/atestados` (intermitente) | WF8 estável (`BEN 2`, `CODCATEGORIAESOCIAL=111`) |
-| `GET /celetista-buscar-empregado?nome=` | `/atestados` (CLT) | Funcionando. SQL no RM filtra os 7 contratos válidos. Retorna `codigo`/`secaoCodigo`/`localUnidade`/`contrato` extras (frontend usa pra auto-preencher). |
-| `GET /intermitente-convocacoes-empregado?chapa=&mes=` | `/atestados` (intermitente, visual only) | Funcionando. Frontend usa só pra ponto verde no calendário. |
-| `POST /intermitente-lancar-documentos` (multipart) | `/atestados` (ambos modos) | Funcionando. Só cria item Controle de Atestados + anexa arquivo. Desconto = automação futura. |
-| `POST /intermitente-finalizar` (JSON) | `/preencher` | JSON-only sem atestado. **Pendência Codex (split)**: ler `payload.split` (já enviado); se presente, particionar respostas/dias por data corte, calcular agregados por parte, criar 2 subitems no item ENTRADA via `create_subitem` (idempotente via lookup por `name`). Item Histórico parent mantém agregados consolidados (comportamento atual). |
-| `POST /intermitente-convocar` (multipart) | `/convocar` | WF7 estável. |
-| `POST /intermitente-cancelar-convocacao` | `/preencher` cancelamento | Aceita `tipo: "total"` \| `"parcial"`. **Pendência Codex**: aceitar `tipo: "reverter"` → limpar `Cancelamento Início`, set `Status Convocação=Válida`, `Status Cancelamento=null`, reverter desconto criado. |
-| `POST /intermitente-aplicar-split` *(novo)* | `/preencher` (wizard Dividir) | **Pendência Codex**: criar WF que aceita `{tipo: "aplicar", data_inicio_parte2, contrato_parte1, contrato_parte2}` ou `{tipo: "reverter"}`. Escreve coluna `Split JSON` (long_text, criar) no item ENTRADA via `change_simple_column_value`. Retorna `{ok, split}`. Frontend já chama (mock-pronto-split disponível). |
-| `GET /intermitente-ler` (WF2) | `/preencher` | **Pendência Codex**: (1) devolver `data_inicio_cancelamento` (`date_mm3b88ta`) + `status_cancelamento` (mapeado de `color_mm3a8ana`) pro tile cancelado. (2) devolver `split` parseado da nova coluna `Split JSON` pro tile split (`{data_inicio_parte2, contrato_parte1, contrato_parte2}` ou null). |
+**Host novo** (`aionscorp-n8n.cloudfy.live/webhook`):
+
+| Endpoint | WF ID | Quem chama | Estado |
+|---|---|---|---|
+| `GET /intermitente-ler` | `WHtIQDf8oOWinGyx` | `/preencher` | WF2. Devolve dados + atestados[] (`tipo_documentacao_label` granular suportado) + `data_inicio_cancelamento`/`status_cancelamento`. **Pendência**: devolver `split` parseado da coluna nova. |
+| `POST /intermitente-finalizar` | `rlxTk4VZLM2gTzx7` | `/preencher` | WF3 JSON-only. Filtra atestado/feriado/cancelado no frontend. **Pendências**: ler `payload.split` e criar 2 subitems; filtrar feriado nacional no cálculo VR/VT. |
+| `POST /intermitente-cancelar-convocacao` | `sbKoeewbkS7LNORH` | `/preencher` | Aceita `tipo: "total" \| "parcial"`. **Pendência**: aceitar `tipo: "reverter"`. |
+| `POST /intermitente-aplicar-split` | `ZagUa2yuP6BsAE9i` | `/preencher` (wizard Dividir) | **Pendência Codex**: aceita `{tipo:"aplicar"\|"reverter"...}`, escreve `Split JSON` no item ENTRADA. Frontend mock-pronto-split disponível. |
+| `GET /intermitente-convocacoes-empregado` | `8l69E6Z9ouZAL027` | `/atestados` (intermitente, visual only) | Funcionando. Ponto verde no calendário. |
+| `POST /intermitente-lancar-documentos` (multipart) | `kVpn69JFUJfR7T7U` | `/atestados` (ambos modos) | Funcionando. Cria item Controle de Atestados + arquivo. Payload inclui `empregado_cpf`. |
+| `GET /intermitente-buscar-protocolo` | `m5GIJMo0ghgSGbh2` | `/corrigir` | WF4 estável. |
+| `POST /nexti-validar-atestado` | `6efSZQYzLaP304rn` | Monday Automation (board Controle Atestados quando label `Validação de documento = VALIDADO`) | Valida atestado contra ausências Nexti via CPF. Decisão: `sem_desconto`/`com_desconto`/`sem_absences_nexti`/`ignorar`/`erro`. |
+| `POST /descontos-ler` *(planejado)* | — | `/descontos/:uuid` | **Pendência Codex**: novo WF lê item Monday do board Desconto (`18400981023`) pelo UUID. Retorna `{empregado, periodo, vr_devido, vt_devido, retirada_anterior, status}`. |
+| `POST /descontos-registrar-manual` *(planejado)* | — | `/descontos/:uuid` | **Pendência Codex**: registra `{vr_retirado, vt_retirado}` no item, marca Status=Registrado, retorna `{ok, vr_restante, vt_restante}`. |
+
+**Host antigo** (`antigoaionscorp-n8n.cloudfy.live/webhook`, RM-dependent — cred `rm mike`):
+
+| Endpoint | WF ID | Quem chama | Estado |
+|---|---|---|---|
+| `GET /convocar-buscar-empregado?nome=` | `7BkWfOF3uKUafkef` | `/convocar` + `/atestados` (intermitente) | WF8 estável (`BEN 2`, `CODCATEGORIAESOCIAL=111`). **Pendência**: estender SQL pra incluir CPF. |
+| `GET /celetista-buscar-empregado?nome=` | `mLoSKtGr1dLivME4` | `/atestados` (CLT) | Funcionando. Retorna `codigo`/`secaoCodigo`/`localUnidade`/`contrato`/`cpf`. |
+| `GET /intermitente-convocar-opcoes` | `fBlqA5MUBpJS1kYl` | `/convocar` (lazy) | WF9. Frontend usa fallback local se falhar. |
+| `POST /sabados-extras-boleto` | `GTt6aqGlhotxoGyY` | WF3 cross-n8n | Lançamento Sábados Extras (boleto VT). |
+| `POST /intermitente-convocar` (multipart) | (no antigo) | `/convocar` | WF7 estável. Trava antifraude período. |
 
 ### Funcionando end-to-end (mock + real, produção na VM):
 
@@ -51,11 +61,16 @@ App web pra **gerenciar convocações de intermitentes** no monday: cria convoca
 - **Preencher** (`/preencher/:uuid`) — painel com modal por dia, perguntas no positivo ("foi trabalhar?", "chegou no horário?"), adicionar/apagar dias com bolha estourando, fluxo de correção via protocolo `PROT-XXXX-XXXX`. **Cancelar convocação** (ícone fogo no header) abre wizard: parcial (calendário → escolhe data → tela `confirmar_parcial` exige clique "Confirmar") ou total (data = primeiro dia → tela `confirmar_total`). **Cancelamento parcial NÃO finaliza o registro** — fecha dialog, painel continua aberto, operacional ainda precisa lançar respostas dos dias não-cancelados e clicar "Finalizar". Cancelamento total continua finalizando direto. Dias `>= dataInicioCancelamento` ficam visualmente "cortados ao meio" (`.dia-cortado` + 2 `.dia-meia-left/right` com `clip-path` diagonal, tilt 3D independente por metade, glow âmbar via `::after`, sombra difusa via 3 drop-shadows empilhados). Click em qualquer metade abre `DialogReverterCancelamento` — confirmar reverte cancelamento (envia `tipo: "reverter"` ao backend). **Adicionar sábados extras** (botão azul `CalendarPlus`, só aparece se `trabalhaSabado=NÃO`) — calendário multi-seleção dos sábados do período; tiles ficam com borda azul tracejada animada (`.glass-tile-extra` + `.extra-dash-svg`); remoção individual com confirmação; finalizar dispara boleto VT extra. **Atestados/declarações** lançados via `/atestados` aparecem como tiles read-only (`glass-tile-atestado` + `atestado-dash-svg`); click abre `DialogDiaComDocumento` com link pro item no board Controle de Atestados.
 - **Atestados e declarações** (`/atestados`) — feature standalone (sem dependência de link único de convocação). Fluxo: Hub → tile → escolhe tipo trabalhador (Intermitente / CLT em breve) → autocomplete RM (mesmo WF8 do `/convocar`) → painel de convocações do mês via `GET /intermitente-convocacoes-empregado?chapa=…` → escolhe convocação → WizardDocumento interno (tipo atestado vs declaração → calendário com regras de bloqueio → turnos só pra declaração → perguntas condicionais → upload → preview). Adicionar à sessão → abre `ResumoSessao` modal listando todos os docs acumulados (cross-pessoa). Botão flutuante "Resumo (N)" sempre visível. Concluir = POST batch `intermitente-lancar-documentos` (multipart `payload` JSON + binários `doc_<id>`). Regras de bloqueio no frontend: atestado bloqueia qualquer doc nas datas, declaração não em dia com atestado, declaração 1 dia, declaração não duplica turno, sábado só se ativo, atestado multi-dia não cruza sábado inativo.
 - **Corrigir** (`/corrigir`) — input do protocolo + lista de recentes (localStorage) + atalho flask pro `PROT-DEMO-1234`.
+- **Descontos** (`/descontos/:uuid`) — registro de retirada manual da conta Caju. Link único gerado por Monday Automation no item do board Desconto. Wizard 4 etapas (VR → VT → confirmar → sucesso toast 2s). Paleta sky. Mock: `mock-pendente`, `mock-registrado`, `mock-zerar`. Status `pendente` abre wizard; `registrado` abre tela read-only.
 - **Teste** (`/teste`) — área de mocks (4 UUIDs `mock-*` + chave demo). Acessível só via link "Abrir testes" no rodapé do hub.
 
+### Feriados nacionais BR
+
+`src/lib/feriadosBr.ts`: lista hardcoded (descartei `date-holidays` por pesar 1.9MB). 8 fixos (Ano Novo, Tiradentes, Trabalho, Independência, N.S. Aparecida, Finados, Proclamação, Consciência Negra, Natal) + Sexta-feira Santa via algoritmo Meeus/Jones/Butcher. Aplicado em todos calendários do app + payload finalize.
+
 ### Transições globais (Liquid Glass)
-- **PageTransition** (`src/components/PageTransition.tsx`) — wrapper de `<Routes>` que detecta path change e aplica slide carrossel direcional. Hierarquia: `/` = 0; `/teste|convocar|corrigir|atestados` = 1; `/preencher/*` = 2. Forward = nível ↑ (slide saí esquerda + entra direita); backward = nível ↓ (inverso).
-- **SlideStack** (`src/components/SlideStack.tsx`) — carrossel genérico reutilizável (trilho 200% + 2 slots × 50%, translateX 0↔-50%, **680ms cubic-bezier(0.2, 0.84, 0.2, 1)**, overflow só durante anim, preserva sombras em idle). Cada Slot ganha estado `active | enter | exit`; slots não-ativos ficam com `opacity 0.18 + scale 0.985` durante a transição (efeito cinemático). Captura do conteúdo anterior via `useLayoutEffect`. Consumido por `PageTransition` (rotas) e `ConvocarPage` (etapas internas).
+- **PageTransition** (`src/components/PageTransition.tsx`) — wrapper de `<Routes>` que detecta path change e aplica slide carrossel direcional. Hierarquia: `/` = 0; `/teste|convocar|corrigir|atestados` = 1; `/preencher/*` e `/descontos/*` = 2. Forward = nível ↑ (slide saí esquerda + entra direita); backward = nível ↓ (inverso).
+- **SlideStack** (`src/components/SlideStack.tsx`) — carrossel genérico reutilizável (trilho 200% + 2 slots × 50%, translateX 0↔-50%, **680ms cubic-bezier(0.2, 0.84, 0.2, 1)**, overflow só durante anim, preserva sombras em idle). Slot puro sem opacity/scale (iOS Settings pattern — slide horizontal puro, sem ghosting). Consumido por `PageTransition` (rotas) e `ConvocarPage`/`AtestadosPage`/`DescontosPage` (etapas internas).
 - **Background animado** — keyframe `bg-hue-cycle` (120s ease-in-out infinite) no `<html>`: navy → púrpura-fumê → preto puro → azul-preto → navy. Sutil, não rouba atenção.
 
 ### Backend n8n (9 workflows principais)
@@ -81,25 +96,38 @@ App web pra **gerenciar convocações de intermitentes** no monday: cria convoca
 
 **Pendente:**
 
-**Split de convocação (alta prioridade — frontend pronto, esperando backend):**
-1. **Monday — board ENTRADA `18408773953`** (bloqueante):
+**Split de convocação (alta prioridade — frontend 100% pronto):**
+1. **Monday — board ENTRADA `18408773953`**:
    - Adicionar coluna `Split JSON` (`long_text`). Anotar `column_id` gerado.
    - Habilitar subitems no board.
-   - Criar template de colunas dos subitems: `Name`, Data Início, Data Fim, Contrato, Respostas JSON, Qtd Faltas, Qtd Atrasos, Total Minutos Atraso, Dias Extras, Dias Desativados, Sábados Extras, Status.
-2. **WF2 `intermitente-ler` estender**: devolver `split` parseado da coluna nova.
-3. **WF novo `intermitente-aplicar-split`**: `POST /intermitente-aplicar-split?uuid=<uuid>` aceita `{tipo: "aplicar"|"reverter"}`, escreve Split JSON via `change_simple_column_value`. Resposta `{ok, split}`.
-4. **WF3 `intermitente-finalizar` estender**: ler Split JSON, particionar respostas/dias por data, criar 2 subitems no item ENTRADA via `create_subitem`. Idempotente (lookup por `name`).
+   - Template colunas subitem: `Name`, Data Início, Data Fim, Contrato, Respostas JSON, Qtd Faltas/Atrasos, Total Minutos, Dias Extras, Dias Desativados, Sábados Extras, Status.
+2. **WF2 `intermitente-ler`**: devolver `split` parseado.
+3. **WF novo `intermitente-aplicar-split`**: aceita `{tipo:"aplicar"|"reverter", ...}`. Escreve Split JSON.
+4. **WF3 `intermitente-finalizar`**: ler Split JSON, particionar respostas, criar 2 subitems (idempotente).
+
+**Desconto manual (alta prioridade — frontend 100% pronto):**
+1. **Monday — board Desconto `18400981023`**: colunas `UUID Retirada Manual`, `Link Retirada Manual`, `Retirada Manual VR/VT`, `Status Retirada Manual` (Pendente/Registrado), `Registrado Em`, `Ativar Retirada Manual` (trigger button).
+2. **WF Monday Automation** "Gerar Link": ao ativar trigger, gera UUID + link `http://192.168.0.41/descontos/<uuid>` + Status=Pendente.
+3. **WF novo `GET /descontos-ler?uuid=`**: busca item pelo UUID, cross-ref Histórico, retorna `{empregado_nome, chapa, contrato, periodo, vr_devido, vt_devido, retirada_anterior, status}`.
+4. **WF novo `POST /descontos-registrar-manual?uuid=`**: valida `vr_retirado<=vr_devido` + idem VT, atualiza item Monday, retorna `{ok, vr_restante, vt_restante}`.
 
 **Cancelamento parcial (média prioridade):**
-- WF2 devolver `data_inicio_cancelamento` (`date_mm3b88ta`) + `status_cancelamento` (mapeado de `color_mm3a8ana`).
-- WF `intermitente-cancelar-convocacao` aceitar `tipo: "reverter"` → limpar Cancelamento Início, set Status=Válida, reverter desconto.
+- WF2 devolver `data_inicio_cancelamento` (`date_mm3b88ta`) + `status_cancelamento`.
+- WF cancelar aceitar `tipo: "reverter"` → limpar Cancelamento Início, set Status=Válida, reverter desconto.
+
+**Feriados nacionais (média prioridade):**
+- WF3 finalizar filtrar dia feriado no cálculo VR/VT (replicar `src/lib/feriadosBr.ts` em Code node).
+- WF Cancelar Convocação pular feriado no cálculo de falta.
+- Algoritmo Páscoa (Meeus/Jones/Butcher) + 9 fixos. Match bilateral com frontend.
+
+**RM TOTVS:**
+- Estender SQL `BEN 2` pra incluir CPF (hoje vem vazio em intermitente; celetista já tem).
 
 **Outros:**
-- Configurar job de expiração: monday Automation no board histórico → *"When Expira Em arrives → Change Status to Expirado"* OU n8n cron diário.
-- Estender SQL `BEN 2` no RM TOTVS pra incluir CPF (hoje vem vazio).
-- Implementar endpoint n8n `GET /intermitente-convocar-opcoes` (frontend já consome com fallback local).
-- Renderizar UI do erro 409 conflito no `/convocar` (api.ts já lança `ConvocacaoApiError` com `.conflito` — falta painel mostrando link do item existente + datas + status).
-- Confirmar labels do `STATUS_CONVOCACAO` no board ENTRADA (mapeados hoje: `Válida`, `Cancelada`/`Cancelado`, `Cancelada parcialmente`/`Cancelado parcialmente`, `Bloqueada - conflito`).
+- Configurar job de expiração: monday Automation no Histórico ou n8n cron.
+- Endpoint `GET /intermitente-convocar-opcoes` (frontend já fallback local).
+- UI do erro 409 conflito no `/convocar` (api.ts já lança `ConvocacaoApiError` com `.conflito`).
+- Confirmar labels `STATUS_CONVOCACAO` board ENTRADA (`Válida`, `Cancelada(/o)`, `Cancelada parcialmente`, `Bloqueada - conflito`).
 
 ## Fluxos
 
@@ -177,9 +205,12 @@ CORREÇÃO: via protocolo
 
 **`.env` do frontend:**
 ```
-VITE_N8N_BASE_URL=https://antigoaionscorp-n8n.cloudfy.live/webhook
+VITE_N8N_BASE_URL=https://aionscorp-n8n.cloudfy.live/webhook
+VITE_N8N_ANTIGO_BASE_URL=https://antigoaionscorp-n8n.cloudfy.live/webhook
 ```
-Vazio = modo mock (UUIDs `mock-*` e protocolos `PROT-TEST-*`/`PROT-DEMO-*` resolvem local mesmo com n8n real).
+- `VITE_N8N_BASE_URL` = host novo. WFs migrados (ler, finalizar, cancelar, atestados, split, descontos, nexti).
+- `VITE_N8N_ANTIGO_BASE_URL` = host antigo, RM-dependent (busca empregado, opções convocar, sábados extras boleto, convocar WF7).
+- Vazio = modo mock (UUIDs `mock-*` e protocolos `PROT-TEST-*`/`PROT-DEMO-*` resolvem local mesmo com n8n real).
 
 > Vite resolve `import.meta.env.*` em **build-time** (bundle baked). Mudou `.env`? Tem que `docker compose up -d --build` (sem `--build` o bundle antigo continua).
 
@@ -237,7 +268,20 @@ src/
 ├─ features/correcao/
 │  ├─ CorrecaoPage.tsx              input do protocolo + lista recentes + atalho PROT-DEMO-1234
 │  └─ protocoloStorage.ts           helpers localStorage
-└─ lib/utils.ts
+├─ features/descontos/
+│  ├─ DescontosPage.tsx             rota `/descontos/:uuid` — wizard VR → VT → confirmar → sucesso toast
+│  ├─ EtapaValorBeneficio.tsx       input grande máscara R$ + validação ≤ devido (reusável VR/VT)
+│  ├─ EtapaConfirmar.tsx            resumo final + mutation
+│  ├─ TelaRegistrado.tsx            read-only quando status `registrado`
+│  ├─ HeaderEmpregado.tsx           chip sky + nome + chapa + contrato + período
+│  ├─ TelaCarregando.tsx + TelaErro.tsx
+│  ├─ api.ts                        buscarDesconto + registrarRetiradaManual + mocks
+│  ├─ types.ts                      DescontoDados, PayloadRegistrarRetirada
+│  ├─ useDescontos.ts               hooks react-query
+│  └─ shared.ts                     helpers máscara R$ (digitosParaReal, digitosParaDisplay, formatarReal)
+└─ lib/
+   ├─ feriadosBr.ts                 8 fixos + Sexta-feira Santa (Meeus/Jones/Butcher) + cache por ano
+   └─ utils.ts
 
 docs/
 ├─ especificacao.md
