@@ -2331,9 +2331,12 @@ html {
 }
 
 /* ─── Tiles do Ponto Facultativo (escolha de contrato) ──────────────
-   Cada tone tem background sutil + halo radial expandindo no hover
-   via ::before. Tile sobe 2px + scale leve. Ícone ganha keyframe
-   contextual por tone/anim (heart-beat, cap-swing, car-drive, etc). */
+   Idle: glass neutro (mesmo look do .glass) — sem cor tonal aparente.
+   Hover: luz tonal aparece atrás (halo radial + border tonal), tile
+   tilta 3D seguindo o cursor (--mx/--my via mousemove no JSX), ícone
+   eleva translateZ + rotaciona acompanhando perspectiva.
+
+   Cor tonal só se revela no hover ("surpresa") — sem poluir idle. */
 
 .tile-contrato {
   --mx: 50;
@@ -2341,37 +2344,37 @@ html {
   position: relative;
   isolation: isolate;
   cursor: pointer;
-  background-color: var(--tile-bg, rgba(255, 255, 255, 0.03));
+  /* Glass neutro (mesmo token do .glass do app) */
+  background-color: rgba(8, 13, 26, 0.66);
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  box-shadow:
+    0 14px 38px -16px rgba(0, 0, 0, 0.72),
+    inset 1px 1px 0 0 rgba(255, 255, 255, 0.18),
+    inset -1px -1px 0 0 rgba(255, 255, 255, 0.04);
+  /* 3D context + tilt sutil idle (0 quando mx/my = 50) */
+  perspective: 900px;
+  perspective-origin: 50% 50%;
   transform-style: preserve-3d;
+  transform:
+    perspective(800px)
+    rotateY(calc((var(--mx) - 50) * 0.10deg))
+    rotateX(calc((50 - var(--my)) * 0.10deg))
+    translateZ(0);
   transition:
-    transform 280ms cubic-bezier(0.34, 1.4, 0.5, 1),
-    border-color 220ms ease,
-    background-color 220ms ease,
-    box-shadow 240ms ease;
+    transform 110ms ease-out,
+    border-color 240ms ease,
+    box-shadow 280ms ease;
 }
 
-.tile-contrato[data-tone="emerald"] {
-  --tile-bg: rgba(110, 231, 183, 0.06);
-  --tile-glow: rgba(110, 231, 183, 0.14);
-}
-.tile-contrato[data-tone="amber"] {
-  --tile-bg: rgba(232, 194, 117, 0.06);
-  --tile-glow: rgba(232, 194, 117, 0.14);
-}
-.tile-contrato[data-tone="sky"] {
-  --tile-bg: rgba(125, 211, 252, 0.06);
-  --tile-glow: rgba(125, 211, 252, 0.14);
-}
-.tile-contrato[data-tone="rose"] {
-  --tile-bg: rgba(252, 165, 165, 0.06);
-  --tile-glow: rgba(252, 165, 165, 0.14);
-}
-.tile-contrato[data-tone="violet"] {
-  --tile-bg: rgba(196, 181, 253, 0.06);
-  --tile-glow: rgba(196, 181, 253, 0.14);
-}
+/* --tile-glow tonal por contrato (usado no halo ::before) */
+.tile-contrato[data-tone="emerald"] { --tile-glow: rgba(110, 231, 183, 0.22); --tile-border-hover: rgba(110, 231, 183, 0.45); }
+.tile-contrato[data-tone="amber"]   { --tile-glow: rgba(232, 194, 117, 0.22); --tile-border-hover: rgba(232, 194, 117, 0.45); }
+.tile-contrato[data-tone="sky"]     { --tile-glow: rgba(125, 211, 252, 0.22); --tile-border-hover: rgba(125, 211, 252, 0.45); }
+.tile-contrato[data-tone="rose"]    { --tile-glow: rgba(252, 165, 165, 0.22); --tile-border-hover: rgba(252, 165, 165, 0.45); }
+.tile-contrato[data-tone="violet"]  { --tile-glow: rgba(196, 181, 253, 0.22); --tile-border-hover: rgba(196, 181, 253, 0.45); }
 
-/* Halo radial no ponto do cursor — só visível no hover */
+/* Halo radial — invisível idle, expande tonalmente no hover */
 .tile-contrato::before {
   content: "";
   position: absolute;
@@ -2381,25 +2384,56 @@ html {
   opacity: 0;
   background: radial-gradient(
     circle at calc(var(--mx) * 1%) calc(var(--my) * 1%),
-    var(--tile-glow, rgba(255, 255, 255, 0.08)) 0%,
-    transparent 55%
+    var(--tile-glow, rgba(255, 255, 255, 0.1)) 0%,
+    transparent 60%
   );
-  transition: opacity 240ms ease;
+  transition: opacity 280ms ease;
   z-index: 0;
 }
 .tile-contrato > * {
   position: relative;
   z-index: 1;
 }
+
 .tile-contrato:hover {
-  transform: translateY(-2px) scale(1.012);
+  transform:
+    perspective(800px)
+    rotateY(calc((var(--mx) - 50) * 0.20deg))
+    rotateX(calc((50 - var(--my)) * 0.20deg))
+    translateY(-2px)
+    translateZ(0);
+  border-color: var(--tile-border-hover, rgba(255, 255, 255, 0.3)) !important;
+  box-shadow:
+    0 22px 50px -16px rgba(0, 0, 0, 0.78),
+    inset 1px 1px 0 0 rgba(255, 255, 255, 0.22),
+    inset -1px -1px 0 0 rgba(255, 255, 255, 0.04);
 }
 .tile-contrato:hover::before {
   opacity: 1;
 }
 .tile-contrato:active {
-  transform: translateY(0) scale(0.985);
+  transform:
+    perspective(800px)
+    rotateY(calc((var(--mx) - 50) * 0.10deg))
+    rotateX(calc((50 - var(--my)) * 0.10deg))
+    translateY(0)
+    scale(0.985);
   transition: transform 90ms ease-out;
+}
+
+/* Ícone 3D: idle reto (sem translateZ persistente — evita aparência
+   torta). Hover: eleva + rotaciona seguindo perspectiva do tile. */
+.tile-contrato .icon-3d-host {
+  transition:
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 240ms ease;
+}
+.tile-contrato:hover .icon-3d-host {
+  transform:
+    translateZ(14px)
+    rotateY(calc((var(--mx) - 50) * 0.14deg))
+    rotateX(calc((50 - var(--my)) * 0.14deg));
+  filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.55));
 }
 
 /* ─── Animações específicas por contrato (Ponto Facultativo) ────────

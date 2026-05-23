@@ -313,9 +313,7 @@ function TileContrato({
       onMouseLeave={handleTiltLeave}
       data-tone={meta.tone}
       data-anim={meta.animOverride}
-      className={`tile-contrato group relative flex w-full items-center gap-3.5 rounded-2xl border px-4 py-4 text-left ${
-        tones.border
-      } ${
+      className={`tile-contrato group relative flex w-full items-center gap-3.5 rounded-2xl border border-white/12 px-4 py-4 text-left ${
         selecionado ? "ring-2 ring-offset-2 ring-offset-transparent ring-white/60" : ""
       }`}
     >
@@ -324,7 +322,7 @@ function TileContrato({
       >
         <Icon
           data-icon-anim
-          className={`icon-3d-soft size-5 ${tones.iconColor}`}
+          className={`size-5 ${tones.iconColor}`}
         />
       </div>
       <div className="min-w-0 flex-1">
@@ -335,22 +333,25 @@ function TileContrato({
           {meta.descricao}
         </p>
         {(meta.ativos != null || meta.hoje != null) && (
-          <p className="mt-2 flex items-center gap-2 text-xs">
+          <p className="mt-1.5 text-xs">
             {meta.ativos != null && (
-              <span className="rounded-full bg-white/[0.06] px-2 py-0.5">
-                <span className="font-mono font-medium text-white/90">
+              <>
+                <span className="font-mono font-medium text-white/85">
                   {meta.ativos}
-                </span>{" "}
-                <span className="text-white/55">ativos</span>
-              </span>
+                </span>
+                <span className="text-white/40"> ativos</span>
+              </>
+            )}
+            {meta.ativos != null && meta.hoje != null && meta.hoje > 0 && (
+              <span className="mx-2 text-white/25">·</span>
             )}
             {meta.hoje != null && meta.hoje > 0 && (
-              <span
-                className={`rounded-full px-2 py-0.5 ${tones.iconBg} ${tones.text}`}
-              >
-                <span className="font-mono font-medium">{meta.hoje}</span>{" "}
-                <span className="opacity-75">hoje</span>
-              </span>
+              <>
+                <span className={`font-mono font-medium ${tones.text}`}>
+                  {meta.hoje}
+                </span>
+                <span className="text-white/40"> hoje</span>
+              </>
             )}
           </p>
         )}
