@@ -2,7 +2,16 @@
 
 App web pra **gerenciar convocações de intermitentes** no monday: cria convocação, registra ocorrências dia-a-dia (faltou/atrasou) e permite correção via protocolo. Acesso via link único da convocação (registrar ocorrência) ou via **hub principal** (criar convocação / corrigir).
 
-## Estado atual do projeto (2026-05-22)
+## Estado atual do projeto (2026-05-23)
+
+- **Ponto facultativo atualizado**: `/ponto-facultativo` no Hub, endpoints n8n `POST /ponto-facultativo-preview` e `POST /ponto-facultativo-aplicar`, ledger com origem `ponto_facultativo:<contrato>:<data>` e `/preencher` bloqueando dias vindos de `pontos_facultativos[]`.
+
+### Mapa atual resumido
+
+- **Atestados/declaracoes**: `POST /intermitente-lancar-documentos` e documental. Cria item no Controle de Atestados (`18298015951`) e anexa arquivo; nao deve atualizar Historico, ledger ou Base de Desconto diretamente.
+- **Financeiro de atestados**: fica desacoplado do envio documental e passa pelo fluxo `Nexti - Validar Atestado`, usando o Nexti como fonte de verdade antes de gerar qualquer impacto financeiro.
+- **WF3 Finalizar**: continua responsavel por falta/atraso/desconsiderado do registro manual. Valores de VR/VT vêm do board de parametros (`18413870370`).
+- **Ponto facultativo**: fluxo novo para descontar VR/VT de todos os intermitentes convocados em contrato/data especificos. Ele grava ledger para impedir duplicidade no `/preencher`.
 
 ### Iterações recentes consolidadas
 
@@ -23,9 +32,15 @@ App web pra **gerenciar convocações de intermitentes** no monday: cria convoca
 - **2 envs n8n**: `.env` documenta `VITE_N8N_BASE_URL` (novo `aionscorp-n8n.cloudfy.live`) + `VITE_N8N_ANTIGO_BASE_URL` (antigo, RM-dependent). Features que precisam de RM têm fallback automático em `api.ts`.
 - **BuscarPessoa otimizado**: hook do modo NÃO ativo passa query vazia → só endpoint do modo ativo dispara.
 
-### Endpoints n8n consolidados (2026-05-22)
+### Endpoints n8n consolidados (2026-05-23)
 
 **Host novo** (`aionscorp-n8n.cloudfy.live/webhook`):
+
+Ponto Facultativo ativo:
+- `POST /ponto-facultativo-preview` (`7gHmbLcZ5r6D5sXz`) - chamado por `/ponto-facultativo`; seleciona convocacoes do board Entrada por contrato/data, cruza Historico/ledger, resolve valores pelo board `18413870370` e retorna afetados/totais sem gravar Monday.
+- `POST /ponto-facultativo-aplicar` (`XybrfnzI11Fw5sX4`) - chamado por `/ponto-facultativo`; recalcula a selecao, grava ledger `ponto_facultativo:<contrato>:<data>` e cria/atualiza Desconto com `Origem do Desconto = PONTO FACULTATIVO`.
+- WF2 `GET /intermitente-ler` tambem devolve `pontos_facultativos[]` para bloquear os dias no `/preencher`.
+- Caveat atual: preview SEMSA `2026-05-20` encontrou 5 convocados, mas valores vieram zerados porque o board de valores `18413870370` nao retornou regra compativel (`regra_valores = "Sem regra de valores"`). Confirmar regra SEMSA/padrao ativa antes de aplicar em producao com afetados reais.
 
 | Endpoint | WF ID | Quem chama | Estado |
 |---|---|---|---|
@@ -73,11 +88,12 @@ App web pra **gerenciar convocações de intermitentes** no monday: cria convoca
 - **SlideStack** (`src/components/SlideStack.tsx`) — carrossel genérico reutilizável (trilho 200% + 2 slots × 50%, translateX 0↔-50%, **680ms cubic-bezier(0.2, 0.84, 0.2, 1)**, overflow só durante anim, preserva sombras em idle). Slot puro sem opacity/scale (iOS Settings pattern — slide horizontal puro, sem ghosting). Consumido por `PageTransition` (rotas) e `ConvocarPage`/`AtestadosPage`/`DescontosPage` (etapas internas).
 - **Background animado** — keyframe `bg-hue-cycle` (120s ease-in-out infinite) no `<html>`: navy → púrpura-fumê → preto puro → azul-preto → navy. Sutil, não rouba atenção.
 
-### Backend n8n (9 workflows principais)
+### Backend n8n (workflows principais)
 - **WF1 Preparar** — webhook do monday quando coluna `ativar` muda. Gera UUID, cria item no board Histórico (`18411141462`), patch Link Column no item de origem.
 - **WF2 Ler** — `GET /intermitente-ler?uuid=…`. Busca item por UUID via `getByColumnValue`, parseia respostas_json/dias_extras/dias_desativados.
+- **WF Ponto Facultativo Preview/Aplicar** — `POST /ponto-facultativo-preview` e `POST /ponto-facultativo-aplicar` no n8n novo. Preview calcula afetados por contrato/data sem gravar; Aplicar recalcula, mescla ledger `Beneficios Descontados JSON`, cria/atualiza Base de Desconto e marca `Origem do Desconto = PONTO FACULTATIVO`.
 - **WF3 Finalizar** — `POST /intermitente-finalizar` (JSON simples — sem multipart desde a separação do fluxo de atestados). Valida payload, agrega (qtd_faltas/atrasos/total_minutos), grava respostas_json, marca status=Concluído. Trava antifraude se desconto já consumido. **Idempotente** (1 item, `change_multiple_column_values`). Também grava `sabados_extras` em `numeric_mm3bvgy` + `text_mm3bfn6h` quando aplicável, e dispara WF "Lançamento Sábados Extras" via webhook cross-n8n. **Atestado/declaração saíram do WF3** — feature standalone agora; ver §atestados abaixo.
-- **WF Lancar Documentos** *(novo, substitui parte atestado do WF3)* — `POST /intermitente-lancar-documentos` multipart (`payload` JSON com array `documentos[]` + binários `doc_<id>`). Pra cada doc: cria item no board Controle de Atestados (`18298015951`, grupo `topics`, label `Tipo da Documentação = Atestado Médico | Declaração de Comparecimento`), anexa arquivo na coluna `files`, atualiza `Atestados JSON` (`long_text_mm3cp43g`) + ledger `Beneficios Descontados JSON` (`long_text_mm3ct3hg`) + `Arquivos de Atestado` (`file_mm3cvt54`) do Histórico, e cria/atualiza item Desconto (board `18400981023`) respeitando o ledger pra não duplicar com falta manual já consumida.
+- **WF Lancar Documentos** — `POST /intermitente-lancar-documentos` multipart (`payload` JSON com array `documentos[]` + binarios `doc_<id>`). Fluxo documental: cria item no board Controle de Atestados (`18298015951`) e anexa arquivo na coluna `files`. Nao atualiza Historico, ledger ou Base de Desconto diretamente; impacto financeiro de atestado fica desacoplado e passa pelo fluxo Nexti.
 - **WF Buscar Convocacoes Empregado** *(novo)* — `GET /intermitente-convocacoes-empregado?chapa=…&mes=YYYY-MM`. Busca board ENTRADA (`18408773953`) por chapa, filtra por intersecção com o mês solicitado, ignora `Status Convocação` cancelado/bloqueado, cross-references Histórico pra trazer `uuid`, `trabalhaSabado`, `optanteVT`, `status` e `documentos_existentes` (do `Atestados JSON`). Retorna `{convocacoes: ConvocacaoResumida[]}`.
 - **WF4 Buscar protocolo** — `GET /intermitente-buscar-protocolo?protocolo=…` → `{uuid, nome}`.
 - **WF5 Pontual FIFO** — convoca pontual: calcula benefício do período, abate descontos pendentes FIFO no board Desconto, gera order Caju (crédito + boleto PIX), SOAPs RM, cria item Solicitação Pagamento (board `18393673859`). Documentado completo no `Mapeamento.md`.
@@ -428,28 +444,42 @@ Body:
 - 200 `{ok, uuid, protocolo, editado, concluido_em}` → frontend invalida query
 - 400 validação | 404 não existe | 409 já concluído (se `eh_correcao=false`) | 410 expirado
 
-### POST `/webhook/intermitente-lancar-documentos` *(novo, substitui parte atestado do WF3)*
+### POST `/webhook/intermitente-lancar-documentos`
 
-Multipart `payload` JSON + binários `doc_<id>` (PDF/JPG/PNG/HEIC, máx 15MB cada).
+Multipart `payload` JSON + binarios `doc_<id>` (PDF/JPG/PNG/HEIC, max 15MB cada).
 
-Body JSON:
+Fluxo atual: documental. Aceita Intermitente e Celetista do mesmo jeito, cria item no board Controle de Atestados (`18298015951`) e anexa arquivo em `files`. Nao cruza convocacao, nao atualiza Historico, nao altera ledger e nao cria Base de Desconto.
+
+Body JSON simplificado:
 ```ts
 {
   documentos: [{
-    id, tipo_documento: "atestado" | "declaracao",
-    uuid_convocacao, item_entrada_id?, chapa, empregado_nome,
-    contrato, trabalha_sabado, optante_vt,
-    data_inicio, data_fim,
-    periodos: ("manha" | "tarde")[],  // [] pra atestado; 1 ou 2 pra declaração
-    primeiro_dia_foi_trabalhar, primeiro_dia_trabalhou_seis_horas: boolean | null,
-    nome_arquivo, tamanho_arquivo
+    id,
+    modalidade_contrato: "INTERMITENTE" | "CELETISTA",
+    empregado_nome,
+    empregado_cpf?,
+    chapa,
+    tipo_documentacao_label,
+    dias_atestado,
+    data_inicio,
+    data_fim,
+    emissao_atestado,
+    saida_retorno_texto,
+    horario_almoco_label,
+    acompanhante_label,
+    contrato_colaborador,
+    unidade_label?,
+    unidade_dropdown_column_id?,
+    unidade_nao_encontrada_texto?,
+    observacao?,
+    nome_arquivo,
+    tamanho_arquivo,
+    periodos?: []
   }]
 }
 ```
 
-Pra cada doc: cria item no board Controle de Atestados (`18298015951`) com label correto (Atestado Médico / Declaração de Comparecimento), anexa arquivo em `files`, atualiza `Atestados JSON` + ledger `Beneficios Descontados JSON` + `Arquivos de Atestado` do Histórico, e cria/atualiza item Desconto considerando ledger.
-
-Resposta `{ok, resultados: [{id, monday_item_id_controle, desconto_id, erro?}]}`.
+Resposta `{ok, resultados: [{id, monday_item_id_controle, monday_item_url_controle, erro?}]}`.
 
 ### GET `/webhook/intermitente-convocacoes-empregado?chapa=<chapa>&mes=<YYYY-MM>` *(novo)*
 

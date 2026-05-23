@@ -25,6 +25,7 @@ export type ProcessamentoDados = {
   trabalhaSabado: boolean
   sabadosExtras?: string[]
   atestados?: Atestado[]
+  pontosFacultativos?: PontoFacultativo[]
   // Cancelamento parcial: dias >= dataInicioCancelamento ficam "queimados"
   // no painel (escuros + animação de fogo). null = sem cancelamento.
   dataInicioCancelamento?: string | null
@@ -71,6 +72,17 @@ export type Atestado = {
   mondayItemId?: string | null
   mondayItemUrl?: string | null
   arquivoUrl?: string | null
+}
+
+export type BeneficioPontoFacultativo = "VR" | "VT"
+
+export type PontoFacultativo = {
+  data: string
+  contrato?: string | null
+  origem?: string | null
+  beneficios: BeneficioPontoFacultativo[]
+  valorVR?: number
+  valorVT?: number
 }
 
 export type PayloadFinalizar = {
@@ -120,7 +132,7 @@ export type ResultadoCancelarConvocacao = {
 
 export type DiaInfo = {
   data: string
-  tipo: "padrao" | "extra" | "atestado"
+  tipo: "padrao" | "extra" | "atestado" | "ponto_facultativo"
   ativo: boolean
   /** Nome do feriado nacional quando aplica. null/undefined = não é feriado.
    *  Frontend bloqueia edição e mostra visual emerald no tile. */

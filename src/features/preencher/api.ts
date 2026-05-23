@@ -4,6 +4,7 @@ import type {
   PayloadCancelarConvocacao,
   PayloadFinalizar,
   ProcessamentoDados,
+  PontoFacultativo,
   RespostaDia,
   ResultadoAplicarSplit,
   ResultadoCancelarConvocacao,
@@ -53,6 +54,7 @@ type MockState = ProcessamentoDados & {
   diasDesativados: string[]
   sabadosExtras: string[]
   atestados: Atestado[]
+  pontosFacultativos?: PontoFacultativo[]
 }
 
 const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
@@ -74,6 +76,7 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
     trabalhaSabado: false,
     sabadosExtras: [],
     atestados: [],
+    pontosFacultativos: [],
   },
   "mock-pronto-split": {
     uuid: "mock-pronto-split",
@@ -93,6 +96,7 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
     trabalhaSabado: false,
     sabadosExtras: [],
     atestados: [],
+    pontosFacultativos: [],
     split: null,
   },
   "mock-concluido": {
@@ -117,6 +121,7 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
     trabalhaSabado: false,
     sabadosExtras: [],
     atestados: [],
+    pontosFacultativos: [],
   },
   "mock-expirado": {
     uuid: "mock-expirado",
@@ -136,6 +141,7 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
     trabalhaSabado: false,
     sabadosExtras: [],
     atestados: [],
+    pontosFacultativos: [],
   },
   "mock-sabados": {
     uuid: "mock-sabados",
@@ -155,6 +161,7 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
     trabalhaSabado: false,
     sabadosExtras: ["2026-04-25"],
     atestados: [],
+    pontosFacultativos: [],
   },
   "mock-com-sabado": {
     uuid: "mock-com-sabado",
@@ -174,6 +181,7 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
     trabalhaSabado: true,
     sabadosExtras: [],
     atestados: [],
+    pontosFacultativos: [],
   },
   "mock-atestado": {
     uuid: "mock-atestado",
@@ -206,6 +214,16 @@ const MOCK_PROCESSAMENTOS: Record<string, MockState> = {
         mondayItemId: "mock",
         mondayItemUrl:
           "https://contato-serv.monday.com/boards/18298015951/pulses/000000",
+      },
+    ],
+    pontosFacultativos: [
+      {
+        data: "2026-04-25",
+        contrato: "CT-2026-331",
+        origem: "ponto_facultativo:CT-2026-331:2026-04-25",
+        beneficios: ["VT"],
+        valorVR: 0,
+        valorVT: 15,
       },
     ],
   },
@@ -255,9 +273,31 @@ function snapshot(m: MockState): ProcessamentoDados {
     trabalhaSabado: m.trabalhaSabado,
     sabadosExtras: [...m.sabadosExtras],
     atestados: m.atestados.map((a) => ({ ...a })),
+    pontosFacultativos: (m.pontosFacultativos ?? []).map((p) => ({ ...p })),
     dataInicioCancelamento: m.dataInicioCancelamento ?? null,
     statusCancelamento: m.statusCancelamento ?? null,
     split: m.split ? { ...m.split } : null,
+  }
+}
+
+function mapPontoFacultativo(raw: Record<string, unknown>): PontoFacultativo {
+  const beneficiosRaw = Array.isArray(raw.beneficios) ? raw.beneficios : []
+  const beneficios = beneficiosRaw
+    .map(String)
+    .filter((b) => b === "VR" || b === "VT") as PontoFacultativo["beneficios"]
+  return {
+    data: String(raw.data ?? ""),
+    contrato:
+      (raw.contrato as string | null | undefined) ??
+      (raw.contrato_colaborador as string | null | undefined) ??
+      null,
+    origem:
+      (raw.origem as string | null | undefined) ??
+      (raw.origin as string | null | undefined) ??
+      null,
+    beneficios,
+    valorVR: Number(raw.valor_vr ?? raw.valorVR ?? 0),
+    valorVT: Number(raw.valor_vt ?? raw.valorVT ?? 0),
   }
 }
 
@@ -394,6 +434,9 @@ export async function buscarProcessamento(
     sabadosExtras: raw.sabados_extras ?? [],
     atestados: Array.isArray(raw.atestados)
       ? raw.atestados.map(mapAtestado)
+      : [],
+    pontosFacultativos: Array.isArray(raw.pontos_facultativos)
+      ? raw.pontos_facultativos.map(mapPontoFacultativo)
       : [],
     dataInicioCancelamento:
       (raw.data_inicio_cancelamento as string | null | undefined) ?? null,

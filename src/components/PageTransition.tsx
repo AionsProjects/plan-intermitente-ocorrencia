@@ -15,6 +15,7 @@ const NIVEL: Record<string, number> = {
   "/convocar": 1,
   "/corrigir": 1,
   "/atestados": 1,
+  "/ponto-facultativo": 1,
 }
 
 function nivel(pathname: string): number {

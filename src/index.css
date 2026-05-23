@@ -713,16 +713,34 @@
   background-color: rgba(232, 194, 117, 0.08);
 }
 
+.glass-tile-ponto-facultativo {
+  background-color: rgba(255, 255, 255, 0.03);
+  border: none !important;
+  backdrop-filter: url(#liquid-glass-soft) blur(6px) saturate(135%);
+  -webkit-backdrop-filter: url(#liquid-glass-soft) blur(6px) saturate(135%);
+  box-shadow:
+    0 8px 24px -8px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 0 rgba(110, 231, 183, 0.18);
+  transition: background-color 220ms ease, transform 220ms ease;
+  position: relative;
+}
+
+.glass-tile-ponto-facultativo:hover {
+  background-color: rgba(110, 231, 183, 0.08);
+}
+
 @supports not (backdrop-filter: url(#liquid-glass-soft)) {
   .glass-tile-extra,
-  .glass-tile-atestado {
+  .glass-tile-atestado,
+  .glass-tile-ponto-facultativo {
     backdrop-filter: blur(14px) saturate(160%);
     -webkit-backdrop-filter: blur(14px) saturate(160%);
   }
 }
 
 .extra-dash-svg,
-.atestado-dash-svg {
+.atestado-dash-svg,
+.ponto-facultativo-dash-svg {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -743,6 +761,14 @@
 .atestado-dash-svg rect {
   fill: none;
   stroke: rgba(232, 194, 117, 0.72);
+  stroke-width: 1.25;
+  stroke-dasharray: 6 5;
+  animation: dash-walk-left 14s linear infinite;
+}
+
+.ponto-facultativo-dash-svg rect {
+  fill: none;
+  stroke: rgba(110, 231, 183, 0.72);
   stroke-width: 1.25;
   stroke-dasharray: 6 5;
   animation: dash-walk-left 14s linear infinite;
@@ -2042,6 +2068,7 @@ html {
 .slide-stack-animating .atestado-dash-svg rect,
 .slide-stack-animating .declaracao-dash-svg rect,
 .slide-stack-animating .extra-dash-svg rect,
+.slide-stack-animating .ponto-facultativo-dash-svg rect,
 .slide-stack-animating .cancelado-dash-svg rect {
   animation-play-state: paused !important;
 }
@@ -2287,6 +2314,7 @@ html {
   .atestado-dash-svg rect,
   .declaracao-dash-svg rect,
   .extra-dash-svg rect,
+  .ponto-facultativo-dash-svg rect,
   .cancelado-dash-svg rect,
   [class*="dash-walk"],
   [class*="flame-flicker"],

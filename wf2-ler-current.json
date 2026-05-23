@@ -1,0 +1,838 @@
+﻿{
+    "updatedAt":  "2026-05-21T17:28:35.226Z",
+    "createdAt":  "2026-04-23T20:44:31.904Z",
+    "id":  "WHtIQDf8oOWinGyx",
+    "name":  "Intermitente 2. Ler (monday)",
+    "description":  null,
+    "active":  true,
+    "isArchived":  false,
+    "nodes":  [
+                  {
+                      "parameters":  {
+                                         "path":  "intermitente-ler",
+                                         "responseMode":  "responseNode",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.webhook",
+                      "typeVersion":  2.1,
+                      "position":  [
+                                       5600,
+                                       2000
+                                   ],
+                      "id":  "cc1b601f-4332-45a2-9542-3e13c10b200f",
+                      "name":  "Webhook",
+                      "webhookId":  "07b92cd6-de6c-482c-ab96-69fe9ad99568"
+                  },
+                  {
+                      "parameters":  {
+                                         "resource":  "boardItem",
+                                         "operation":  "getByColumnValue",
+                                         "boardId":  18411141462,
+                                         "columnId":  "text_mm2xjend",
+                                         "columnValue":  "={{ $json.query.uuid }}"
+                                     },
+                      "type":  "n8n-nodes-base.mondayCom",
+                      "typeVersion":  1,
+                      "position":  [
+                                       5824,
+                                       2000
+                                   ],
+                      "id":  "493c6c24-ce08-4e48-9c59-e33495c52e1a",
+                      "name":  "Buscar por UUID",
+                      "alwaysOutputData":  true,
+                      "credentials":  {
+                                          "mondayComApi":  {
+                                                               "id":  "6I0ycSr6PQJkBYpc",
+                                                               "name":  "Ray0"
+                                                           }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "// ==============================================================\n// WF2 - Ler (monday)\n// Recebe o resultado de getByColumnValue, parseia as colunas\n// e devolve no shape esperado pelo frontend.\n// ==============================================================\n\n// Colunas do board HISTORICO\nconst COL_UUID         = \u0027text_mm2xjend\u0027;\nconst COL_PROTOCOLO    = \u0027text_mm2xsvg6\u0027;\nconst COL_CONTRATO     = \u0027text_mm2x1ktb\u0027;\nconst COL_DATA_INICIO  = \u0027date_mm2xtp93\u0027;\nconst COL_DATA_FIM     = \u0027date_mm2xrr5q\u0027;\nconst COL_EXPIRA_EM    = \u0027date_mm2xrvt4\u0027;\nconst COL_CRIADO_EM    = \u0027date_mm2x115h\u0027;\nconst COL_CONCLUIDO    = \u0027date_mm2xh1vm\u0027;\nconst COL_EDITADO_EM   = \u0027date_mm2x62fq\u0027;\nconst COL_STATUS       = \u0027color_mm2xkqpc\u0027;\nconst COL_EDITADO      = \u0027boolean_mm2x1aa4\u0027;\nconst COL_DIAS_EXTRAS  = \u0027long_text_mm2x73w6\u0027;\nconst COL_DIAS_DESATIV = \u0027long_text_mm2xm820\u0027;\nconst COL_RESPOSTAS    = \u0027long_text_mm2xtcpw\u0027;\nconst COL_TOTAL_MIN_DEVIDOS = \u0027numeric_mm3455ss\u0027;\nconst COL_DIAS_PERDE_VT     = \u0027numeric_mm345xb6\u0027;\nconst COL_DIAS_PERDE_VR     = \u0027numeric_mm34a3ph\u0027;\nconst COL_OPTANTE_VT        = \u0027color_mm34ry47\u0027;\nconst COL_TRABALHA_SAB      = \u0027color_mm34yyet\u0027;\nconst COL_SABADOS_EX_QTD    = \u0027numeric_mm3bvgy\u0027;\nconst COL_SABADOS_EX_TXT    = \u0027text_mm3bfn6h\u0027;\nconst COL_ATESTADOS_JSON    = \u0027long_text_mm3cp43g\u0027;\nconst COL_BENEF_LEDGER      = \u0027long_text_mm3ct3hg\u0027;\nconst COL_QTD_ATESTADOS     = \u0027numeric_mm3c4cse\u0027;\nconst COL_ITEM_ORIGEM       = \u0027link_mm2x1rk0\u0027;\nconst COL_SPLIT_JSON        = \u0027long_text_mm3hgsph\u0027;\n\nconst all = $input.all();\nconst uuid = $(\u0027Webhook\u0027).first().json.query?.uuid;\n\nfunction firstRealItem() {\n  for (const it of all) {\n    const j = it.json;\n    if (!j) continue;\n    if (j.id \u0026\u0026 (j.column_values || j.name)) return j;\n  }\n  return null;\n}\n\nconst item = firstRealItem();\nif (!item) {\n  return [{ json: { _statusCode: 404, erro: \u0027nao_encontrado\u0027, mensagem: \u0027Link invalido ou expirado.\u0027 } }];\n}\n\nconst columnValues = item.column_values ?? [];\nconst getCol = (id) =\u003e columnValues.find(c =\u003e c.id === id) || null;\nconst text = (id) =\u003e getCol(id)?.text ?? null;\nconst rawValue = (id) =\u003e getCol(id)?.value ?? null;\n\nfunction parseDate(id) {\n  const t = text(id);\n  return t || null;\n}\nfunction parseCheckbox(id) {\n  const v = rawValue(id);\n  if (!v) return false;\n  try {\n    const parsed = typeof v === \u0027string\u0027 ? JSON.parse(v) : v;\n    return parsed?.checked === true || parsed?.checked === \u0027true\u0027;\n  } catch { return false; }\n}\nfunction parseLongTextJson(id, fallback) {\n  const t = text(id);\n  if (!t) return fallback;\n  try { return JSON.parse(t); } catch { return fallback; }\n}\nfunction parseNumber(id) {\n  const t = text(id);\n  if (t === null || t === \u0027\u0027) return null;\n  const n = Number(t);\n  return Number.isFinite(n) ? n : null;\n}\nfunction extrairItemOrigemId() {\n  const link = getCol(COL_ITEM_ORIGEM);\n  if (!link) return null;\n  let url = null;\n  if (link.value) {\n    try { url = (typeof link.value === \u0027string\u0027 ? JSON.parse(link.value) : link.value)?.url || null; } catch {}\n  }\n  if (!url) url = link.text || null;\n  const m = String(url || \u0027\u0027).match(/pulses\\/(\\d+)/);\n  return m ? m[1] : null;\n}\nfunction parseSplit(raw) {\n  if (!raw) return null;\n  let parsed = raw;\n  if (typeof raw === \u0027string\u0027) {\n    try { parsed = JSON.parse(raw); } catch { return null; }\n  }\n  if (!parsed || typeof parsed !== \u0027object\u0027) return null;\n  if (!parsed.data_inicio_parte2 || !parsed.contrato_parte1 || !parsed.contrato_parte2) return null;\n  return {\n    data_inicio_parte2: String(parsed.data_inicio_parte2),\n    contrato_parte1: String(parsed.contrato_parte1),\n    contrato_parte2: String(parsed.contrato_parte2)\n  };\n}\n\nconst dataInicio = parseDate(COL_DATA_INICIO);\nconst dataFim = parseDate(COL_DATA_FIM);\nconst statusLabel = text(COL_STATUS);\nconst statusMap = {\n  \u0027Aguardando\u0027: \u0027aguardando\u0027,\n  \u0027Concluido\u0027: \u0027concluido\u0027,\n  \u0027Concluído\u0027: \u0027concluido\u0027,\n  \u0027Expirado\u0027: \u0027expirado\u0027\n};\nlet status = statusMap[statusLabel] || \u0027aguardando\u0027;\n\nconst expiraEm = parseDate(COL_EXPIRA_EM);\nconst agora = new Date();\nif (status === \u0027aguardando\u0027 \u0026\u0026 expiraEm \u0026\u0026 agora \u003e new Date(expiraEm + \u0027T23:59:59Z\u0027)) {\n  status = \u0027expirado\u0027;\n}\n\nconst incluiSabado = String(text(COL_TRABALHA_SAB) || \u0027\u0027).toUpperCase() === \u0027SIM\u0027;\nconst dias = [];\nif (dataInicio \u0026\u0026 dataFim) {\n  const cur = new Date(dataInicio + \u0027T00:00:00Z\u0027);\n  const fim = new Date(dataFim + \u0027T00:00:00Z\u0027);\n  while (cur \u003c= fim) {\n    const dow = cur.getUTCDay();\n    const ehDomingo = dow === 0;\n    const ehSabado = dow === 6;\n    if (!ehDomingo \u0026\u0026 (!ehSabado || incluiSabado)) dias.push(cur.toISOString().slice(0, 10));\n    cur.setUTCDate(cur.getUTCDate() + 1);\n  }\n}\n\nconst respostas = parseLongTextJson(COL_RESPOSTAS, []);\nconst diasExtras = parseLongTextJson(COL_DIAS_EXTRAS, []);\nconst diasDesativ = parseLongTextJson(COL_DIAS_DESATIV, []);\nconst atestados = parseLongTextJson(COL_ATESTADOS_JSON, []);\nconst beneficiosDescontados = parseLongTextJson(COL_BENEF_LEDGER, {});\n\nconst sabadosExTxt = text(COL_SABADOS_EX_TXT);\nconst sabadosExtras = sabadosExTxt\n  ? sabadosExTxt.split(/[,;\\n]/).map(s =\u003e s.trim()).filter(s =\u003e /^\\d{4}-\\d{2}-\\d{2}$/.test(s))\n  : [];\n\nconst itemOrigemId = extrairItemOrigemId();\nconst queryEntradaSplit = itemOrigemId ? `query { items(ids: [${itemOrigemId}]) { id column_values(ids: [\"${COL_SPLIT_JSON}\", \"dup__of_matr_cula\", \"texto\"]) { id text value } } }` : null;\n\nreturn [{\n  json: {\n    _statusCode: 200,\n    uuid: text(COL_UUID) || uuid,\n    item_origem_id: itemOrigemId,\n    query_entrada_split: queryEntradaSplit,\n    split: null,\n    status,\n    nome: item.name,\n    contrato: text(COL_CONTRATO),\n    data_inicio: dataInicio,\n    data_fim: dataFim,\n    dias,\n    expira_em: expiraEm,\n    concluido_em: parseDate(COL_CONCLUIDO),\n    protocolo: text(COL_PROTOCOLO),\n    editado: parseCheckbox(COL_EDITADO),\n    editado_em: parseDate(COL_EDITADO_EM),\n    respostas,\n    dias_extras: diasExtras,\n    dias_desativados: diasDesativ,\n    total_min_devidos: parseNumber(COL_TOTAL_MIN_DEVIDOS),\n    dias_perde_vt: parseNumber(COL_DIAS_PERDE_VT),\n    dias_perde_vr: parseNumber(COL_DIAS_PERDE_VR),\n    optante_vt: text(COL_OPTANTE_VT) || \u0027NAO\u0027,\n    trabalha_sabado: text(COL_TRABALHA_SAB) || \u0027NAO\u0027,\n    sabados_extras: sabadosExtras,\n    qtd_sabados_extras: parseNumber(COL_SABADOS_EX_QTD) || sabadosExtras.length,\n    atestados: Array.isArray(atestados) ? atestados : [],\n    qtd_atestados: parseNumber(COL_QTD_ATESTADOS) || (Array.isArray(atestados) ? atestados.length : 0),\n    beneficios_descontados: beneficiosDescontados \u0026\u0026 typeof beneficiosDescontados === \u0027object\u0027 ? beneficiosDescontados : {}\n  }\n}];"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       6048,
+                                       2000
+                                   ],
+                      "id":  "ee2109a6-af69-4620-9808-8536f8d80b04",
+                      "name":  "Moldar resposta"
+                  },
+                  {
+                      "parameters":  {
+                                         "respondWith":  "json",
+                                         "responseBody":  "={{ JSON.stringify($json) }}",
+                                         "options":  {
+                                                         "responseCode":  "={{ $json._statusCode || 200 }}",
+                                                         "responseHeaders":  {
+                                                                                 "entries":  [
+                                                                                                 {
+                                                                                                     "name":  "Access-Control-Allow-Origin",
+                                                                                                     "value":  "*"
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "name":  "Content-Type",
+                                                                                                     "value":  "application/json"
+                                                                                                 }
+                                                                                             ]
+                                                                             }
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.respondToWebhook",
+                      "typeVersion":  1.1,
+                      "position":  [
+                                       7072,
+                                       2016
+                                   ],
+                      "id":  "667be723-cbba-4646-b930-4ff844ecd0f1",
+                      "name":  "Responder"
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict",
+                                                                            "version":  2
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "tem-query-split",
+                                                                                   "leftValue":  "={{ !!$json.query_entrada_split }}",
+                                                                                   "rightValue":  true,
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "true",
+                                                                                                    "singleValue":  true
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.2,
+                      "position":  [
+                                       6288,
+                                       2000
+                                   ],
+                      "id":  "split-if-query",
+                      "name":  "Tem Split Query?"
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "POST",
+                                         "url":  "https://api.monday.com/v2",
+                                         "authentication":  "predefinedCredentialType",
+                                         "nodeCredentialType":  "mondayComApi",
+                                         "sendHeaders":  true,
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "Content-Type",
+                                                                                         "value":  "application/json"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "sendBody":  true,
+                                         "specifyBody":  "json",
+                                         "jsonBody":  "={{ JSON.stringify({ query: $json.query_entrada_split }) }}",
+                                         "options":  {
+                                                         "response":  {
+                                                                          "response":  {
+                                                                                           "neverError":  true
+                                                                                       }
+                                                                      }
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.2,
+                      "position":  [
+                                       6512,
+                                       1920
+                                   ],
+                      "id":  "buscar-split-entrada",
+                      "name":  "Buscar Split Entrada",
+                      "credentials":  {
+                                          "mondayComApi":  {
+                                                               "id":  "6I0ycSr6PQJkBYpc",
+                                                               "name":  "Ray0"
+                                                           }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const base = $(\u0027Moldar resposta\u0027).first().json;\nconst resp = $json;\n\nfunction onlyDigits(v) { return String(v || \u0027\u0027).replace(/\\D+/g, \u0027\u0027); }\nfunction parseSplit(raw) {\n  if (!raw) return null;\n  let parsed = raw;\n  if (typeof raw === \u0027string\u0027) {\n    try { parsed = JSON.parse(raw); } catch { return null; }\n  }\n  if (!parsed || typeof parsed !== \u0027object\u0027) return null;\n  if (!parsed.data_inicio_parte2 || !parsed.contrato_parte1 || !parsed.contrato_parte2) return null;\n  return {\n    data_inicio_parte2: String(parsed.data_inicio_parte2),\n    contrato_parte1: String(parsed.contrato_parte1),\n    contrato_parte2: String(parsed.contrato_parte2)\n  };\n}\n\nconst cols = resp?.data?.items?.[0]?.column_values || [];\nconst get = (id) =\u003e cols.find(c =\u003e c.id === id) || null;\nconst split = parseSplit(get(\u0027long_text_mm3hgsph\u0027)?.text || get(\u0027long_text_mm3hgsph\u0027)?.value || null);\nconst cpf = onlyDigits(get(\u0027dup__of_matr_cula\u0027)?.text || get(\u0027dup__of_matr_cula\u0027)?.value || \u0027\u0027);\nconst chapa = String(get(\u0027texto\u0027)?.text || \u0027\u0027).trim();\nconst queryControleAtestados = cpf\n  ? \u0027query { items_page_by_column_values(board_id: 18298015951, columns: [{ column_id: \"text_mm3j4nt3\", column_values: [\"\u0027 + cpf + \u0027\"] }], limit: 100) { items { id name column_values { id text value column { title } } } } }\u0027\n  : null;\nreturn [{ json: { ...base, split, cpf_colaborador: cpf || null, chapa_colaborador: chapa || null, query_controle_atestados: queryControleAtestados } }];"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       6736,
+                                       1920
+                                   ],
+                      "id":  "anexar-split",
+                      "name":  "Anexar Split"
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict",
+                                                                            "version":  2
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "if-atestados-controle",
+                                                                                   "leftValue":  "={{ !!$json.query_controle_atestados }}",
+                                                                                   "rightValue":  true,
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "true",
+                                                                                                    "singleValue":  true
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.2,
+                      "position":  [
+                                       1840,
+                                       220
+                                   ],
+                      "id":  "if-atestados-controle",
+                      "name":  "Tem Atestados Controle?"
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "POST",
+                                         "url":  "https://api.monday.com/v2",
+                                         "authentication":  "predefinedCredentialType",
+                                         "nodeCredentialType":  "mondayComApi",
+                                         "sendHeaders":  true,
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "Content-Type",
+                                                                                         "value":  "application/json"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "sendBody":  true,
+                                         "specifyBody":  "json",
+                                         "jsonBody":  "={{ JSON.stringify({ query: $json.query_controle_atestados }) }}",
+                                         "options":  {
+                                                         "response":  {
+                                                                          "response":  {
+                                                                                           "neverError":  true
+                                                                                       }
+                                                                      }
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.2,
+                      "position":  [
+                                       2060,
+                                       160
+                                   ],
+                      "id":  "buscar-atestados-controle",
+                      "name":  "Buscar Atestados Controle",
+                      "credentials":  {
+                                          "mondayComApi":  {
+                                                               "id":  "6I0ycSr6PQJkBYpc",
+                                                               "name":  "Ray0"
+                                                           }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const base = $(\u0027Anexar Split\u0027).first().json;\nconst resp = $json;\nconst controleItems = resp?.data?.items_page_by_column_values?.items || [];\nconst legacy = Array.isArray(base.atestados) ? base.atestados : [];\n\nfunction col(item, id) { return (item.column_values || []).find(c =\u003e c.id === id) || null; }\nfunction text(item, id) { return col(item, id)?.text || \u0027\u0027; }\nfunction parseDate(item, id) {\n  const c = col(item, id);\n  if (c?.text \u0026\u0026 /^\\d{4}-\\d{2}-\\d{2}/.test(c.text)) return c.text.slice(0, 10);\n  if (c?.value) {\n    try { const v = typeof c.value === \u0027string\u0027 ? JSON.parse(c.value) : c.value; if (v?.date) return String(v.date).slice(0, 10); } catch {}\n  }\n  return null;\n}\nfunction addDays(iso, n) {\n  const d = new Date(iso + \u0027T00:00:00Z\u0027);\n  d.setUTCDate(d.getUTCDate() + n);\n  return d.toISOString().slice(0, 10);\n}\nfunction norm(v) { return String(v || \u0027\u0027).normalize(\u0027NFD\u0027).replace(/[\\u0300-\\u036f]/g, \u0027\u0027).toUpperCase().trim(); }\nfunction overlap(a1, a2, b1, b2) { return a1 \u0026\u0026 a2 \u0026\u0026 b1 \u0026\u0026 b2 \u0026\u0026 a1 \u003c= b2 \u0026\u0026 a2 \u003e= b1; }\n\nconst docsControle = [];\nfor (const item of controleItems) {\n  const modalidade = norm(text(item, \u0027single_select5yq25pm\u0027));\n  if (modalidade \u0026\u0026 modalidade !== \u0027INTERMITENTE\u0027) continue;\n  const inicio = parseDate(item, \u0027date\u0027);\n  const dias = Math.max(1, Math.ceil(Number(String(text(item, \u0027numberjox5johv\u0027) || \u00271\u0027).replace(\u0027,\u0027, \u0027.\u0027)) || 1));\n  const fim = inicio ? addDays(inicio, dias - 1) : null;\n  if (!overlap(inicio, fim, base.data_inicio, base.data_fim)) continue;\n  const label = text(item, \u0027sele__o_individual__1\u0027) || \u0027Atestado\u0027;\n  const tipoNorm = norm(label);\n  const tipoDocumento = tipoNorm.includes(\u0027DECLAR\u0027) || tipoNorm.startsWith(\u0027DC\u0027) ? \u0027declaracao\u0027 : \u0027atestado\u0027;\n  const fileName = text(item, \u0027files\u0027) || text(item, \u0027short_textcpcyzaec\u0027) || null;\n  docsControle.push({\n    id: \u0027controle-\u0027 + item.id,\n    controle_item_id: String(item.id),\n    tipo_documento: tipoDocumento,\n    tipo_documentacao_label: label,\n    data_inicio: inicio,\n    data_fim: fim,\n    periodos: [],\n    nome_arquivo: fileName,\n    monday_item_url: \u0027https://contato-serv.monday.com/boards/18298015951/pulses/\u0027 + item.id,\n    origem: \u0027controle_atestados\u0027\n  });\n}\n\nconst byKey = new Map();\nfor (const d of legacy) byKey.set(String(d.id || d.monday_item_url || JSON.stringify(d)), d);\nfor (const d of docsControle) byKey.set(String(d.id), d);\nconst atestados = [...byKey.values()].sort((a, b) =\u003e String(a.data_inicio || \u0027\u0027).localeCompare(String(b.data_inicio || \u0027\u0027)));\nreturn [{ json: { ...base, atestados, qtd_atestados: atestados.length } }];"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       2280,
+                                       160
+                                   ],
+                      "id":  "anexar-atestados-controle",
+                      "name":  "Anexar Atestados Controle"
+                  }
+              ],
+    "connections":  {
+                        "Webhook":  {
+                                        "main":  [
+                                                     [
+                                                         {
+                                                             "node":  "Buscar por UUID",
+                                                             "type":  "main",
+                                                             "index":  0
+                                                         }
+                                                     ]
+                                                 ]
+                                    },
+                        "Buscar por UUID":  {
+                                                "main":  [
+                                                             [
+                                                                 {
+                                                                     "node":  "Moldar resposta",
+                                                                     "type":  "main",
+                                                                     "index":  0
+                                                                 }
+                                                             ]
+                                                         ]
+                                            },
+                        "Moldar resposta":  {
+                                                "main":  [
+                                                             [
+                                                                 {
+                                                                     "node":  "Tem Split Query?",
+                                                                     "type":  "main",
+                                                                     "index":  0
+                                                                 }
+                                                             ]
+                                                         ]
+                                            },
+                        "Tem Split Query?":  {
+                                                 "main":  [
+                                                              [
+                                                                  {
+                                                                      "node":  "Buscar Split Entrada",
+                                                                      "type":  "main",
+                                                                      "index":  0
+                                                                  }
+                                                              ],
+                                                              [
+                                                                  {
+                                                                      "node":  "Responder",
+                                                                      "type":  "main",
+                                                                      "index":  0
+                                                                  }
+                                                              ]
+                                                          ]
+                                             },
+                        "Buscar Split Entrada":  {
+                                                     "main":  [
+                                                                  [
+                                                                      {
+                                                                          "node":  "Anexar Split",
+                                                                          "type":  "main",
+                                                                          "index":  0
+                                                                      }
+                                                                  ]
+                                                              ]
+                                                 },
+                        "Anexar Split":  {
+                                             "main":  [
+                                                          [
+                                                              {
+                                                                  "node":  "Tem Atestados Controle?",
+                                                                  "type":  "main",
+                                                                  "index":  0
+                                                              }
+                                                          ]
+                                                      ]
+                                         },
+                        "Tem Atestados Controle?":  {
+                                                        "main":  [
+                                                                     [
+                                                                         {
+                                                                             "node":  "Buscar Atestados Controle",
+                                                                             "type":  "main",
+                                                                             "index":  0
+                                                                         }
+                                                                     ],
+                                                                     [
+                                                                         {
+                                                                             "node":  "Responder",
+                                                                             "type":  "main",
+                                                                             "index":  0
+                                                                         }
+                                                                     ]
+                                                                 ]
+                                                    },
+                        "Buscar Atestados Controle":  {
+                                                          "main":  [
+                                                                       [
+                                                                           {
+                                                                               "node":  "Anexar Atestados Controle",
+                                                                               "type":  "main",
+                                                                               "index":  0
+                                                                           }
+                                                                       ]
+                                                                   ]
+                                                      },
+                        "Anexar Atestados Controle":  {
+                                                          "main":  [
+                                                                       [
+                                                                           {
+                                                                               "node":  "Responder",
+                                                                               "type":  "main",
+                                                                               "index":  0
+                                                                           }
+                                                                       ]
+                                                                   ]
+                                                      }
+                    },
+    "settings":  {
+                     "executionOrder":  "v1",
+                     "binaryMode":  "separate",
+                     "callerPolicy":  "workflowsFromSameOwner",
+                     "availableInMCP":  false
+                 },
+    "staticData":  null,
+    "meta":  {
+                 "templateCredsSetupCompleted":  true
+             },
+    "pinData":  {
+
+                },
+    "versionId":  "8d48577a-83fa-477a-95d5-6fa0b6c0c50f",
+    "activeVersionId":  "8d48577a-83fa-477a-95d5-6fa0b6c0c50f",
+    "versionCounter":  121,
+    "triggerCount":  1,
+    "shared":  [
+                   {
+                       "updatedAt":  "2026-04-23T20:44:31.904Z",
+                       "createdAt":  "2026-04-23T20:44:31.904Z",
+                       "role":  "workflow:owner",
+                       "workflowId":  "WHtIQDf8oOWinGyx",
+                       "projectId":  "kDKKlC23HqJCyHvF",
+                       "project":  {
+                                       "updatedAt":  "2026-04-09T20:33:54.993Z",
+                                       "createdAt":  "2026-04-09T20:28:48.909Z",
+                                       "id":  "kDKKlC23HqJCyHvF",
+                                       "name":  "Isaac Raylen \u003cisaac.gomes@contatoserv.com.br\u003e",
+                                       "type":  "personal",
+                                       "icon":  null,
+                                       "description":  null,
+                                       "creatorId":  "811d2d9e-6074-4762-8533-fe3acae08af3"
+                                   }
+                   }
+               ],
+    "tags":  [
+
+             ],
+    "activeVersion":  {
+                          "updatedAt":  "2026-05-21T17:28:35.227Z",
+                          "createdAt":  "2026-05-21T17:28:35.227Z",
+                          "versionId":  "8d48577a-83fa-477a-95d5-6fa0b6c0c50f",
+                          "workflowId":  "WHtIQDf8oOWinGyx",
+                          "nodes":  [
+                                        {
+                                            "parameters":  {
+                                                               "path":  "intermitente-ler",
+                                                               "responseMode":  "responseNode",
+                                                               "options":  {
+
+                                                                           }
+                                                           },
+                                            "type":  "n8n-nodes-base.webhook",
+                                            "typeVersion":  2.1,
+                                            "position":  [
+                                                             5600,
+                                                             2000
+                                                         ],
+                                            "id":  "cc1b601f-4332-45a2-9542-3e13c10b200f",
+                                            "name":  "Webhook",
+                                            "webhookId":  "07b92cd6-de6c-482c-ab96-69fe9ad99568"
+                                        },
+                                        {
+                                            "parameters":  {
+                                                               "resource":  "boardItem",
+                                                               "operation":  "getByColumnValue",
+                                                               "boardId":  18411141462,
+                                                               "columnId":  "text_mm2xjend",
+                                                               "columnValue":  "={{ $json.query.uuid }}"
+                                                           },
+                                            "type":  "n8n-nodes-base.mondayCom",
+                                            "typeVersion":  1,
+                                            "position":  [
+                                                             5824,
+                                                             2000
+                                                         ],
+                                            "id":  "493c6c24-ce08-4e48-9c59-e33495c52e1a",
+                                            "name":  "Buscar por UUID",
+                                            "alwaysOutputData":  true,
+                                            "credentials":  {
+                                                                "mondayComApi":  {
+                                                                                     "id":  "6I0ycSr6PQJkBYpc",
+                                                                                     "name":  "Ray0"
+                                                                                 }
+                                                            }
+                                        },
+                                        {
+                                            "parameters":  {
+                                                               "jsCode":  "// ==============================================================\n// WF2 - Ler (monday)\n// Recebe o resultado de getByColumnValue, parseia as colunas\n// e devolve no shape esperado pelo frontend.\n// ==============================================================\n\n// Colunas do board HISTORICO\nconst COL_UUID         = \u0027text_mm2xjend\u0027;\nconst COL_PROTOCOLO    = \u0027text_mm2xsvg6\u0027;\nconst COL_CONTRATO     = \u0027text_mm2x1ktb\u0027;\nconst COL_DATA_INICIO  = \u0027date_mm2xtp93\u0027;\nconst COL_DATA_FIM     = \u0027date_mm2xrr5q\u0027;\nconst COL_EXPIRA_EM    = \u0027date_mm2xrvt4\u0027;\nconst COL_CRIADO_EM    = \u0027date_mm2x115h\u0027;\nconst COL_CONCLUIDO    = \u0027date_mm2xh1vm\u0027;\nconst COL_EDITADO_EM   = \u0027date_mm2x62fq\u0027;\nconst COL_STATUS       = \u0027color_mm2xkqpc\u0027;\nconst COL_EDITADO      = \u0027boolean_mm2x1aa4\u0027;\nconst COL_DIAS_EXTRAS  = \u0027long_text_mm2x73w6\u0027;\nconst COL_DIAS_DESATIV = \u0027long_text_mm2xm820\u0027;\nconst COL_RESPOSTAS    = \u0027long_text_mm2xtcpw\u0027;\nconst COL_TOTAL_MIN_DEVIDOS = \u0027numeric_mm3455ss\u0027;\nconst COL_DIAS_PERDE_VT     = \u0027numeric_mm345xb6\u0027;\nconst COL_DIAS_PERDE_VR     = \u0027numeric_mm34a3ph\u0027;\nconst COL_OPTANTE_VT        = \u0027color_mm34ry47\u0027;\nconst COL_TRABALHA_SAB      = \u0027color_mm34yyet\u0027;\nconst COL_SABADOS_EX_QTD    = \u0027numeric_mm3bvgy\u0027;\nconst COL_SABADOS_EX_TXT    = \u0027text_mm3bfn6h\u0027;\nconst COL_ATESTADOS_JSON    = \u0027long_text_mm3cp43g\u0027;\nconst COL_BENEF_LEDGER      = \u0027long_text_mm3ct3hg\u0027;\nconst COL_QTD_ATESTADOS     = \u0027numeric_mm3c4cse\u0027;\nconst COL_ITEM_ORIGEM       = \u0027link_mm2x1rk0\u0027;\nconst COL_SPLIT_JSON        = \u0027long_text_mm3hgsph\u0027;\n\nconst all = $input.all();\nconst uuid = $(\u0027Webhook\u0027).first().json.query?.uuid;\n\nfunction firstRealItem() {\n  for (const it of all) {\n    const j = it.json;\n    if (!j) continue;\n    if (j.id \u0026\u0026 (j.column_values || j.name)) return j;\n  }\n  return null;\n}\n\nconst item = firstRealItem();\nif (!item) {\n  return [{ json: { _statusCode: 404, erro: \u0027nao_encontrado\u0027, mensagem: \u0027Link invalido ou expirado.\u0027 } }];\n}\n\nconst columnValues = item.column_values ?? [];\nconst getCol = (id) =\u003e columnValues.find(c =\u003e c.id === id) || null;\nconst text = (id) =\u003e getCol(id)?.text ?? null;\nconst rawValue = (id) =\u003e getCol(id)?.value ?? null;\n\nfunction parseDate(id) {\n  const t = text(id);\n  return t || null;\n}\nfunction parseCheckbox(id) {\n  const v = rawValue(id);\n  if (!v) return false;\n  try {\n    const parsed = typeof v === \u0027string\u0027 ? JSON.parse(v) : v;\n    return parsed?.checked === true || parsed?.checked === \u0027true\u0027;\n  } catch { return false; }\n}\nfunction parseLongTextJson(id, fallback) {\n  const t = text(id);\n  if (!t) return fallback;\n  try { return JSON.parse(t); } catch { return fallback; }\n}\nfunction parseNumber(id) {\n  const t = text(id);\n  if (t === null || t === \u0027\u0027) return null;\n  const n = Number(t);\n  return Number.isFinite(n) ? n : null;\n}\nfunction extrairItemOrigemId() {\n  const link = getCol(COL_ITEM_ORIGEM);\n  if (!link) return null;\n  let url = null;\n  if (link.value) {\n    try { url = (typeof link.value === \u0027string\u0027 ? JSON.parse(link.value) : link.value)?.url || null; } catch {}\n  }\n  if (!url) url = link.text || null;\n  const m = String(url || \u0027\u0027).match(/pulses\\/(\\d+)/);\n  return m ? m[1] : null;\n}\nfunction parseSplit(raw) {\n  if (!raw) return null;\n  let parsed = raw;\n  if (typeof raw === \u0027string\u0027) {\n    try { parsed = JSON.parse(raw); } catch { return null; }\n  }\n  if (!parsed || typeof parsed !== \u0027object\u0027) return null;\n  if (!parsed.data_inicio_parte2 || !parsed.contrato_parte1 || !parsed.contrato_parte2) return null;\n  return {\n    data_inicio_parte2: String(parsed.data_inicio_parte2),\n    contrato_parte1: String(parsed.contrato_parte1),\n    contrato_parte2: String(parsed.contrato_parte2)\n  };\n}\n\nconst dataInicio = parseDate(COL_DATA_INICIO);\nconst dataFim = parseDate(COL_DATA_FIM);\nconst statusLabel = text(COL_STATUS);\nconst statusMap = {\n  \u0027Aguardando\u0027: \u0027aguardando\u0027,\n  \u0027Concluido\u0027: \u0027concluido\u0027,\n  \u0027Concluído\u0027: \u0027concluido\u0027,\n  \u0027Expirado\u0027: \u0027expirado\u0027\n};\nlet status = statusMap[statusLabel] || \u0027aguardando\u0027;\n\nconst expiraEm = parseDate(COL_EXPIRA_EM);\nconst agora = new Date();\nif (status === \u0027aguardando\u0027 \u0026\u0026 expiraEm \u0026\u0026 agora \u003e new Date(expiraEm + \u0027T23:59:59Z\u0027)) {\n  status = \u0027expirado\u0027;\n}\n\nconst incluiSabado = String(text(COL_TRABALHA_SAB) || \u0027\u0027).toUpperCase() === \u0027SIM\u0027;\nconst dias = [];\nif (dataInicio \u0026\u0026 dataFim) {\n  const cur = new Date(dataInicio + \u0027T00:00:00Z\u0027);\n  const fim = new Date(dataFim + \u0027T00:00:00Z\u0027);\n  while (cur \u003c= fim) {\n    const dow = cur.getUTCDay();\n    const ehDomingo = dow === 0;\n    const ehSabado = dow === 6;\n    if (!ehDomingo \u0026\u0026 (!ehSabado || incluiSabado)) dias.push(cur.toISOString().slice(0, 10));\n    cur.setUTCDate(cur.getUTCDate() + 1);\n  }\n}\n\nconst respostas = parseLongTextJson(COL_RESPOSTAS, []);\nconst diasExtras = parseLongTextJson(COL_DIAS_EXTRAS, []);\nconst diasDesativ = parseLongTextJson(COL_DIAS_DESATIV, []);\nconst atestados = parseLongTextJson(COL_ATESTADOS_JSON, []);\nconst beneficiosDescontados = parseLongTextJson(COL_BENEF_LEDGER, {});\n\nconst sabadosExTxt = text(COL_SABADOS_EX_TXT);\nconst sabadosExtras = sabadosExTxt\n  ? sabadosExTxt.split(/[,;\\n]/).map(s =\u003e s.trim()).filter(s =\u003e /^\\d{4}-\\d{2}-\\d{2}$/.test(s))\n  : [];\n\nconst itemOrigemId = extrairItemOrigemId();\nconst queryEntradaSplit = itemOrigemId ? `query { items(ids: [${itemOrigemId}]) { id column_values(ids: [\"${COL_SPLIT_JSON}\", \"dup__of_matr_cula\", \"texto\"]) { id text value } } }` : null;\n\nreturn [{\n  json: {\n    _statusCode: 200,\n    uuid: text(COL_UUID) || uuid,\n    item_origem_id: itemOrigemId,\n    query_entrada_split: queryEntradaSplit,\n    split: null,\n    status,\n    nome: item.name,\n    contrato: text(COL_CONTRATO),\n    data_inicio: dataInicio,\n    data_fim: dataFim,\n    dias,\n    expira_em: expiraEm,\n    concluido_em: parseDate(COL_CONCLUIDO),\n    protocolo: text(COL_PROTOCOLO),\n    editado: parseCheckbox(COL_EDITADO),\n    editado_em: parseDate(COL_EDITADO_EM),\n    respostas,\n    dias_extras: diasExtras,\n    dias_desativados: diasDesativ,\n    total_min_devidos: parseNumber(COL_TOTAL_MIN_DEVIDOS),\n    dias_perde_vt: parseNumber(COL_DIAS_PERDE_VT),\n    dias_perde_vr: parseNumber(COL_DIAS_PERDE_VR),\n    optante_vt: text(COL_OPTANTE_VT) || \u0027NAO\u0027,\n    trabalha_sabado: text(COL_TRABALHA_SAB) || \u0027NAO\u0027,\n    sabados_extras: sabadosExtras,\n    qtd_sabados_extras: parseNumber(COL_SABADOS_EX_QTD) || sabadosExtras.length,\n    atestados: Array.isArray(atestados) ? atestados : [],\n    qtd_atestados: parseNumber(COL_QTD_ATESTADOS) || (Array.isArray(atestados) ? atestados.length : 0),\n    beneficios_descontados: beneficiosDescontados \u0026\u0026 typeof beneficiosDescontados === \u0027object\u0027 ? beneficiosDescontados : {}\n  }\n}];"
+                                                           },
+                                            "type":  "n8n-nodes-base.code",
+                                            "typeVersion":  2,
+                                            "position":  [
+                                                             6048,
+                                                             2000
+                                                         ],
+                                            "id":  "ee2109a6-af69-4620-9808-8536f8d80b04",
+                                            "name":  "Moldar resposta"
+                                        },
+                                        {
+                                            "parameters":  {
+                                                               "respondWith":  "json",
+                                                               "responseBody":  "={{ JSON.stringify($json) }}",
+                                                               "options":  {
+                                                                               "responseCode":  "={{ $json._statusCode || 200 }}",
+                                                                               "responseHeaders":  {
+                                                                                                       "entries":  [
+                                                                                                                       {
+                                                                                                                           "name":  "Access-Control-Allow-Origin",
+                                                                                                                           "value":  "*"
+                                                                                                                       },
+                                                                                                                       {
+                                                                                                                           "name":  "Content-Type",
+                                                                                                                           "value":  "application/json"
+                                                                                                                       }
+                                                                                                                   ]
+                                                                                                   }
+                                                                           }
+                                                           },
+                                            "type":  "n8n-nodes-base.respondToWebhook",
+                                            "typeVersion":  1.1,
+                                            "position":  [
+                                                             7072,
+                                                             2016
+                                                         ],
+                                            "id":  "667be723-cbba-4646-b930-4ff844ecd0f1",
+                                            "name":  "Responder"
+                                        },
+                                        {
+                                            "parameters":  {
+                                                               "conditions":  {
+                                                                                  "options":  {
+                                                                                                  "caseSensitive":  true,
+                                                                                                  "leftValue":  "",
+                                                                                                  "typeValidation":  "strict",
+                                                                                                  "version":  2
+                                                                                              },
+                                                                                  "conditions":  [
+                                                                                                     {
+                                                                                                         "id":  "tem-query-split",
+                                                                                                         "leftValue":  "={{ !!$json.query_entrada_split }}",
+                                                                                                         "rightValue":  true,
+                                                                                                         "operator":  {
+                                                                                                                          "type":  "boolean",
+                                                                                                                          "operation":  "true",
+                                                                                                                          "singleValue":  true
+                                                                                                                      }
+                                                                                                     }
+                                                                                                 ],
+                                                                                  "combinator":  "and"
+                                                                              },
+                                                               "options":  {
+
+                                                                           }
+                                                           },
+                                            "type":  "n8n-nodes-base.if",
+                                            "typeVersion":  2.2,
+                                            "position":  [
+                                                             6288,
+                                                             2000
+                                                         ],
+                                            "id":  "split-if-query",
+                                            "name":  "Tem Split Query?"
+                                        },
+                                        {
+                                            "parameters":  {
+                                                               "method":  "POST",
+                                                               "url":  "https://api.monday.com/v2",
+                                                               "authentication":  "predefinedCredentialType",
+                                                               "nodeCredentialType":  "mondayComApi",
+                                                               "sendHeaders":  true,
+                                                               "headerParameters":  {
+                                                                                        "parameters":  [
+                                                                                                           {
+                                                                                                               "name":  "Content-Type",
+                                                                                                               "value":  "application/json"
+                                                                                                           }
+                                                                                                       ]
+                                                                                    },
+                                                               "sendBody":  true,
+                                                               "specifyBody":  "json",
+                                                               "jsonBody":  "={{ JSON.stringify({ query: $json.query_entrada_split }) }}",
+                                                               "options":  {
+                                                                               "response":  {
+                                                                                                "response":  {
+                                                                                                                 "neverError":  true
+                                                                                                             }
+                                                                                            }
+                                                                           }
+                                                           },
+                                            "type":  "n8n-nodes-base.httpRequest",
+                                            "typeVersion":  4.2,
+                                            "position":  [
+                                                             6512,
+                                                             1920
+                                                         ],
+                                            "id":  "buscar-split-entrada",
+                                            "name":  "Buscar Split Entrada",
+                                            "credentials":  {
+                                                                "mondayComApi":  {
+                                                                                     "id":  "6I0ycSr6PQJkBYpc",
+                                                                                     "name":  "Ray0"
+                                                                                 }
+                                                            }
+                                        },
+                                        {
+                                            "parameters":  {
+                                                               "jsCode":  "const base = $(\u0027Moldar resposta\u0027).first().json;\nconst resp = $json;\n\nfunction onlyDigits(v) { return String(v || \u0027\u0027).replace(/\\D+/g, \u0027\u0027); }\nfunction parseSplit(raw) {\n  if (!raw) return null;\n  let parsed = raw;\n  if (typeof raw === \u0027string\u0027) {\n    try { parsed = JSON.parse(raw); } catch { return null; }\n  }\n  if (!parsed || typeof parsed !== \u0027object\u0027) return null;\n  if (!parsed.data_inicio_parte2 || !parsed.contrato_parte1 || !parsed.contrato_parte2) return null;\n  return {\n    data_inicio_parte2: String(parsed.data_inicio_parte2),\n    contrato_parte1: String(parsed.contrato_parte1),\n    contrato_parte2: String(parsed.contrato_parte2)\n  };\n}\n\nconst cols = resp?.data?.items?.[0]?.column_values || [];\nconst get = (id) =\u003e cols.find(c =\u003e c.id === id) || null;\nconst split = parseSplit(get(\u0027long_text_mm3hgsph\u0027)?.text || get(\u0027long_text_mm3hgsph\u0027)?.value || null);\nconst cpf = onlyDigits(get(\u0027dup__of_matr_cula\u0027)?.text || get(\u0027dup__of_matr_cula\u0027)?.value || \u0027\u0027);\nconst chapa = String(get(\u0027texto\u0027)?.text || \u0027\u0027).trim();\nconst queryControleAtestados = cpf\n  ? \u0027query { items_page_by_column_values(board_id: 18298015951, columns: [{ column_id: \"text_mm3j4nt3\", column_values: [\"\u0027 + cpf + \u0027\"] }], limit: 100) { items { id name column_values { id text value column { title } } } } }\u0027\n  : null;\nreturn [{ json: { ...base, split, cpf_colaborador: cpf || null, chapa_colaborador: chapa || null, query_controle_atestados: queryControleAtestados } }];"
+                                                           },
+                                            "type":  "n8n-nodes-base.code",
+                                            "typeVersion":  2,
+                                            "position":  [
+                                                             6736,
+                                                             1920
+                                                         ],
+                                            "id":  "anexar-split",
+                                            "name":  "Anexar Split"
+                                        },
+                                        {
+                                            "parameters":  {
+                                                               "conditions":  {
+                                                                                  "options":  {
+                                                                                                  "caseSensitive":  true,
+                                                                                                  "leftValue":  "",
+                                                                                                  "typeValidation":  "strict",
+                                                                                                  "version":  2
+                                                                                              },
+                                                                                  "conditions":  [
+                                                                                                     {
+                                                                                                         "id":  "if-atestados-controle",
+                                                                                                         "leftValue":  "={{ !!$json.query_controle_atestados }}",
+                                                                                                         "rightValue":  true,
+                                                                                                         "operator":  {
+                                                                                                                          "type":  "boolean",
+                                                                                                                          "operation":  "true",
+                                                                                                                          "singleValue":  true
+                                                                                                                      }
+                                                                                                     }
+                                                                                                 ],
+                                                                                  "combinator":  "and"
+                                                                              },
+                                                               "options":  {
+
+                                                                           }
+                                                           },
+                                            "type":  "n8n-nodes-base.if",
+                                            "typeVersion":  2.2,
+                                            "position":  [
+                                                             1840,
+                                                             220
+                                                         ],
+                                            "id":  "if-atestados-controle",
+                                            "name":  "Tem Atestados Controle?"
+                                        },
+                                        {
+                                            "parameters":  {
+                                                               "method":  "POST",
+                                                               "url":  "https://api.monday.com/v2",
+                                                               "authentication":  "predefinedCredentialType",
+                                                               "nodeCredentialType":  "mondayComApi",
+                                                               "sendHeaders":  true,
+                                                               "headerParameters":  {
+                                                                                        "parameters":  [
+                                                                                                           {
+                                                                                                               "name":  "Content-Type",
+                                                                                                               "value":  "application/json"
+                                                                                                           }
+                                                                                                       ]
+                                                                                    },
+                                                               "sendBody":  true,
+                                                               "specifyBody":  "json",
+                                                               "jsonBody":  "={{ JSON.stringify({ query: $json.query_controle_atestados }) }}",
+                                                               "options":  {
+                                                                               "response":  {
+                                                                                                "response":  {
+                                                                                                                 "neverError":  true
+                                                                                                             }
+                                                                                            }
+                                                                           }
+                                                           },
+                                            "type":  "n8n-nodes-base.httpRequest",
+                                            "typeVersion":  4.2,
+                                            "position":  [
+                                                             2060,
+                                                             160
+                                                         ],
+                                            "id":  "buscar-atestados-controle",
+                                            "name":  "Buscar Atestados Controle",
+                                            "credentials":  {
+                                                                "mondayComApi":  {
+                                                                                     "id":  "6I0ycSr6PQJkBYpc",
+                                                                                     "name":  "Ray0"
+                                                                                 }
+                                                            }
+                                        },
+                                        {
+                                            "parameters":  {
+                                                               "jsCode":  "const base = $(\u0027Anexar Split\u0027).first().json;\nconst resp = $json;\nconst controleItems = resp?.data?.items_page_by_column_values?.items || [];\nconst legacy = Array.isArray(base.atestados) ? base.atestados : [];\n\nfunction col(item, id) { return (item.column_values || []).find(c =\u003e c.id === id) || null; }\nfunction text(item, id) { return col(item, id)?.text || \u0027\u0027; }\nfunction parseDate(item, id) {\n  const c = col(item, id);\n  if (c?.text \u0026\u0026 /^\\d{4}-\\d{2}-\\d{2}/.test(c.text)) return c.text.slice(0, 10);\n  if (c?.value) {\n    try { const v = typeof c.value === \u0027string\u0027 ? JSON.parse(c.value) : c.value; if (v?.date) return String(v.date).slice(0, 10); } catch {}\n  }\n  return null;\n}\nfunction addDays(iso, n) {\n  const d = new Date(iso + \u0027T00:00:00Z\u0027);\n  d.setUTCDate(d.getUTCDate() + n);\n  return d.toISOString().slice(0, 10);\n}\nfunction norm(v) { return String(v || \u0027\u0027).normalize(\u0027NFD\u0027).replace(/[\\u0300-\\u036f]/g, \u0027\u0027).toUpperCase().trim(); }\nfunction overlap(a1, a2, b1, b2) { return a1 \u0026\u0026 a2 \u0026\u0026 b1 \u0026\u0026 b2 \u0026\u0026 a1 \u003c= b2 \u0026\u0026 a2 \u003e= b1; }\n\nconst docsControle = [];\nfor (const item of controleItems) {\n  const modalidade = norm(text(item, \u0027single_select5yq25pm\u0027));\n  if (modalidade \u0026\u0026 modalidade !== \u0027INTERMITENTE\u0027) continue;\n  const inicio = parseDate(item, \u0027date\u0027);\n  const dias = Math.max(1, Math.ceil(Number(String(text(item, \u0027numberjox5johv\u0027) || \u00271\u0027).replace(\u0027,\u0027, \u0027.\u0027)) || 1));\n  const fim = inicio ? addDays(inicio, dias - 1) : null;\n  if (!overlap(inicio, fim, base.data_inicio, base.data_fim)) continue;\n  const label = text(item, \u0027sele__o_individual__1\u0027) || \u0027Atestado\u0027;\n  const tipoNorm = norm(label);\n  const tipoDocumento = tipoNorm.includes(\u0027DECLAR\u0027) || tipoNorm.startsWith(\u0027DC\u0027) ? \u0027declaracao\u0027 : \u0027atestado\u0027;\n  const fileName = text(item, \u0027files\u0027) || text(item, \u0027short_textcpcyzaec\u0027) || null;\n  docsControle.push({\n    id: \u0027controle-\u0027 + item.id,\n    controle_item_id: String(item.id),\n    tipo_documento: tipoDocumento,\n    tipo_documentacao_label: label,\n    data_inicio: inicio,\n    data_fim: fim,\n    periodos: [],\n    nome_arquivo: fileName,\n    monday_item_url: \u0027https://contato-serv.monday.com/boards/18298015951/pulses/\u0027 + item.id,\n    origem: \u0027controle_atestados\u0027\n  });\n}\n\nconst byKey = new Map();\nfor (const d of legacy) byKey.set(String(d.id || d.monday_item_url || JSON.stringify(d)), d);\nfor (const d of docsControle) byKey.set(String(d.id), d);\nconst atestados = [...byKey.values()].sort((a, b) =\u003e String(a.data_inicio || \u0027\u0027).localeCompare(String(b.data_inicio || \u0027\u0027)));\nreturn [{ json: { ...base, atestados, qtd_atestados: atestados.length } }];"
+                                                           },
+                                            "type":  "n8n-nodes-base.code",
+                                            "typeVersion":  2,
+                                            "position":  [
+                                                             2280,
+                                                             160
+                                                         ],
+                                            "id":  "anexar-atestados-controle",
+                                            "name":  "Anexar Atestados Controle"
+                                        }
+                                    ],
+                          "connections":  {
+                                              "Webhook":  {
+                                                              "main":  [
+                                                                           [
+                                                                               {
+                                                                                   "node":  "Buscar por UUID",
+                                                                                   "type":  "main",
+                                                                                   "index":  0
+                                                                               }
+                                                                           ]
+                                                                       ]
+                                                          },
+                                              "Buscar por UUID":  {
+                                                                      "main":  [
+                                                                                   [
+                                                                                       {
+                                                                                           "node":  "Moldar resposta",
+                                                                                           "type":  "main",
+                                                                                           "index":  0
+                                                                                       }
+                                                                                   ]
+                                                                               ]
+                                                                  },
+                                              "Moldar resposta":  {
+                                                                      "main":  [
+                                                                                   [
+                                                                                       {
+                                                                                           "node":  "Tem Split Query?",
+                                                                                           "type":  "main",
+                                                                                           "index":  0
+                                                                                       }
+                                                                                   ]
+                                                                               ]
+                                                                  },
+                                              "Tem Split Query?":  {
+                                                                       "main":  [
+                                                                                    [
+                                                                                        {
+                                                                                            "node":  "Buscar Split Entrada",
+                                                                                            "type":  "main",
+                                                                                            "index":  0
+                                                                                        }
+                                                                                    ],
+                                                                                    [
+                                                                                        {
+                                                                                            "node":  "Responder",
+                                                                                            "type":  "main",
+                                                                                            "index":  0
+                                                                                        }
+                                                                                    ]
+                                                                                ]
+                                                                   },
+                                              "Buscar Split Entrada":  {
+                                                                           "main":  [
+                                                                                        [
+                                                                                            {
+                                                                                                "node":  "Anexar Split",
+                                                                                                "type":  "main",
+                                                                                                "index":  0
+                                                                                            }
+                                                                                        ]
+                                                                                    ]
+                                                                       },
+                                              "Anexar Split":  {
+                                                                   "main":  [
+                                                                                [
+                                                                                    {
+                                                                                        "node":  "Tem Atestados Controle?",
+                                                                                        "type":  "main",
+                                                                                        "index":  0
+                                                                                    }
+                                                                                ]
+                                                                            ]
+                                                               },
+                                              "Tem Atestados Controle?":  {
+                                                                              "main":  [
+                                                                                           [
+                                                                                               {
+                                                                                                   "node":  "Buscar Atestados Controle",
+                                                                                                   "type":  "main",
+                                                                                                   "index":  0
+                                                                                               }
+                                                                                           ],
+                                                                                           [
+                                                                                               {
+                                                                                                   "node":  "Responder",
+                                                                                                   "type":  "main",
+                                                                                                   "index":  0
+                                                                                               }
+                                                                                           ]
+                                                                                       ]
+                                                                          },
+                                              "Buscar Atestados Controle":  {
+                                                                                "main":  [
+                                                                                             [
+                                                                                                 {
+                                                                                                     "node":  "Anexar Atestados Controle",
+                                                                                                     "type":  "main",
+                                                                                                     "index":  0
+                                                                                                 }
+                                                                                             ]
+                                                                                         ]
+                                                                            },
+                                              "Anexar Atestados Controle":  {
+                                                                                "main":  [
+                                                                                             [
+                                                                                                 {
+                                                                                                     "node":  "Responder",
+                                                                                                     "type":  "main",
+                                                                                                     "index":  0
+                                                                                                 }
+                                                                                             ]
+                                                                                         ]
+                                                                            }
+                                          },
+                          "authors":  "Isaac Raylen",
+                          "name":  null,
+                          "description":  null,
+                          "autosaved":  false,
+                          "workflowPublishHistory":  [
+                                                         {
+                                                             "createdAt":  "2026-05-21T17:28:35.271Z",
+                                                             "id":  1363,
+                                                             "workflowId":  "WHtIQDf8oOWinGyx",
+                                                             "versionId":  "8d48577a-83fa-477a-95d5-6fa0b6c0c50f",
+                                                             "event":  "deactivated",
+                                                             "userId":  "811d2d9e-6074-4762-8533-fe3acae08af3"
+                                                         },
+                                                         {
+                                                             "createdAt":  "2026-05-21T17:28:35.284Z",
+                                                             "id":  1364,
+                                                             "workflowId":  "WHtIQDf8oOWinGyx",
+                                                             "versionId":  "8d48577a-83fa-477a-95d5-6fa0b6c0c50f",
+                                                             "event":  "activated",
+                                                             "userId":  "811d2d9e-6074-4762-8533-fe3acae08af3"
+                                                         }
+                                                     ]
+                      }
+}

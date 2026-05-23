@@ -2,6 +2,7 @@
 import { Link } from "react-router-dom"
 import {
   ArrowUpRight,
+  CalendarDays,
   ClipboardCheck,
   FileText,
   KeyRound,
@@ -22,6 +23,13 @@ const actions = [
     description: "Lançar atestado médico ou declaração de comparecimento.",
     icon: FileText,
     tone: "amber",
+  },
+  {
+    to: "/ponto-facultativo",
+    title: "Ponto facultativo",
+    description: "Aplicar VR/VT por contrato em um dia do mês atual.",
+    icon: CalendarDays,
+    tone: "emerald",
   },
   {
     to: "/corrigir",
@@ -80,13 +88,17 @@ export function HubPage() {
                 ? "bg-[#d8aa53]/10 ring-[#d8aa53]/35"
                 : tone === "amber"
                   ? "bg-[#e8c275]/10 ring-[#e8c275]/40"
-                  : "bg-[#6f9cff]/10 ring-[#6f9cff]/35"
+                  : tone === "emerald"
+                    ? "bg-emerald-300/10 ring-emerald-300/35"
+                    : "bg-[#6f9cff]/10 ring-[#6f9cff]/35"
             const iconClass =
               tone === "gold"
                 ? "text-[#d8aa53]"
                 : tone === "amber"
                   ? "text-[#e8c275]"
-                  : "text-[#7fb3ff]"
+                  : tone === "emerald"
+                    ? "text-emerald-200"
+                    : "text-[#7fb3ff]"
 
             return (
               <div

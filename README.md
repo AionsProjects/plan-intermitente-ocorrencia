@@ -15,6 +15,8 @@ se um intermitente faltou, atrasou ou cumpriu o expediente normalmente.
 - [`docs/especificacao.md`](docs/especificacao.md) — especificação funcional original.
 - [`docs/n8n/wf*.json`](docs/n8n/) — workflows do n8n (importáveis no n8n cloud).
 
+- [`docs/n8n/ponto-facultativo.md`](docs/n8n/ponto-facultativo.md) - mapeamento atual da feature Ponto Facultativo, endpoints, boards e pendencias.
+
 ## Comandos
 
 ```bash

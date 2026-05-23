@@ -47,6 +47,7 @@ import {
 import type {
   Atestado,
   DiaInfo,
+  PontoFacultativo,
   ProcessamentoDados,
   RespostaDia,
 } from "./types"
@@ -114,6 +115,13 @@ function atestadoCobreDia(atestado: Pick<Atestado, "dataInicio" | "dataFim">, da
   return data >= atestado.dataInicio && data <= atestado.dataFim
 }
 
+function pontoFacultativoCobreDia(
+  ponto: Pick<PontoFacultativo, "data">,
+  data: string,
+): boolean {
+  return ponto.data === data
+}
+
 function rotularDocumentoTile(docs: Atestado[]): string {
   if (docs.length === 0) return "Documento"
   if (docs.length > 1) return `${docs.length} documentos`
@@ -143,13 +151,21 @@ function normalizarTipoBaseDia(
 function aplicarAtestadosNosDias(
   dias: DiaInfo[],
   atestados: Atestado[],
+  pontosFacultativos: PontoFacultativo[],
   dados: ProcessamentoDados,
 ): DiaInfo[] {
   return dias.map((dia) => {
     const coberto = atestados.some((a) => atestadoCobreDia(a, dia.data))
+    const ponto = pontosFacultativos.some((p) =>
+      pontoFacultativoCobreDia(p, dia.data),
+    )
     return {
       ...dia,
-      tipo: coberto ? "atestado" : normalizarTipoBaseDia(dia.data, dados, dia),
+      tipo: coberto
+        ? "atestado"
+        : ponto
+          ? "ponto_facultativo"
+          : normalizarTipoBaseDia(dia.data, dados, dia),
     }
   })
 }
@@ -158,23 +174,28 @@ function respostasIniciais(
   dias: string[],
   prev: RespostaDia[] | undefined,
   atestados: Atestado[] | undefined,
+  pontosFacultativos: PontoFacultativo[] | undefined,
 ): Record<string, RespostaDia> {
   const base: Record<string, RespostaDia> = {}
   const prevMap = new Map((prev ?? []).map((r) => [r.data, r]))
   const cobertoPorAtestado = (data: string) =>
     (atestados ?? []).some((a) => atestadoCobreDia(a, data))
+  const cobertoPorPonto = (data: string) =>
+    (pontosFacultativos ?? []).some((p) =>
+      pontoFacultativoCobreDia(p, data),
+    )
   for (const dia of dias) {
     // Dia coberto por atestado/declaração SEMPRE entra como sem_ocorrencia.
     // Backend/Nexti cuida do desconto via atestado. Sobrescreve qualquer
     // resposta anterior (falta/atraso pré-atestado).
-    if (cobertoPorAtestado(dia)) {
+    if (cobertoPorAtestado(dia) || cobertoPorPonto(dia)) {
       base[dia] = { data: dia, tipo: "sem_ocorrencia" }
       continue
     }
     base[dia] = prevMap.get(dia) ?? { data: dia, tipo: "sem_ocorrencia" }
   }
   for (const r of prev ?? []) {
-    if (cobertoPorAtestado(r.data)) continue
+    if (cobertoPorAtestado(r.data) || cobertoPorPonto(r.data)) continue
     if (!base[r.data]) base[r.data] = r
   }
   return base
@@ -196,12 +217,22 @@ function diasInfoIniciais(dados: ProcessamentoDados): DiaInfo[] {
       ativo: !desativados.has(d),
       feriado: nomeFeriadoNacional(d),
     }))
-  return aplicarAtestadosNosDias(base, dados.atestados ?? [], dados)
+  return aplicarAtestadosNosDias(
+    base,
+    dados.atestados ?? [],
+    dados.pontosFacultativos ?? [],
+    dados,
+  )
 }
 
 export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: Props) {
   const [respostas, setRespostas] = useState<Record<string, RespostaDia>>(() =>
-    respostasIniciais(dados.dias, dados.respostasAnteriores, dados.atestados),
+    respostasIniciais(
+      dados.dias,
+      dados.respostasAnteriores,
+      dados.atestados,
+      dados.pontosFacultativos,
+    ),
   )
   const [diasInfo, setDiasInfo] = useState<DiaInfo[]>(() =>
     diasInfoIniciais(dados),
@@ -256,7 +287,14 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
     () => dados.atestados ?? [],
     [dados.atestados],
   )
+  const pontosFacultativos = useMemo<PontoFacultativo[]>(
+    () => dados.pontosFacultativos ?? [],
+    [dados.pontosFacultativos],
+  )
   const [diaDocSelecionado, setDiaDocSelecionado] = useState<string | null>(
+    null,
+  )
+  const [diaPontoSelecionado, setDiaPontoSelecionado] = useState<string | null>(
     null,
   )
 
@@ -313,6 +351,15 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
     return map
   }, [atestados])
 
+  const pontosPorData = useMemo(() => {
+    const map = new Map<string, PontoFacultativo[]>()
+    for (const ponto of pontosFacultativos) {
+      if (!ponto.data) continue
+      map.set(ponto.data, [...(map.get(ponto.data) ?? []), ponto])
+    }
+    return map
+  }, [pontosFacultativos])
+
   // Sábados dentro do período da convocação que ainda não foram adicionados
   // como extras e que não fazem parte dos dias originais convocados.
   const sabadosDisponiveis = useMemo(() => {
@@ -343,6 +390,7 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
       return aplicarAtestadosNosDias(
         [...prev, ...novos].sort((a, b) => a.data.localeCompare(b.data)),
         atestados,
+        pontosFacultativos,
         dados,
       )
     })
@@ -353,7 +401,7 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
       }
       return next
     })
-  }, [atestados, dados])
+  }, [atestados, pontosFacultativos, dados])
 
   const removerSabadoExtra = useCallback((data: string) => {
     setDiasInfo((prev) => prev.filter((d) => d.data !== data))
@@ -396,6 +444,14 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
     setDiaDocSelecionado(null)
   }
 
+  function abrirInfoPonto(data: string) {
+    setDiaPontoSelecionado(data)
+  }
+
+  function fecharInfoPonto() {
+    setDiaPontoSelecionado(null)
+  }
+
   // Conta TUDO que foge de "sem ocorrência":
   // faltas + atrasos + dias desconsiderados.
   const totalOcorrencias = useMemo(() => {
@@ -420,6 +476,8 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
       .map((d) => d.data)
     const cobertoPorAtestado = (data: string) =>
       atestados.some((a) => atestadoCobreDia(a, data))
+    const cobertoPorPonto = (data: string) =>
+      pontosFacultativos.some((p) => pontoFacultativoCobreDia(p, data))
     const payload = {
       // Atestado/declaração: backend/Nexti cuida do desconto. Front sempre
       // envia sem_ocorrencia pros dias cobertos — sobrescreve falta/atraso
@@ -430,7 +488,7 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
         .filter((d) => !diasCancelados.has(d.data))
         .filter((d) => !isFeriadoNacional(d.data))
         .map((d) => {
-          if (cobertoPorAtestado(d.data)) {
+          if (cobertoPorAtestado(d.data) || cobertoPorPonto(d.data)) {
             return { data: d.data, tipo: "sem_ocorrencia" as const }
           }
           return (
@@ -644,7 +702,9 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
         onReativar={() => reativarDia(diaInfo.data)}
         onRemoverExtra={() => pedirRemoverSabado(diaInfo.data)}
         atestadosNoDia={atestadosPorData.get(diaInfo.data) ?? []}
+        pontosNoDia={pontosPorData.get(diaInfo.data) ?? []}
         onAbrirAtestadoInfo={() => abrirInfoDocumento(diaInfo.data)}
+        onAbrirPontoInfo={() => abrirInfoPonto(diaInfo.data)}
         podeRemoverExtra={!sabadosJaPagos.has(diaInfo.data)}
         isCancelado={diasCancelados.has(diaInfo.data)}
         onAbrirReverter={() => setReverterAberto(true)}
@@ -870,6 +930,13 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
           onClose={fecharInfoDocumento}
         />
       )}
+      {diaPontoSelecionado && (
+        <DialogDiaComPontoFacultativo
+          data={diaPontoSelecionado}
+          pontos={pontosPorData.get(diaPontoSelecionado) ?? []}
+          onClose={fecharInfoPonto}
+        />
+      )}
       {reverterAberto && (
         <DialogReverterCancelamento
           open
@@ -923,7 +990,9 @@ type DiaItemProps = {
   onReativar: () => void
   onRemoverExtra: () => void
   atestadosNoDia: Atestado[]
+  pontosNoDia: PontoFacultativo[]
   onAbrirAtestadoInfo: () => void
+  onAbrirPontoInfo: () => void
   podeRemoverExtra?: boolean
   isCancelado: boolean
   onAbrirReverter: () => void
@@ -939,7 +1008,9 @@ function DiaItem({
   onReativar,
   onRemoverExtra,
   atestadosNoDia,
+  pontosNoDia,
   onAbrirAtestadoInfo,
+  onAbrirPontoInfo,
   podeRemoverExtra = true,
   isCancelado,
   onAbrirReverter,
@@ -947,6 +1018,8 @@ function DiaItem({
   const isDisabled = !diaInfo.ativo
   const isExtra = diaInfo.tipo === "extra"
   const isAtestado = diaInfo.tipo === "atestado" || atestadosNoDia.length > 0
+  const isPontoFacultativo =
+    diaInfo.tipo === "ponto_facultativo" || pontosNoDia.length > 0
   const isFeriado = !!diaInfo.feriado
   // Quando todos os docs no dia são declaração → visual violeta.
   // Misto ou atestado → visual âmbar (atestado tem prioridade).
@@ -957,7 +1030,7 @@ function DiaItem({
 
   const tileBase =
     "group relative flex h-full w-full flex-col items-center justify-center gap-1.5 rounded-2xl px-3 py-4 text-left"
-  // Prioridade: cancelado > atestado > disabled > feriado > extra > normal.
+  // Prioridade: cancelado > atestado > ponto facultativo > disabled > feriado > extra > normal.
   // Atestado prevalece sobre disabled — dia desconsiderado com documento
   // ainda mostra visual âmbar/violeta. Feriado vence sobre extra/normal
   // (sábado em feriado renderiza como feriado).
@@ -967,13 +1040,15 @@ function DiaItem({
       ? ehDeclaracaoPura
         ? "glass-tile-declaracao"
         : "glass-tile-atestado"
-      : isDisabled
-        ? "glass-tile-disabled"
-        : isFeriado
-          ? "glass-tile glass-tile-3d glass-tile-feriado"
-          : isExtra
-            ? "glass-tile-extra"
-            : "glass-tile glass-tile-3d"
+      : isPontoFacultativo
+        ? "glass-tile glass-tile-3d glass-tile-ponto-facultativo"
+        : isDisabled
+          ? "glass-tile-disabled"
+          : isFeriado
+            ? "glass-tile glass-tile-3d glass-tile-feriado"
+            : isExtra
+              ? "glass-tile-extra"
+              : "glass-tile glass-tile-3d"
 
   const shakeClass = modoApagar && diaInfo.ativo ? "shake-mode" : ""
 
@@ -983,13 +1058,15 @@ function DiaItem({
       onAbrirReverter()
       return
     }
-    if (modoApagar && diaInfo.ativo) {
+    if (isAtestado) {
+      onAbrirAtestadoInfo()
+    } else if (isPontoFacultativo) {
+      onAbrirPontoInfo()
+    } else if (modoApagar && diaInfo.ativo) {
       onApagar()
     } else if (isDisabled) {
       // Reativar via overlay
       return
-    } else if (isAtestado) {
-      onAbrirAtestadoInfo()
     } else if (isFeriado) {
       // Feriado nacional: bloqueia edição. Não abre dialog.
       return
@@ -1067,6 +1144,19 @@ function DiaItem({
               <FileText className="size-3" />
               {rotularDocumentoTile(atestadosNoDia)}
             </span>
+          ) : isPontoFacultativo ? (
+            <span className="inline-flex flex-col items-center gap-0.5 text-emerald-200/95">
+              <span className="inline-flex items-center gap-1.5">
+                <CalendarDays className="size-3" />
+                Ponto facultativo
+              </span>
+              <span className="text-[9px] text-emerald-200/65">
+                {pontosNoDia
+                  .flatMap((p) => p.beneficios)
+                  .filter((v, idx, arr) => arr.indexOf(v) === idx)
+                  .join(" + ")}
+              </span>
+            </span>
           ) : isFeriado ? (
             <span className="inline-flex flex-col items-center gap-0.5 text-emerald-200/90">
               <span className="text-[10px] uppercase tracking-[0.18em]">
@@ -1093,9 +1183,19 @@ function DiaItem({
           </svg>
         ) : null}
 
+        {isPontoFacultativo && !isDisabled && !isAtestado ? (
+          <svg
+            className="ponto-facultativo-dash-svg"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+          >
+            <rect x="0" y="0" width="100%" height="100%" rx="16" ry="16" />
+          </svg>
+        ) : null}
+
         {/* Tile cancelado tem render próprio (2 botões) — não cai aqui. */}
 
-        {isExtra && !isDisabled && !isAtestado && (
+        {isExtra && !isDisabled && !isAtestado && !isPontoFacultativo && (
           <svg
             className="extra-dash-svg"
             xmlns="http://www.w3.org/2000/svg"
@@ -1112,7 +1212,7 @@ function DiaItem({
           </svg>
         )}
 
-        {isExtra && !podeRemoverExtra && !isDisabled && !isAtestado && (
+        {isExtra && !podeRemoverExtra && !isDisabled && !isAtestado && !isPontoFacultativo && (
           <span
             className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-blue-300/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-blue-200 ring-1 ring-blue-300/30"
             title="Sábado extra já pago — não removível"
@@ -1121,7 +1221,7 @@ function DiaItem({
           </span>
         )}
 
-        {isExtra && !modoApagar && !isDisabled && !isAtestado && podeRemoverExtra && (
+        {isExtra && !modoApagar && !isDisabled && !isAtestado && !isPontoFacultativo && podeRemoverExtra && (
           <span
             role="button"
             tabIndex={0}
@@ -1143,7 +1243,7 @@ function DiaItem({
           </span>
         )}
 
-        {modoApagar && diaInfo.ativo && !isExtra && !isAtestado && (
+        {modoApagar && diaInfo.ativo && !isExtra && !isAtestado && !isPontoFacultativo && (
           <div className="absolute right-2 top-2 flex size-6 items-center justify-center rounded-full bg-red-400/15 ring-1 ring-red-400/30 transition-all group-hover:bg-red-400/25">
             <X className="size-3 text-red-300" />
           </div>
@@ -2577,6 +2677,83 @@ function DialogDiaComDocumento({
             )
           })}
         </ul>
+
+        <DialogFooter className="mt-2 sm:justify-end">
+          <Button
+            variant="ghost"
+            onClick={onClose}
+            className="text-white/85 hover:bg-white/10 hover:text-white"
+          >
+            Fechar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+type DialogDiaComPontoFacultativoProps = {
+  data: string | null
+  pontos: PontoFacultativo[]
+  onClose: () => void
+}
+
+function DialogDiaComPontoFacultativo({
+  data,
+  pontos,
+  onClose,
+}: DialogDiaComPontoFacultativoProps) {
+  if (!data) return null
+  const beneficios = [...new Set(pontos.flatMap((p) => p.beneficios))].join(" + ")
+  const totalVR = pontos.reduce((acc, p) => acc + (p.valorVR ?? 0), 0)
+  const totalVT = pontos.reduce((acc, p) => acc + (p.valorVT ?? 0), 0)
+  return (
+    <Dialog open={!!data} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent
+        className="glass-modal border-0 bg-transparent p-8 text-white sm:max-w-md"
+        style={{ backdropFilter: "blur(10px) saturate(140%) brightness(1.05)" }}
+      >
+        <DialogHeader>
+          <p className="text-[10px] uppercase tracking-[0.3em] text-emerald-200/80">
+            Ponto facultativo
+          </p>
+          <DialogTitle className="text-display text-3xl capitalize text-white">
+            {formatarDiaCompleto(data)}
+          </DialogTitle>
+          <DialogDescription className="text-white/65">
+            Este dia jÃ¡ foi tratado por ponto facultativo. Falta ou atraso
+            manual fica bloqueado para evitar desconto duplicado.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="mt-2 rounded-2xl border border-emerald-200/18 bg-emerald-200/[0.06] p-4 text-sm text-white/78">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-emerald-100/65">
+            BenefÃ­cios aplicados
+          </p>
+          <p className="mt-1 text-lg font-medium text-white">
+            {beneficios || "Sem novo desconto"}
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div className="rounded-xl bg-white/[0.04] px-3 py-2">
+              <span className="block text-white/40">VR</span>
+              <span className="text-white/85">
+                {totalVR.toLocaleString("pt-BR", {
+                  style: "currency",
+                  currency: "BRL",
+                })}
+              </span>
+            </div>
+            <div className="rounded-xl bg-white/[0.04] px-3 py-2">
+              <span className="block text-white/40">VT</span>
+              <span className="text-white/85">
+                {totalVT.toLocaleString("pt-BR", {
+                  style: "currency",
+                  currency: "BRL",
+                })}
+              </span>
+            </div>
+          </div>
+        </div>
 
         <DialogFooter className="mt-2 sm:justify-end">
           <Button

@@ -9,6 +9,7 @@ import { DescontosPage } from "@/features/descontos/DescontosPage"
 import { HubPage } from "@/features/hub/HubPage"
 import { TestePage } from "@/features/hub/TestePage"
 import { PreencherPage } from "@/features/preencher/PreencherPage"
+import { PontoFacultativoPage } from "@/features/ponto-facultativo/PontoFacultativoPage"
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
             <Route path="/corrigir" element={<CorrecaoPage />} />
             <Route path="/convocar" element={<ConvocarPage />} />
             <Route path="/atestados" element={<AtestadosPage />} />
+            <Route path="/ponto-facultativo" element={<PontoFacultativoPage />} />
             <Route path="/descontos/:uuid" element={<DescontosPage />} />
           </Routes>
         )}
