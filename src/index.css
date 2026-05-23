@@ -2329,3 +2329,174 @@ html {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* ─── Tiles do Ponto Facultativo (escolha de contrato) ──────────────
+   Cada tone tem background sutil + halo radial expandindo no hover
+   via ::before. Tile sobe 2px + scale leve. Ícone ganha keyframe
+   contextual por tone/anim (heart-beat, cap-swing, car-drive, etc). */
+
+.tile-contrato {
+  --mx: 50;
+  --my: 50;
+  position: relative;
+  isolation: isolate;
+  cursor: pointer;
+  background-color: var(--tile-bg, rgba(255, 255, 255, 0.03));
+  transform-style: preserve-3d;
+  transition:
+    transform 280ms cubic-bezier(0.34, 1.4, 0.5, 1),
+    border-color 220ms ease,
+    background-color 220ms ease,
+    box-shadow 240ms ease;
+}
+
+.tile-contrato[data-tone="emerald"] {
+  --tile-bg: rgba(110, 231, 183, 0.06);
+  --tile-glow: rgba(110, 231, 183, 0.14);
+}
+.tile-contrato[data-tone="amber"] {
+  --tile-bg: rgba(232, 194, 117, 0.06);
+  --tile-glow: rgba(232, 194, 117, 0.14);
+}
+.tile-contrato[data-tone="sky"] {
+  --tile-bg: rgba(125, 211, 252, 0.06);
+  --tile-glow: rgba(125, 211, 252, 0.14);
+}
+.tile-contrato[data-tone="rose"] {
+  --tile-bg: rgba(252, 165, 165, 0.06);
+  --tile-glow: rgba(252, 165, 165, 0.14);
+}
+.tile-contrato[data-tone="violet"] {
+  --tile-bg: rgba(196, 181, 253, 0.06);
+  --tile-glow: rgba(196, 181, 253, 0.14);
+}
+
+/* Halo radial no ponto do cursor — só visível no hover */
+.tile-contrato::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    circle at calc(var(--mx) * 1%) calc(var(--my) * 1%),
+    var(--tile-glow, rgba(255, 255, 255, 0.08)) 0%,
+    transparent 55%
+  );
+  transition: opacity 240ms ease;
+  z-index: 0;
+}
+.tile-contrato > * {
+  position: relative;
+  z-index: 1;
+}
+.tile-contrato:hover {
+  transform: translateY(-2px) scale(1.012);
+}
+.tile-contrato:hover::before {
+  opacity: 1;
+}
+.tile-contrato:active {
+  transform: translateY(0) scale(0.985);
+  transition: transform 90ms ease-out;
+}
+
+/* ─── Animações específicas por contrato (Ponto Facultativo) ────────
+   Cada ícone tem keyframe contextual com identidade do contrato.
+   Disparam no hover do .tile-contrato pai via seletor [data-tone] ou
+   [data-anim]. data-anim sobrescreve quando subgrupo SEDUC precisa de
+   animação diferente da raiz (cap-swing). */
+
+/* SEMSA — batimento cardíaco */
+@keyframes heart-beat {
+  0%   { transform: scale(1); }
+  12%  { transform: scale(1.18); }
+  28%  { transform: scale(0.92); }
+  48%  { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+.tile-contrato[data-tone="emerald"]:hover [data-icon-anim] {
+  animation: heart-beat 520ms cubic-bezier(0.34, 1.4, 0.5, 1);
+}
+
+/* SEDUC raiz + subgrupo Escola — borla swing */
+@keyframes cap-swing {
+  0%   { transform: rotate(0deg); }
+  25%  { transform: rotate(-10deg); }
+  55%  { transform: rotate(10deg); }
+  80%  { transform: rotate(-4deg); }
+  100% { transform: rotate(0deg); }
+}
+.tile-contrato[data-anim="cap-swing"]:hover [data-icon-anim] {
+  animation: cap-swing 600ms ease-in-out;
+  transform-origin: 50% 25%;
+}
+
+/* DETRAN — carro andando */
+@keyframes car-drive {
+  0%   { transform: translateX(0); }
+  45%  { transform: translateX(4px); }
+  70%  { transform: translateX(-1px); }
+  100% { transform: translateX(0); }
+}
+.tile-contrato[data-tone="sky"]:hover [data-icon-anim] {
+  animation: car-drive 500ms cubic-bezier(0.34, 1.4, 0.5, 1);
+}
+
+/* TRE PB — carimbo batendo */
+@keyframes vote-stamp {
+  0%   { transform: scale(0.85) rotate(-6deg); }
+  45%  { transform: scale(1.15) rotate(2deg); }
+  75%  { transform: scale(0.96) rotate(-1deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+.tile-contrato[data-tone="rose"]:hover [data-icon-anim] {
+  animation: vote-stamp 480ms cubic-bezier(0.34, 1.46, 0.5, 1);
+}
+
+/* CETAM — página virando */
+@keyframes book-flip {
+  0%   { transform: perspective(400px) rotateY(0); }
+  40%  { transform: perspective(400px) rotateY(-28deg); }
+  70%  { transform: perspective(400px) rotateY(8deg); }
+  100% { transform: perspective(400px) rotateY(0); }
+}
+.tile-contrato[data-tone="violet"]:hover [data-icon-anim] {
+  animation: book-flip 560ms ease-in-out;
+}
+
+/* SEDUC SEDE — prédio firme (lift + scale, sem rotação) */
+@keyframes building-rise {
+  0%   { transform: translateY(0) scale(1); }
+  50%  { transform: translateY(-3px) scale(1.06); }
+  100% { transform: translateY(0) scale(1); }
+}
+.tile-contrato[data-anim="building-rise"]:hover [data-icon-anim] {
+  animation: building-rise 420ms cubic-bezier(0.34, 1.4, 0.5, 1);
+}
+
+/* SEDUC INTERIOR — vento na árvore */
+@keyframes tree-sway {
+  0%   { transform: rotate(0deg); }
+  25%  { transform: rotate(-4deg); }
+  55%  { transform: rotate(4deg); }
+  80%  { transform: rotate(-2deg); }
+  100% { transform: rotate(0deg); }
+}
+.tile-contrato[data-anim="tree-sway"]:hover [data-icon-anim] {
+  animation: tree-sway 720ms ease-in-out;
+  transform-origin: 50% 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile-contrato:hover {
+    transform: none !important;
+  }
+  .tile-contrato::before {
+    opacity: 0 !important;
+  }
+  .tile-contrato:hover [data-icon-anim] {
+    animation: none !important;
+  }
+}

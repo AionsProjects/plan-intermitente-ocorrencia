@@ -222,13 +222,18 @@ function EtapaContrato({
           </button>
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
-          {SEDUC_SUBGRUPOS.map(({ contrato: c, meta }) => (
-            <TileContrato
+          {SEDUC_SUBGRUPOS.map(({ contrato: c, meta }, i) => (
+            <div
               key={c}
-              meta={meta}
-              selecionado={contrato === c}
-              onClick={() => onSelecionar(c)}
-            />
+              className="fade-up"
+              style={{ animationDelay: `${50 + i * 50}ms` }}
+            >
+              <TileContrato
+                meta={meta}
+                selecionado={contrato === c}
+                onClick={() => onSelecionar(c)}
+              />
+            </div>
           ))}
         </div>
       </section>
@@ -243,24 +248,29 @@ function EtapaContrato({
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         {(Object.entries(GRUPO_META) as [GrupoContratoId, ContratoMeta][]).map(
-          ([id, meta]) => {
+          ([id, meta], i) => {
             const ehSeducGrupo = id === "SEDUC"
             const contratoCorrente =
               !ehSeducGrupo && (contrato === id as ContratoPontoFacultativo)
             return (
-              <TileContrato
+              <div
                 key={id}
-                meta={meta}
-                selecionado={!!contratoCorrente}
-                temSubgrupo={ehSeducGrupo}
-                onClick={() => {
-                  if (ehSeducGrupo) {
-                    setSubview("seduc")
-                    return
-                  }
-                  onSelecionar(id as ContratoPontoFacultativo)
-                }}
-              />
+                className="fade-up"
+                style={{ animationDelay: `${80 + i * 70}ms` }}
+              >
+                <TileContrato
+                  meta={meta}
+                  selecionado={!!contratoCorrente}
+                  temSubgrupo={ehSeducGrupo}
+                  onClick={() => {
+                    if (ehSeducGrupo) {
+                      setSubview("seduc")
+                      return
+                    }
+                    onSelecionar(id as ContratoPontoFacultativo)
+                  }}
+                />
+              </div>
             )
           },
         )}
@@ -301,16 +311,21 @@ function TileContrato({
       onClick={onClick}
       onMouseMove={handleTiltMove}
       onMouseLeave={handleTiltLeave}
-      className={`glass-tile glass-tile-3d group relative flex w-full items-center gap-3.5 rounded-2xl border px-4 py-4 text-left transition ${
+      data-tone={meta.tone}
+      data-anim={meta.animOverride}
+      className={`tile-contrato group relative flex w-full items-center gap-3.5 rounded-2xl border px-4 py-4 text-left ${
         tones.border
-      } ${tones.bg} ${tones.bgHover} ${tones.glow} ${
+      } ${
         selecionado ? "ring-2 ring-offset-2 ring-offset-transparent ring-white/60" : ""
       }`}
     >
       <div
         className={`icon-3d-host flex size-11 shrink-0 items-center justify-center rounded-full ring-1 ${tones.iconBg} ${tones.iconRing}`}
       >
-        <Icon className={`icon-3d-only size-5 ${tones.iconColor}`} />
+        <Icon
+          data-icon-anim
+          className={`icon-3d-soft size-5 ${tones.iconColor}`}
+        />
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-base font-medium leading-tight text-white/95">
@@ -320,27 +335,30 @@ function TileContrato({
           {meta.descricao}
         </p>
         {(meta.ativos != null || meta.hoje != null) && (
-          <p className="mt-1.5 flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-white/45">
+          <p className="mt-2 flex items-center gap-2 text-xs">
             {meta.ativos != null && (
-              <span>
-                <span className="font-mono text-white/80">{meta.ativos}</span>{" "}
-                ativos
+              <span className="rounded-full bg-white/[0.06] px-2 py-0.5">
+                <span className="font-mono font-medium text-white/90">
+                  {meta.ativos}
+                </span>{" "}
+                <span className="text-white/55">ativos</span>
               </span>
             )}
-            {meta.ativos != null && meta.hoje != null && (
-              <span className="text-white/25">·</span>
-            )}
-            {meta.hoje != null && (
-              <span>
-                <span className="font-mono text-white/80">{meta.hoje}</span>{" "}
-                hoje
+            {meta.hoje != null && meta.hoje > 0 && (
+              <span
+                className={`rounded-full px-2 py-0.5 ${tones.iconBg} ${tones.text}`}
+              >
+                <span className="font-mono font-medium">{meta.hoje}</span>{" "}
+                <span className="opacity-75">hoje</span>
               </span>
             )}
           </p>
         )}
       </div>
       {temSubgrupo ? (
-        <ChevronRight className="size-4 shrink-0 text-white/40 transition-transform group-hover:translate-x-0.5 group-hover:text-white/80" />
+        <ChevronRight
+          className={`size-5 shrink-0 transition-all duration-300 ${tones.iconColor} opacity-60 group-hover:translate-x-1 group-hover:opacity-100`}
+        />
       ) : null}
     </button>
   )

@@ -39,6 +39,10 @@ export type ContratoMeta = {
   /** TODO Codex: substituir por endpoint /ponto-facultativo-contratos-ativos */
   ativos?: number
   hoje?: number
+  /** Override do keyframe de hover do ícone. Quando ausente, fallback usa
+   *  o keyframe default do `data-tone` (heart-beat / cap-swing / car-drive
+   *  / vote-stamp / book-flip). Usado pra subgrupos SEDUC ter anim própria. */
+  animOverride?: "cap-swing" | "building-rise" | "tree-sway"
 }
 
 export const GRUPO_META: Record<GrupoContratoId, ContratoMeta> = {
@@ -57,6 +61,7 @@ export const GRUPO_META: Record<GrupoContratoId, ContratoMeta> = {
     descricao: "Educação — escolha o subgrupo",
     ativos: 412,
     hoje: 34,
+    animOverride: "cap-swing",
   },
   DETRAN: {
     label: "DETRAN",
@@ -98,6 +103,7 @@ export const SEDUC_SUBGRUPOS: Array<{
       descricao: "Unidades escolares",
       ativos: 287,
       hoje: 24,
+      animOverride: "cap-swing",
     },
   },
   {
@@ -109,6 +115,7 @@ export const SEDUC_SUBGRUPOS: Array<{
       descricao: "Administração central",
       ativos: 58,
       hoje: 6,
+      animOverride: "building-rise",
     },
   },
   {
@@ -120,6 +127,7 @@ export const SEDUC_SUBGRUPOS: Array<{
       descricao: "Unidades do interior",
       ativos: 67,
       hoje: 4,
+      animOverride: "tree-sway",
     },
   },
 ]
