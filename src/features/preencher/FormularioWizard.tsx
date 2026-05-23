@@ -265,11 +265,16 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
   const [splitErro, setSplitErro] = useState<string | null>(null)
 
   // Set de dias da Parte 2 do split (vigente no backend). Visual violeta.
+  // Usa diasInfo (não dados.dias) pra incluir sábados extras + qualquer
+  // outro dia adicionado fora do período base — partição é pela DATA,
+  // não pela origem. Sem isso, sábados extras caíam sempre na Parte 1.
   const diasParte2 = useMemo<Set<string>>(() => {
     const inicio = dados.split?.dataInicioParte2
     if (!inicio) return new Set()
-    return new Set(dados.dias.filter((d) => d >= inicio))
-  }, [dados.split?.dataInicioParte2, dados.dias])
+    return new Set(
+      diasInfo.filter((d) => d.data >= inicio).map((d) => d.data),
+    )
+  }, [dados.split?.dataInicioParte2, diasInfo])
   const splitAtivo = !!dados.split
 
   // Auto-fecha dialog de split após etapa "sucesso" — useEffect com cleanup
