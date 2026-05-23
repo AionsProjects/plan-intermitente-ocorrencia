@@ -47,8 +47,12 @@ function mockItem(
   }
 }
 
-function mockPreview(payload: PontoFacultativoPayload): PontoFacultativoPreview {
-  const itens = [0, 1, 2].map((i) => mockItem(i, payload))
+/** Mock preview — exportado para a área de testes pré-popular estados. */
+export function mockPreview(
+  payload: PontoFacultativoPayload,
+  opts: { vazio?: boolean } = {},
+): PontoFacultativoPreview {
+  const itens = opts.vazio ? [] : [0, 1, 2].map((i) => mockItem(i, payload))
   return {
     ok: true,
     contrato: payload.contrato,

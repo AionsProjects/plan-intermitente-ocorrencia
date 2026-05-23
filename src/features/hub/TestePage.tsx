@@ -1,5 +1,11 @@
 import { Link, useNavigate } from "react-router-dom"
-import { ArrowLeft, ArrowUpRight, FlaskConical, KeyRound } from "lucide-react"
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  CalendarDays,
+  FlaskConical,
+  KeyRound,
+} from "lucide-react"
 
 export function TestePage() {
   const navigate = useNavigate()
@@ -110,7 +116,27 @@ export function TestePage() {
           ))}
         </div>
 
-        <div className="mt-6 border-t border-white/10 pt-6">
+        <div className="mt-6 grid gap-2.5 border-t border-white/10 pt-6">
+          <Link
+            to="/teste/ponto-facultativo"
+            className="glass-tile group flex items-center justify-between rounded-2xl px-5 py-4"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex size-9 items-center justify-center rounded-full bg-emerald-300/12 ring-1 ring-emerald-300/30">
+                <CalendarDays className="size-4 text-emerald-200" />
+              </div>
+              <div>
+                <p className="text-[15px] font-medium text-white/95">
+                  Mocks · ponto facultativo
+                </p>
+                <p className="mt-0.5 text-xs text-white/55">
+                  Pula direto pra cada etapa (escolha, dia, benefícios, prévia, sucesso).
+                </p>
+              </div>
+            </div>
+            <ArrowUpRight className="size-4 text-white/55 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-white" />
+          </Link>
+
           <Link
             to="/corrigir"
             className="glass-tile group flex items-center justify-between rounded-2xl px-5 py-4"

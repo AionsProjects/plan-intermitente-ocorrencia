@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   addDays,
   endOfMonth,
@@ -9,17 +9,21 @@ import {
   startOfWeek,
 } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { Link } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 import {
   ArrowLeft,
   Building2,
   CalendarDays,
   CheckCircle2,
   ChevronRight,
+  Coins,
   GraduationCap,
   Loader2,
-  WalletCards,
+  Sparkles,
+  UserX,
   Users,
+  UtensilsCrossed,
+  WalletCards,
 } from "lucide-react"
 
 import { SlideStack, type SlideDirection } from "@/components/SlideStack"
@@ -29,6 +33,7 @@ import {
   nomeFeriadoNacional,
 } from "@/lib/feriadosBr"
 
+import { mockPreview } from "./api"
 import {
   GRUPO_META,
   SEDUC_SUBGRUPOS,
@@ -39,6 +44,7 @@ import {
 import {
   type BeneficioPontoFacultativo,
   type ContratoPontoFacultativo,
+  type PontoFacultativoItem,
   type PontoFacultativoPayload,
   type PontoFacultativoPreview,
 } from "./types"
@@ -48,6 +54,87 @@ import {
 } from "./usePontoFacultativo"
 
 type Etapa = "contrato" | "data" | "beneficios" | "confirmar" | "sucesso"
+
+/** Seeds aceitos via `?seed=` — pré-popula estado para testes visuais. */
+type Seed =
+  | "data"
+  | "beneficios"
+  | "confirmar-cheio"
+  | "confirmar-vazio"
+  | "sucesso"
+
+function dataMockISO(): string {
+  const d = new Date()
+  // dia 5 do mês atual, ou dia atual se já passou
+  const dia = Math.min(5, d.getDate())
+  return format(new Date(d.getFullYear(), d.getMonth(), dia), "yyyy-MM-dd")
+}
+
+function aplicarSeed(seed: string | null): {
+  etapa: Etapa
+  contrato: ContratoPontoFacultativo | null
+  data: string | null
+  beneficios: BeneficioPontoFacultativo[]
+  preview: PontoFacultativoPreview | null
+} {
+  const s = seed as Seed
+  switch (s) {
+    case "data":
+      return { etapa: "data", contrato: "SEMSA", data: null, beneficios: [], preview: null }
+    case "beneficios":
+      return {
+        etapa: "beneficios",
+        contrato: "SEDUC SEDE",
+        data: dataMockISO(),
+        beneficios: ["VR"],
+        preview: null,
+      }
+    case "confirmar-cheio": {
+      const p: PontoFacultativoPayload = {
+        contrato: "SEDUC SEDE",
+        data: dataMockISO(),
+        beneficios: ["VR", "VT"],
+      }
+      return {
+        etapa: "confirmar",
+        contrato: p.contrato,
+        data: p.data,
+        beneficios: p.beneficios,
+        preview: mockPreview(p),
+      }
+    }
+    case "confirmar-vazio": {
+      const p: PontoFacultativoPayload = {
+        contrato: "CETAM",
+        data: dataMockISO(),
+        beneficios: ["VR"],
+      }
+      return {
+        etapa: "confirmar",
+        contrato: p.contrato,
+        data: p.data,
+        beneficios: p.beneficios,
+        preview: mockPreview(p, { vazio: true }),
+      }
+    }
+    case "sucesso": {
+      const p: PontoFacultativoPayload = {
+        contrato: "DETRAN",
+        data: dataMockISO(),
+        beneficios: ["VR", "VT"],
+      }
+      return {
+        etapa: "sucesso",
+        contrato: p.contrato,
+        data: p.data,
+        beneficios: p.beneficios,
+        preview: mockPreview(p),
+      }
+    }
+    default:
+      return { etapa: "contrato", contrato: null, data: null, beneficios: [], preview: null }
+  }
+}
 
 function etapaKey(e: Etapa): string {
   return `ponto-${e}`
@@ -71,12 +158,25 @@ function payloadValido(
 }
 
 export function PontoFacultativoPage() {
-  const [etapa, setEtapa] = useState<Etapa>("contrato")
+  const [search] = useSearchParams()
+  const seed = search.get("seed")
+  const inicial = useMemo(() => aplicarSeed(seed), [seed])
+
+  const [etapa, setEtapa] = useState<Etapa>(inicial.etapa)
   const [direcao, setDirecao] = useState<SlideDirection>("forward")
-  const [contrato, setContrato] = useState<ContratoPontoFacultativo | null>(null)
-  const [data, setData] = useState<string | null>(null)
-  const [beneficios, setBeneficios] = useState<BeneficioPontoFacultativo[]>([])
-  const [preview, setPreview] = useState<PontoFacultativoPreview | null>(null)
+  const [contrato, setContrato] = useState<ContratoPontoFacultativo | null>(inicial.contrato)
+  const [data, setData] = useState<string | null>(inicial.data)
+  const [beneficios, setBeneficios] = useState<BeneficioPontoFacultativo[]>(inicial.beneficios)
+  const [preview, setPreview] = useState<PontoFacultativoPreview | null>(inicial.preview)
+
+  // Se o seed mudar (navegação interna no /teste/ponto-facultativo), re-aplica.
+  useEffect(() => {
+    setEtapa(inicial.etapa)
+    setContrato(inicial.contrato)
+    setData(inicial.data)
+    setBeneficios(inicial.beneficios)
+    setPreview(inicial.preview)
+  }, [inicial])
 
   const previewMut = usePreviewPontoFacultativo()
   const aplicarMut = useAplicarPontoFacultativo()
@@ -482,31 +582,42 @@ function EtapaBeneficios({
         <WalletCards className="size-5 text-emerald-200" />
         <h2 className="text-lg font-medium">Benefícios a descontar</h2>
       </div>
-      <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/62">
-        {contrato} · {data ? formatarData(data) : ""}
+
+      {/* Chips do contexto — substitui a barra vazia anterior */}
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        {contrato && (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1.5 text-xs text-white/82">
+            <Building2 className="size-3.5 text-emerald-200/85" />
+            {contrato}
+          </span>
+        )}
+        {data && (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1.5 text-xs text-white/82">
+            <CalendarDays className="size-3.5 text-emerald-200/85" />
+            {formatarData(data)}
+          </span>
+        )}
       </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <ChoiceButton
-          selected={beneficios.includes("VR")}
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <TileBeneficio
+          icone={UtensilsCrossed}
+          tone="emerald"
+          titulo="VR"
+          descricao="Vale refeição"
+          selecionado={beneficios.includes("VR")}
           onClick={() => onToggle("VR")}
-          className="min-h-20 justify-start px-4 text-left"
-        >
-          <span>
-            <span className="block text-base font-medium">VR</span>
-            <span className="mt-1 block text-sm text-white/48">Vale refeição</span>
-          </span>
-        </ChoiceButton>
-        <ChoiceButton
-          selected={beneficios.includes("VT")}
+        />
+        <TileBeneficio
+          icone={Coins}
+          tone="sky"
+          titulo="VT"
+          descricao="Vale transporte"
+          selecionado={beneficios.includes("VT")}
           onClick={() => onToggle("VT")}
-          className="min-h-20 justify-start px-4 text-left"
-        >
-          <span>
-            <span className="block text-base font-medium">VT</span>
-            <span className="mt-1 block text-sm text-white/48">Vale transporte</span>
-          </span>
-        </ChoiceButton>
+        />
       </div>
+
       {erro && (
         <p className="mt-4 rounded-xl border border-rose-300/30 bg-rose-300/10 px-3 py-2 text-sm text-rose-100">
           {erro}
@@ -529,6 +640,76 @@ function EtapaBeneficios({
   )
 }
 
+function TileBeneficio({
+  icone: Icone,
+  tone,
+  titulo,
+  descricao,
+  selecionado,
+  onClick,
+}: {
+  icone: typeof UtensilsCrossed
+  tone: "emerald" | "sky"
+  titulo: string
+  descricao: string
+  selecionado: boolean
+  onClick: () => void
+}) {
+  const tones = TONE_CLASSES[tone]
+
+  function handleTiltMove(e: React.MouseEvent<HTMLButtonElement>) {
+    const r = e.currentTarget.getBoundingClientRect()
+    const mx = ((e.clientX - r.left) / r.width) * 100
+    const my = ((e.clientY - r.top) / r.height) * 100
+    e.currentTarget.style.setProperty("--mx", String(mx))
+    e.currentTarget.style.setProperty("--my", String(my))
+  }
+  function handleTiltLeave(e: React.MouseEvent<HTMLButtonElement>) {
+    e.currentTarget.style.setProperty("--mx", "50")
+    e.currentTarget.style.setProperty("--my", "50")
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onMouseMove={handleTiltMove}
+      onMouseLeave={handleTiltLeave}
+      data-tone={tone}
+      data-selected={selecionado || undefined}
+      className="tile-contrato tile-beneficio group relative flex w-full items-center gap-4 rounded-2xl border border-white/12 px-4 py-5 text-left"
+    >
+      <div
+        className={`icon-3d-host flex size-12 shrink-0 items-center justify-center rounded-2xl ring-1 ${tones.iconBg} ${tones.iconRing}`}
+      >
+        <Icone className={`size-5 ${tones.iconColor}`} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-lg font-semibold leading-tight text-white">
+          {titulo}
+        </p>
+        <p className="mt-0.5 text-xs text-white/55">{descricao}</p>
+      </div>
+      <div
+        aria-hidden
+        className={`flex size-6 shrink-0 items-center justify-center rounded-full border transition ${
+          selecionado
+            ? tone === "emerald"
+              ? "border-emerald-300/70 bg-emerald-300/25"
+              : "border-sky-300/70 bg-sky-300/25"
+            : "border-white/15 bg-white/[0.03]"
+        }`}
+      >
+        {selecionado && (
+          <CheckCircle2
+            className={`size-4 ${tone === "emerald" ? "text-emerald-200" : "text-sky-200"}`}
+          />
+        )}
+      </div>
+    </button>
+  )
+}
+
 function EtapaConfirmar({
   preview,
   erro,
@@ -542,6 +723,7 @@ function EtapaConfirmar({
   onVoltar: () => void
   onAplicar: () => void
 }) {
+  const vazio = preview.itens.length === 0
   return (
     <section>
       <div className="mb-5 flex items-center justify-between gap-4">
@@ -549,50 +731,40 @@ function EtapaConfirmar({
           <Users className="size-5 text-emerald-200" />
           <h2 className="text-lg font-medium">Prévia de afetados</h2>
         </div>
-        <span className="rounded-full border border-emerald-200/25 bg-emerald-200/10 px-3 py-1 text-xs text-emerald-100">
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs ${
+            vazio
+              ? "border-white/15 bg-white/[0.04] text-white/65"
+              : "border-emerald-200/35 bg-emerald-200/14 text-emerald-100"
+          }`}
+        >
+          <span
+            className={`size-1.5 rounded-full ${
+              vazio ? "bg-white/40" : "bg-emerald-300 shadow-[0_0_8px_2px_rgba(110,231,183,0.55)]"
+            }`}
+          />
           {preview.totalColaboradores} convocados
         </span>
       </div>
+
       <ResumoTotais preview={preview} />
-      <div className="mt-5 max-h-[22rem] space-y-2 overflow-y-auto pr-1">
-        {preview.itens.length === 0 ? (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-sm text-white/55">
-            Nenhum intermitente ativo encontrado para esse contrato e dia.
-          </div>
+
+      <div className="mt-5 max-h-[22rem] space-y-2.5 overflow-y-auto pr-1">
+        {vazio ? (
+          <EstadoVazio />
         ) : (
-          preview.itens.map((item) => (
+          preview.itens.map((item, i) => (
             <div
               key={`${item.itemEntradaId}-${item.chapa}`}
-              className="rounded-2xl border border-white/10 bg-white/[0.035] p-4"
+              className="fade-up"
+              style={{ animationDelay: `${60 + i * 50}ms` }}
             >
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <p className="font-medium text-white/92">{item.nome}</p>
-                  <p className="mt-1 text-xs text-white/45">
-                    {item.chapa} · {item.periodoInicio} a {item.periodoFim}
-                  </p>
-                </div>
-                <p className="text-sm font-semibold text-emerald-100">
-                  {moeda(item.total)}
-                </p>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                <span className={`rounded-full px-2 py-1 ${item.aplicaVR ? "bg-emerald-300/14 text-emerald-100" : "bg-white/[0.04] text-white/36"}`}>
-                  VR {moeda(item.valorVR)}
-                </span>
-                <span className={`rounded-full px-2 py-1 ${item.aplicaVT ? "bg-sky-300/14 text-sky-100" : "bg-white/[0.04] text-white/36"}`}>
-                  VT {moeda(item.valorVT)}
-                </span>
-                {item.avisos.map((a) => (
-                  <span key={a} className="rounded-full bg-amber-300/12 px-2 py-1 text-amber-100">
-                    {a}
-                  </span>
-                ))}
-              </div>
+              <CardIntermitente item={item} />
             </div>
           ))
         )}
       </div>
+
       {erro && (
         <p className="mt-4 rounded-xl border border-rose-300/30 bg-rose-300/10 px-3 py-2 text-sm text-rose-100">
           {erro}
@@ -605,7 +777,7 @@ function EtapaConfirmar({
         <ChoiceButton
           variant="primary"
           onClick={onAplicar}
-          disabled={carregando || preview.itens.length === 0}
+          disabled={carregando || vazio}
         >
           {carregando && <Loader2 className="size-4 animate-spin" />}
           Confirmar ponto facultativo
@@ -615,20 +787,160 @@ function EtapaConfirmar({
   )
 }
 
+function EstadoVazio() {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/12 bg-white/[0.02] px-5 py-10 text-center">
+      <div className="flex size-14 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] text-white/55">
+        <UserX className="size-6" />
+      </div>
+      <p className="mt-4 text-sm font-medium text-white/78">
+        Nenhum intermitente ativo
+      </p>
+      <p className="mt-1 max-w-xs text-xs leading-relaxed text-white/45">
+        Não há convocações ativas para esse contrato no dia escolhido.
+        Volte e tente outro dia ou contrato.
+      </p>
+    </div>
+  )
+}
+
+function CardIntermitente({ item }: { item: PontoFacultativoItem }) {
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035] p-4 transition hover:border-white/20 hover:bg-white/[0.05]">
+      {/* halo lateral discreto na cor do total */}
+      <span className="pointer-events-none absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b from-emerald-300/60 via-emerald-300/20 to-transparent" />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="truncate font-medium text-white/92">{item.nome}</p>
+          <p className="mt-1 text-xs text-white/45">
+            {item.chapa}
+            {item.funcao ? ` · ${item.funcao}` : ""}
+          </p>
+          <p className="mt-0.5 text-[11px] text-white/35">
+            {item.periodoInicio} a {item.periodoFim}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-white/35">Total</p>
+          <p className="mt-0.5 text-base font-semibold text-emerald-100">
+            {moeda(item.total)}
+          </p>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
+        <BadgeBeneficio aplicado={item.aplicaVR} tone="emerald" label="VR" valor={item.valorVR} />
+        <BadgeBeneficio aplicado={item.aplicaVT} tone="sky" label="VT" valor={item.valorVT} />
+        {item.avisos.map((a) => (
+          <span
+            key={a}
+            className="inline-flex items-center gap-1 rounded-full border border-amber-300/30 bg-amber-300/10 px-2 py-0.5 text-amber-100"
+          >
+            <Sparkles className="size-3" />
+            {a}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function BadgeBeneficio({
+  aplicado,
+  tone,
+  label,
+  valor,
+}: {
+  aplicado: boolean
+  tone: "emerald" | "sky"
+  label: string
+  valor: number
+}) {
+  const cls = aplicado
+    ? tone === "emerald"
+      ? "border-emerald-300/35 bg-emerald-300/12 text-emerald-100"
+      : "border-sky-300/35 bg-sky-300/12 text-sky-100"
+    : "border-white/8 bg-white/[0.03] text-white/32 line-through decoration-white/20"
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 ${cls}`}>
+      <span className="font-semibold">{label}</span>
+      <span className="opacity-85">{moeda(valor)}</span>
+    </span>
+  )
+}
+
 function ResumoTotais({ preview }: { preview: PontoFacultativoPreview }) {
   return (
     <div className="grid gap-3 sm:grid-cols-3">
-      <div className="rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3">
-        <p className="text-[10px] uppercase tracking-[0.22em] text-white/38">VR</p>
-        <p className="mt-1 text-lg font-semibold text-white">{moeda(preview.totalVR)}</p>
+      <CardTotal
+        icone={UtensilsCrossed}
+        label="VR"
+        valor={preview.totalVR}
+        tone="emerald"
+      />
+      <CardTotal
+        icone={Coins}
+        label="VT"
+        valor={preview.totalVT}
+        tone="sky"
+      />
+      <CardTotal
+        icone={WalletCards}
+        label="Total"
+        valor={preview.total}
+        tone="total"
+      />
+    </div>
+  )
+}
+
+function CardTotal({
+  icone: Icone,
+  label,
+  valor,
+  tone,
+}: {
+  icone: typeof UtensilsCrossed
+  label: string
+  valor: number
+  tone: "emerald" | "sky" | "total"
+}) {
+  const styles =
+    tone === "total"
+      ? {
+          wrap: "border-emerald-200/30 bg-gradient-to-br from-emerald-300/12 via-emerald-200/[0.04] to-transparent shadow-[0_8px_28px_-12px_rgba(110,231,183,0.45)]",
+          label: "text-emerald-100/75",
+          valor: "text-emerald-50",
+          iconBg: "bg-emerald-300/14 ring-emerald-300/35 text-emerald-200",
+        }
+      : tone === "emerald"
+        ? {
+            wrap: "border-white/10 bg-white/[0.035]",
+            label: "text-white/45",
+            valor: "text-white",
+            iconBg: "bg-emerald-300/10 ring-emerald-300/25 text-emerald-200/85",
+          }
+        : {
+            wrap: "border-white/10 bg-white/[0.035]",
+            label: "text-white/45",
+            valor: "text-white",
+            iconBg: "bg-sky-300/10 ring-sky-300/25 text-sky-200/85",
+          }
+  return (
+    <div
+      className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${styles.wrap}`}
+    >
+      <div
+        className={`flex size-9 shrink-0 items-center justify-center rounded-xl ring-1 ${styles.iconBg}`}
+      >
+        <Icone className="size-4" />
       </div>
-      <div className="rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3">
-        <p className="text-[10px] uppercase tracking-[0.22em] text-white/38">VT</p>
-        <p className="mt-1 text-lg font-semibold text-white">{moeda(preview.totalVT)}</p>
-      </div>
-      <div className="rounded-2xl border border-emerald-200/25 bg-emerald-200/10 px-4 py-3">
-        <p className="text-[10px] uppercase tracking-[0.22em] text-emerald-100/70">Total</p>
-        <p className="mt-1 text-lg font-semibold text-emerald-50">{moeda(preview.total)}</p>
+      <div className="min-w-0 flex-1">
+        <p className={`text-[10px] uppercase tracking-[0.22em] ${styles.label}`}>
+          {label}
+        </p>
+        <p className={`mt-0.5 font-mono text-base font-semibold ${styles.valor}`}>
+          {moeda(valor)}
+        </p>
       </div>
     </div>
   )
