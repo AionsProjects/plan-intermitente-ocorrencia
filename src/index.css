@@ -643,72 +643,188 @@
   animation: fade-up 680ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* Painel expansível (atestado retroativo, etc) — slide-down + fade.
-   Quando dentro de .retroativo-cluster-merged, vira blob "venum"
-   fundido com o chip via filtro SVG #goo-merge. */
-@keyframes painelExpandir {
-  0%   { opacity: 0; transform: translateY(-14px) scaleY(0.55); max-height: 0; }
-  60%  { opacity: 1; transform: translateY(-2px) scaleY(1.04); }
-  100% { opacity: 1; transform: translateY(0) scaleY(1); max-height: 320px; }
+/* ─── Atestado retroativo: container expansível UNIFICADO ───
+   Fechado: pill ícone-only que expande no hover (estilo btn-action-expand).
+   Aberto: mesmo container cresce horizontalmente revelando input + Liberar
+   inline — UM único shape, sem painel separado nem divisórias. */
+
+.retroativo-unlock {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  height: 2.25rem;
+  padding: 0;
+  border-radius: 9999px;
+  border: 1px solid rgba(232, 194, 117, 0.32);
+  background: rgba(232, 194, 117, 0.06);
+  color: rgba(255, 230, 176, 0.85);
+  backdrop-filter: url(#liquid-glass-soft) blur(6px) saturate(140%);
+  -webkit-backdrop-filter: url(#liquid-glass-soft) blur(6px) saturate(140%);
+  box-shadow:
+    0 6px 18px -6px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.18);
+  transition:
+    border-color 240ms ease,
+    background 240ms ease,
+    box-shadow 240ms ease,
+    padding 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  overflow: hidden;
 }
 
-.painel-retroativo {
-  transform-origin: top right;
+@supports not (backdrop-filter: url(#liquid-glass-soft)) {
+  .retroativo-unlock {
+    backdrop-filter: blur(14px) saturate(160%);
+    -webkit-backdrop-filter: blur(14px) saturate(160%);
+  }
 }
 
-/* ─── Goo / venum merge cluster ───
-   Aplica filtro SVG #goo-merge no wrapper enquanto painel aberto.
-   Backgrounds próximos com cor sólida se fundem em blob orgânico.
-   Texto interno ganha leve borda gooey — parte do efeito venum. */
-.retroativo-cluster {
-  width: fit-content;
-  max-width: 100%;
+/* Trigger (parte sempre visível: ícone + label) */
+.retroativo-unlock-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  height: 100%;
+  padding: 0 0.5rem;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: gap 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.retroativo-unlock-trigger svg {
+  transition: transform 320ms cubic-bezier(0.34, 1.4, 0.5, 1);
 }
 
-.retroativo-cluster-merged {
-  filter: url(#goo-merge);
-  will-change: filter;
+.retroativo-unlock-label {
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition:
+    max-width 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 240ms ease 60ms;
 }
 
-/* Painel encosta no chip pra goo conectar. Bg ÂMBAR SÓLIDO obrigatório
-   pro goo gerar blob (gradient transparente quebra a fusão). */
-.retroativo-cluster-merged > .painel-retroativo {
-  margin-top: -10px;
-  width: 100%;
-  min-width: 22rem;
+/* Hover quando fechado: expande pra revelar label */
+.retroativo-unlock:not(.retroativo-unlock-aberto):hover {
+  background: rgba(232, 194, 117, 0.16);
+  border-color: rgba(232, 194, 117, 0.55);
+  box-shadow:
+    0 0 24px 2px rgba(232, 194, 117, 0.28),
+    0 8px 18px -4px rgba(180, 128, 40, 0.46),
+    inset 0 1px 0 0 rgba(255, 237, 200, 0.26);
+}
+.retroativo-unlock:not(.retroativo-unlock-aberto):hover .retroativo-unlock-trigger {
+  gap: 0.375rem;
+  padding-right: 0.875rem;
+}
+.retroativo-unlock:not(.retroativo-unlock-aberto):hover .retroativo-unlock-label {
+  max-width: 10rem;
+  opacity: 1;
+}
+
+/* Estado aberto: container amplia pra incluir input + botão Liberar */
+.retroativo-unlock-aberto {
   background: rgba(40, 28, 8, 0.94);
   border-color: rgba(232, 194, 117, 0.55);
+  box-shadow:
+    0 0 32px 3px rgba(232, 194, 117, 0.35),
+    0 10px 24px -4px rgba(180, 128, 40, 0.56),
+    inset 0 1px 0 0 rgba(255, 237, 200, 0.22);
+  padding-right: 0.25rem;
+}
+.retroativo-unlock-aberto .retroativo-unlock-trigger {
+  gap: 0.375rem;
+  padding-right: 0.5rem;
+  color: rgba(255, 237, 200, 0.95);
+}
+.retroativo-unlock-aberto .retroativo-unlock-trigger svg {
+  transform: rotate(45deg);
+}
+.retroativo-unlock-aberto .retroativo-unlock-label {
+  max-width: 10rem;
+  opacity: 1;
 }
 
-/* Goo "drip" — quando chip está aberto, gota âmbar sai dele.
-   Pseudo no chip cria o conector que se funde com o painel. */
-.retroativo-cluster-merged .btn-atestado-retroativo-active::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: -8px;
-  transform: translateX(-50%);
-  width: 60%;
-  height: 14px;
-  background: inherit;
+/* Wrap do input + botão Liberar — encosta no trigger via mesma borda
+   do container pai (sem borda própria). Anima entrada via width grow. */
+.retroativo-unlock-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 100%;
+  padding-left: 0.5rem;
+  margin-left: 0.125rem;
+  border-left: 1px solid rgba(232, 194, 117, 0.2);
+  animation: retroativo-input-grow 320ms cubic-bezier(0.34, 1.4, 0.5, 1) both;
+}
+
+@keyframes retroativo-input-grow {
+  0%   { opacity: 0; max-width: 0; transform: translateX(-6px); }
+  100% { opacity: 1; max-width: 22rem; transform: translateX(0); }
+}
+
+.retroativo-unlock-input {
+  width: 9rem;
+  height: 1.65rem;
   border-radius: 999px;
-  pointer-events: none;
-  animation: goo-drip 520ms cubic-bezier(0.34, 1.4, 0.5, 1) backwards;
+  border: 1px solid rgba(232, 194, 117, 0.22);
+  background: rgba(0, 0, 0, 0.28);
+  padding: 0 0.75rem;
+  text-align: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125rem;
+  letter-spacing: 0.18em;
+  color: rgba(255, 237, 200, 0.95);
+  outline: none;
+  transition: border-color 200ms ease, background 200ms ease;
+}
+.retroativo-unlock-input::placeholder {
+  letter-spacing: 0.02em;
+  color: rgba(255, 237, 200, 0.32);
+  font-family: inherit;
+}
+.retroativo-unlock-input:focus {
+  border-color: rgba(232, 194, 117, 0.55);
+  background: rgba(0, 0, 0, 0.4);
 }
 
-@keyframes goo-drip {
-  0%   { transform: translateX(-50%) scaleY(0.2); opacity: 0; }
-  50%  { transform: translateX(-50%) scaleY(1.1); opacity: 1; }
-  100% { transform: translateX(-50%) scaleY(1);   opacity: 1; }
+.retroativo-unlock-liberar {
+  height: 1.65rem;
+  border-radius: 999px;
+  border: 1px solid rgba(232, 194, 117, 0.45);
+  background: rgba(232, 194, 117, 0.16);
+  padding: 0 0.75rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: rgba(255, 248, 220, 0.98);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 200ms ease, border-color 200ms ease, transform 120ms ease;
+}
+.retroativo-unlock-liberar:hover:not(:disabled) {
+  background: rgba(232, 194, 117, 0.28);
+  border-color: rgba(232, 194, 117, 0.7);
+}
+.retroativo-unlock-liberar:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.retroativo-unlock-liberar:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .painel-retroativo,
-  .retroativo-cluster-merged .btn-atestado-retroativo-active::after {
+  .retroativo-unlock,
+  .retroativo-unlock-trigger,
+  .retroativo-unlock-trigger svg,
+  .retroativo-unlock-label,
+  .retroativo-unlock-input-wrap {
+    transition: none !important;
     animation: none !important;
-  }
-  .retroativo-cluster-merged {
-    filter: none !important;
   }
 }
 
@@ -998,9 +1114,10 @@
   opacity: 1;
 }
 
-/* ─── Botão "Atestado retroativo" (âmbar) ─── */
+/* ─── Botão "Retroativo liberado · trancar" (âmbar — estado liberado) ───
+   Usado no chip persistente quando user já liberou retroativo no dia.
+   Estado fechar/trancar é btn-action-expand normal com tone âmbar. */
 .btn-action-expand.btn-atestado-retroativo {
-  position: relative;
   border-color: rgba(232, 194, 117, 0.32);
   background: rgba(232, 194, 117, 0.06);
   color: rgba(255, 230, 176, 0.85);
@@ -1013,31 +1130,22 @@
     0 8px 20px -4px rgba(180, 128, 40, 0.5),
     inset 0 1px 0 0 rgba(255, 237, 200, 0.3);
 }
-.btn-action-expand.btn-atestado-retroativo svg {
-  transition: transform 320ms cubic-bezier(0.34, 1.4, 0.5, 1);
-}
-/* Estado "ativo" — painel expandido: chip permanece largo + label visível.
-   Bg dark âmbar pra goo fundir com o painel (venum aesthetic).
-   Plus rotaciona 45° (vira X) sinalizando "fechar". */
 .btn-action-expand.btn-atestado-retroativo-active {
   background: rgba(40, 28, 8, 0.94);
   border-color: rgba(232, 194, 117, 0.6);
   color: rgba(255, 237, 200, 0.95);
   box-shadow:
-    0 0 32px 3px rgba(232, 194, 117, 0.35),
-    0 8px 22px -4px rgba(180, 128, 40, 0.56),
-    inset 0 1px 0 0 rgba(255, 237, 200, 0.18);
+    0 0 28px 2px rgba(232, 194, 117, 0.3),
+    0 8px 20px -4px rgba(180, 128, 40, 0.5),
+    inset 0 1px 0 0 rgba(255, 237, 200, 0.22);
   width: auto;
   gap: 0.375rem;
   padding-left: 0.75rem;
   padding-right: 0.875rem;
 }
 .btn-action-expand.btn-atestado-retroativo-active .btn-label {
-  max-width: 10rem;
+  max-width: 14rem;
   opacity: 1;
-}
-.btn-action-expand.btn-atestado-retroativo-active svg {
-  transform: rotate(45deg);
 }
 
 .btn-action-expand.btn-cancel-convocacao:hover {

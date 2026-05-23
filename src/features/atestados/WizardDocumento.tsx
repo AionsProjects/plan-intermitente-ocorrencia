@@ -858,14 +858,12 @@ function EtapaCalendario({
           </div>
         </div>
 
-        {/* Cluster chip + painel. Quando expandido, aplica filtro SVG goo
-            (#goo-merge) no wrapper — chip e painel viram um blob âmbar
-            único (efeito "venum"). Ambos têm bg sólido pra goo funcionar. */}
-        <div
-          className={`retroativo-cluster flex flex-col items-end ${
-            painelSenhaAberto && !retroativoAtivo ? "retroativo-cluster-merged" : ""
-          }`}
-        >
+        {/* Container ÚNICO que cresce horizontalmente pra revelar input.
+            Fechado: chip btn-action-expand normal (icone only idle, label
+            on hover). Aberto: mesma borda, expande pra direita esquerda
+            revelando input + Liberar inline. Sem segundo container,
+            sem divisórias, sem pop no centro. */}
+        <div className="flex justify-end">
           {retroativoAtivo ? (
             <button
               type="button"
@@ -882,37 +880,63 @@ function EtapaCalendario({
             </button>
           ) : (
             ehMesCorrente && (
-              <button
-                type="button"
-                aria-expanded={painelSenhaAberto}
-                aria-label="Atestado retroativo"
-                onClick={() =>
-                  painelSenhaAberto ? fecharPainelSenha() : setPainelSenhaAberto(true)
-                }
-                className={`btn-action-expand btn-atestado-retroativo ${
-                  painelSenhaAberto ? "btn-atestado-retroativo-active" : ""
+              <div
+                className={`retroativo-unlock ${
+                  painelSenhaAberto ? "retroativo-unlock-aberto" : ""
                 }`}
               >
-                <Plus className="size-4" />
-                <span className="btn-label text-amber-50">Atestado retroativo</span>
-              </button>
+                <button
+                  type="button"
+                  aria-expanded={painelSenhaAberto}
+                  aria-label="Atestado retroativo"
+                  onClick={() =>
+                    painelSenhaAberto ? fecharPainelSenha() : setPainelSenhaAberto(true)
+                  }
+                  className="retroativo-unlock-trigger"
+                >
+                  <Plus className="size-4" />
+                  <span className="retroativo-unlock-label">Atestado retroativo</span>
+                </button>
+
+                {painelSenhaAberto && (
+                  <div className="retroativo-unlock-input-wrap">
+                    <input
+                      ref={senhaInputRef}
+                      type="password"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      value={senhaInput}
+                      onChange={(e) => {
+                        setSenhaInput(e.target.value)
+                        setSenhaErro(null)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") tentarLiberar()
+                        if (e.key === "Escape") fecharPainelSenha()
+                      }}
+                      placeholder="senha do DP"
+                      className="retroativo-unlock-input"
+                    />
+                    <button
+                      type="button"
+                      onClick={tentarLiberar}
+                      disabled={senhaInput.length === 0}
+                      className="retroativo-unlock-liberar"
+                    >
+                      Liberar
+                    </button>
+                  </div>
+                )}
+              </div>
             )
           )}
-
-          {painelSenhaAberto && !retroativoAtivo && (
-            <PainelSenhaRetroativo
-              senha={senhaInput}
-              erro={senhaErro}
-              inputRef={senhaInputRef}
-              onChange={(v) => {
-                setSenhaInput(v)
-                setSenhaErro(null)
-              }}
-              onSubmit={tentarLiberar}
-              onFechar={fecharPainelSenha}
-            />
-          )}
         </div>
+
+        {painelSenhaAberto && senhaErro && (
+          <p className="ml-auto max-w-xs rounded-xl border border-rose-300/30 bg-rose-300/10 px-3 py-1.5 text-[11px] text-rose-100">
+            {senhaErro}
+          </p>
+        )}
 
         <div className="grid grid-cols-7 gap-1">
           {["D", "S", "T", "Q", "Q", "S", "S"].map((d, i) => (
@@ -1132,91 +1156,6 @@ function DialogQuantidadeDias({
         </div>
       </DialogContent>
     </Dialog>
-  )
-}
-
-/** Painel expansível inline — substitui Dialog modal de senha.
- *  Aparece logo abaixo do chip "+ Atestado retroativo" no calendário.
- *  Glass aesthetic: backdrop-blur + tint âmbar sutil + border âmbar fina.
- *  Senha é trava do DP (não-operacional). */
-function PainelSenhaRetroativo({
-  senha,
-  erro,
-  inputRef,
-  onChange,
-  onSubmit,
-  onFechar,
-}: {
-  senha: string
-  erro: string | null
-  inputRef: React.RefObject<HTMLInputElement | null>
-  onChange: (v: string) => void
-  onSubmit: () => void
-  onFechar: () => void
-}) {
-  return (
-    <div
-      role="region"
-      aria-label="Liberação DP"
-      className="painel-retroativo overflow-hidden rounded-2xl border px-4 py-4"
-      style={{ animation: "painelExpandir 520ms cubic-bezier(0.34, 1.4, 0.5, 1)" }}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-2.5">
-          <span className="mt-0.5 inline-flex size-7 items-center justify-center rounded-full bg-amber-300/15 ring-1 ring-amber-300/40">
-            <Unlock className="size-3.5 text-amber-200" />
-          </span>
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.3em] text-amber-200/85">
-              Liberação do DP
-            </p>
-            <p className="mt-1 max-w-xs text-xs leading-relaxed text-white/65">
-              Solicite ao DP a senha pra liberar lançamento em meses anteriores.
-              Válido só hoje.
-            </p>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={onFechar}
-          aria-label="Fechar"
-          className="inline-flex size-7 items-center justify-center rounded-full text-white/45 transition hover:bg-white/[0.06] hover:text-white"
-        >
-          ✕
-        </button>
-      </div>
-
-      <div className="mt-4 flex items-stretch gap-2">
-        <input
-          ref={inputRef}
-          type="password"
-          inputMode="numeric"
-          autoComplete="off"
-          value={senha}
-          onChange={(e) => onChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") onSubmit()
-            if (e.key === "Escape") onFechar()
-          }}
-          placeholder="••••••"
-          className="flex-1 rounded-xl border border-white/12 bg-white/[0.04] px-4 py-2.5 text-center font-mono text-base tracking-[0.5em] text-amber-100 placeholder:tracking-[0.5em] placeholder:text-white/25 focus:border-amber-300/55 focus:bg-white/[0.06] focus:outline-none"
-        />
-        <button
-          type="button"
-          onClick={onSubmit}
-          disabled={senha.length === 0}
-          className="rounded-xl border border-amber-300/40 bg-amber-300/[0.12] px-4 py-2.5 text-sm font-medium text-amber-50 backdrop-blur transition hover:border-amber-300/65 hover:bg-amber-300/[0.22] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-amber-300/[0.12]"
-        >
-          Liberar
-        </button>
-      </div>
-
-      {erro && (
-        <p className="mt-3 rounded-xl border border-rose-300/30 bg-rose-300/10 px-3 py-2 text-xs text-rose-100">
-          {erro}
-        </p>
-      )}
-    </div>
   )
 }
 
