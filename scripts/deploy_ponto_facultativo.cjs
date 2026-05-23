@@ -65,10 +65,10 @@ async function upsertWorkflow(workflow) {
   return existing.id
 }
 
-function webhookNode(id, name, path, x, y) {
+function webhookNode(id, name, path, x, y, method = "POST") {
   return {
     parameters: {
-      httpMethod: "POST",
+      httpMethod: method,
       path,
       responseMode: "responseNode",
       options: {},
@@ -203,9 +203,10 @@ return [{ json: { _done: false, query } }];`,
 const prepararCode = `const ALLOWED = ['SEMSA','SEDUC ESCOLA','SEDUC SEDE','SEDUC INTERIOR','DETRAN','TRE PB','CETAM'];
 const body = $json.body && typeof $json.body === 'object' ? $json.body : {};
 const contrato = String(body.contrato || '').trim().toUpperCase();
+const unidade = String(body.unidade || body.unidade_label || '').trim();
 const data = String(body.data || '').trim();
 const beneficios = Array.isArray(body.beneficios) ? [...new Set(body.beneficios.map(String).map(s => s.toUpperCase()).filter(s => s === 'VR' || s === 'VT'))] : [];
-function fail(erro, mensagem, status = 400) { return [{ json: { _statusCode: status, _abort: true, ok: false, erro, mensagem } }]; }
+function fail(erro, mensagem, status = 400, extra = {}) { return [{ json: { _statusCode: status, _abort: true, ok: false, erro, mensagem, ...extra } }]; }
 const FIXOS = ['01-01','04-21','05-01','09-07','10-12','11-02','11-15','11-20','12-25'];
 function pascoa(year){const a=year%19,b=Math.floor(year/100),c=year%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),n=h+l-7*m+114;return new Date(Date.UTC(year,Math.floor(n/31)-1,(n%31)+1));}
 function feriado(iso){const y=Number(iso.slice(0,4)); if (FIXOS.includes(iso.slice(5))) return true; const p=pascoa(y); p.setUTCDate(p.getUTCDate()-2); return p.toISOString().slice(0,10) === iso;}
@@ -213,6 +214,7 @@ const nowParts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Manaus', 
 const anoAtual = nowParts.find(p => p.type === 'year').value;
 const mesAtual = nowParts.find(p => p.type === 'month').value;
 if (!ALLOWED.includes(contrato)) return fail('contrato_invalido', 'Contrato invalido para ponto facultativo.');
+if (!unidade) return fail('unidade_obrigatoria', 'Informe a unidade do contrato.');
 if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(data)) return fail('data_invalida', 'Informe a data em YYYY-MM-DD.');
 if (data.slice(0,7) !== anoAtual + '-' + mesAtual) return fail('fora_mes_corrente', 'Ponto facultativo so pode ser aplicado no mes corrente.');
 if (new Date(data + 'T00:00:00Z').getUTCDay() === 0) return fail('domingo_bloqueado', 'Domingo nao recebe ponto facultativo.');
@@ -229,7 +231,70 @@ const query = \`query {
     items_page(limit: 500) { items { id name column_values { id text value column { title } } } }
   }
 }\`;
-return [{ json: { ok: true, contrato, data, beneficios, query } }];`
+return [{ json: { ok: true, contrato, unidade, data, beneficios, query } }];`
+
+const opcoesPrepararCode = `const query = \`query {
+  boards(ids: [18408773953]) {
+    items_page(limit: 500) {
+      items {
+        id
+        name
+        column_values(ids: ["color_mktcnxwn", "dropdown_mm3mcnmn", "texto75"]) {
+          id
+          text
+          value
+          column { title }
+        }
+      }
+    }
+  }
+}\`;
+return [{ json: { query } }];`
+
+const opcoesMoldarCode = `const ALLOWED = ['SEMSA','SEDUC ESCOLA','SEDUC SEDE','SEDUC INTERIOR','DETRAN','TRE PB','CETAM'];
+const resp = $input.first().json;
+if (Array.isArray(resp.errors) && resp.errors.length) {
+  return [{ json: { _statusCode: 500, ok: false, erro: 'erro_monday', mensagem: resp.errors.map(e => e.message).join(' | ') } }];
+}
+function norm(s){return String(s||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toUpperCase().trim();}
+function col(item,id){return (item.column_values||[]).find(c=>c.id===id)||null;}
+function text(item,id){return col(item,id)?.text ?? '';}
+const unidades = Object.fromEntries(ALLOWED.map(c => [c, []]));
+const vistos = Object.fromEntries(ALLOWED.map(c => [c, new Set()]));
+const items = resp?.data?.boards?.[0]?.items_page?.items || [];
+for (const item of items) {
+  const contratoRaw = text(item, 'color_mktcnxwn');
+  const contrato = ALLOWED.find(c => norm(c) === norm(contratoRaw));
+  if (!contrato) continue;
+  const unidade = String(text(item, 'dropdown_mm3mcnmn') || text(item, 'texto75') || '').trim();
+  if (!unidade) continue;
+  const key = norm(unidade);
+  if (vistos[contrato].has(key)) continue;
+  vistos[contrato].add(key);
+  unidades[contrato].push(unidade);
+}
+for (const c of ALLOWED) unidades[c].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+return [{ json: { _statusCode: 200, ok: true, unidade_column_id: 'dropdown_mm3mcnmn', unidades_por_contrato: unidades } }];`
+
+function workflowOpcoes() {
+  return {
+    name: "Ponto Facultativo — Opcoes",
+    nodes: [
+      webhookNode("pf-opcoes-webhook", "Webhook", "ponto-facultativo-opcoes", 0, 0, "GET"),
+      codeNode("pf-opcoes-preparar", "Preparar", opcoesPrepararCode, 240, 0),
+      mondayHttpNode("pf-opcoes-buscar", "Buscar Dados", "={{ JSON.stringify({ query: $json.query }) }}", 480, 0),
+      codeNode("pf-opcoes-moldar", "Moldar resposta", opcoesMoldarCode, 720, 0),
+      respondNode("pf-opcoes-responder", "Responder", "={{ JSON.stringify($json) }}", 960, 0),
+    ],
+    connections: {
+      Webhook: { main: [[{ node: "Preparar", type: "main", index: 0 }]] },
+      Preparar: { main: [[{ node: "Buscar Dados", type: "main", index: 0 }]] },
+      "Buscar Dados": { main: [[{ node: "Moldar resposta", type: "main", index: 0 }]] },
+      "Moldar resposta": { main: [[{ node: "Responder", type: "main", index: 0 }]] },
+    },
+    settings: { executionOrder: "v1" },
+  }
+}
 
 function calcPreviewCode(originColumnId, includeInternal = false) {
   return `const prep = $('Preparar').first().json;
@@ -240,15 +305,19 @@ if (Array.isArray(resp.errors) && resp.errors.length) {
 }
 const COL = {
   E_CHAPA: 'texto', E_CPF: 'dup__of_matr_cula', E_FUNCAO: 'texto0', E_CONTRATO: 'color_mktcnxwn',
+  E_UNIDADE: 'dropdown_mm3mcnmn', E_UNIDADE_TXT: 'texto75',
   E_DI: 'date_mktayxhb', E_DF: 'date_mktasnwq', E_STATUS: 'color_mm3a8ana', E_CANCEL_INICIO: 'date_mm3b88ta',
   E_OPTANTE_VT: 'optante___vt', E_OPTANTE_VT_ALT: 'color_mm34ry47', E_TRAB_SAB: 'color_mktaavmp',
   H_UUID: 'text_mm2xjend', H_CHAPA: 'text_mm33v9kp', H_DI: 'date_mm2xtp93', H_LEDGER: 'long_text_mm3ct3hg',
   H_TRAB_SAB: 'color_mm34yyet', H_SAB_EXTRAS: 'text_mm3bfn6h'
 };
 function norm(s){return String(s||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toUpperCase().trim();}
+function normUnidade(s){return norm(s).replace(/[\\.,;:/\\\\|_()\\[\\]{}-]+/g,' ').replace(/\\s+/g,' ').trim();}
+function origemUnidade(s){return normUnidade(s).replace(/\\s+/g,'_') || 'UNIDADE';}
 function chapaNorm(s){return String(s||'').replace(/\\D/g,'').replace(/^0+/,'') || '0';}
 function col(item,id){return (item.column_values||[]).find(c=>c.id===id)||null;}
 function text(item,id){return col(item,id)?.text ?? '';}
+function unidadeItem(item){return text(item,COL.E_UNIDADE) || text(item,COL.E_UNIDADE_TXT) || '';}
 function titleCol(item,titles){const alvo=titles.map(norm); return (item.column_values||[]).find(c=>alvo.some(a=>norm(c.column?.title||'')===a || norm(c.column?.title||'').includes(a))) || null;}
 function num(v){return Number(String(v||'0').replace(',', '.')) || 0;}
 function parseJSON(v,fb){if(!v)return fb; try{return JSON.parse(v)}catch{return fb}}
@@ -297,13 +366,47 @@ function resolverValores(items, contrato, funcao){
 const entrada = resp?.data?.entrada?.items || [];
 const historicos = resp?.data?.historico?.[0]?.items_page?.items || [];
 const valoresItems = resp?.data?.valores?.[0]?.items_page?.items || [];
+const unidadesValidas = Array.from(new Set(entrada.map(unidadeItem).map(s => String(s || '').trim()).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'pt-BR'));
+function levenshtein(a,b){
+  if (a === b) return 0;
+  const m = a.length, n = b.length;
+  if (!m) return n;
+  if (!n) return m;
+  const dp = Array.from({length:m+1},()=>Array(n+1).fill(0));
+  for(let i=0;i<=m;i++) dp[i][0]=i;
+  for(let j=0;j<=n;j++) dp[0][j]=j;
+  for(let i=1;i<=m;i++) for(let j=1;j<=n;j++) dp[i][j]=Math.min(dp[i-1][j]+1, dp[i][j-1]+1, dp[i-1][j-1]+(a[i-1]===b[j-1]?0:1));
+  return dp[m][n];
+}
+function resolverUnidade(input, candidatas){
+  const alvo = normUnidade(input);
+  const pares = candidatas.map(label => ({ label, norm: normUnidade(label) })).filter(p => p.norm);
+  const exatas = pares.filter(p => p.norm === alvo);
+  if (exatas.length === 1) return { ok: true, label: exatas[0].label, norm: exatas[0].norm };
+  if (exatas.length > 1) return { ok: false, erro: 'unidade_ambigua', mensagem: 'Unidade ambigua para este contrato.', candidatos: exatas.map(p=>p.label) };
+  const contem = pares.filter(p => p.norm.includes(alvo) || alvo.includes(p.norm));
+  if (contem.length === 1) return { ok: true, label: contem[0].label, norm: contem[0].norm };
+  if (contem.length > 1) return { ok: false, erro: 'unidade_ambigua', mensagem: 'Unidade ambigua para este contrato.', candidatos: contem.map(p=>p.label) };
+  const scored = pares.map(p => {
+    const max = Math.max(alvo.length, p.norm.length) || 1;
+    const score = 1 - (levenshtein(alvo, p.norm) / max);
+    return { ...p, score };
+  }).filter(p => p.score >= 0.78).sort((a,b)=>b.score-a.score);
+  if (scored.length === 1 || (scored[0] && (!scored[1] || scored[0].score - scored[1].score >= 0.08))) return { ok: true, label: scored[0].label, norm: scored[0].norm };
+  if (scored.length > 1) return { ok: false, erro: 'unidade_ambigua', mensagem: 'Unidade ambigua para este contrato.', candidatos: scored.slice(0,5).map(p=>p.label) };
+  return { ok: false, erro: 'unidade_invalida', mensagem: 'Unidade nao encontrada para este contrato.', candidatos: candidatas };
+}
+const unidadeResolvida = resolverUnidade(prep.unidade, unidadesValidas);
+if (!unidadeResolvida.ok) return [{ json: { _statusCode: 400, ok: false, erro: unidadeResolvida.erro, mensagem: unidadeResolvida.mensagem, contrato: prep.contrato, unidade: prep.unidade, candidatos: unidadeResolvida.candidatos || unidadesValidas } }];
 const histMap = new Map();
 for (const h of historicos) histMap.set(chapaNorm(text(h,COL.H_CHAPA)) + '|' + text(h,COL.H_DI), h);
-const origem = 'ponto_facultativo:' + prep.contrato + ':' + prep.data;
+const origem = 'ponto_facultativo:' + prep.contrato + ':' + origemUnidade(unidadeResolvida.label) + ':' + prep.data;
 const isSab = new Date(prep.data + 'T00:00:00Z').getUTCDay() === 6;
 const STATUS_IGNORAR = new Set(['CANCELADA','CANCELADO','BLOQUEADA - CONFLITO']);
 const itens = [];
 for (const e of entrada) {
+  const unidadeReal = unidadeItem(e);
+  if (normUnidade(unidadeReal) !== unidadeResolvida.norm) continue;
   const di = text(e,COL.E_DI), df = text(e,COL.E_DF);
   if (!di || !df) continue;
   const st = norm(text(e,COL.E_STATUS));
@@ -341,6 +444,7 @@ for (const e of entrada) {
   itens.push({
     item_entrada_id: String(e.id), item_historico_id: String(hist.id), uuid: text(hist,COL.H_UUID)||null,
     nome: e.name, chapa: text(e,COL.E_CHAPA), cpf: text(e,COL.E_CPF)||null, contrato: prep.contrato,
+    unidade: unidadeResolvida.label,
     funcao: text(e,COL.E_FUNCAO)||null, periodo_inicio: di, periodo_fim: fimEf, data: prep.data,
     optante_vt: optanteVT, vt_meia_volta: vtMeiaVolta, trabalha_sabado: trabalhaSab,
     aplica_vr: aplicaVR, aplica_vt: aplicaVT, valor_vr: valorVR, valor_vt: valorVT,
@@ -348,7 +452,7 @@ for (const e of entrada) {
   });
 }
 const publicItens = itens.map(({_ledger,_origem,...i})=>i);
-const out = { _statusCode: 200, ok: true, contrato: prep.contrato, data: prep.data, beneficios: prep.beneficios, total_colaboradores: publicItens.length, total_vr: Math.round(publicItens.reduce((a,i)=>a+i.valor_vr,0)*100)/100, total_vt: Math.round(publicItens.reduce((a,i)=>a+i.valor_vt,0)*100)/100, total: Math.round(publicItens.reduce((a,i)=>a+i.total,0)*100)/100, itens: publicItens };
+const out = { _statusCode: 200, ok: true, contrato: prep.contrato, unidade: unidadeResolvida.label, data: prep.data, beneficios: prep.beneficios, aviso: publicItens.length === 0 ? 'sem_intermitentes_unidade_data' : null, total_colaboradores: publicItens.length, total_vr: Math.round(publicItens.reduce((a,i)=>a+i.valor_vr,0)*100)/100, total_vt: Math.round(publicItens.reduce((a,i)=>a+i.valor_vt,0)*100)/100, total: Math.round(publicItens.reduce((a,i)=>a+i.total,0)*100)/100, itens: publicItens };
 if (${includeInternal ? "true" : "false"}) out._internal_itens = itens;
 return [{ json: out }];`
 }
@@ -360,6 +464,7 @@ function applyMutationCode(originColumnId) {
 
 const montarMutacaoCode = `const preview = $('Calcular Preview').first().json;
 if (preview._statusCode && preview._statusCode !== 200) return [{ json: preview }];
+if ((preview._internal_itens || []).length === 0) return [{ json: { ...preview, _statusCode: 409, ok: false, erro: 'sem_intermitentes_para_aplicar', mensagem: 'Nenhum intermitente convocado nesta unidade para esta data.', processados: 0, ignorados: 0 } }];
 const resp = $('Buscar Dados').first().json;
 const descontos = resp?.data?.descontos?.[0]?.items_page?.items || [];
 const ORIGEM_COL = '__ORIGEM_COL__';
@@ -580,11 +685,13 @@ async function main() {
   if (!setupJson.ok || !setupJson.column_id) throw new Error("Falha ao criar/localizar coluna Origem do Desconto: " + JSON.stringify(setupJson))
   fs.writeFileSync("ponto-facultativo-columns.json", JSON.stringify({ origem_do_desconto: setupJson.column_id }, null, 2))
   console.log("Coluna Origem do Desconto:", setupJson.column_id, setupJson.created ? "(criada)" : "(existente)")
+  const opcoesId = await upsertWorkflow(workflowOpcoes())
   const previewId = await upsertWorkflow(workflowPreview())
   const aplicarId = await upsertWorkflow(workflowAplicar(setupJson.column_id))
   await patchWorkflowLer()
   await n8n(`/api/v1/workflows/${setupId}/deactivate`, { method: "POST", body: "{}" }).catch(() => null)
   console.log("Workflow setup:", setupId)
+  console.log("Workflow opcoes:", opcoesId)
   console.log("Workflow preview:", previewId)
   console.log("Workflow aplicar:", aplicarId)
   console.log("WF intermitente-ler patchado.")

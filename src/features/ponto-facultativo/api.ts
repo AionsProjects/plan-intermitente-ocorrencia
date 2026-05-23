@@ -3,12 +3,24 @@ import type {
   ContratoPontoFacultativo,
   PontoFacultativoAplicacao,
   PontoFacultativoItem,
+  PontoFacultativoOpcoes,
   PontoFacultativoPayload,
   PontoFacultativoPreview,
 } from "./types"
+import { CONTRATOS_PONTO_FACULTATIVO as CONTRATOS } from "./types"
 
 const BASE_URL = import.meta.env.VITE_N8N_BASE_URL ?? ""
 const USE_MOCK = !BASE_URL
+
+const MOCK_UNIDADES: Record<ContratoPontoFacultativo, string[]> = {
+  SEMSA: ["SEMSA - INTERMITENTE"],
+  "SEDUC ESCOLA": ["IRMÃ GABRIELLE", "MAYARA REDMAN", "PROF. JACIRA CABOCLO"],
+  "SEDUC SEDE": ["SEDUC - MANAUS"],
+  "SEDUC INTERIOR": ["SEDE DA COORDENADORIA", "ESCOLA ESTADUAL INTERIOR"],
+  DETRAN: ["DETRAN - INTERMITENTE"],
+  "TRE PB": ["TRE PB - INTERMITENTE"],
+  CETAM: ["GASTRONOMIA", "PARINTINS", "MANACAPURU"],
+}
 
 function round2(v: number): number {
   return Math.round(v * 100) / 100
@@ -31,6 +43,7 @@ function mockItem(
     chapa: `00705${seed}`,
     cpf: `0010813527${seed}`,
     contrato: payload.contrato,
+    unidade: payload.unidade,
     funcao: seed === 1 ? "MOTO BOY" : "TECNICO EM NIVEL MEDIO",
     periodoInicio: payload.data.slice(0, 8) + "01",
     periodoFim: payload.data.slice(0, 8) + "25",
@@ -56,8 +69,10 @@ export function mockPreview(
   return {
     ok: true,
     contrato: payload.contrato,
+    unidade: payload.unidade,
     data: payload.data,
     beneficios: payload.beneficios,
+    aviso: opts.vazio ? "sem_intermitentes_unidade_data" : null,
     totalColaboradores: itens.length,
     totalVR: round2(itens.reduce((acc, i) => acc + i.valorVR, 0)),
     totalVT: round2(itens.reduce((acc, i) => acc + i.valorVT, 0)),
@@ -78,6 +93,7 @@ function mapItem(raw: Record<string, unknown>): PontoFacultativoItem {
     chapa: String(raw.chapa ?? ""),
     cpf: raw.cpf ? String(raw.cpf) : null,
     contrato: String(raw.contrato ?? ""),
+    unidade: String(raw.unidade ?? ""),
     funcao: raw.funcao ? String(raw.funcao) : null,
     periodoInicio: String(raw.periodo_inicio ?? raw.periodoInicio ?? ""),
     periodoFim: String(raw.periodo_fim ?? raw.periodoFim ?? ""),
@@ -101,10 +117,12 @@ function mapPreview(raw: Record<string, unknown>): PontoFacultativoPreview {
   return {
     ok: raw.ok !== false,
     contrato: String(raw.contrato ?? "") as ContratoPontoFacultativo,
+    unidade: String(raw.unidade ?? ""),
     data: String(raw.data ?? ""),
     beneficios: Array.isArray(raw.beneficios)
       ? (raw.beneficios.map(String).filter((b) => b === "VR" || b === "VT") as BeneficioPontoFacultativo[])
       : [],
+    aviso: raw.aviso ? String(raw.aviso) : null,
     totalColaboradores: Number(
       raw.total_colaboradores ?? raw.totalColaboradores ?? itens.length,
     ),
@@ -113,6 +131,42 @@ function mapPreview(raw: Record<string, unknown>): PontoFacultativoPreview {
     total: Number(raw.total ?? 0),
     itens,
   }
+}
+
+function mapOpcoes(raw: Record<string, unknown>): PontoFacultativoOpcoes {
+  const bruto = raw.unidades_por_contrato ?? raw.unidadesPorContrato ?? {}
+  const src = typeof bruto === "object" && bruto ? bruto as Record<string, unknown> : {}
+  const unidadesPorContrato = Object.fromEntries(
+    CONTRATOS.map((contrato) => {
+      const lista = Array.isArray(src[contrato])
+        ? src[contrato].map(String).filter(Boolean)
+        : []
+      return [contrato, lista]
+    }),
+  ) as Record<ContratoPontoFacultativo, string[]>
+  return {
+    ok: raw.ok !== false,
+    unidadeColumnId: String(raw.unidade_column_id ?? raw.unidadeColumnId ?? ""),
+    unidadesPorContrato,
+  }
+}
+
+export async function buscarOpcoesPontoFacultativo(): Promise<PontoFacultativoOpcoes> {
+  if (USE_MOCK) {
+    await new Promise((resolve) => setTimeout(resolve, 180))
+    return {
+      ok: true,
+      unidadeColumnId: "dropdown_mm3mcnmn",
+      unidadesPorContrato: MOCK_UNIDADES,
+    }
+  }
+
+  const res = await fetch(`${BASE_URL}/ponto-facultativo-opcoes`)
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(data.mensagem || `Erro ${res.status}`)
+  }
+  return mapOpcoes(data)
 }
 
 export async function previewPontoFacultativo(

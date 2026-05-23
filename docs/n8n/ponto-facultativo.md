@@ -4,7 +4,7 @@ Ultima atualizacao: 2026-05-23.
 
 ## Objetivo
 
-Permitir que DP/Operacional selecione um contrato, uma data do mes atual e quais beneficios devem ser descontados (`VR`, `VT` ou ambos). O backend encontra todos os intermitentes convocados naquele contrato/data, evita duplicidade via ledger e cria/atualiza a Base de Desconto.
+Permitir que DP/Operacional selecione um contrato, uma unidade, uma data do mes atual e quais beneficios devem ser descontados (`VR`, `VT` ou ambos). O backend encontra todos os intermitentes convocados naquele contrato/unidade/data, evita duplicidade via ledger e cria/atualiza a Base de Desconto.
 
 ## Frontend
 
@@ -13,10 +13,11 @@ Permitir que DP/Operacional selecione um contrato, uma data do mes atual e quais
 - Tile no Hub: `Ponto facultativo`
 - Fluxo:
   1. selecionar contrato;
-  2. selecionar data do mes atual;
-  3. selecionar beneficios;
-  4. preview dos convocados afetados;
-  5. confirmar aplicacao.
+  2. selecionar unidade do contrato;
+  3. selecionar data do mes atual;
+  4. selecionar beneficios;
+  5. preview dos convocados afetados;
+  6. confirmar aplicacao.
 
 Contratos permitidos:
 
@@ -36,6 +37,7 @@ Host novo: `https://aionscorp-n8n.cloudfy.live/webhook`
 
 | Endpoint | WF ID | Status | Uso |
 |---|---|---|---|
+| `GET /ponto-facultativo-opcoes` | `JXpJ6xuSZMcu2IVn` | Ativo | Retorna unidades reais do Plan agrupadas por contrato. |
 | `POST /ponto-facultativo-preview` | `7gHmbLcZ5r6D5sXz` | Ativo | Calcula afetados e totais sem alterar Monday. |
 | `POST /ponto-facultativo-aplicar` | `XybrfnzI11Fw5sX4` | Ativo | Recalcula, grava ledger e cria/atualiza Desconto. |
 
@@ -44,6 +46,7 @@ Payload dos dois endpoints:
 ```json
 {
   "contrato": "SEMSA",
+  "unidade": "SEMSA SEDE",
   "data": "2026-05-20",
   "beneficios": ["VR", "VT"]
 }
@@ -62,6 +65,8 @@ Usado para localizar convocacoes ativas.
 | CPF | `dup__of_matr_cula` | CPF quando disponivel. |
 | Funcao | `texto0` | Regra/função para valores. |
 | Contrato | `color_mktcnxwn` | Filtro principal do ponto facultativo. |
+| OP - Local/Unidade | `dropdown_mm3mcnmn` | Filtro operacional de unidade. |
+| Local/Unidade legado | `texto75` | Fallback quando dropdown ainda nao estiver preenchida. |
 | Data inicio | `date_mktayxhb` | Periodo da convocacao. |
 | Data fim | `date_mktasnwq` | Periodo da convocacao. |
 | Status convocacao | `color_mm3a8ana` | Ignora `Cancelada`, `Cancelado`, `Bloqueada - conflito`. |
@@ -85,13 +90,13 @@ Usado para ler/gravar ledger e impedir duplicidade no `/preencher`.
 Origem gravada no ledger:
 
 ```text
-ponto_facultativo:<contrato>:<data>
+ponto_facultativo:<contrato>:<unidade_normalizada>:<data>
 ```
 
 Exemplo:
 
 ```text
-ponto_facultativo:SEMSA:2026-05-20
+ponto_facultativo:SEMSA:SEMSA_SEDE:2026-05-20
 ```
 
 ### Desconto - `18400981023`
@@ -153,7 +158,10 @@ Regra de escolha:
 - Domingo e feriado nacional nao entram.
 - Ledger capa `vr_percentual` e `vt_percentual` em 100 por data.
 - Reaplicar a mesma data/contrato/beneficio nao duplica.
-- Aplicar primeiro `VR` e depois `VT` no mesmo contrato/data mescla apenas o que ainda falta.
+- Aplicar primeiro `VR` e depois `VT` na mesma unidade/contrato/data mescla apenas o que ainda falta.
+- Se contrato nao tiver unidades no Plan, o frontend bloqueia o avanço.
+- Se unidade nao tiver convocados na data, preview retorna vazio com `aviso = "sem_intermitentes_unidade_data"` e aplicar retorna `409 sem_intermitentes_para_aplicar`.
+- Unidade e comparada com normalizacao de acentos, caixa, pontuacao leve e espaços; ambiguidades retornam `400 unidade_ambigua`.
 
 ## Integracao com `/preencher`
 
@@ -182,18 +190,10 @@ No frontend, esses dias:
 ## Validacao executada
 
 - Build frontend: `npm run build` passou.
-- `POST /ponto-facultativo-preview` com `SEDUC SEDE`, `2026-05-20`, `["VR","VT"]`: OK, zero afetados.
-- `POST /ponto-facultativo-aplicar` com `SEDUC SEDE`, `2026-05-20`, `["VR"]`: OK, zero afetados.
-- Preview geral em `2026-05-20`: SEMSA encontrou 5 convocados.
+- `GET /ponto-facultativo-opcoes`: OK, retornando unidades agrupadas por contrato.
+- `POST /ponto-facultativo-preview` com `SEMSA`, `SEMSA SEDE`, `2026-05-23`, `["VR","VT"]`: OK, zero afetados e `aviso = sem_intermitentes_unidade_data`.
+- `POST /ponto-facultativo-aplicar` com preview vazio: retorna `409 sem_intermitentes_para_aplicar`.
 
-## Pendencia atual
+## Observacao
 
-Para SEMSA em `2026-05-20`, os 5 convocados foram encontrados, mas os valores vieram zerados:
-
-```text
-regra_valores = "Sem regra de valores"
-valor_vr = 0
-valor_vt = 0
-```
-
-Antes de aplicar em producao com convocados reais, confirmar no board `18413870370` se existe regra ativa para `SEMSA` ou uma regra padrao global com valores de VR/VT.
+O workflow continua dependendo do board de valores `18413870370` para calcular VR/VT. Se uma unidade tiver convocados, mas todos os valores voltarem zerados, conferir se existe regra ativa para o contrato/função ou regra padrao global.

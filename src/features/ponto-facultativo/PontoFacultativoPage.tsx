@@ -19,6 +19,7 @@ import {
   Coins,
   GraduationCap,
   Loader2,
+  MapPin,
   Sparkles,
   UserX,
   Users,
@@ -50,10 +51,11 @@ import {
 } from "./types"
 import {
   useAplicarPontoFacultativo,
+  useOpcoesPontoFacultativo,
   usePreviewPontoFacultativo,
 } from "./usePontoFacultativo"
 
-type Etapa = "contrato" | "data" | "beneficios" | "confirmar" | "sucesso"
+type Etapa = "contrato" | "unidade" | "data" | "beneficios" | "confirmar" | "sucesso"
 
 /** Seeds aceitos via `?seed=` — pré-popula estado para testes visuais. */
 type Seed =
@@ -73,6 +75,7 @@ function dataMockISO(): string {
 function aplicarSeed(seed: string | null): {
   etapa: Etapa
   contrato: ContratoPontoFacultativo | null
+  unidade: string | null
   data: string | null
   beneficios: BeneficioPontoFacultativo[]
   preview: PontoFacultativoPreview | null
@@ -80,11 +83,12 @@ function aplicarSeed(seed: string | null): {
   const s = seed as Seed
   switch (s) {
     case "data":
-      return { etapa: "data", contrato: "SEMSA", data: null, beneficios: [], preview: null }
+      return { etapa: "data", contrato: "SEMSA", unidade: "SEMSA - INTERMITENTE", data: null, beneficios: [], preview: null }
     case "beneficios":
       return {
         etapa: "beneficios",
         contrato: "SEDUC SEDE",
+        unidade: "SEDUC - MANAUS",
         data: dataMockISO(),
         beneficios: ["VR"],
         preview: null,
@@ -92,12 +96,14 @@ function aplicarSeed(seed: string | null): {
     case "confirmar-cheio": {
       const p: PontoFacultativoPayload = {
         contrato: "SEDUC SEDE",
+        unidade: "SEDUC - MANAUS",
         data: dataMockISO(),
         beneficios: ["VR", "VT"],
       }
       return {
         etapa: "confirmar",
         contrato: p.contrato,
+        unidade: p.unidade,
         data: p.data,
         beneficios: p.beneficios,
         preview: mockPreview(p),
@@ -106,12 +112,14 @@ function aplicarSeed(seed: string | null): {
     case "confirmar-vazio": {
       const p: PontoFacultativoPayload = {
         contrato: "CETAM",
+        unidade: "GASTRONOMIA",
         data: dataMockISO(),
         beneficios: ["VR"],
       }
       return {
         etapa: "confirmar",
         contrato: p.contrato,
+        unidade: p.unidade,
         data: p.data,
         beneficios: p.beneficios,
         preview: mockPreview(p, { vazio: true }),
@@ -120,19 +128,21 @@ function aplicarSeed(seed: string | null): {
     case "sucesso": {
       const p: PontoFacultativoPayload = {
         contrato: "DETRAN",
+        unidade: "DETRAN - INTERMITENTE",
         data: dataMockISO(),
         beneficios: ["VR", "VT"],
       }
       return {
         etapa: "sucesso",
         contrato: p.contrato,
+        unidade: p.unidade,
         data: p.data,
         beneficios: p.beneficios,
         preview: mockPreview(p),
       }
     }
     default:
-      return { etapa: "contrato", contrato: null, data: null, beneficios: [], preview: null }
+      return { etapa: "contrato", contrato: null, unidade: null, data: null, beneficios: [], preview: null }
   }
 }
 
@@ -148,13 +158,56 @@ function moeda(v: number): string {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
 }
 
+/** Mapeia códigos de erro do backend pra mensagens human-readable.
+ *  Backend retorna 400 unidade_ambigua / 400 unidade_invalida / 409
+ *  sem_intermitentes_para_aplicar — strings cruas confundem operacional. */
+function mensagemErroPreview(erro: unknown): string | null {
+  if (!erro) return null
+  const raw = erro instanceof Error ? erro.message : String(erro)
+  if (raw.includes("unidade_ambigua")) {
+    return "Unidade ambígua no board (duas com grafia parecida). Avise o admin pra ajustar o cadastro."
+  }
+  if (raw.includes("unidade_invalida")) {
+    return "Unidade não reconhecida pelo backend. Recarregue a lista e tente de novo."
+  }
+  if (raw.includes("sem_intermitentes_para_aplicar")) {
+    return "Nenhum intermitente convocado nessa unidade pra essa data. Volte e ajuste a seleção."
+  }
+  return raw
+}
+
+/** Texto humano por código de aviso vindo do preview do backend. */
+function legendaAviso(aviso: string | null): {
+  titulo: string
+  detalhe: string
+} {
+  switch (aviso) {
+    case "sem_intermitentes_unidade_data":
+      return {
+        titulo: "Nenhum intermitente convocado nesta unidade pra esta data",
+        detalhe: "Volte e tente outra data, unidade ou contrato antes de aplicar.",
+      }
+    case "contrato_sem_intermitentes":
+      return {
+        titulo: "Contrato sem intermitentes ativos",
+        detalhe: "Volte e escolha outro contrato.",
+      }
+    default:
+      return {
+        titulo: "Nenhum intermitente encontrado",
+        detalhe: "Volte e tente outra data, unidade ou contrato antes de aplicar.",
+      }
+  }
+}
+
 function payloadValido(
   contrato: ContratoPontoFacultativo | null,
+  unidade: string | null,
   data: string | null,
   beneficios: BeneficioPontoFacultativo[],
 ): PontoFacultativoPayload | null {
-  if (!contrato || !data || beneficios.length === 0) return null
-  return { contrato, data, beneficios }
+  if (!contrato || !unidade || !data || beneficios.length === 0) return null
+  return { contrato, unidade, data, beneficios }
 }
 
 export function PontoFacultativoPage() {
@@ -165,6 +218,7 @@ export function PontoFacultativoPage() {
   const [etapa, setEtapa] = useState<Etapa>(inicial.etapa)
   const [direcao, setDirecao] = useState<SlideDirection>("forward")
   const [contrato, setContrato] = useState<ContratoPontoFacultativo | null>(inicial.contrato)
+  const [unidade, setUnidade] = useState<string | null>(inicial.unidade)
   const [data, setData] = useState<string | null>(inicial.data)
   const [beneficios, setBeneficios] = useState<BeneficioPontoFacultativo[]>(inicial.beneficios)
   const [preview, setPreview] = useState<PontoFacultativoPreview | null>(inicial.preview)
@@ -173,13 +227,18 @@ export function PontoFacultativoPage() {
   useEffect(() => {
     setEtapa(inicial.etapa)
     setContrato(inicial.contrato)
+    setUnidade(inicial.unidade)
     setData(inicial.data)
     setBeneficios(inicial.beneficios)
     setPreview(inicial.preview)
   }, [inicial])
 
+  const opcoesQuery = useOpcoesPontoFacultativo()
   const previewMut = usePreviewPontoFacultativo()
   const aplicarMut = useAplicarPontoFacultativo()
+  const unidadesContrato = contrato
+    ? (opcoesQuery.data?.unidadesPorContrato[contrato] ?? [])
+    : []
 
   function ir(next: Etapa, dir: SlideDirection = "forward") {
     setDirecao(dir)
@@ -193,7 +252,7 @@ export function PontoFacultativoPage() {
   }
 
   async function carregarPreview() {
-    const payload = payloadValido(contrato, data, beneficios)
+    const payload = payloadValido(contrato, unidade, data, beneficios)
     if (!payload) return
     const r = await previewMut.mutateAsync(payload)
     setPreview(r)
@@ -201,7 +260,7 @@ export function PontoFacultativoPage() {
   }
 
   async function aplicar() {
-    const payload = payloadValido(contrato, data, beneficios)
+    const payload = payloadValido(contrato, unidade, data, beneficios)
     if (!payload) return
     const r = await aplicarMut.mutateAsync(payload)
     setPreview(r)
@@ -220,8 +279,8 @@ export function PontoFacultativoPage() {
               Desconto por contrato
             </h1>
             <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/58">
-              Escolha contrato, dia e benefícios. A confirmação recalcula no
-              backend todos os intermitentes convocados naquele dia.
+              Escolha contrato, unidade, dia e benefícios. A confirmação
+              recalcula no backend todos os intermitentes convocados naquele local.
             </p>
           </div>
           <Link
@@ -239,6 +298,26 @@ export function PontoFacultativoPage() {
               contrato={contrato}
               onSelecionar={(c) => {
                 setContrato(c)
+                setUnidade(null)
+                setData(null)
+                setBeneficios([])
+                setPreview(null)
+                ir("unidade")
+              }}
+            />
+          )}
+          {etapa === "unidade" && (
+            <EtapaUnidade
+              contrato={contrato}
+              unidade={unidade}
+              unidades={unidadesContrato}
+              carregando={opcoesQuery.isPending}
+              erro={opcoesQuery.error instanceof Error ? opcoesQuery.error.message : null}
+              onVoltar={() => ir("contrato", "backward")}
+              onSelecionar={(u) => {
+                setUnidade(u)
+                setData(null)
+                setBeneficios([])
                 setPreview(null)
                 ir("data")
               }}
@@ -247,9 +326,10 @@ export function PontoFacultativoPage() {
           {etapa === "data" && (
             <EtapaData
               data={data}
-              onVoltar={() => ir("contrato", "backward")}
+              onVoltar={() => ir("unidade", "backward")}
               onSelecionar={(d) => {
                 setData(d)
+                setBeneficios([])
                 setPreview(null)
                 ir("beneficios")
               }}
@@ -258,9 +338,10 @@ export function PontoFacultativoPage() {
           {etapa === "beneficios" && (
             <EtapaBeneficios
               contrato={contrato}
+              unidade={unidade}
               data={data}
               beneficios={beneficios}
-              erro={previewMut.error instanceof Error ? previewMut.error.message : null}
+              erro={mensagemErroPreview(previewMut.error)}
               carregando={previewMut.isPending}
               onToggle={toggleBeneficio}
               onVoltar={() => ir("data", "backward")}
@@ -270,7 +351,7 @@ export function PontoFacultativoPage() {
           {etapa === "confirmar" && preview && (
             <EtapaConfirmar
               preview={preview}
-              erro={aplicarMut.error instanceof Error ? aplicarMut.error.message : null}
+              erro={mensagemErroPreview(aplicarMut.error)}
               carregando={aplicarMut.isPending}
               onVoltar={() => ir("beneficios", "backward")}
               onAplicar={aplicar}
@@ -281,6 +362,8 @@ export function PontoFacultativoPage() {
               preview={preview}
               onNovo={() => {
                 setPreview(null)
+                setContrato(null)
+                setUnidade(null)
                 setData(null)
                 setBeneficios([])
                 ir("contrato", "backward")
@@ -465,6 +548,104 @@ function TileContrato({
   )
 }
 
+function EtapaUnidade({
+  contrato,
+  unidade,
+  unidades,
+  carregando,
+  erro,
+  onVoltar,
+  onSelecionar,
+}: {
+  contrato: ContratoPontoFacultativo | null
+  unidade: string | null
+  unidades: string[]
+  carregando: boolean
+  erro: string | null
+  onVoltar: () => void
+  onSelecionar: (unidade: string) => void
+}) {
+  const semUnidades = !carregando && unidades.length === 0
+
+  // Auto-select quando há só 1 unidade — usuário não precisa clicar.
+  // Mantém consistência com /convocar (FormularioConvocacao.setContrato).
+  useEffect(() => {
+    if (unidades.length === 1 && !unidade && !carregando) {
+      onSelecionar(unidades[0])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unidades, carregando])
+
+  return (
+    <section>
+      <div className="mb-5 flex items-center gap-3 text-white/82">
+        <MapPin className="size-5 text-emerald-200" />
+        <h2 className="text-lg font-medium">Unidade afetada</h2>
+      </div>
+
+      {contrato && (
+        <div className="mb-5 inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1.5 text-xs text-white/82">
+          <Building2 className="size-3.5 text-emerald-200/85" />
+          {contrato}
+        </div>
+      )}
+
+      {carregando && (
+        <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-5 text-sm text-white/65">
+          <Loader2 className="size-4 animate-spin text-emerald-200" />
+          Carregando unidades do Plan de Intermitentes...
+        </div>
+      )}
+
+      {erro && (
+        <p className="rounded-xl border border-rose-300/30 bg-rose-300/10 px-3 py-2 text-sm text-rose-100">
+          {erro}
+        </p>
+      )}
+
+      {semUnidades && (
+        <div className="rounded-2xl border border-dashed border-white/12 bg-white/[0.02] px-5 py-8 text-center">
+          <div className="mx-auto flex size-12 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] text-white/55">
+            <UserX className="size-5" />
+          </div>
+          <p className="mt-4 text-sm font-medium text-white/78">
+            Não há intermitentes disponíveis para este contrato no momento
+          </p>
+          <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-white/45">
+            O Plan não tem unidade preenchida para esse contrato. Volte e escolha
+            outro contrato ou confira o cadastro.
+          </p>
+        </div>
+      )}
+
+      {!carregando && unidades.length > 0 && (
+        <div className="grid max-h-[25rem] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+          {unidades.map((u, i) => (
+            <button
+              key={u}
+              type="button"
+              onClick={() => onSelecionar(u)}
+              className={`fade-up flex min-h-14 items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition ${
+                unidade === u
+                  ? "border-emerald-200/50 bg-emerald-200/14 text-emerald-50"
+                  : "border-white/10 bg-white/[0.035] text-white/82 hover:border-white/20 hover:bg-white/[0.06]"
+              }`}
+              style={{ animationDelay: `${50 + i * 20}ms` }}
+            >
+              <span className="text-sm font-medium leading-snug">{u}</span>
+              <ChevronRight className="size-4 shrink-0 text-white/35" />
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-6">
+        <ChoiceButton onClick={onVoltar}>Voltar</ChoiceButton>
+      </div>
+    </section>
+  )
+}
+
 function EtapaData({
   data,
   onVoltar,
@@ -559,6 +740,7 @@ function CalendarioMesAtual({
 
 function EtapaBeneficios({
   contrato,
+  unidade,
   data,
   beneficios,
   erro,
@@ -568,6 +750,7 @@ function EtapaBeneficios({
   onPreview,
 }: {
   contrato: ContratoPontoFacultativo | null
+  unidade: string | null
   data: string | null
   beneficios: BeneficioPontoFacultativo[]
   erro: string | null
@@ -589,6 +772,12 @@ function EtapaBeneficios({
           <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1.5 text-xs text-white/82">
             <Building2 className="size-3.5 text-emerald-200/85" />
             {contrato}
+          </span>
+        )}
+        {unidade && (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1.5 text-xs text-white/82">
+            <MapPin className="size-3.5 text-emerald-200/85" />
+            {unidade}
           </span>
         )}
         {data && (
@@ -747,11 +936,12 @@ function EtapaConfirmar({
         </span>
       </div>
 
+      <ContextoPreview preview={preview} />
       <ResumoTotais preview={preview} />
 
       <div className="mt-5 max-h-[22rem] space-y-2.5 overflow-y-auto pr-1">
         {vazio ? (
-          <EstadoVazio />
+          <EstadoVazio aviso={preview.aviso} />
         ) : (
           preview.itens.map((item, i) => (
             <div
@@ -787,19 +977,41 @@ function EtapaConfirmar({
   )
 }
 
-function EstadoVazio() {
+function EstadoVazio({ aviso }: { aviso: string | null }) {
+  const { titulo, detalhe } = legendaAviso(aviso)
   return (
     <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/12 bg-white/[0.02] px-5 py-10 text-center">
       <div className="flex size-14 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] text-white/55">
         <UserX className="size-6" />
       </div>
-      <p className="mt-4 text-sm font-medium text-white/78">
-        Nenhum intermitente ativo
-      </p>
+      <p className="mt-4 text-sm font-medium text-white/78">{titulo}</p>
       <p className="mt-1 max-w-xs text-xs leading-relaxed text-white/45">
-        Não há convocações ativas para esse contrato no dia escolhido.
-        Volte e tente outro dia ou contrato.
+        {detalhe}
       </p>
+      {aviso && (
+        <p className="mt-3 inline-flex rounded-full border border-white/8 bg-white/[0.03] px-2 py-0.5 font-mono text-[10px] text-white/35">
+          {aviso}
+        </p>
+      )}
+    </div>
+  )
+}
+
+function ContextoPreview({ preview }: { preview: PontoFacultativoPreview }) {
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-2">
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1.5 text-xs text-white/82">
+        <Building2 className="size-3.5 text-emerald-200/85" />
+        {preview.contrato}
+      </span>
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1.5 text-xs text-white/82">
+        <MapPin className="size-3.5 text-emerald-200/85" />
+        {preview.unidade}
+      </span>
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1.5 text-xs text-white/82">
+        <CalendarDays className="size-3.5 text-emerald-200/85" />
+        {formatarData(preview.data)}
+      </span>
     </div>
   )
 }
@@ -815,6 +1027,9 @@ function CardIntermitente({ item }: { item: PontoFacultativoItem }) {
           <p className="mt-1 text-xs text-white/45">
             {item.chapa}
             {item.funcao ? ` · ${item.funcao}` : ""}
+          </p>
+          <p className="mt-0.5 text-[11px] text-white/38">
+            {item.unidade}
           </p>
           <p className="mt-0.5 text-[11px] text-white/35">
             {item.periodoInicio} a {item.periodoFim}

@@ -4,14 +4,14 @@ App web pra **gerenciar convocações de intermitentes** no monday: cria convoca
 
 ## Estado atual do projeto (2026-05-23)
 
-- **Ponto facultativo atualizado**: `/ponto-facultativo` no Hub, endpoints n8n `POST /ponto-facultativo-preview` e `POST /ponto-facultativo-aplicar`, ledger com origem `ponto_facultativo:<contrato>:<data>` e `/preencher` bloqueando dias vindos de `pontos_facultativos[]`.
+- **Ponto facultativo atualizado**: `/ponto-facultativo` no Hub, endpoints n8n `GET /ponto-facultativo-opcoes`, `POST /ponto-facultativo-preview` e `POST /ponto-facultativo-aplicar`, filtro por contrato + unidade (`dropdown_mm3mcnmn`, fallback `texto75`), ledger com origem `ponto_facultativo:<contrato>:<unidade_normalizada>:<data>` e `/preencher` bloqueando dias vindos de `pontos_facultativos[]`.
 
 ### Mapa atual resumido
 
 - **Atestados/declaracoes**: `POST /intermitente-lancar-documentos` e documental. Cria item no Controle de Atestados (`18298015951`) e anexa arquivo; nao deve atualizar Historico, ledger ou Base de Desconto diretamente.
 - **Financeiro de atestados**: fica desacoplado do envio documental e passa pelo fluxo `Nexti - Validar Atestado`, usando o Nexti como fonte de verdade antes de gerar qualquer impacto financeiro.
 - **WF3 Finalizar**: continua responsavel por falta/atraso/desconsiderado do registro manual. Valores de VR/VT vêm do board de parametros (`18413870370`).
-- **Ponto facultativo**: fluxo novo para descontar VR/VT de todos os intermitentes convocados em contrato/data especificos. Ele grava ledger para impedir duplicidade no `/preencher`.
+- **Ponto facultativo**: fluxo novo para descontar VR/VT de todos os intermitentes convocados em contrato/unidade/data especificos. Ele grava ledger para impedir duplicidade no `/preencher`.
 
 ### Iterações recentes consolidadas
 
@@ -37,8 +37,9 @@ App web pra **gerenciar convocações de intermitentes** no monday: cria convoca
 **Host novo** (`aionscorp-n8n.cloudfy.live/webhook`):
 
 Ponto Facultativo ativo:
-- `POST /ponto-facultativo-preview` (`7gHmbLcZ5r6D5sXz`) - chamado por `/ponto-facultativo`; seleciona convocacoes do board Entrada por contrato/data, cruza Historico/ledger, resolve valores pelo board `18413870370` e retorna afetados/totais sem gravar Monday.
-- `POST /ponto-facultativo-aplicar` (`XybrfnzI11Fw5sX4`) - chamado por `/ponto-facultativo`; recalcula a selecao, grava ledger `ponto_facultativo:<contrato>:<data>` e cria/atualiza Desconto com `Origem do Desconto = PONTO FACULTATIVO`.
+- `GET /ponto-facultativo-opcoes` (`JXpJ6xuSZMcu2IVn`) - retorna `unidades_por_contrato` a partir do Plan de Intermitentes, preferindo `OP - Local/Unidade` (`dropdown_mm3mcnmn`) e usando `texto75` como fallback.
+- `POST /ponto-facultativo-preview` (`7gHmbLcZ5r6D5sXz`) - chamado por `/ponto-facultativo`; seleciona convocacoes do board Entrada por contrato/unidade/data, cruza Historico/ledger, resolve valores pelo board `18413870370` e retorna afetados/totais sem gravar Monday.
+- `POST /ponto-facultativo-aplicar` (`XybrfnzI11Fw5sX4`) - chamado por `/ponto-facultativo`; recalcula a selecao, grava ledger `ponto_facultativo:<contrato>:<unidade_normalizada>:<data>` e cria/atualiza Desconto com `Origem do Desconto = PONTO FACULTATIVO`.
 - WF2 `GET /intermitente-ler` tambem devolve `pontos_facultativos[]` para bloquear os dias no `/preencher`.
 - Caveat atual: preview SEMSA `2026-05-20` encontrou 5 convocados, mas valores vieram zerados porque o board de valores `18413870370` nao retornou regra compativel (`regra_valores = "Sem regra de valores"`). Confirmar regra SEMSA/padrao ativa antes de aplicar em producao com afetados reais.
 
@@ -91,7 +92,7 @@ Ponto Facultativo ativo:
 ### Backend n8n (workflows principais)
 - **WF1 Preparar** — webhook do monday quando coluna `ativar` muda. Gera UUID, cria item no board Histórico (`18411141462`), patch Link Column no item de origem.
 - **WF2 Ler** — `GET /intermitente-ler?uuid=…`. Busca item por UUID via `getByColumnValue`, parseia respostas_json/dias_extras/dias_desativados.
-- **WF Ponto Facultativo Preview/Aplicar** — `POST /ponto-facultativo-preview` e `POST /ponto-facultativo-aplicar` no n8n novo. Preview calcula afetados por contrato/data sem gravar; Aplicar recalcula, mescla ledger `Beneficios Descontados JSON`, cria/atualiza Base de Desconto e marca `Origem do Desconto = PONTO FACULTATIVO`.
+- **WF Ponto Facultativo Opcoes/Preview/Aplicar** — `GET /ponto-facultativo-opcoes`, `POST /ponto-facultativo-preview` e `POST /ponto-facultativo-aplicar` no n8n novo. Opcoes agrupa unidades reais do Plan; Preview calcula afetados por contrato/unidade/data sem gravar; Aplicar recalcula, mescla ledger `Beneficios Descontados JSON`, cria/atualiza Base de Desconto e marca `Origem do Desconto = PONTO FACULTATIVO`.
 - **WF3 Finalizar** — `POST /intermitente-finalizar` (JSON simples — sem multipart desde a separação do fluxo de atestados). Valida payload, agrega (qtd_faltas/atrasos/total_minutos), grava respostas_json, marca status=Concluído. Trava antifraude se desconto já consumido. **Idempotente** (1 item, `change_multiple_column_values`). Também grava `sabados_extras` em `numeric_mm3bvgy` + `text_mm3bfn6h` quando aplicável, e dispara WF "Lançamento Sábados Extras" via webhook cross-n8n. **Atestado/declaração saíram do WF3** — feature standalone agora; ver §atestados abaixo.
 - **WF Lancar Documentos** — `POST /intermitente-lancar-documentos` multipart (`payload` JSON com array `documentos[]` + binarios `doc_<id>`). Fluxo documental: cria item no board Controle de Atestados (`18298015951`) e anexa arquivo na coluna `files`. Nao atualiza Historico, ledger ou Base de Desconto diretamente; impacto financeiro de atestado fica desacoplado e passa pelo fluxo Nexti.
 - **WF Buscar Convocacoes Empregado** *(novo)* — `GET /intermitente-convocacoes-empregado?chapa=…&mes=YYYY-MM`. Busca board ENTRADA (`18408773953`) por chapa, filtra por intersecção com o mês solicitado, ignora `Status Convocação` cancelado/bloqueado, cross-references Histórico pra trazer `uuid`, `trabalhaSabado`, `optanteVT`, `status` e `documentos_existentes` (do `Atestados JSON`). Retorna `{convocacoes: ConvocacaoResumida[]}`.

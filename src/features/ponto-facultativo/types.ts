@@ -15,6 +15,7 @@ export type BeneficioPontoFacultativo = "VR" | "VT"
 
 export type PontoFacultativoPayload = {
   contrato: ContratoPontoFacultativo
+  unidade: string
   data: string
   beneficios: BeneficioPontoFacultativo[]
 }
@@ -27,6 +28,7 @@ export type PontoFacultativoItem = {
   chapa: string
   cpf: string | null
   contrato: string
+  unidade: string
   funcao: string | null
   periodoInicio: string
   periodoFim: string
@@ -45,8 +47,10 @@ export type PontoFacultativoItem = {
 export type PontoFacultativoPreview = {
   ok: boolean
   contrato: ContratoPontoFacultativo
+  unidade: string
   data: string
   beneficios: BeneficioPontoFacultativo[]
+  aviso: string | null
   totalColaboradores: number
   totalVR: number
   totalVT: number
@@ -57,4 +61,10 @@ export type PontoFacultativoPreview = {
 export type PontoFacultativoAplicacao = PontoFacultativoPreview & {
   processados: number
   ignorados: number
+}
+
+export type PontoFacultativoOpcoes = {
+  ok: boolean
+  unidadeColumnId: string
+  unidadesPorContrato: Record<ContratoPontoFacultativo, string[]>
 }
