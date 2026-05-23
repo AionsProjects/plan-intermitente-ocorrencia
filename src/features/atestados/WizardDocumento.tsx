@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
+  addMonths,
   endOfMonth,
   endOfWeek,
   format,
@@ -7,16 +8,21 @@ import {
   parseISO,
   startOfMonth,
   startOfWeek,
+  subMonths,
 } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import {
   ArrowLeft,
   Building2,
   CalendarClock,
+  ChevronLeft,
   ChevronRight,
   ClipboardPaste,
+  Clock3,
   Pencil,
+  Plus,
   Search,
+  Unlock,
   Upload,
 } from "lucide-react"
 
@@ -42,6 +48,12 @@ import {
   listarDiasPeriodo,
 } from "./shared"
 import { contratoDoCodigoSecao } from "./mapaSecaoContrato"
+import {
+  isRetroativoLiberado,
+  liberarRetroativo,
+  revogarRetroativo,
+  senhaCorreta,
+} from "./retroativoStorage"
 import { nomeFeriadoNacional } from "@/lib/feriadosBr"
 import {
   ACOMPANHANTES,
@@ -254,15 +266,18 @@ export function WizardDocumento({
     [convocacao],
   )
 
-  // Busca convocações do empregado pra marcar dias de trabalho no calendário
-  // (ponto verde). Backend cruza atestado×convocação no envio final.
-  const mesAtual = (() => {
-    const hoje = new Date()
-    return `${hoje.getUTCFullYear()}-${String(hoje.getUTCMonth() + 1).padStart(2, "0")}`
-  })()
+  // Mês visualizado no calendário. Lifted pro parent pra que o hook
+  // `useConvocacoesEmpregado` reaja à navegação prev/next quando user
+  // habilita o modo retroativo. Sem retroativo, fica fixo no mês corrente.
+  const hojeRef = useMemo(() => new Date(), [])
+  const [mesVisivel, setMesVisivel] = useState<Date>(() => startOfMonth(hojeRef))
+  const mesParaQuery = useMemo(
+    () => format(mesVisivel, "yyyy-MM"),
+    [mesVisivel],
+  )
   const convocacoesQuery = useConvocacoesEmpregado(
     modo === "intermitente" && empregado?.chapa ? empregado.chapa : "",
-    mesAtual,
+    mesParaQuery,
   )
   const diasConvocados = useMemo(() => {
     if (modo !== "intermitente") return new Set<string>()
@@ -401,6 +416,9 @@ export function WizardDocumento({
             modo === "intermitente" ? convocacoesQuery.isFetching : false
           }
           mostraConvocacao={modo === "intermitente"}
+          mesVisivel={mesVisivel}
+          setMesVisivel={setMesVisivel}
+          hoje={hojeRef}
           onConfirmar={(di, df) => {
             setDraft((p) => ({
               ...p,
@@ -628,6 +646,9 @@ function EtapaCalendario({
   diasConvocados,
   carregandoConvocacoes,
   mostraConvocacao,
+  mesVisivel,
+  setMesVisivel,
+  hoje,
   onConfirmar,
 }: {
   ehDiaUnico: boolean
@@ -635,13 +656,23 @@ function EtapaCalendario({
   diasConvocados: Set<string>
   carregandoConvocacoes: boolean
   mostraConvocacao: boolean
+  mesVisivel: Date
+  setMesVisivel: (d: Date | ((prev: Date) => Date)) => void
+  hoje: Date
   onConfirmar: (dataInicio: string, dataFim: string) => void
 }) {
-  // Mês corrente é o ÚNICO permitido — operacional não pode lançar atestado
-  // de mês passado nem futuro.
-  const hoje = new Date()
-  const mesAtual = useMemo(() => startOfMonth(hoje), [])
-  const fimMesAtual = useMemo(() => endOfMonth(hoje), [])
+  // Por padrão só mês corrente é permitido. Modo retroativo libera nav
+  // pra meses anteriores (nunca pra mês futuro) — persistido em
+  // localStorage com TTL fim-do-dia.
+  const fimMesVisivel = useMemo(() => endOfMonth(mesVisivel), [mesVisivel])
+  const mesCorrenteInicio = useMemo(() => startOfMonth(hoje), [hoje])
+  const ehMesCorrente = isSameMonth(mesVisivel, hoje)
+
+  const [retroativoAtivo, setRetroativoAtivo] = useState(() => isRetroativoLiberado())
+  const [dialogSenhaAberto, setDialogSenhaAberto] = useState(false)
+
+  const podeNavegarPrev = retroativoAtivo
+  const podeNavegarNext = !ehMesCorrente && mesVisivel < mesCorrenteInicio
 
   const [diaInicio, setDiaInicio] = useState<string | null>(null)
   const [dialogAberto, setDialogAberto] = useState(false)
@@ -649,9 +680,16 @@ function EtapaCalendario({
   const [diaFim, setDiaFim] = useState<string | null>(null)
   const [erro, setErro] = useState<string | null>(null)
 
+  // Limpa seleção ao navegar entre meses pra evitar período órfão fora do mês visível.
+  useEffect(() => {
+    setDiaInicio(null)
+    setDiaFim(null)
+    setErro(null)
+  }, [mesVisivel])
+
   const diasGrade = useMemo(() => {
-    const inicio = startOfWeek(mesAtual, { weekStartsOn: 0 })
-    const fim = endOfWeek(fimMesAtual, { weekStartsOn: 0 })
+    const inicio = startOfWeek(mesVisivel, { weekStartsOn: 0 })
+    const fim = endOfWeek(fimMesVisivel, { weekStartsOn: 0 })
     const out: Date[] = []
     const d = new Date(inicio)
     while (d <= fim) {
@@ -659,7 +697,7 @@ function EtapaCalendario({
       d.setDate(d.getDate() + 1)
     }
     return out
-  }, [mesAtual, fimMesAtual])
+  }, [mesVisivel, fimMesVisivel])
 
   function clicarDia(iso: string) {
     setErro(null)
@@ -681,10 +719,10 @@ function EtapaCalendario({
     const fim = new Date(inicio)
     fim.setUTCDate(fim.getUTCDate() + n - 1)
     const fimIso = fim.toISOString().slice(0, 10)
-    const fimMesAtualIso = format(fimMesAtual, "yyyy-MM-dd")
-    if (fimIso > fimMesAtualIso) {
+    const fimMesIso = format(fimMesVisivel, "yyyy-MM-dd")
+    if (fimIso > fimMesIso) {
       setErro(
-        `Período passa do mês corrente. Máximo ${fimMesAtualIso}. Reduza a quantidade de dias.`,
+        `Período passa do fim do mês visualizado (${fimMesIso}). Reduza a quantidade de dias.`,
       )
       return
     }
@@ -720,7 +758,9 @@ function EtapaCalendario({
           : "Clique na data inicial. O sistema vai perguntar quantos dias de ausência."}
       </p>
       <p className="mt-1 text-xs text-white/45">
-        Restrito ao mês corrente · {format(hoje, "MMMM 'de' yyyy", { locale: ptBR })}.
+        {retroativoAtivo
+          ? "Retroativo liberado · navegue para meses anteriores."
+          : `Restrito ao mês corrente · ${format(hoje, "MMMM 'de' yyyy", { locale: ptBR })}.`}
         {carregandoConvocacoes && " Carregando convocações…"}
       </p>
 
@@ -746,10 +786,75 @@ function EtapaCalendario({
       </div>
 
       <div className="mt-6 space-y-4">
-        <div className="flex items-center justify-center">
-          <p className="text-display text-lg capitalize text-white/95">
-            {format(mesAtual, "MMMM 'de' yyyy", { locale: ptBR })}
-          </p>
+        <div className="flex items-center justify-between gap-3">
+          {/* Slot prev — só renderiza ChevronLeft se retroativo ativo */}
+          <div className="size-9">
+            {podeNavegarPrev && (
+              <button
+                type="button"
+                onClick={() => setMesVisivel((m) => subMonths(m, 1))}
+                className="flex size-9 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] text-white/70 transition hover:bg-white/[0.08] hover:text-white"
+                aria-label="Mês anterior"
+              >
+                <ChevronLeft className="size-4" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-col items-center gap-1.5">
+            <p className="text-display text-lg capitalize text-white/95">
+              {format(mesVisivel, "MMMM 'de' yyyy", { locale: ptBR })}
+            </p>
+            {!ehMesCorrente && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-amber-300/35 bg-amber-300/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-amber-100">
+                <Clock3 className="size-3" />
+                Retroativo
+              </span>
+            )}
+          </div>
+
+          {/* Slot next — só renderiza se podeNavegarNext (mês passado, não-corrente) */}
+          <div className="size-9">
+            {podeNavegarNext && (
+              <button
+                type="button"
+                onClick={() => setMesVisivel((m) => addMonths(m, 1))}
+                className="flex size-9 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] text-white/70 transition hover:bg-white/[0.08] hover:text-white"
+                aria-label="Próximo mês"
+              >
+                <ChevronRight className="size-4" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Chip "+ Atestado retroativo" / "Retroativo liberado · trancar" */}
+        <div className="flex justify-end">
+          {retroativoAtivo ? (
+            <button
+              type="button"
+              onClick={() => {
+                revogarRetroativo()
+                setRetroativoAtivo(false)
+                setMesVisivel(mesCorrenteInicio)
+              }}
+              className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/30 bg-amber-300/[0.08] px-3 py-1 text-[11px] text-amber-100 transition hover:bg-amber-300/[0.15]"
+            >
+              <Unlock className="size-3" />
+              Retroativo liberado · trancar
+            </button>
+          ) : (
+            ehMesCorrente && (
+              <button
+                type="button"
+                onClick={() => setDialogSenhaAberto(true)}
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.03] px-3 py-1 text-[11px] text-white/65 transition hover:border-amber-300/35 hover:bg-amber-300/[0.08] hover:text-amber-100"
+              >
+                <Plus className="size-3" />
+                Atestado retroativo
+              </button>
+            )
+          )}
         </div>
 
         <div className="grid grid-cols-7 gap-1">
@@ -763,7 +868,7 @@ function EtapaCalendario({
           ))}
           {diasGrade.map((dia) => {
             const iso = format(dia, "yyyy-MM-dd")
-            const noMes = isSameMonth(dia, mesAtual)
+            const noMes = isSameMonth(dia, mesVisivel)
             const feriadoNome = nomeFeriadoNacional(iso)
             const eFeriado = !!feriadoNome
             const permitido = noMes && diaPermitido(iso).ok
@@ -862,6 +967,15 @@ function EtapaCalendario({
           }}
         />
       )}
+
+      <DialogSenhaRetroativo
+        aberto={dialogSenhaAberto}
+        onFechar={() => setDialogSenhaAberto(false)}
+        onLiberar={() => {
+          setRetroativoAtivo(true)
+          setDialogSenhaAberto(false)
+        }}
+      />
     </div>
   )
 }
@@ -966,6 +1080,111 @@ function DialogQuantidadeDias({
             onClick={onConfirmar}
           >
             Confirmar
+          </ChoiceButton>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function DialogSenhaRetroativo({
+  aberto,
+  onFechar,
+  onLiberar,
+}: {
+  aberto: boolean
+  onFechar: () => void
+  onLiberar: () => void
+}) {
+  const [senha, setSenha] = useState("")
+  const [erro, setErro] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (aberto) {
+      setSenha("")
+      setErro(null)
+      const t = setTimeout(() => inputRef.current?.focus(), 60)
+      return () => clearTimeout(t)
+    }
+  }, [aberto])
+
+  function tentar() {
+    if (senhaCorreta(senha)) {
+      liberarRetroativo()
+      onLiberar()
+      return
+    }
+    setErro("Senha incorreta.")
+    setSenha("")
+    inputRef.current?.focus()
+  }
+
+  if (!aberto) return null
+
+  return (
+    <Dialog open={aberto} onOpenChange={(v) => !v && onFechar()}>
+      <DialogContent
+        className="glass-modal border-0 bg-transparent p-7 text-white sm:max-w-sm"
+        style={{ backdropFilter: "blur(10px) saturate(140%) brightness(1.05)" }}
+      >
+        <DialogHeader>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex size-7 items-center justify-center rounded-full bg-amber-300/15 ring-1 ring-amber-300/40">
+              <Unlock className="size-3.5 text-amber-200" />
+            </span>
+            <p className="text-[10px] uppercase tracking-[0.3em] text-amber-200/85">
+              Liberação operacional
+            </p>
+          </div>
+          <DialogTitle className="text-display mt-2 text-3xl text-white">
+            Atestado <em className="italic text-[#e8c275]">retroativo</em>
+          </DialogTitle>
+          <DialogDescription className="text-white/65">
+            Liberação válida só hoje. Digite a senha pra habilitar navegação
+            pra meses anteriores.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="my-2 h-px bg-white/12" />
+
+        <input
+          ref={inputRef}
+          type="password"
+          inputMode="numeric"
+          autoComplete="off"
+          value={senha}
+          onChange={(e) => {
+            setSenha(e.target.value)
+            setErro(null)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") tentar()
+          }}
+          placeholder="Senha operacional"
+          className="w-full rounded-xl border border-white/15 bg-white/[0.04] px-4 py-3 text-center font-mono text-lg tracking-[0.4em] text-white placeholder:text-white/30 focus:border-amber-300/55 focus:outline-none"
+        />
+
+        {erro && (
+          <p className="mt-2 rounded-xl border border-rose-300/30 bg-rose-300/10 px-3 py-2 text-xs text-rose-100">
+            {erro}
+          </p>
+        )}
+
+        <div className="mt-5 flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={onFechar}
+            className="text-sm text-white/55 transition hover:text-white/85"
+          >
+            Cancelar
+          </button>
+          <ChoiceButton
+            variant="primary"
+            disabled={senha.length === 0}
+            onClick={tentar}
+          >
+            Liberar
           </ChoiceButton>
         </div>
       </DialogContent>
