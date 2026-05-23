@@ -247,6 +247,13 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
   const [cancelamentoErro, setCancelamentoErro] = useState<string | null>(null)
   const [reverterAberto, setReverterAberto] = useState(false)
   const [reverterErro, setReverterErro] = useState<string | null>(null)
+  // Cancelamento parcial fica **pendente local** até user clicar
+  // "Finalizar e enviar". Backend só vê quando o enviar() dispara a
+  // sequência cancelar→finalizar. Permite reverter sem hit no backend
+  // (impossível antes — WF Cancelar não aceita "reverter" ainda).
+  const [cancelamentoParcialLocal, setCancelamentoParcialLocal] = useState<
+    string | null
+  >(null)
   const [etapaSabados, setEtapaSabados] = useState<EtapaSabados>("fechado")
   const [sabadoARemover, setSabadoARemover] = useState<string | null>(null)
 
@@ -273,22 +280,36 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
     return () => window.clearTimeout(t)
   }, [etapaSplit])
 
-  // Set de dias "queimados" pelo cancelamento parcial vigente no backend.
-  // Todo dia >= dataInicioCancelamento (do ProcessamentoDados, NÃO o state
-  // local do wizard de cancelamento) entra no set.
-  const diasCancelados = useMemo<Set<string>>(() => {
-    const inicio = dados.dataInicioCancelamento
-    if (!inicio || dados.statusCancelamento !== "cancelada_parcial")
-      return new Set()
-    return new Set(dados.dias.filter((d) => d >= inicio))
-  }, [dados.dataInicioCancelamento, dados.statusCancelamento, dados.dias])
+  // Data efetiva do cancelamento parcial: local pendente OU vigente no backend.
+  // Local tem precedência (pode ter sido revertido localmente após reload).
+  const cancelamentoParcialEfetivo = useMemo<string | null>(() => {
+    if (cancelamentoParcialLocal) return cancelamentoParcialLocal
+    if (
+      dados.statusCancelamento === "cancelada_parcial" &&
+      dados.dataInicioCancelamento
+    ) {
+      return dados.dataInicioCancelamento
+    }
+    return null
+  }, [
+    cancelamentoParcialLocal,
+    dados.statusCancelamento,
+    dados.dataInicioCancelamento,
+  ])
 
-  // Flag: convocação já tem cancelamento parcial registrado (banner + botão
-  // reverter no header). Quando true, esconde fluxo de "Cancelar convocação"
-  // e oferece "Reverter cancelamento" no lugar.
-  const jaCanceladoParcial =
-    dados.statusCancelamento === "cancelada_parcial" &&
-    !!dados.dataInicioCancelamento
+  // Set de dias "queimados" pelo cancelamento parcial — usa data efetiva
+  // (local OU backend). Render reage imediato após user marcar parcial,
+  // sem esperar refetch.
+  const diasCancelados = useMemo<Set<string>>(() => {
+    if (!cancelamentoParcialEfetivo) return new Set()
+    return new Set(dados.dias.filter((d) => d >= cancelamentoParcialEfetivo))
+  }, [cancelamentoParcialEfetivo, dados.dias])
+
+  // Flag: convocação já tem cancelamento parcial (banner + botão reverter
+  // no header). Combina backend vigente + pendente local.
+  const jaCanceladoParcial = !!cancelamentoParcialEfetivo
+  // Distingue parcial **pendente local** (não enviado) — reverter sem API.
+  const cancelamentoParcialPendente = !!cancelamentoParcialLocal
   // Atestados/declarações são read-only no /preencher (criação/correção é em /atestados).
   const atestados = useMemo<Atestado[]>(
     () => dados.atestados ?? [],
@@ -510,7 +531,35 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
       // Split: se ativo, WF3 detecta e cria 2 subitems no item ENTRADA.
       split: dados.split ?? null,
     }
+    // Se há cancelamento parcial PENDENTE LOCAL, persiste no backend
+    // ANTES do WF3 finalizar. Sequência: cancelar→finalizar. Se cancelar
+    // falhar (409 já cancelado, etc), aborta sem perder respostas locais.
+    if (cancelamentoParcialLocal) {
+      try {
+        await cancelarConvocacao.mutateAsync({
+          tipo: "parcial",
+          dataInicioCancelamento: cancelamentoParcialLocal,
+        })
+      } catch (err) {
+        const raw = err instanceof Error ? err.message : ""
+        const lower = raw.toLowerCase()
+        let mensagem = "Erro ao cancelar parcialmente antes de finalizar. Tente novamente."
+        if (lower.includes("ja possui cancelamento") || lower.includes("já possui cancelamento")) {
+          mensagem =
+            "Esta convocação já tem um cancelamento ativo no backend. Recarregue a página e tente reverter."
+        } else if (lower.includes("desconto") && lower.includes("consumo")) {
+          mensagem =
+            "Não foi possível cancelar: o desconto desta convocação já foi processado. Avise o financeiro antes de seguir."
+        } else if (raw) {
+          mensagem = raw
+        }
+        // Lança pro mutation manager mostrar via UI normal de erro de finalizar
+        throw new Error(mensagem)
+      }
+    }
     const resultado = await finalizar.mutateAsync(payload)
+    // Limpa estado local de cancelamento parcial após persistir.
+    setCancelamentoParcialLocal(null)
     salvarProtocolo({
       protocolo: resultado.protocolo,
       uuid: dados.uuid,
@@ -554,41 +603,26 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
     }
   }
 
-  async function executarCancelamentoParcial(data: string) {
+  function executarCancelamentoParcial(data: string) {
+    // Parcial fica PENDENTE LOCAL — não hit backend agora. Persistência
+    // acontece no enviar() (cancelar→finalizar em sequência), o que
+    // permite ao user reverter sem race com WF Cancelar.
     setCancelamentoErro(null)
-    try {
-      await cancelarConvocacao.mutateAsync({
-        tipo: "parcial",
-        dataInicioCancelamento: data,
-      })
-      // Cancelamento parcial NÃO finaliza mais a convocação.
-      // Fecha o dialog e volta pro painel — operacional ainda precisa lançar
-      // respostas dos dias não-cancelados e clicar "Finalizar".
-      // useProcessamento já invalida a query → refetch traz dataInicioCancelamento
-      // do backend e pinta os dias queimados.
-      setEtapaCancelamento("fechado")
-      setDataInicioCancelamento(null)
-    } catch (err) {
-      // Trata mensagens brutas do backend (ex: 409 "Esta convocacao ja possui
-      // cancelamento registrado") por copy amigável + sugestão de ação.
-      const raw = err instanceof Error ? err.message : ""
-      const lower = raw.toLowerCase()
-      let mensagem = "Erro ao cancelar parcialmente. Tente novamente."
-      if (lower.includes("ja possui cancelamento") || lower.includes("já possui cancelamento")) {
-        mensagem =
-          "Esta convocação já tem um cancelamento ativo. Use 'Reverter cancelamento' no header se quiser refazer."
-      } else if (lower.includes("desconto") && lower.includes("consumo")) {
-        mensagem =
-          "Não foi possível cancelar: o desconto desta convocação já foi processado. Avise o financeiro antes de seguir."
-      } else if (raw) {
-        mensagem = raw
-      }
-      setCancelamentoErro(mensagem)
-    }
+    setCancelamentoParcialLocal(data)
+    setEtapaCancelamento("fechado")
+    setDataInicioCancelamento(null)
   }
 
   async function executarReverter() {
     setReverterErro(null)
+    // Pendente local — só limpa state, sem API. UX imediato.
+    if (cancelamentoParcialPendente) {
+      setCancelamentoParcialLocal(null)
+      setReverterAberto(false)
+      return
+    }
+    // Backend persistido (raro hoje — fluxo novo só persiste no Finalizar).
+    // Tenta chamar WF reverter; pode falhar se backend não suporta ainda.
     try {
       await cancelarConvocacao.mutateAsync({
         tipo: "reverter",
@@ -852,17 +886,19 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
           {/* Cancelamento parcial banner — informa visualmente sem precisar
               de clique tentativo. Resolve UX que mostrava erro técnico 409
               do backend ("Esta convocacao ja possui cancelamento"). */}
-          {jaCanceladoParcial && dados.dataInicioCancelamento && (
+          {jaCanceladoParcial && cancelamentoParcialEfetivo && (
             <div className="mt-4 flex items-start gap-3 rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-3 fade-up">
               <CancelXIcon />
               <div className="flex-1 text-sm text-amber-100/95">
                 <p className="font-medium">
-                  Cancelamento parcial registrado a partir de{" "}
-                  {formatarDataNumerica(dados.dataInicioCancelamento)}.
+                  {cancelamentoParcialPendente
+                    ? `Cancelamento parcial pendente a partir de ${formatarDataNumerica(cancelamentoParcialEfetivo)}.`
+                    : `Cancelamento parcial registrado a partir de ${formatarDataNumerica(cancelamentoParcialEfetivo)}.`}
                 </p>
                 <p className="mt-1 text-xs text-amber-100/70">
-                  Os dias a partir dessa data ficam bloqueados. Toque em um dia
-                  cancelado para reverter o cancelamento.
+                  {cancelamentoParcialPendente
+                    ? "Será enviado quando você clicar em Finalizar e enviar. Toque em um dia cancelado para reverter antes do envio."
+                    : "Os dias a partir dessa data ficam bloqueados. Toque em um dia cancelado para reverter o cancelamento."}
                 </p>
               </div>
             </div>
