@@ -13,7 +13,7 @@ const actions = [
   {
     to: "/convocar",
     title: "Nova convocação",
-    description: "Cadastrar uma convocação pontual no monday.",
+    description: "Cadastrar uma nova convocação pontual.",
     icon: UserPlus,
     tone: "blue",
   },
@@ -27,7 +27,7 @@ const actions = [
   {
     to: "/ponto-facultativo",
     title: "Ponto facultativo",
-    description: "Aplicar VR/VT por contrato em um dia do mês atual.",
+    description: "Aplicar vale-refeição e vale-transporte para um contrato em um dia específico.",
     icon: CalendarDays,
     tone: "emerald",
   },
@@ -135,7 +135,7 @@ export function HubPage() {
         </div>
 
         <div className="mt-6 flex flex-col gap-2 border-t border-white/10 pt-5 text-xs leading-relaxed text-white/40 sm:flex-row sm:items-center sm:justify-between">
-          <span>Use a área de teste apenas para validar cenários mockados.</span>
+          <span>Área de testes — use para validar cenários sem afetar a operação.</span>
           <Link
             to="/teste"
             className="inline-flex w-fit items-center gap-1.5 text-white/52 transition hover:text-[#d8aa53] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d8aa53]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"

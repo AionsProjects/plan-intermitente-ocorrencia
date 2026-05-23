@@ -17,17 +17,17 @@ export function TelaSucesso({ itemId, itemUrl, onNovaConvocacao }: Props) {
         Convocação <em className="italic text-[#e8c275]">criada</em>
       </h1>
       <p className="mt-3 text-sm text-white/65">
-        Item criado no board de Plan. de Intermitentes. Ative a coluna{" "}
-        <code className="text-[#e8c275]">ativar</code> no monday para gerar o
+        Convocação cadastrada. Ative a coluna{" "}
+        <code className="text-[#e8c275]">Ativar</code> no monday para gerar o
         link de preenchimento.
       </p>
 
       <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/5 px-4 py-2 text-xs text-white/70 backdrop-blur">
-        ID do item:{" "}
+        Código da convocação:{" "}
         <code className="text-[#e8c275]">{itemId}</code>
         {ehMock && (
           <span className="ml-2 rounded-full border border-amber-300/40 bg-amber-300/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-amber-200">
-            mock
+            teste
           </span>
         )}
       </div>

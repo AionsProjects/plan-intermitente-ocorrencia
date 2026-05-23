@@ -167,13 +167,13 @@ function mensagemErroPreview(erro: unknown): string | null {
   if (!erro) return null
   const raw = erro instanceof Error ? erro.message : String(erro)
   if (raw.includes("unidade_ambigua")) {
-    return "Unidade ambígua no board (duas com grafia parecida). Avise o admin pra ajustar o cadastro."
+    return "Encontramos duas unidades com nomes parecidos. Peça ao administrador para revisar o cadastro."
   }
   if (raw.includes("unidade_invalida")) {
-    return "Unidade não reconhecida pelo backend. Recarregue a lista e tente de novo."
+    return "Não conseguimos validar essa unidade. Recarregue a lista e tente de novo."
   }
   if (raw.includes("sem_intermitentes_para_aplicar")) {
-    return "Nenhum intermitente convocado nessa unidade pra essa data. Volte e ajuste a seleção."
+    return "Nenhum intermitente convocado nessa unidade para essa data. Volte e ajuste a seleção."
   }
   return raw
 }
@@ -281,8 +281,8 @@ export function PontoFacultativoPage() {
               Desconto por contrato
             </h1>
             <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/58">
-              Escolha contrato, unidade, dia e benefícios. A confirmação
-              recalcula no backend todos os intermitentes convocados naquele local.
+              Escolha contrato, unidade, dia e benefícios. Ao confirmar, o
+              desconto é aplicado a todos os intermitentes convocados naquele local.
             </p>
           </div>
           <Link

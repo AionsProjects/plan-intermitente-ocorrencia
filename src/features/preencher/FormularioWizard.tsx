@@ -282,6 +282,13 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
       return new Set()
     return new Set(dados.dias.filter((d) => d >= inicio))
   }, [dados.dataInicioCancelamento, dados.statusCancelamento, dados.dias])
+
+  // Flag: convocação já tem cancelamento parcial registrado (banner + botão
+  // reverter no header). Quando true, esconde fluxo de "Cancelar convocação"
+  // e oferece "Reverter cancelamento" no lugar.
+  const jaCanceladoParcial =
+    dados.statusCancelamento === "cancelada_parcial" &&
+    !!dados.dataInicioCancelamento
   // Atestados/declarações são read-only no /preencher (criação/correção é em /atestados).
   const atestados = useMemo<Atestado[]>(
     () => dados.atestados ?? [],
@@ -562,11 +569,21 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
       setEtapaCancelamento("fechado")
       setDataInicioCancelamento(null)
     } catch (err) {
-      setCancelamentoErro(
-        err instanceof Error
-          ? err.message
-          : "Erro ao cancelar parcialmente. Tente novamente.",
-      )
+      // Trata mensagens brutas do backend (ex: 409 "Esta convocacao ja possui
+      // cancelamento registrado") por copy amigável + sugestão de ação.
+      const raw = err instanceof Error ? err.message : ""
+      const lower = raw.toLowerCase()
+      let mensagem = "Erro ao cancelar parcialmente. Tente novamente."
+      if (lower.includes("ja possui cancelamento") || lower.includes("já possui cancelamento")) {
+        mensagem =
+          "Esta convocação já tem um cancelamento ativo. Use 'Reverter cancelamento' no header se quiser refazer."
+      } else if (lower.includes("desconto") && lower.includes("consumo")) {
+        mensagem =
+          "Não foi possível cancelar: o desconto desta convocação já foi processado. Avise o financeiro antes de seguir."
+      } else if (raw) {
+        mensagem = raw
+      }
+      setCancelamentoErro(mensagem)
     }
   }
 
@@ -758,12 +775,21 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
                 <button
                   type="button"
                   className="btn-action-expand btn-cancel-convocacao"
-                  onClick={abrirCancelamento}
-                  aria-label="Cancelar convocação"
+                  onClick={() => {
+                    if (jaCanceladoParcial) setReverterAberto(true)
+                    else abrirCancelamento()
+                  }}
+                  aria-label={
+                    jaCanceladoParcial
+                      ? "Reverter cancelamento"
+                      : "Cancelar convocação"
+                  }
                 >
                   <CancelXIcon />
                   <span className="btn-label text-red-200">
-                    Cancelar convocação
+                    {jaCanceladoParcial
+                      ? "Reverter cancelamento"
+                      : "Cancelar convocação"}
                   </span>
                 </button>
                 {!dados.trabalhaSabado && (
@@ -823,6 +849,25 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
             </ul>
           )}
 
+          {/* Cancelamento parcial banner — informa visualmente sem precisar
+              de clique tentativo. Resolve UX que mostrava erro técnico 409
+              do backend ("Esta convocacao ja possui cancelamento"). */}
+          {jaCanceladoParcial && dados.dataInicioCancelamento && (
+            <div className="mt-4 flex items-start gap-3 rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-3 fade-up">
+              <CancelXIcon />
+              <div className="flex-1 text-sm text-amber-100/95">
+                <p className="font-medium">
+                  Cancelamento parcial registrado a partir de{" "}
+                  {formatarDataNumerica(dados.dataInicioCancelamento)}.
+                </p>
+                <p className="mt-1 text-xs text-amber-100/70">
+                  Os dias a partir dessa data ficam bloqueados. Toque em um dia
+                  cancelado para reverter o cancelamento.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Desconsiderar mode banner */}
           {modoApagar && (
             <div className="glass-banner-danger mt-4 flex items-center justify-center gap-2 px-4 py-3 fade-up">
@@ -864,7 +909,7 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
 
             <p className="text-center text-xs text-white/55">
               {totalOcorrencias === 0
-                ? "Nenhuma ocorrência registrada. Você pode finalizar assim mesmo."
+                ? "Nenhuma ocorrência registrada — você pode finalizar sem registrar nada."
                 : `${totalOcorrencias} ${
                     totalOcorrencias === 1 ? "dia com ocorrência" : "dias com ocorrência"
                   }.`}
@@ -2506,8 +2551,8 @@ function DialogConfirmarRemoverSabado({
           </DialogTitle>
           <DialogDescription className="text-white/65">
             {data
-              ? `Remover ${formatarDataNumerica(data)} dos sábados extras. O benefício de VT não será mais solicitado para esta data.`
-              : "Remover este sábado extra. O benefício de VT não será mais solicitado para esta data."}
+              ? `Remover ${formatarDataNumerica(data)} dos sábados extras. O vale-transporte extra não será mais solicitado para esta data.`
+              : "Remover este sábado extra. O vale-transporte extra não será mais solicitado para esta data."}
           </DialogDescription>
         </DialogHeader>
 
@@ -3059,7 +3104,7 @@ function DialogSplit({
             {etapa === "calendario"
               ? "O dia escolhido será o primeiro da Parte 2. Os anteriores ficam na Parte 1."
               : etapa === "contratos"
-                ? "Cada parte vai virar um subitem no monday. Contratos devem ser diferentes."
+                ? "Cada parte vira uma convocação separada com contrato próprio."
                 : etapa === "confirmar"
                   ? "Aplicar a divisão agora não finaliza — você ainda preenche faltas/atrasos antes de enviar."
                   : "Pronto. As partes já aparecem no painel."}

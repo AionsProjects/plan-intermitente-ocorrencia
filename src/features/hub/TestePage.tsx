@@ -45,6 +45,11 @@ export function TestePage() {
       desc: "Convocação com atestado pré-carregado para validar o destaque.",
     },
     {
+      uuid: "mock-cancelado-parcial",
+      titulo: "Cancelamento parcial",
+      desc: "Convocação 25–29/05 com cancelamento a partir de 28/05. Dia 28 e 29 ficam bloqueados (tile cancelado).",
+    },
+    {
       uuid: "uuid-inexistente",
       titulo: "Link inválido",
       desc: "Estado 404 / não encontrado.",

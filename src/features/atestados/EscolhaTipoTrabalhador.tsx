@@ -28,7 +28,7 @@ export function EscolhaTipoTrabalhador({ onSelecionar }: Props) {
         Qual <em className="italic text-[#e8c275]">tipo</em> de trabalhador?
       </h1>
       <p className="mt-4 max-w-md text-sm leading-relaxed text-white/65">
-        Escolha o regime do colaborador para lançar atestado médico ou
+        Escolha o tipo de contratação para lançar um atestado médico ou
         declaração de comparecimento.
       </p>
 
@@ -49,7 +49,7 @@ export function EscolhaTipoTrabalhador({ onSelecionar }: Props) {
                 Intermitente
               </p>
               <p className="mt-1 text-sm leading-snug text-white/55">
-                Lançar documento vinculado a uma convocação ativa.
+                Vincular o atestado a uma convocação em andamento.
               </p>
             </div>
           </div>
@@ -72,7 +72,7 @@ export function EscolhaTipoTrabalhador({ onSelecionar }: Props) {
                 CLT
               </p>
               <p className="mt-1 text-sm leading-snug text-white/55">
-                Celetista — operacional digita o nome manualmente (sem RM).
+                Funcionário CLT — busque pelo nome ou matrícula.
               </p>
             </div>
           </div>

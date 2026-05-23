@@ -331,31 +331,53 @@ function resolverValores(items, contrato, funcao){
       return String(cv.value);
     }
   }
-  function by(titles){ return cell(titleCol(this, titles)); }
+  function vrDe(item){ return num(cell(titleCol(item,['VR','Valor VR','Vale Refeição','Vale Refeicao']))); }
+  function vtDe(item){ return num(cell(titleCol(item,['VT','Valor VT','Vale Transporte']))); }
+  function descricao(item, sufixo){
+    const cTxt = cell(titleCol(item,['Contrato'])) || item.name || '';
+    const rTxt = cell(titleCol(item,['Regra/Função','Regra','Funcao','Função','Cargo']));
+    return 'Board valores - ' + (cTxt || 'sem contrato') + (rTxt ? ' / ' + rTxt : '') + (sufixo ? ' (' + sufixo + ')' : '');
+  }
   const ativos = items.filter(item => { const v = norm(cell(titleCol(item,['Ativo','Status','Habilitado']))); return !v || ['SIM','ATIVO','TRUE','1','HABILITADO'].includes(v); });
-  const matches = [];
-  for (const item of ativos) {
+  if (ativos.length === 0) return { vr: 0, vt: 0, regra: 'Sem regra ativa cadastrada no board' };
+  const contratoNorm = norm(contrato);
+  const funcaoNorm = norm(funcao);
+  function classifica(item){
     const itemName = norm(item.name);
     const c = norm(cell(titleCol(item,['Contrato'])));
     const r = norm(cell(titleCol(item,['Regra/Função','Regra','Funcao','Função','Cargo'])));
-    const contratoNorm = norm(contrato);
-    const cPadrao = !c || ['PADRAO','PADRÃO','GLOBAL','*'].includes(c) || itemName.includes('PADRAO') || itemName.includes('PADRÃO') || itemName.includes('GLOBAL');
-    const contratoBate = c === contratoNorm || c.includes(contratoNorm) || itemName.includes(contratoNorm);
-    if (!cPadrao && !contratoBate) continue;
-    const rPadrao = !r || ['PADRAO','PADRÃO','GERAL','*'].includes(r);
-    if (!rPadrao && !norm(funcao).includes(r)) continue;
-    const pri = num(cell(titleCol(item,['Prioridade','Ordem'])));
-    matches.push({ item, score: (contratoBate ? 1000 : 0) + (!rPadrao ? 100 : 0) + pri });
+    const ehPadrao = !c || ['PADRAO','PADRÃO','GLOBAL','*','-'].includes(c) || itemName.includes('PADRAO') || itemName.includes('PADRÃO') || itemName.includes('GLOBAL') || itemName.includes('DEFAULT');
+    const contratoBate = !!contratoNorm && (c === contratoNorm || (c && c.includes(contratoNorm)) || (contratoNorm && itemName.includes(contratoNorm)));
+    const rPadrao = !r || ['PADRAO','PADRÃO','GERAL','*','-'].includes(r);
+    const funcaoBate = !!funcaoNorm && !rPadrao && funcaoNorm.includes(r);
+    return { c, r, itemName, ehPadrao, contratoBate, rPadrao, funcaoBate };
   }
-  matches.sort((a,b)=>b.score-a.score);
-  const item = matches[0]?.item;
-  if (!item) return { vr: 0, vt: 0, regra: 'Sem regra de valores' };
-  const vr = num(cell(titleCol(item,['VR','Valor VR','Vale Refeição','Vale Refeicao'])));
-  const vt = num(cell(titleCol(item,['VT','Valor VT','Vale Transporte'])));
-  const contratoTxt = cell(titleCol(item,['Contrato'])) || item.name || contrato;
-  const regraTxt = cell(titleCol(item,['Regra/Função','Regra','Funcao','Função','Cargo']));
-  const regra = 'Board valores - ' + contratoTxt + (regraTxt ? ' / ' + regraTxt : '');
-  return { vr, vt, regra };
+  // 1ª passada: contrato específico bate + (regra padrão OU função bate)
+  const especificos = [];
+  for (const item of ativos) {
+    const x = classifica(item);
+    if (!x.contratoBate) continue;
+    if (!x.rPadrao && !x.funcaoBate) continue;
+    const pri = num(cell(titleCol(item,['Prioridade','Ordem'])));
+    especificos.push({ item, score: 1000 + (!x.rPadrao ? 100 : 0) + pri });
+  }
+  if (especificos.length > 0) {
+    especificos.sort((a,b)=>b.score-a.score);
+    const it = especificos[0].item;
+    return { vr: vrDe(it), vt: vtDe(it), regra: descricao(it) };
+  }
+  // 2ª passada: regra Padrão (contrato vazio/global)
+  const padroes = ativos.filter(item => classifica(item).ehPadrao);
+  if (padroes.length > 0) {
+    const it = padroes[0];
+    return { vr: vrDe(it), vt: vtDe(it), regra: descricao(it, 'padrão (sem regra para ' + contrato + ')') };
+  }
+  // 3ª passada (último recurso): primeira regra ativa que tem VR ou VT > 0
+  const comValor = ativos.find(item => vrDe(item) > 0 || vtDe(item) > 0);
+  if (comValor) {
+    return { vr: vrDe(comValor), vt: vtDe(comValor), regra: descricao(comValor, 'fallback — nenhuma regra específica ou padrão encontrada') };
+  }
+  return { vr: 0, vt: 0, regra: 'Sem regra de valores aplicável a ' + contrato };
 }
 const entrada = resp?.data?.entrada?.items || [];
 const historicos = resp?.data?.historico?.[0]?.items_page?.items || [];

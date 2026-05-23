@@ -47,8 +47,12 @@ export function useAplicarSplit(uuid: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (payload: PayloadAplicarSplit) => aplicarSplit(uuid, payload),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["processamento", uuid] })
+    // Aguarda o refetch concluir antes de liberar o usuário, pra evitar
+    // race condition: usuário clicava "Finalizar" antes do refetch do WF2
+    // resolver, e o payload do finalize chegava sem o split.
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["processamento", uuid] })
+      await qc.refetchQueries({ queryKey: ["processamento", uuid] })
     },
   })
 }
