@@ -31,6 +31,16 @@ App web pra **gerenciar convocaÃ§Ãµes de intermitentes** no monday: cria con
 - **Slide flicker** root cause resolvido: regra antiga `.slide-stack-animating * { animation-duration: 0s }` reiniciava `.fade-up` ao fim do slide â†’ pisca. SubstituÃ­da por `animation-play-state: paused` especÃ­fico em animations infinitas (dash/flame/lamp). Plus removido `fade-up` dos wrappers raiz das 5 pÃ¡ginas (HubPage, AtestadosPage, ConvocarPage, CorrecaoPage, TestePage) â€” slide jÃ¡ Ã© a entrada.
 - **2 envs n8n**: `.env` documenta `VITE_N8N_BASE_URL` (novo `aionscorp-n8n.cloudfy.live`) + `VITE_N8N_ANTIGO_BASE_URL` (antigo, RM-dependent). Features que precisam de RM tÃªm fallback automÃ¡tico em `api.ts`.
 - **BuscarPessoa otimizado**: hook do modo NÃƒO ativo passa query vazia â†’ sÃ³ endpoint do modo ativo dispara.
+- **Split JSON migrado pra HistÃ³rico** (2026-05-23): coluna `long_text_mm3m8k0m` no board HistÃ³rico (`18411141462`) substitui o antigo `long_text_mm3hgsph` na Entrada (deletado). WF Aplicar Split escreve direto no HistÃ³rico; WF2 lÃª do mesmo lugar; WF3 fallback (race condition do frontend) tambÃ©m lÃª de lÃ¡. Resultado: Entrada fica limpa, sÃ³ com dados de convocaÃ§Ã£o â€” HistÃ³rico concentra todo estado de execuÃ§Ã£o.
+
+### FunÃ§Ã£o semÃ¢ntica dos boards monday
+
+| Board | Funcao | NÃƒO armazenar aqui |
+|---|---|---|
+| Entrada (`18408773953`) | Origem da convocaÃ§Ã£o (form `/convocar` cria, WF1 dispara) | Dados de execuÃ§Ã£o (split, respostas, atestados); `date_mm3b88ta`/`color_mm3a8ana` sÃ£o exceÃ§Ãµes (UI cancelamento) |
+| HistÃ³rico (`18411141462`) | Estado da execuÃ§Ã£o (1 item por convocaÃ§Ã£o; respostas, split, ledger, cancelamento status) | Dados de origem (usa `link_mm2x1rk0` para apontar de volta) |
+| Controle Atestados (`18298015951`) | Documental (1 item por atestado/declaraÃ§Ã£o + arquivo) | CÃ¡lculo financeiro |
+| Base Desconto (`18400981023`) | Ledger financeiro (PENDENTE / PARCIAL / FINALIZADO) | Estado de UI de cancelamento |
 
 ### Endpoints n8n consolidados (2026-05-23)
 

@@ -50,6 +50,11 @@ export function TestePage() {
       desc: "Convocação 25–29/05 com cancelamento a partir de 28/05. Dia 28 e 29 ficam bloqueados (tile cancelado).",
     },
     {
+      uuid: "mock-corrigir-cancelado",
+      titulo: "Concluído + cancelado (correção)",
+      desc: "Convocação já finalizada COM cancelamento parcial — reproduz cenário do /corrigir em convocação cancelada.",
+    },
+    {
       uuid: "uuid-inexistente",
       titulo: "Link inválido",
       desc: "Estado 404 / não encontrado.",
