@@ -858,7 +858,8 @@ function EtapaCalendario({
           </div>
         </div>
 
-        {/* Chip expansível: + Atestado retroativo / Retroativo liberado · trancar */}
+        {/* Botão de função estilo /preencher — só ícone idle, expande
+            mostrando label no hover. Padrão `.btn-action-expand`. */}
         <div className="flex justify-end">
           {retroativoAtivo ? (
             <button
@@ -868,31 +869,27 @@ function EtapaCalendario({
                 setRetroativoAtivo(false)
                 setMesVisivel(mesCorrenteInicio)
               }}
-              className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/30 bg-amber-300/[0.08] px-3 py-1 text-[11px] text-amber-100 backdrop-blur transition hover:bg-amber-300/[0.15]"
+              className="btn-action-expand btn-atestado-retroativo btn-atestado-retroativo-active"
+              aria-label="Trancar retroativo"
             >
-              <Unlock className="size-3" />
-              Retroativo liberado · trancar
+              <Unlock className="size-4 text-amber-200" />
+              <span className="btn-label text-amber-50">Retroativo liberado · trancar</span>
             </button>
           ) : (
             ehMesCorrente && (
               <button
                 type="button"
                 aria-expanded={painelSenhaAberto}
+                aria-label="Atestado retroativo"
                 onClick={() =>
                   painelSenhaAberto ? fecharPainelSenha() : setPainelSenhaAberto(true)
                 }
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] backdrop-blur transition ${
-                  painelSenhaAberto
-                    ? "border-amber-300/45 bg-amber-300/[0.12] text-amber-100"
-                    : "border-white/12 bg-white/[0.03] text-white/65 hover:border-amber-300/35 hover:bg-amber-300/[0.08] hover:text-amber-100"
+                className={`btn-action-expand btn-atestado-retroativo ${
+                  painelSenhaAberto ? "btn-atestado-retroativo-active" : ""
                 }`}
               >
-                <Plus
-                  className={`size-3 transition-transform duration-300 ${
-                    painelSenhaAberto ? "rotate-45" : ""
-                  }`}
-                />
-                Atestado retroativo
+                <Plus className="size-4" />
+                <span className="btn-label text-amber-50">Atestado retroativo</span>
               </button>
             )
           )}

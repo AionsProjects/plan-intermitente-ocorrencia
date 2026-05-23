@@ -946,6 +946,45 @@
   opacity: 1;
 }
 
+/* ─── Botão "Atestado retroativo" (âmbar) ─── */
+.btn-action-expand.btn-atestado-retroativo {
+  border-color: rgba(232, 194, 117, 0.32);
+  background: rgba(232, 194, 117, 0.06);
+  color: rgba(255, 230, 176, 0.85);
+}
+.btn-action-expand.btn-atestado-retroativo:hover {
+  background: rgba(232, 194, 117, 0.16);
+  border-color: rgba(232, 194, 117, 0.55);
+  box-shadow:
+    0 0 28px 2px rgba(232, 194, 117, 0.3),
+    0 8px 20px -4px rgba(180, 128, 40, 0.5),
+    inset 0 1px 0 0 rgba(255, 237, 200, 0.3);
+}
+.btn-action-expand.btn-atestado-retroativo svg {
+  transition: transform 320ms cubic-bezier(0.34, 1.4, 0.5, 1);
+}
+/* Estado "ativo" — painel expandido: chip permanece largo + label visível.
+   Plus rotaciona 45° (vira X) sinalizando "fechar". */
+.btn-action-expand.btn-atestado-retroativo-active {
+  background: rgba(232, 194, 117, 0.18);
+  border-color: rgba(232, 194, 117, 0.6);
+  box-shadow:
+    0 0 32px 3px rgba(232, 194, 117, 0.35),
+    0 8px 22px -4px rgba(180, 128, 40, 0.56),
+    inset 0 1px 0 0 rgba(255, 237, 200, 0.35);
+  width: auto;
+  gap: 0.375rem;
+  padding-left: 0.75rem;
+  padding-right: 0.875rem;
+}
+.btn-action-expand.btn-atestado-retroativo-active .btn-label {
+  max-width: 10rem;
+  opacity: 1;
+}
+.btn-action-expand.btn-atestado-retroativo-active svg {
+  transform: rotate(45deg);
+}
+
 .btn-action-expand.btn-cancel-convocacao:hover {
   background: rgba(69, 10, 10, 0.62);
   border-color: rgba(185, 28, 28, 0.68);
