@@ -536,9 +536,22 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
       // Split: se ativo, WF3 detecta e cria 2 subitems no item ENTRADA.
       split: dados.split ?? null,
     }
-    // Se há cancelamento parcial PENDENTE LOCAL, persiste no backend
-    // ANTES do WF3 finalizar. Sequência: cancelar→finalizar. Se cancelar
-    // falhar (409 já cancelado, etc), aborta sem perder respostas locais.
+    // Ordem importa: WF3 finalize PRIMEIRO, depois WF Cancelar parcial.
+    //
+    // Por quê? Se cancelar primeiro, o WF Cancelar grava desconto na Base
+    // de Desconto. O WF3 antifraude detecta esse desconto e retorna 409,
+    // bloqueando criação dos subitems (split). Resultado: cancelamento
+    // gravado, split perdido.
+    //
+    // Invertendo: WF3 cria subitems com respostas filtradas (dias cancelados
+    // saem via diasCancelados Set local). Depois WF Cancelar registra
+    // status + desconto sem conflito. WF3 não vê desconto do cancel ainda.
+    //
+    // Risco: se WF Cancelar falhar após finalize OK, fica meio-estado
+    // (concluído mas sem cancelamento gravado). Tratado abaixo com erro
+    // explícito + cancelamentoParcialLocal preservado pra retry manual.
+    const resultado = await finalizar.mutateAsync(payload)
+
     if (cancelamentoParcialLocal) {
       try {
         await cancelarConvocacao.mutateAsync({
@@ -548,21 +561,22 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
       } catch (err) {
         const raw = err instanceof Error ? err.message : ""
         const lower = raw.toLowerCase()
-        let mensagem = "Erro ao cancelar parcialmente antes de finalizar. Tente novamente."
+        let mensagem =
+          "Respostas finalizadas, mas o cancelamento parcial não pôde ser registrado. Avise o DP."
         if (lower.includes("ja possui cancelamento") || lower.includes("já possui cancelamento")) {
           mensagem =
-            "Esta convocação já tem um cancelamento ativo no backend. Recarregue a página e tente reverter."
+            "Respostas finalizadas. Cancelamento parcial já estava registrado nesta convocação — ignore esta etapa."
         } else if (lower.includes("desconto") && lower.includes("consumo")) {
           mensagem =
-            "Não foi possível cancelar: o desconto desta convocação já foi processado. Avise o financeiro antes de seguir."
+            "Respostas finalizadas, mas o cancelamento parcial não pôde ser registrado: desconto já processado. Avise o financeiro."
         } else if (raw) {
-          mensagem = raw
+          mensagem = `Respostas finalizadas. Cancelamento parcial falhou: ${raw}`
         }
-        // Lança pro mutation manager mostrar via UI normal de erro de finalizar
+        // Preserva cancelamentoParcialLocal pra UI continuar mostrando
+        // pendência — operacional pode tentar reverter ou avisar DP.
         throw new Error(mensagem)
       }
     }
-    const resultado = await finalizar.mutateAsync(payload)
     // Limpa estado local de cancelamento parcial após persistir.
     setCancelamentoParcialLocal(null)
     salvarProtocolo({
