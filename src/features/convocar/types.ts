@@ -1,3 +1,8 @@
+import {
+  CONTRATOS_OPERACIONAIS,
+  UNIDADES_POR_CONTRATO,
+} from "@/lib/unidadesContrato"
+
 export type EmpregadoRM = {
   nome: string
   chapa: string
@@ -19,17 +24,7 @@ export type SimNao = MondayLabel
 export type Insalubridade = MondayLabel
 export type Solicitante = MondayLabel
 
-export const CONTRATOS = [
-  "SEDUC SEDE",
-  "SEDUC ESCOLA",
-  "SEDUC INTERIOR",
-  "DETRAN",
-  "CETAM",
-  "SEMSA",
-  "TRE PB",
-  "URUGUAIANA",
-  "ADMINISTRATIVO",
-] as const
+export const CONTRATOS = CONTRATOS_OPERACIONAIS
 export type Contrato = MondayLabel
 
 export const JUSTIFICATIVAS = [
@@ -56,6 +51,8 @@ export const OPCOES_CONVOCACAO_FALLBACK = {
   insalubridades: ["SIM", "NÃO", "NÃO INFORMADO"],
   interiores: ["SIM", "NÃO"],
   justificativas: JUSTIFICATIVAS,
+  unidadesPorContrato: UNIDADES_POR_CONTRATO,
+  unidadeColumnId: null,
 } as const
 
 export type ConvocacaoOpcoes = {
@@ -65,6 +62,8 @@ export type ConvocacaoOpcoes = {
   insalubridades: string[]
   interiores: string[]
   justificativas: string[]
+  unidadesPorContrato: Record<string, string[]>
+  unidadeColumnId: string | null
 }
 
 export type ConvocacaoPayload = {

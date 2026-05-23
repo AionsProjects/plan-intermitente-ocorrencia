@@ -6,6 +6,7 @@ import type {
   EmpregadoRM,
 } from "./types"
 import { OPCOES_CONVOCACAO_FALLBACK } from "./types"
+import { unidadesParaContrato } from "@/lib/unidadesContrato"
 
 const BASE_URL = import.meta.env.VITE_N8N_ANTIGO_BASE_URL || import.meta.env.VITE_N8N_BASE_URL || ""
 const USE_MOCK = !BASE_URL
@@ -96,9 +97,28 @@ function uniqueOrdered(values: unknown, fallback: readonly string[]): string[] {
   return unicas.length > 0 ? unicas : [...fallback]
 }
 
+function normalizarUnidadesPorContrato(raw: unknown): Record<string, string[]> {
+  const origem = raw && typeof raw === "object" ? raw as Record<string, unknown> : {}
+  const contratos = uniqueOrdered(
+    Object.keys(origem).length > 0 ? Object.keys(origem) : [],
+    OPCOES_CONVOCACAO_FALLBACK.contratos,
+  )
+  const out: Record<string, string[]> = {}
+  for (const contrato of contratos) {
+    const remotas = Array.isArray(origem[contrato]) ? origem[contrato] : []
+    out[contrato] = uniqueOrdered(remotas, unidadesParaContrato(contrato))
+  }
+  for (const contrato of OPCOES_CONVOCACAO_FALLBACK.contratos) {
+    if (!out[contrato]) out[contrato] = [...unidadesParaContrato(contrato)]
+  }
+  return out
+}
+
 function normalizarOpcoes(raw: unknown): ConvocacaoOpcoes {
   const data = (raw ?? {}) as Record<string, unknown>
   const opcoes = (data.opcoes ?? data) as Record<string, unknown>
+
+  const unidadesRaw = opcoes.unidades_por_contrato ?? opcoes.unidadesPorContrato
 
   return {
     solicitantes: uniqueOrdered(
@@ -125,6 +145,10 @@ function normalizarOpcoes(raw: unknown): ConvocacaoOpcoes {
       opcoes.justificativas ?? opcoes.justificativa,
       OPCOES_CONVOCACAO_FALLBACK.justificativas,
     ),
+    unidadesPorContrato: normalizarUnidadesPorContrato(unidadesRaw),
+    unidadeColumnId: opcoes.unidade_column_id || opcoes.unidadeColumnId
+      ? String(opcoes.unidade_column_id ?? opcoes.unidadeColumnId)
+      : null,
   }
 }
 
@@ -176,6 +200,14 @@ export async function buscarEmpregado(
       admissao: String(o.admissao ?? ""),
       secao: String(o.secao ?? ""),
       codcoligada: Number(o.codcoligada ?? 3),
+      codigo: o.codigo ? String(o.codigo) : undefined,
+      secaoCodigo: o.secaoCodigo || o.secao_codigo
+        ? String(o.secaoCodigo ?? o.secao_codigo)
+        : undefined,
+      localUnidade: o.localUnidade || o.local_unidade
+        ? String(o.localUnidade ?? o.local_unidade)
+        : undefined,
+      contrato: o.contrato ? String(o.contrato) : undefined,
     }
   })
 }

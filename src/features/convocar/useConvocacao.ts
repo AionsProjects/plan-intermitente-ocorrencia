@@ -16,6 +16,12 @@ const FALLBACK_OPCOES_MUTABLE = {
   insalubridades: [...OPCOES_CONVOCACAO_FALLBACK.insalubridades],
   interiores: [...OPCOES_CONVOCACAO_FALLBACK.interiores],
   justificativas: [...OPCOES_CONVOCACAO_FALLBACK.justificativas],
+  unidadesPorContrato: Object.fromEntries(
+    Object.entries(OPCOES_CONVOCACAO_FALLBACK.unidadesPorContrato).map(
+      ([contrato, unidades]) => [contrato, [...unidades]],
+    ),
+  ),
+  unidadeColumnId: OPCOES_CONVOCACAO_FALLBACK.unidadeColumnId,
 }
 
 function useDebounce<T>(value: T, delay = 250): T {

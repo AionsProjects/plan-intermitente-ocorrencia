@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   AlertTriangle,
   ArrowLeft,
@@ -27,6 +27,7 @@ import {
   type Solicitante,
 } from "./types"
 import { useCriarConvocacao, useOpcoesConvocacao } from "./useConvocacao"
+import { unidadesParaContrato } from "@/lib/unidadesContrato"
 
 type Props = {
   empregado: EmpregadoRM
@@ -85,6 +86,15 @@ export function FormularioConvocacao({
   const opcoesQuery = useOpcoesConvocacao()
   const mutation = useCriarConvocacao()
   const opcoes = opcoesQuery.data ?? OPCOES_CONVOCACAO_FALLBACK
+  const unidadesPorContrato = opcoes.unidadesPorContrato as Record<
+    string,
+    readonly string[]
+  >
+  const unidadesDoContrato = useMemo(() => {
+    if (!form.contrato) return []
+    const remotas = unidadesPorContrato[form.contrato] ?? []
+    return remotas.length > 0 ? remotas : [...unidadesParaContrato(form.contrato)]
+  }, [form.contrato, unidadesPorContrato])
 
   const camposObrigatoriosOk = useMemo(() => {
     return (
@@ -108,6 +118,28 @@ export function FormularioConvocacao({
     setAlertaConflito(null)
     setForm((f) => ({ ...f, [k]: v }))
   }
+
+  function setContrato(contrato: Contrato | "") {
+    setErroGeral(null)
+    setAlertaConflito(null)
+    const unidades = contrato
+      ? (unidadesPorContrato[contrato] ?? unidadesParaContrato(contrato))
+      : []
+    setForm((f) => ({
+      ...f,
+      contrato,
+      localUnidade: unidades.length === 1 ? unidades[0] : "",
+    }))
+  }
+
+  useEffect(() => {
+    if (!form.contrato) return
+    if (form.localUnidade && unidadesDoContrato.includes(form.localUnidade)) return
+    setForm((f) => ({
+      ...f,
+      localUnidade: unidadesDoContrato.length === 1 ? unidadesDoContrato[0] : "",
+    }))
+  }, [form.contrato, form.localUnidade, unidadesDoContrato])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -229,17 +261,28 @@ export function FormularioConvocacao({
           <GlassSelect
             label="Op - Contrato"
             value={form.contrato}
-            onChange={(v) => set("contrato", v as Contrato | "")}
+            onChange={(v) => setContrato(v as Contrato | "")}
             options={opcoes.contratos}
           />
         </FieldWrap>
 
-        <FieldText
+        <FieldWrap
           label="Local/Unidade"
-          value={form.localUnidade}
-          onChange={(v) => set("localUnidade", v)}
+          hint="As unidades são filtradas pelo contrato selecionado."
           required
-        />
+        >
+          <GlassSelect
+            label="Local/Unidade"
+            value={form.localUnidade}
+            onChange={(v) => set("localUnidade", v)}
+            options={unidadesDoContrato}
+            placeholder={
+              form.contrato ? "Selecione a unidade" : "Selecione o contrato primeiro"
+            }
+            disabled={!form.contrato || unidadesDoContrato.length === 0}
+            emptyMessage="Nenhuma unidade cadastrada para este contrato."
+          />
+        </FieldWrap>
 
         <FieldWrap
           label="Sábado?"

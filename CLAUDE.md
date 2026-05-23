@@ -334,7 +334,8 @@ Origem das convocações. Form `/convocar` cria itens aqui. WF1 dispara quando c
 | Admissão | `text_mkzh8jhn` | text | Data string |
 | Função | `texto0` | text | |
 | Escala | `text_mkvn2cmr` | text | |
-| Local/Unidade | `texto75` | text | |
+| Local/Unidade | `texto75` | text | Legado/fallback; manter preenchido por compatibilidade |
+| OP - Local/Unidade | `dropdown_mm3mcnmn` | dropdown | Fonte operacional nova; lista global filtrada por contrato no frontend |
 | Solicitante | `color_mktc9q29` | status | OPERACIONAL / RH |
 | Op - Contrato | `color_mktcnxwn` | status | 10 opções (SEDUC SEDE/ESCOLA/INTERIOR, DETRAN, CETAM, SEMSA, TRE PB, URUGUAIANA, ADMINISTRATIVO) |
 | OP - Sábado? | `color_mktaavmp` | status | SIM(0) / NÃO(5) |
@@ -506,7 +507,7 @@ Retorna `{ok, tipo, data_inicio_cancelamento, desconto}`. Atualiza Entrada (`col
 
 ### POST `/webhook/intermitente-convocar` (WF7) — multipart/form-data
 
-Body: name, empregado_{nome,chapa,cpf,funcao,admissao,secao,codcoligada}, escala, solicitante, contrato, local_unidade, sabado, insalubridade, interior, data_inicio, data_fim, justificativa, empregado_substituido, termo_convocacao? (file), termo_insalubridade? (file)
+Body: name, empregado_{nome,chapa,cpf,funcao,admissao,secao,codcoligada}, escala, solicitante, contrato, local_unidade, sabado, insalubridade, interior, data_inicio, data_fim, justificativa, empregado_substituido, termo_convocacao? (file), termo_insalubridade? (file). `local_unidade` e validado contra o contrato e gravado em `texto75` + `dropdown_mm3mcnmn`.
 
 Respostas:
 - **200** `{ok: true, item_id, item_url}` → criou item no board ENTRADA + upload files (se houver)

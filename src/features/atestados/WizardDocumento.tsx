@@ -207,6 +207,13 @@ function draftInicial(
   // NÃO ENCONTRADA".
   const unidadeCandidata =
     empregado?.localUnidade ?? empregado?.secao ?? ""
+  const unidadesContrato = unidadesParaContrato(contratoColaborador)
+  const unidadesOficiais = unidadesContrato.filter((u) => u !== UNIDADE_NAO_ENCONTRADA)
+  const unidadeInicial = unidadesContrato.includes(unidadeCandidata)
+    ? unidadeCandidata
+    : unidadesOficiais.length === 1
+      ? unidadesOficiais[0]
+      : null
 
   return {
     empregadoNome: empregado?.nome ?? "",
@@ -218,7 +225,7 @@ function draftInicial(
     saidaRetornoTexto: "",
     horarioAlmocoLabel: "",
     acompanhanteLabel: "Sem acompanhamento",
-    unidadeLabel: unidadeCandidata || null,
+    unidadeLabel: unidadeInicial,
     unidadeNaoEncontradaTexto: "",
     observacao: "",
     arquivo: null,
@@ -296,7 +303,7 @@ export function WizardDocumento({
   }
 
   function precisaUnidade(contrato: string): boolean {
-    return !!unidadeColumnIdParaContrato(contrato)
+    return unidadesParaContrato(contrato).length > 0
   }
 
   function diaPermitido(dia: string): { ok: boolean; motivo?: string } {

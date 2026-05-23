@@ -1,3 +1,8 @@
+import {
+  UNIDADE_NAO_ENCONTRADA as UNIDADE_NAO_ENCONTRADA_COMPARTILHADA,
+  unidadesParaContrato as unidadesCompartilhadasParaContrato,
+} from "@/lib/unidadesContrato"
+
 /**
  * Constantes hardcoded das opções do formulário "Atestado Ponta"
  * (board Controle de Atestados, ID 18298015951, view 223887647).
@@ -104,7 +109,7 @@ export const UNIDADE_COLUMN_POR_CONTRATO: Record<string, string> = {
 }
 
 /** Sentinela usada em todos os dropdowns de unidade pra fallback. */
-export const UNIDADE_NAO_ENCONTRADA = "UNIDADE NÃO ENCONTRADA"
+export const UNIDADE_NAO_ENCONTRADA = UNIDADE_NAO_ENCONTRADA_COMPARTILHADA
 
 /** Coluna `dropdown_mkztj8wp` — CETAM */
 export const UNIDADES_CETAM = [
@@ -219,22 +224,8 @@ export function unidadesParaContrato(
   contrato: string | null | undefined,
 ): readonly string[] {
   if (!contrato) return []
-  switch (contrato.trim().toUpperCase()) {
-    case "CETAM":
-      return UNIDADES_CETAM
-    case "DETRAN":
-      return UNIDADES_DETRAN
-    case "SEDUC COORDENADORIAS":
-      return UNIDADES_COORDENADORIAS
-    case "SEMSA":
-      return UNIDADES_SEMSA_PLACEHOLDER
-    case "SEDUC INTERIOR":
-      return UNIDADES_INTERIOR_PLACEHOLDER
-    case "SEDUC ESCOLA":
-      return UNIDADES_ESCOLA_PLACEHOLDER
-    default:
-      return []
-  }
+  const unidades = unidadesCompartilhadasParaContrato(contrato)
+  return unidades.length > 0 ? [...unidades, UNIDADE_NAO_ENCONTRADA] : []
 }
 
 export function unidadeColumnIdParaContrato(

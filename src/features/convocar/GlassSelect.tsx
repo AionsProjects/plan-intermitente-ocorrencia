@@ -15,6 +15,8 @@ type Props = {
   onChange: (v: string) => void
   options: readonly string[]
   placeholder?: string
+  disabled?: boolean
+  emptyMessage?: string
 }
 
 export function GlassSelect({
@@ -23,10 +25,13 @@ export function GlassSelect({
   onChange,
   options,
   placeholder = "Selecione...",
+  disabled = false,
+  emptyMessage = "Nenhuma opção disponível.",
 }: Props) {
   const [aberto, setAberto] = useState(false)
 
   function escolher(opt: string) {
+    if (disabled) return
     onChange(opt)
     setAberto(false)
   }
@@ -35,10 +40,13 @@ export function GlassSelect({
     <>
       <button
         type="button"
-        onClick={() => setAberto(true)}
+        onClick={() => {
+          if (!disabled) setAberto(true)
+        }}
+        disabled={disabled}
         className={`flex w-full items-center justify-between rounded-xl border border-white/12 bg-white/[0.04] px-4 py-3 text-left text-sm backdrop-blur transition hover:border-white/20 hover:bg-white/[0.06] ${
           aberto ? "border-[#e8c275]/55 bg-white/[0.08]" : ""
-        }`}
+        } ${disabled ? "cursor-not-allowed opacity-55 hover:border-white/12 hover:bg-white/[0.04]" : ""}`}
       >
         <span className={value ? "text-white" : "text-white/40"}>
           {value || placeholder}
@@ -72,6 +80,11 @@ export function GlassSelect({
           <div className="my-2 h-px bg-white/12" />
 
           <div className="max-h-[55vh] space-y-2 overflow-y-auto pr-1">
+            {options.length === 0 && (
+              <p className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 text-sm text-white/55">
+                {emptyMessage}
+              </p>
+            )}
             {options.map((opt) => {
               const sel = opt === value
               return (
