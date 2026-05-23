@@ -858,9 +858,14 @@ function EtapaCalendario({
           </div>
         </div>
 
-        {/* Botão de função estilo /preencher — só ícone idle, expande
-            mostrando label no hover. Padrão `.btn-action-expand`. */}
-        <div className="flex justify-end">
+        {/* Cluster chip + painel. Quando expandido, aplica filtro SVG goo
+            (#goo-merge) no wrapper — chip e painel viram um blob âmbar
+            único (efeito "venum"). Ambos têm bg sólido pra goo funcionar. */}
+        <div
+          className={`retroativo-cluster flex flex-col items-end ${
+            painelSenhaAberto && !retroativoAtivo ? "retroativo-cluster-merged" : ""
+          }`}
+        >
           {retroativoAtivo ? (
             <button
               type="button"
@@ -893,22 +898,21 @@ function EtapaCalendario({
               </button>
             )
           )}
-        </div>
 
-        {/* Painel expansível de senha DP — só quando aberto */}
-        {painelSenhaAberto && !retroativoAtivo && (
-          <PainelSenhaRetroativo
-            senha={senhaInput}
-            erro={senhaErro}
-            inputRef={senhaInputRef}
-            onChange={(v) => {
-              setSenhaInput(v)
-              setSenhaErro(null)
-            }}
-            onSubmit={tentarLiberar}
-            onFechar={fecharPainelSenha}
-          />
-        )}
+          {painelSenhaAberto && !retroativoAtivo && (
+            <PainelSenhaRetroativo
+              senha={senhaInput}
+              erro={senhaErro}
+              inputRef={senhaInputRef}
+              onChange={(v) => {
+                setSenhaInput(v)
+                setSenhaErro(null)
+              }}
+              onSubmit={tentarLiberar}
+              onFechar={fecharPainelSenha}
+            />
+          )}
+        </div>
 
         <div className="grid grid-cols-7 gap-1">
           {["D", "S", "T", "Q", "Q", "S", "S"].map((d, i) => (
@@ -1154,8 +1158,8 @@ function PainelSenhaRetroativo({
     <div
       role="region"
       aria-label="Liberação DP"
-      className="painel-retroativo overflow-hidden rounded-2xl border border-amber-300/25 bg-gradient-to-br from-amber-300/[0.07] via-white/[0.025] to-transparent px-4 py-4 backdrop-blur-md"
-      style={{ animation: "painelExpandir 280ms cubic-bezier(0.34, 1.4, 0.5, 1)" }}
+      className="painel-retroativo overflow-hidden rounded-2xl border px-4 py-4"
+      style={{ animation: "painelExpandir 520ms cubic-bezier(0.34, 1.4, 0.5, 1)" }}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-2.5">

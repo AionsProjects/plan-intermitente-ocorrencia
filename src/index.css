@@ -644,19 +644,71 @@
 }
 
 /* Painel expansível (atestado retroativo, etc) — slide-down + fade.
-   Spring easing leve. transform-origin top pra parecer "saindo" do chip. */
+   Quando dentro de .retroativo-cluster-merged, vira blob "venum"
+   fundido com o chip via filtro SVG #goo-merge. */
 @keyframes painelExpandir {
-  0%   { opacity: 0; transform: translateY(-6px) scaleY(0.92); max-height: 0; }
+  0%   { opacity: 0; transform: translateY(-14px) scaleY(0.55); max-height: 0; }
+  60%  { opacity: 1; transform: translateY(-2px) scaleY(1.04); }
   100% { opacity: 1; transform: translateY(0) scaleY(1); max-height: 320px; }
 }
 
 .painel-retroativo {
-  transform-origin: top center;
+  transform-origin: top right;
+}
+
+/* ─── Goo / venum merge cluster ───
+   Aplica filtro SVG #goo-merge no wrapper enquanto painel aberto.
+   Backgrounds próximos com cor sólida se fundem em blob orgânico.
+   Texto interno ganha leve borda gooey — parte do efeito venum. */
+.retroativo-cluster {
+  width: fit-content;
+  max-width: 100%;
+}
+
+.retroativo-cluster-merged {
+  filter: url(#goo-merge);
+  will-change: filter;
+}
+
+/* Painel encosta no chip pra goo conectar. Bg ÂMBAR SÓLIDO obrigatório
+   pro goo gerar blob (gradient transparente quebra a fusão). */
+.retroativo-cluster-merged > .painel-retroativo {
+  margin-top: -10px;
+  width: 100%;
+  min-width: 22rem;
+  background: rgba(40, 28, 8, 0.94);
+  border-color: rgba(232, 194, 117, 0.55);
+}
+
+/* Goo "drip" — quando chip está aberto, gota âmbar sai dele.
+   Pseudo no chip cria o conector que se funde com o painel. */
+.retroativo-cluster-merged .btn-atestado-retroativo-active::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  transform: translateX(-50%);
+  width: 60%;
+  height: 14px;
+  background: inherit;
+  border-radius: 999px;
+  pointer-events: none;
+  animation: goo-drip 520ms cubic-bezier(0.34, 1.4, 0.5, 1) backwards;
+}
+
+@keyframes goo-drip {
+  0%   { transform: translateX(-50%) scaleY(0.2); opacity: 0; }
+  50%  { transform: translateX(-50%) scaleY(1.1); opacity: 1; }
+  100% { transform: translateX(-50%) scaleY(1);   opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .painel-retroativo {
+  .painel-retroativo,
+  .retroativo-cluster-merged .btn-atestado-retroativo-active::after {
     animation: none !important;
+  }
+  .retroativo-cluster-merged {
+    filter: none !important;
   }
 }
 
@@ -948,6 +1000,7 @@
 
 /* ─── Botão "Atestado retroativo" (âmbar) ─── */
 .btn-action-expand.btn-atestado-retroativo {
+  position: relative;
   border-color: rgba(232, 194, 117, 0.32);
   background: rgba(232, 194, 117, 0.06);
   color: rgba(255, 230, 176, 0.85);
@@ -964,14 +1017,16 @@
   transition: transform 320ms cubic-bezier(0.34, 1.4, 0.5, 1);
 }
 /* Estado "ativo" — painel expandido: chip permanece largo + label visível.
+   Bg dark âmbar pra goo fundir com o painel (venum aesthetic).
    Plus rotaciona 45° (vira X) sinalizando "fechar". */
 .btn-action-expand.btn-atestado-retroativo-active {
-  background: rgba(232, 194, 117, 0.18);
+  background: rgba(40, 28, 8, 0.94);
   border-color: rgba(232, 194, 117, 0.6);
+  color: rgba(255, 237, 200, 0.95);
   box-shadow:
     0 0 32px 3px rgba(232, 194, 117, 0.35),
     0 8px 22px -4px rgba(180, 128, 40, 0.56),
-    inset 0 1px 0 0 rgba(255, 237, 200, 0.35);
+    inset 0 1px 0 0 rgba(255, 237, 200, 0.18);
   width: auto;
   gap: 0.375rem;
   padding-left: 0.75rem;

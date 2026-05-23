@@ -47,6 +47,23 @@
               yChannelSelector="G"
             />
           </filter>
+          {/* Goo / blob merge — efeito "venum" pra fusão entre elementos
+              próximos. Blur agressivo + alpha contrast cria borda orgânica
+              unificada quando 2+ shapes se tocam. Usado no painel expansível
+              do "Atestado retroativo" (chip + painel viram blob único). */}
+          <filter id="goo-merge" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="7" result="blur" />
+            <feColorMatrix
+              in="blur"
+              mode="matrix"
+              values="1 0 0 0 0
+                      0 1 0 0 0
+                      0 0 1 0 0
+                      0 0 0 22 -10"
+              result="goo"
+            />
+            <feComposite in="SourceGraphic" in2="goo" operator="atop" />
+          </filter>
         </defs>
       </svg>
       <div aria-hidden className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
