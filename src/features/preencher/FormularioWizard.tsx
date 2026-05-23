@@ -511,6 +511,21 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
       atestados.some((a) => atestadoCobreDia(a, data))
     const cobertoPorPonto = (data: string) =>
       pontosFacultativos.some((p) => pontoFacultativoCobreDia(p, data))
+    // Dias cancelados parcial (local pendente OU já vigente no backend)
+    // são tratados como "desativados" no payload do WF3 pra ele pular
+    // validação `resposta_faltando`. WF3 não tem campo dedicado pra
+    // cancelamento ainda — workaround até Codex.
+    // Visual no /preencher pós-finalize não é afetado: WF2 retorna
+    // status_cancelamento + data_inicio_cancelamento separadamente,
+    // e renderização usa esses campos (não dias_desativados).
+    const diasDesativadosLocais = diasInfo
+      .filter((d) => !d.ativo)
+      .map((d) => d.data)
+    const diasCanceladosArr = [...diasCancelados]
+    const diasDesativadosFinal = [
+      ...new Set([...diasDesativadosLocais, ...diasCanceladosArr]),
+    ]
+
     const payload = {
       // Atestado/declaração: backend/Nexti cuida do desconto. Front sempre
       // envia sem_ocorrencia pros dias cobertos — sobrescreve falta/atraso
@@ -530,7 +545,7 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
         }),
       protocolo,
       diasExtras: todasExtras,
-      diasDesativados: diasInfo.filter((d) => !d.ativo).map((d) => d.data),
+      diasDesativados: diasDesativadosFinal,
       sabadosExtras,
       ehCorrecao: !!ehCorrecao,
       // Split: se ativo, WF3 detecta e cria 2 subitems no item ENTRADA.
