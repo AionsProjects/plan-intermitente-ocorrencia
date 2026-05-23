@@ -643,6 +643,23 @@
   animation: fade-up 680ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Painel expansível (atestado retroativo, etc) — slide-down + fade.
+   Spring easing leve. transform-origin top pra parecer "saindo" do chip. */
+@keyframes painelExpandir {
+  0%   { opacity: 0; transform: translateY(-6px) scaleY(0.92); max-height: 0; }
+  100% { opacity: 1; transform: translateY(0) scaleY(1); max-height: 320px; }
+}
+
+.painel-retroativo {
+  transform-origin: top center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .painel-retroativo {
+    animation: none !important;
+  }
+}
+
 /* â”€â”€â”€ Extra-day tile (animated dashed border via SVG) â”€â”€â”€ */
 .glass-tile-extra {
   background-color: rgba(255, 255, 255, 0.03);
