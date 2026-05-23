@@ -20,6 +20,7 @@ import {
   GraduationCap,
   Loader2,
   MapPin,
+  Search,
   Sparkles,
   UserX,
   Users,
@@ -33,6 +34,7 @@ import {
   isFeriadoNacional,
   nomeFeriadoNacional,
 } from "@/lib/feriadosBr"
+import { filtrarPorBusca } from "@/lib/buscaUnidade"
 
 import { mockPreview } from "./api"
 import {
@@ -184,7 +186,7 @@ function legendaAviso(aviso: string | null): {
   switch (aviso) {
     case "sem_intermitentes_unidade_data":
       return {
-        titulo: "Nenhum intermitente convocado nesta unidade pra esta data",
+        titulo: "Nenhum intermitente convocado nesta unidade para esta data",
         detalhe: "Volte e tente outra data, unidade ou contrato antes de aplicar.",
       }
     case "contrato_sem_intermitentes":
@@ -565,7 +567,12 @@ function EtapaUnidade({
   onVoltar: () => void
   onSelecionar: (unidade: string) => void
 }) {
+  const [busca, setBusca] = useState("")
   const semUnidades = !carregando && unidades.length === 0
+  const unidadesFiltradas = useMemo(
+    () => filtrarPorBusca(unidades, busca),
+    [busca, unidades],
+  )
 
   // Auto-select quando há só 1 unidade — usuário não precisa clicar.
   // Mantém consistência com /convocar (FormularioConvocacao.setContrato).
@@ -575,6 +582,10 @@ function EtapaUnidade({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unidades, carregando])
+
+  useEffect(() => {
+    setBusca("")
+  }, [contrato])
 
   return (
     <section>
@@ -593,7 +604,7 @@ function EtapaUnidade({
       {carregando && (
         <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-5 text-sm text-white/65">
           <Loader2 className="size-4 animate-spin text-emerald-200" />
-          Carregando unidades do Plan de Intermitentes...
+          Carregando unidades oficiais do RM...
         </div>
       )}
 
@@ -609,33 +620,61 @@ function EtapaUnidade({
             <UserX className="size-5" />
           </div>
           <p className="mt-4 text-sm font-medium text-white/78">
-            Não há intermitentes disponíveis para este contrato no momento
+            Não há unidades cadastradas para este contrato
           </p>
           <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-white/45">
             O Plan não tem unidade preenchida para esse contrato. Volte e escolha
-            outro contrato ou confira o cadastro.
+            outro contrato ou confira o cadastro no monday.
           </p>
         </div>
       )}
 
       {!carregando && unidades.length > 0 && (
-        <div className="grid max-h-[25rem] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-          {unidades.map((u, i) => (
-            <button
-              key={u}
-              type="button"
-              onClick={() => onSelecionar(u)}
-              className={`fade-up flex min-h-14 items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition ${
-                unidade === u
-                  ? "border-emerald-200/50 bg-emerald-200/14 text-emerald-50"
-                  : "border-white/10 bg-white/[0.035] text-white/82 hover:border-white/20 hover:bg-white/[0.06]"
-              }`}
-              style={{ animationDelay: `${50 + i * 20}ms` }}
-            >
-              <span className="text-sm font-medium leading-snug">{u}</span>
-              <ChevronRight className="size-4 shrink-0 text-white/35" />
-            </button>
-          ))}
+        <div className="space-y-3">
+          <label className="relative block">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-white/35" />
+            <input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar unidade"
+              className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] pl-10 pr-4 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-emerald-200/45 focus:bg-white/[0.07]"
+            />
+          </label>
+
+          <div className="flex items-center justify-between gap-3 text-xs text-white/45">
+            <span>{unidadesFiltradas.length} unidades encontradas</span>
+            <span>{unidades.length} cadastradas no RM</span>
+          </div>
+
+          {unidadesFiltradas.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-white/12 bg-white/[0.02] px-5 py-8 text-center">
+              <p className="text-sm font-medium text-white/78">
+                Nenhuma unidade encontrada para esse termo
+              </p>
+              <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-white/45">
+                Tente buscar por uma parte do nome, sem acento ou abreviação.
+              </p>
+            </div>
+          ) : (
+            <div className="grid max-h-[25rem] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+              {unidadesFiltradas.map((u, i) => (
+                <button
+                  key={u}
+                  type="button"
+                  onClick={() => onSelecionar(u)}
+                  className={`fade-up flex min-h-14 items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition ${
+                    unidade === u
+                      ? "border-emerald-200/50 bg-emerald-200/14 text-emerald-50"
+                      : "border-white/10 bg-white/[0.035] text-white/82 hover:border-white/20 hover:bg-white/[0.06]"
+                  }`}
+                  style={{ animationDelay: `${50 + Math.min(i, 12) * 20}ms` }}
+                >
+                  <span className="text-sm font-medium leading-snug">{u}</span>
+                  <ChevronRight className="size-4 shrink-0 text-white/35" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

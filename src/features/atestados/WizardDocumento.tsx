@@ -28,6 +28,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 
+import { ComboboxFiltravel } from "@/components/ui/combobox-filtravel"
 import { SlideStack, type SlideDirection } from "@/components/SlideStack"
 
 import { ChoiceButton } from "./ChoiceButton"
@@ -1164,12 +1165,14 @@ function EtapaUnidade({
       </p>
 
       <div className="mt-6 space-y-4">
-        <SelectGlass
+        <ComboboxFiltravel
           valor={unidadeLabel ?? ""}
           opcoes={opcoes}
           placeholder="Selecione a unidade"
+          buscaPlaceholder="Buscar unidade"
+          emptyMessage="Não há unidades cadastradas para este contrato"
+          noMatchMessage="Nenhuma unidade encontrada para esse termo"
           onChange={(v) => onChange(v || null, unidadeNaoEncontradaTexto)}
-          searchable
         />
 
         {ehNaoEncontrada && (

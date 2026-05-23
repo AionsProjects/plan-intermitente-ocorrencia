@@ -9,6 +9,7 @@ if (!N8N_KEY) {
 }
 
 const MONDAY_CRED = { id: "6I0ycSr6PQJkBYpc", name: "Ray0" }
+const UNIDADES_RM_URL = process.env.UNIDADES_RM_URL || "https://antigoaionscorp-n8n.cloudfy.live/webhook/intermitente-unidades-rm"
 
 async function n8n(path, options = {}) {
   const res = await fetch(`${N8N_URL}${path}`, {
@@ -113,6 +114,31 @@ function mondayHttpNode(id, name, jsonBodyExpr, x, y) {
     id,
     name,
     credentials: { mondayComApi: MONDAY_CRED },
+  }
+}
+
+function httpGetNode(id, name, urlExpr, x, y) {
+  return {
+    parameters: {
+      url: urlExpr,
+      options: { response: { response: { neverError: true } } },
+    },
+    type: "n8n-nodes-base.httpRequest",
+    typeVersion: 4.2,
+    position: [x, y],
+    id,
+    name,
+  }
+}
+
+function mergeNode(id, name, x, y) {
+  return {
+    parameters: { mode: "combine", combineBy: "combineAll", options: {} },
+    type: "n8n-nodes-base.merge",
+    typeVersion: 3,
+    position: [x, y],
+    id,
+    name,
   }
 }
 
@@ -233,63 +259,26 @@ const query = \`query {
 }\`;
 return [{ json: { ok: true, contrato, unidade, data, beneficios, query } }];`
 
-const opcoesPrepararCode = `const query = \`query {
-  boards(ids: [18408773953]) {
-    items_page(limit: 500) {
-      items {
-        id
-        name
-        column_values(ids: ["color_mktcnxwn", "dropdown_mm3mcnmn", "texto75"]) {
-          id
-          text
-          value
-          column { title }
-        }
-      }
-    }
-  }
-}\`;
-return [{ json: { query } }];`
-
 const opcoesMoldarCode = `const ALLOWED = ['SEMSA','SEDUC ESCOLA','SEDUC SEDE','SEDUC INTERIOR','DETRAN','TRE PB','CETAM'];
 const resp = $input.first().json;
-if (Array.isArray(resp.errors) && resp.errors.length) {
-  return [{ json: { _statusCode: 500, ok: false, erro: 'erro_monday', mensagem: resp.errors.map(e => e.message).join(' | ') } }];
+if (!resp?.ok || !resp?.unidades_por_contrato) {
+  return [{ json: { _statusCode: 502, ok: false, erro: 'unidades_rm_indisponiveis', mensagem: 'Nao foi possivel carregar as unidades oficiais do RM.', detalhe: resp } }];
 }
-function norm(s){return String(s||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toUpperCase().trim();}
-function col(item,id){return (item.column_values||[]).find(c=>c.id===id)||null;}
-function text(item,id){return col(item,id)?.text ?? '';}
-const unidades = Object.fromEntries(ALLOWED.map(c => [c, []]));
-const vistos = Object.fromEntries(ALLOWED.map(c => [c, new Set()]));
-const items = resp?.data?.boards?.[0]?.items_page?.items || [];
-for (const item of items) {
-  const contratoRaw = text(item, 'color_mktcnxwn');
-  const contrato = ALLOWED.find(c => norm(c) === norm(contratoRaw));
-  if (!contrato) continue;
-  const unidade = String(text(item, 'dropdown_mm3mcnmn') || text(item, 'texto75') || '').trim();
-  if (!unidade) continue;
-  const key = norm(unidade);
-  if (vistos[contrato].has(key)) continue;
-  vistos[contrato].add(key);
-  unidades[contrato].push(unidade);
-}
-for (const c of ALLOWED) unidades[c].sort((a,b)=>a.localeCompare(b,'pt-BR'));
-return [{ json: { _statusCode: 200, ok: true, unidade_column_id: 'dropdown_mm3mcnmn', unidades_por_contrato: unidades } }];`
+const unidades = Object.fromEntries(ALLOWED.map(c => [c, Array.isArray(resp.unidades_por_contrato?.[c]) ? resp.unidades_por_contrato[c] : []]));
+return [{ json: { _statusCode: 200, ok: true, fonte: resp.fonte || 'rm:UNIDADES', unidade_column_id: resp.unidade_column_id || 'dropdown_mm3mcnmn', contagens: resp.contagens || {}, unidades_por_contrato: unidades, unidades: resp.unidades || [] } }];`
 
 function workflowOpcoes() {
   return {
     name: "Ponto Facultativo — Opcoes",
     nodes: [
       webhookNode("pf-opcoes-webhook", "Webhook", "ponto-facultativo-opcoes", 0, 0, "GET"),
-      codeNode("pf-opcoes-preparar", "Preparar", opcoesPrepararCode, 240, 0),
-      mondayHttpNode("pf-opcoes-buscar", "Buscar Dados", "={{ JSON.stringify({ query: $json.query }) }}", 480, 0),
-      codeNode("pf-opcoes-moldar", "Moldar resposta", opcoesMoldarCode, 720, 0),
-      respondNode("pf-opcoes-responder", "Responder", "={{ JSON.stringify($json) }}", 960, 0),
+      httpGetNode("pf-opcoes-rm", "Buscar Unidades RM", UNIDADES_RM_URL, 240, 0),
+      codeNode("pf-opcoes-moldar", "Moldar resposta", opcoesMoldarCode, 480, 0),
+      respondNode("pf-opcoes-responder", "Responder", "={{ JSON.stringify($json) }}", 720, 0),
     ],
     connections: {
-      Webhook: { main: [[{ node: "Preparar", type: "main", index: 0 }]] },
-      Preparar: { main: [[{ node: "Buscar Dados", type: "main", index: 0 }]] },
-      "Buscar Dados": { main: [[{ node: "Moldar resposta", type: "main", index: 0 }]] },
+      Webhook: { main: [[{ node: "Buscar Unidades RM", type: "main", index: 0 }]] },
+      "Buscar Unidades RM": { main: [[{ node: "Moldar resposta", type: "main", index: 0 }]] },
       "Moldar resposta": { main: [[{ node: "Responder", type: "main", index: 0 }]] },
     },
     settings: { executionOrder: "v1" },
@@ -302,6 +291,11 @@ if (prep._abort) return [{ json: prep }];
 const resp = $input.first().json;
 if (Array.isArray(resp.errors) && resp.errors.length) {
   return [{ json: { _statusCode: 500, ok: false, erro: 'erro_monday', mensagem: resp.errors.map(e => e.message).join(' | ') } }];
+}
+let unidadesRm = {};
+try { unidadesRm = $('Buscar Unidades RM').first().json || {}; } catch (e) {}
+if (!unidadesRm?.ok || !unidadesRm?.unidades_por_contrato) {
+  return [{ json: { _statusCode: 502, ok: false, erro: 'unidades_rm_indisponiveis', mensagem: 'Nao foi possivel validar as unidades oficiais do RM.', detalhe: unidadesRm } }];
 }
 const COL = {
   E_CHAPA: 'texto', E_CPF: 'dup__of_matr_cula', E_FUNCAO: 'texto0', E_CONTRATO: 'color_mktcnxwn',
@@ -366,7 +360,12 @@ function resolverValores(items, contrato, funcao){
 const entrada = resp?.data?.entrada?.items || [];
 const historicos = resp?.data?.historico?.[0]?.items_page?.items || [];
 const valoresItems = resp?.data?.valores?.[0]?.items_page?.items || [];
-const unidadesValidas = Array.from(new Set(entrada.map(unidadeItem).map(s => String(s || '').trim()).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'pt-BR'));
+const unidadesValidas = Array.isArray(unidadesRm.unidades_por_contrato?.[prep.contrato])
+  ? unidadesRm.unidades_por_contrato[prep.contrato].map(s => String(s || '').trim()).filter(Boolean)
+  : [];
+if (unidadesValidas.length === 0) {
+  return [{ json: { _statusCode: 400, ok: false, erro: 'contrato_sem_unidades_oficiais', mensagem: 'Contrato sem unidades oficiais retornadas pelo RM.', contrato: prep.contrato } }];
+}
 function levenshtein(a,b){
   if (a === b) return 0;
   const m = a.length, n = b.length;
@@ -398,6 +397,19 @@ function resolverUnidade(input, candidatas){
 }
 const unidadeResolvida = resolverUnidade(prep.unidade, unidadesValidas);
 if (!unidadeResolvida.ok) return [{ json: { _statusCode: 400, ok: false, erro: unidadeResolvida.erro, mensagem: unidadeResolvida.mensagem, contrato: prep.contrato, unidade: prep.unidade, candidatos: unidadeResolvida.candidatos || unidadesValidas } }];
+function unidadeItemBate(valorItem, oficialNorm) {
+  const itemNorm = normUnidade(valorItem);
+  if (!itemNorm) return false;
+  if (itemNorm === oficialNorm) return true;
+  if (itemNorm.includes(oficialNorm) || oficialNorm.includes(itemNorm)) return true;
+  const itemTokens = itemNorm.split(' ').filter(t => t.length > 2);
+  const oficialTokens = oficialNorm.split(' ').filter(t => t.length > 2);
+  if (oficialTokens.length === 0) return false;
+  const common = oficialTokens.filter(t => itemTokens.includes(t)).length;
+  if (common / oficialTokens.length >= 0.75) return true;
+  const max = Math.max(itemNorm.length, oficialNorm.length) || 1;
+  return 1 - (levenshtein(itemNorm, oficialNorm) / max) >= 0.82;
+}
 const histMap = new Map();
 for (const h of historicos) histMap.set(chapaNorm(text(h,COL.H_CHAPA)) + '|' + text(h,COL.H_DI), h);
 const origem = 'ponto_facultativo:' + prep.contrato + ':' + origemUnidade(unidadeResolvida.label) + ':' + prep.data;
@@ -406,7 +418,7 @@ const STATUS_IGNORAR = new Set(['CANCELADA','CANCELADO','BLOQUEADA - CONFLITO'])
 const itens = [];
 for (const e of entrada) {
   const unidadeReal = unidadeItem(e);
-  if (normUnidade(unidadeReal) !== unidadeResolvida.norm) continue;
+  if (!unidadeItemBate(unidadeReal, unidadeResolvida.norm)) continue;
   const di = text(e,COL.E_DI), df = text(e,COL.E_DF);
   if (!di || !df) continue;
   const st = norm(text(e,COL.E_STATUS));
@@ -464,7 +476,7 @@ function applyMutationCode(originColumnId) {
 
 const montarMutacaoCode = `const preview = $('Calcular Preview').first().json;
 if (preview._statusCode && preview._statusCode !== 200) return [{ json: preview }];
-if ((preview._internal_itens || []).length === 0) return [{ json: { ...preview, _statusCode: 409, ok: false, erro: 'sem_intermitentes_para_aplicar', mensagem: 'Nenhum intermitente convocado nesta unidade para esta data.', processados: 0, ignorados: 0 } }];
+if ((preview._internal_itens || []).length === 0) { const out = { ...preview }; delete out._internal_itens; return [{ json: { ...out, _statusCode: 409, ok: false, erro: 'sem_intermitentes_para_aplicar', mensagem: 'Nenhum intermitente convocado nesta unidade para esta data.', processados: 0, ignorados: 0 } }]; }
 const resp = $('Buscar Dados').first().json;
 const descontos = resp?.data?.descontos?.[0]?.items_page?.items || [];
 const ORIGEM_COL = '__ORIGEM_COL__';
@@ -554,15 +566,19 @@ function workflowPreview() {
         type: "n8n-nodes-base.if", typeVersion: 2.2, position: [480, 0], id: "pf-preview-if", name: "Abortar?"
       },
       mondayHttpNode("pf-preview-buscar", "Buscar Dados", "={{ JSON.stringify({ query: $json.query }) }}", 720, 120),
-      codeNode("pf-preview-calcular", "Calcular Preview", calcPreviewCode(""), 960, 120),
+      httpGetNode("pf-preview-rm", "Buscar Unidades RM", UNIDADES_RM_URL, 720, 300),
+      mergeNode("pf-preview-merge", "Aguardar Dados", 960, 200),
+      codeNode("pf-preview-calcular", "Calcular Preview", calcPreviewCode(""), 1200, 200),
       respondNode("pf-preview-responder-erro", "Responder Erro", "={{ JSON.stringify($json) }}", 720, -120),
-      respondNode("pf-preview-responder", "Responder", "={{ JSON.stringify($json) }}", 1200, 120),
+      respondNode("pf-preview-responder", "Responder", "={{ JSON.stringify($json) }}", 1440, 200),
     ],
     connections: {
       Webhook: { main: [[{ node: "Preparar", type: "main", index: 0 }]] },
       Preparar: { main: [[{ node: "Abortar?", type: "main", index: 0 }]] },
-      "Abortar?": { main: [[{ node: "Responder Erro", type: "main", index: 0 }], [{ node: "Buscar Dados", type: "main", index: 0 }]] },
-      "Buscar Dados": { main: [[{ node: "Calcular Preview", type: "main", index: 0 }]] },
+      "Abortar?": { main: [[{ node: "Responder Erro", type: "main", index: 0 }], [{ node: "Buscar Dados", type: "main", index: 0 }, { node: "Buscar Unidades RM", type: "main", index: 0 }]] },
+      "Buscar Dados": { main: [[{ node: "Aguardar Dados", type: "main", index: 0 }]] },
+      "Buscar Unidades RM": { main: [[{ node: "Aguardar Dados", type: "main", index: 1 }]] },
+      "Aguardar Dados": { main: [[{ node: "Calcular Preview", type: "main", index: 0 }]] },
       "Calcular Preview": { main: [[{ node: "Responder", type: "main", index: 0 }]] },
     },
     settings: { executionOrder: "v1" },
@@ -596,26 +612,30 @@ function workflowAplicar(originColumnId) {
         type: "n8n-nodes-base.if", typeVersion: 2.2, position: [480, 0], id: "pf-aplicar-if-abort", name: "Abortar?"
       },
       mondayHttpNode("pf-aplicar-buscar", "Buscar Dados", "={{ JSON.stringify({ query: $json.query }) }}", 720, 120),
-      codeNode("pf-aplicar-calcular", "Calcular Preview", calcPreviewCode(originColumnId, true), 960, 120),
-      codeNode("pf-aplicar-mutacao", "Montar Mutacao", montarMutacaoCode.replace("__ORIGEM_COL__", originColumnId), 1200, 120),
+      httpGetNode("pf-aplicar-rm", "Buscar Unidades RM", UNIDADES_RM_URL, 720, 300),
+      mergeNode("pf-aplicar-merge", "Aguardar Dados", 960, 200),
+      codeNode("pf-aplicar-calcular", "Calcular Preview", calcPreviewCode(originColumnId, true), 1200, 200),
+      codeNode("pf-aplicar-mutacao", "Montar Mutacao", montarMutacaoCode.replace("__ORIGEM_COL__", originColumnId), 1440, 200),
       {
         parameters: {
           conditions: { options: { caseSensitive: true, leftValue: "", typeValidation: "strict", version: 2 }, conditions: [{ id: "mut", leftValue: "={{ !!$json.mutation }}", rightValue: true, operator: { type: "boolean", operation: "true", singleValue: true } }], combinator: "and" },
           options: {},
         },
-        type: "n8n-nodes-base.if", typeVersion: 2.2, position: [1440, 120], id: "pf-aplicar-if-mut", name: "Tem Mutacao?"
+        type: "n8n-nodes-base.if", typeVersion: 2.2, position: [1680, 200], id: "pf-aplicar-if-mut", name: "Tem Mutacao?"
       },
-      mondayHttpNode("pf-aplicar-exec", "Executar Mutacao", "={{ JSON.stringify({ query: $json.mutation }) }}", 1680, 40),
-      codeNode("pf-aplicar-final", "Final", `const base = $('Montar Mutacao').first().json; const r = $json; if (Array.isArray(r.errors) && r.errors.length) return [{ json: { _statusCode: 500, ok: false, erro: 'erro_monday', mensagem: r.errors.map(e=>e.message).join(' | ') } }]; const out = { ...base }; delete out.mutation; return [{ json: out }];`, 1920, 40),
+      mondayHttpNode("pf-aplicar-exec", "Executar Mutacao", "={{ JSON.stringify({ query: $json.mutation }) }}", 1920, 120),
+      codeNode("pf-aplicar-final", "Final", `const base = $('Montar Mutacao').first().json; const r = $json; if (Array.isArray(r.errors) && r.errors.length) return [{ json: { _statusCode: 500, ok: false, erro: 'erro_monday', mensagem: r.errors.map(e=>e.message).join(' | ') } }]; const out = { ...base }; delete out.mutation; return [{ json: out }];`, 2160, 120),
       respondNode("pf-aplicar-responder-erro", "Responder Erro", "={{ JSON.stringify($json) }}", 720, -120),
-      respondNode("pf-aplicar-responder-skip", "Responder Sem Mutacao", "={{ JSON.stringify($json) }}", 1680, 220),
-      respondNode("pf-aplicar-responder", "Responder", "={{ JSON.stringify($json) }}", 2160, 40),
+      respondNode("pf-aplicar-responder-skip", "Responder Sem Mutacao", "={{ JSON.stringify($json) }}", 1920, 300),
+      respondNode("pf-aplicar-responder", "Responder", "={{ JSON.stringify($json) }}", 2400, 120),
     ],
     connections: {
       Webhook: { main: [[{ node: "Preparar", type: "main", index: 0 }]] },
       Preparar: { main: [[{ node: "Abortar?", type: "main", index: 0 }]] },
-      "Abortar?": { main: [[{ node: "Responder Erro", type: "main", index: 0 }], [{ node: "Buscar Dados", type: "main", index: 0 }]] },
-      "Buscar Dados": { main: [[{ node: "Calcular Preview", type: "main", index: 0 }]] },
+      "Abortar?": { main: [[{ node: "Responder Erro", type: "main", index: 0 }], [{ node: "Buscar Dados", type: "main", index: 0 }, { node: "Buscar Unidades RM", type: "main", index: 0 }]] },
+      "Buscar Dados": { main: [[{ node: "Aguardar Dados", type: "main", index: 0 }]] },
+      "Buscar Unidades RM": { main: [[{ node: "Aguardar Dados", type: "main", index: 1 }]] },
+      "Aguardar Dados": { main: [[{ node: "Calcular Preview", type: "main", index: 0 }]] },
       "Calcular Preview": { main: [[{ node: "Montar Mutacao", type: "main", index: 0 }]] },
       "Montar Mutacao": { main: [[{ node: "Tem Mutacao?", type: "main", index: 0 }]] },
       "Tem Mutacao?": { main: [[{ node: "Executar Mutacao", type: "main", index: 0 }], [{ node: "Responder Sem Mutacao", type: "main", index: 0 }]] },

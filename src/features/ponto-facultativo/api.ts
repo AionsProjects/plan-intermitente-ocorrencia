@@ -12,14 +12,103 @@ import { CONTRATOS_PONTO_FACULTATIVO as CONTRATOS } from "./types"
 const BASE_URL = import.meta.env.VITE_N8N_BASE_URL ?? ""
 const USE_MOCK = !BASE_URL
 
+// Mocks reproduzem volume real do RM:
+// - SEMSA ~102 unidades (UBS + DISA + ADM)
+// - SEDUC INTERIOR ~68 (1 sede da coord + escolas espalhadas)
+// - SEDUC ESCOLA ~57 (escolas urbanas)
+// - SEDUC SEDE pequeno (~6)
+// - DETRAN/TRE/CETAM listas curtas
+// Nomes reais misturados com sintéticos. Inclui "RAYOL", "SAO JOSE",
+// "GABRIELLE" pra cobrir cenários de busca dos critérios.
+function gerar(prefixo: string, base: string[], extras: number): string[] {
+  const out = [...base.map((b) => `${prefixo} - ${b.toUpperCase()}`)]
+  const sintetico = [
+    "ALVORADA",
+    "BAIRRO DA UNIAO",
+    "CAMPOS SALES",
+    "CIDADE NOVA",
+    "COROADO",
+    "DOM PEDRO",
+    "EDUCANDOS",
+    "FLORES",
+    "JAPIIM",
+    "MORRO DA LIBERDADE",
+    "NOVO ALEIXO",
+    "PARQUE 10",
+    "PETROPOLIS",
+    "PRESIDENTE VARGAS",
+    "PUARAQUEQUARA",
+    "REDENCAO",
+    "SAO LAZARO",
+    "TARUMA",
+    "VILA DA PRATA",
+    "ZUMBI DOS PALMARES",
+  ]
+  for (let i = 0; i < extras; i++) {
+    out.push(`${prefixo} - ${sintetico[i % sintetico.length]} ${Math.floor(i / sintetico.length) + 1}`)
+  }
+  return out
+}
+
 const MOCK_UNIDADES: Record<ContratoPontoFacultativo, string[]> = {
-  SEMSA: ["SEMSA - INTERMITENTE"],
-  "SEDUC ESCOLA": ["IRMÃ GABRIELLE", "MAYARA REDMAN", "PROF. JACIRA CABOCLO"],
-  "SEDUC SEDE": ["SEDUC - MANAUS"],
-  "SEDUC INTERIOR": ["SEDE DA COORDENADORIA", "ESCOLA ESTADUAL INTERIOR"],
-  DETRAN: ["DETRAN - INTERMITENTE"],
-  "TRE PB": ["TRE PB - INTERMITENTE"],
-  CETAM: ["GASTRONOMIA", "PARINTINS", "MANACAPURU"],
+  SEMSA: gerar(
+    "SEMSA",
+    [
+      "ADM",
+      "ALVORADA",
+      "COMPENSA",
+      "DISTRITO LESTE",
+      "DISTRITO NORTE",
+      "DISTRITO OESTE",
+      "DISTRITO SUL",
+      "JORGE TEIXEIRA",
+      "RAYOL DOS SANTOS",
+      "SAO JOSE",
+      "SEDE",
+      "ZONA NORTE",
+    ],
+    90,
+  ),
+  "SEDUC ESCOLA": gerar(
+    "SEDUC ESCOLA",
+    [
+      "IRMA GABRIELLE",
+      "MAYARA REDMAN",
+      "PROF JACIRA CABOCLO",
+      "DOM JOAO DE SOUZA",
+      "ANGELO RAMAZZOTTI",
+    ],
+    52,
+  ),
+  "SEDUC SEDE": [
+    "SEDUC - MANAUS",
+    "SEDUC - DEPOSITO",
+    "SEDUC - SAO JOSE",
+    "SEDUC - ADM CENTRAL",
+    "SEDUC - DIRETORIA",
+    "SEDUC - PROTOCOLO",
+  ],
+  "SEDUC INTERIOR": gerar(
+    "SEDUC INTERIOR",
+    [
+      "SEDE DA COORDENADORIA",
+      "ESCOLA ESTADUAL INTERIOR",
+      "CETI PARINTINS",
+      "CETI TABATINGA",
+      "CETI ITACOATIARA",
+      "CETI MANACAPURU",
+    ],
+    62,
+  ),
+  DETRAN: ["DETRAN - INTERMITENTE", "DETRAN - SEDE", "DETRAN - CIRETRAN"],
+  "TRE PB": ["TRE PB - INTERMITENTE", "TRE PB - SEDE"],
+  CETAM: [
+    "CETAM - GASTRONOMIA",
+    "CETAM - PARINTINS",
+    "CETAM - MANACAPURU",
+    "CETAM - TEFE",
+    "CETAM - PRESIDENCIA",
+  ],
 }
 
 function round2(v: number): number {

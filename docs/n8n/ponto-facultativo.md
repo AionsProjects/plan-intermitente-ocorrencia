@@ -37,7 +37,7 @@ Host novo: `https://aionscorp-n8n.cloudfy.live/webhook`
 
 | Endpoint | WF ID | Status | Uso |
 |---|---|---|---|
-| `GET /ponto-facultativo-opcoes` | `JXpJ6xuSZMcu2IVn` | Ativo | Retorna unidades reais do Plan agrupadas por contrato. |
+| `GET /ponto-facultativo-opcoes` | `JXpJ6xuSZMcu2IVn` | Ativo | Retorna unidades oficiais do RM (`UNIDADES`/`231375`) agrupadas por contrato. |
 | `POST /ponto-facultativo-preview` | `7gHmbLcZ5r6D5sXz` | Ativo | Calcula afetados e totais sem alterar Monday. |
 | `POST /ponto-facultativo-aplicar` | `XybrfnzI11Fw5sX4` | Ativo | Recalcula, grava ledger e cria/atualiza Desconto. |
 
@@ -52,6 +52,15 @@ Payload dos dois endpoints:
 }
 ```
 
+Fonte oficial de unidades:
+
+- Host antigo: `https://antigoaionscorp-n8n.cloudfy.live/webhook`
+- Endpoint: `GET /intermitente-unidades-rm`
+- WF ID: `5PbFEf8LbmFcsoP5`
+- SQL RM: `231375` / `UNIDADES`
+- Coluna operacional sincronizada no Plan: `OP - Local/Unidade` (`dropdown_mm3mcnmn`)
+- Contagens atuais: SEMSA 102, SEDUC ESCOLA 57, SEDUC SEDE 7, SEDUC INTERIOR 68, DETRAN 3, TRE PB 7, CETAM 29.
+
 ## Boards e colunas usadas
 
 ### Entrada - `18408773953`
@@ -65,7 +74,7 @@ Usado para localizar convocacoes ativas.
 | CPF | `dup__of_matr_cula` | CPF quando disponivel. |
 | Funcao | `texto0` | Regra/função para valores. |
 | Contrato | `color_mktcnxwn` | Filtro principal do ponto facultativo. |
-| OP - Local/Unidade | `dropdown_mm3mcnmn` | Filtro operacional de unidade. |
+| OP - Local/Unidade | `dropdown_mm3mcnmn` | Filtro operacional de unidade; labels sincronizadas a partir do RM. |
 | Local/Unidade legado | `texto75` | Fallback quando dropdown ainda nao estiver preenchida. |
 | Data inicio | `date_mktayxhb` | Periodo da convocacao. |
 | Data fim | `date_mktasnwq` | Periodo da convocacao. |

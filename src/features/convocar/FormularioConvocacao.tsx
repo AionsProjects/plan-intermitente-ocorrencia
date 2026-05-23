@@ -14,6 +14,7 @@ import { ptBR } from "date-fns/locale"
 
 import { GlassDatePicker } from "./GlassDatePicker"
 import { GlassSelect } from "./GlassSelect"
+import { ComboboxFiltravel } from "@/components/ui/combobox-filtravel"
 import { ConvocacaoApiError } from "./api"
 import {
   OPCOES_CONVOCACAO_FALLBACK,
@@ -271,16 +272,17 @@ export function FormularioConvocacao({
           hint="As unidades são filtradas pelo contrato selecionado."
           required
         >
-          <GlassSelect
-            label="Local/Unidade"
-            value={form.localUnidade}
+          <ComboboxFiltravel
+            valor={form.localUnidade}
             onChange={(v) => set("localUnidade", v)}
-            options={unidadesDoContrato}
+            opcoes={unidadesDoContrato}
             placeholder={
               form.contrato ? "Selecione a unidade" : "Selecione o contrato primeiro"
             }
+            buscaPlaceholder="Buscar unidade"
             disabled={!form.contrato || unidadesDoContrato.length === 0}
-            emptyMessage="Nenhuma unidade cadastrada para este contrato."
+            emptyMessage="Não há unidades cadastradas para este contrato"
+            noMatchMessage="Nenhuma unidade encontrada para esse termo"
           />
         </FieldWrap>
 
