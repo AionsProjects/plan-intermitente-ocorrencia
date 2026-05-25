@@ -50,6 +50,7 @@ import {
   type PontoFacultativoItem,
   type PontoFacultativoPayload,
   type PontoFacultativoPreview,
+  type UnidadeComCount,
 } from "./types"
 import {
   useAplicarPontoFacultativo,
@@ -241,6 +242,7 @@ export function PontoFacultativoPage() {
   const unidadesContrato = contrato
     ? (opcoesQuery.data?.unidadesPorContrato[contrato] ?? [])
     : []
+  const mesReferencia = opcoesQuery.data?.mesReferencia ?? null
 
   function ir(next: Etapa, dir: SlideDirection = "forward") {
     setDirecao(dir)
@@ -313,6 +315,7 @@ export function PontoFacultativoPage() {
               contrato={contrato}
               unidade={unidade}
               unidades={unidadesContrato}
+              mesReferencia={mesReferencia}
               carregando={opcoesQuery.isPending}
               erro={opcoesQuery.error instanceof Error ? opcoesQuery.error.message : null}
               onVoltar={() => ir("contrato", "backward")}
@@ -554,6 +557,7 @@ function EtapaUnidade({
   contrato,
   unidade,
   unidades,
+  mesReferencia,
   carregando,
   erro,
   onVoltar,
@@ -561,7 +565,8 @@ function EtapaUnidade({
 }: {
   contrato: ContratoPontoFacultativo | null
   unidade: string | null
-  unidades: string[]
+  unidades: UnidadeComCount[]
+  mesReferencia: string | null
   carregando: boolean
   erro: string | null
   onVoltar: () => void
@@ -569,16 +574,42 @@ function EtapaUnidade({
 }) {
   const [busca, setBusca] = useState("")
   const semUnidades = !carregando && unidades.length === 0
-  const unidadesFiltradas = useMemo(
-    () => filtrarPorBusca(unidades, busca),
-    [busca, unidades],
-  )
 
-  // Auto-select quando há só 1 unidade — usuário não precisa clicar.
-  // Mantém consistência com /convocar (FormularioConvocacao.setContrato).
+  // Ordena: com pessoas (qtd desc, alfabético tiebreaker) > sem pessoas (alfabético).
+  // Operacional vê o que tem gente primeiro, vazios cinzas no final.
+  const unidadesOrdenadas = useMemo(() => {
+    const comPessoas = unidades
+      .filter((u) => u.qtdIntermitentes > 0)
+      .sort((a, b) => b.qtdIntermitentes - a.qtdIntermitentes || a.label.localeCompare(b.label))
+    const semPessoas = unidades
+      .filter((u) => u.qtdIntermitentes === 0)
+      .sort((a, b) => a.label.localeCompare(b.label))
+    return [...comPessoas, ...semPessoas]
+  }, [unidades])
+
+  const unidadesFiltradas = useMemo(() => {
+    if (!busca.trim()) return unidadesOrdenadas
+    const labels = unidadesOrdenadas.map((u) => u.label)
+    const filtrados = new Set(filtrarPorBusca(labels, busca))
+    return unidadesOrdenadas.filter((u) => filtrados.has(u.label))
+  }, [busca, unidadesOrdenadas])
+
+  const totalComPessoas = useMemo(
+    () => unidades.filter((u) => u.qtdIntermitentes > 0).length,
+    [unidades],
+  )
+  const totalConvocacoes = useMemo(
+    () => unidades.reduce((acc, u) => acc + u.qtdIntermitentes, 0),
+    [unidades],
+  )
+  const todasVazias = !carregando && unidades.length > 0 && totalComPessoas === 0
+
+  // Auto-select quando só 1 unidade COM PESSOAS — usuário não precisa clicar.
   useEffect(() => {
-    if (unidades.length === 1 && !unidade && !carregando) {
-      onSelecionar(unidades[0])
+    if (carregando) return
+    const comPessoas = unidades.filter((u) => u.qtdIntermitentes > 0)
+    if (comPessoas.length === 1 && !unidade) {
+      onSelecionar(comPessoas[0].label)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unidades, carregando])
@@ -594,12 +625,19 @@ function EtapaUnidade({
         <h2 className="text-lg font-medium">Unidade afetada</h2>
       </div>
 
-      {contrato && (
-        <div className="mb-5 inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1.5 text-xs text-white/82">
-          <Building2 className="size-3.5 text-emerald-200/85" />
-          {contrato}
-        </div>
-      )}
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        {contrato && (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1.5 text-xs text-white/82">
+            <Building2 className="size-3.5 text-emerald-200/85" />
+            {contrato}
+          </span>
+        )}
+        {mesReferencia && totalConvocacoes > 0 && (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/30 bg-emerald-300/[0.08] px-3 py-1.5 text-xs text-emerald-100/90">
+            {totalConvocacoes} convocações ativas em {mesReferencia}
+          </span>
+        )}
+      </div>
 
       {carregando && (
         <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-5 text-sm text-white/65">
@@ -629,7 +667,21 @@ function EtapaUnidade({
         </div>
       )}
 
-      {!carregando && unidades.length > 0 && (
+      {todasVazias && (
+        <div className="rounded-2xl border border-dashed border-amber-200/25 bg-amber-300/[0.06] px-5 py-8 text-center">
+          <div className="mx-auto flex size-12 items-center justify-center rounded-full border border-amber-200/30 bg-amber-300/15 text-amber-200">
+            <UserX className="size-5" />
+          </div>
+          <p className="mt-4 text-sm font-medium text-amber-50">
+            Nenhuma unidade tem intermitentes convocados em {mesReferencia ?? "este mês"}
+          </p>
+          <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-amber-100/65">
+            Volte e escolha outro contrato — ou aguarde novas convocações serem cadastradas no Plan.
+          </p>
+        </div>
+      )}
+
+      {!carregando && unidades.length > 0 && !todasVazias && (
         <div className="space-y-3">
           <label className="relative block">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-white/35" />
@@ -642,7 +694,9 @@ function EtapaUnidade({
           </label>
 
           <div className="flex items-center justify-between gap-3 text-xs text-white/45">
-            <span>{unidadesFiltradas.length} unidades encontradas</span>
+            <span>
+              {unidadesFiltradas.length} unidades · {totalComPessoas} com convocações
+            </span>
             <span>{unidades.length} cadastradas no RM</span>
           </div>
 
@@ -657,22 +711,50 @@ function EtapaUnidade({
             </div>
           ) : (
             <div className="grid max-h-[25rem] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-              {unidadesFiltradas.map((u, i) => (
-                <button
-                  key={u}
-                  type="button"
-                  onClick={() => onSelecionar(u)}
-                  className={`fade-up flex min-h-14 items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition ${
-                    unidade === u
-                      ? "border-emerald-200/50 bg-emerald-200/14 text-emerald-50"
-                      : "border-white/10 bg-white/[0.035] text-white/82 hover:border-white/20 hover:bg-white/[0.06]"
-                  }`}
-                  style={{ animationDelay: `${50 + Math.min(i, 12) * 20}ms` }}
-                >
-                  <span className="text-sm font-medium leading-snug">{u}</span>
-                  <ChevronRight className="size-4 shrink-0 text-white/35" />
-                </button>
-              ))}
+              {unidadesFiltradas.map((u, i) => {
+                const vazia = u.qtdIntermitentes === 0
+                const selected = unidade === u.label
+                return (
+                  <button
+                    key={u.label}
+                    type="button"
+                    disabled={vazia}
+                    onClick={() => onSelecionar(u.label)}
+                    title={vazia ? "Nenhum intermitente convocado nesta unidade este mês" : undefined}
+                    className={`fade-up tile-unidade flex min-h-14 items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition ${
+                      selected
+                        ? "border-emerald-200/55 bg-emerald-200/16 text-emerald-50 shadow-[0_0_18px_-6px_rgba(110,231,183,0.55)]"
+                        : vazia
+                          ? "tile-unidade-vazio cursor-not-allowed border-white/8 bg-white/[0.02] text-white/35"
+                          : "border-white/10 bg-white/[0.035] text-white/82 hover:border-emerald-200/35 hover:bg-emerald-200/[0.06] hover:text-white/95"
+                    }`}
+                    style={{ animationDelay: `${50 + Math.min(i, 12) * 20}ms` }}
+                  >
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
+                      <span className="truncate text-sm font-medium leading-snug">
+                        {u.label}
+                        {u.foraRm && (
+                          <span className="ml-1.5 align-middle text-[9px] uppercase tracking-wider text-amber-200/65">
+                            fora-rm
+                          </span>
+                        )}
+                      </span>
+                      <span
+                        className={`inline-flex w-fit items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${
+                          vazia
+                            ? "border-white/8 bg-white/[0.02] text-white/30"
+                            : "border-emerald-300/35 bg-emerald-300/10 text-emerald-200/95"
+                        }`}
+                      >
+                        {vazia
+                          ? "sem convocações"
+                          : `${u.qtdIntermitentes} ${u.qtdIntermitentes === 1 ? "pessoa" : "pessoas"}`}
+                      </span>
+                    </div>
+                    {!vazia && <ChevronRight className="size-4 shrink-0 text-white/35" />}
+                  </button>
+                )
+              })}
             </div>
           )}
         </div>

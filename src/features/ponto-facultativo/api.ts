@@ -6,6 +6,7 @@ import type {
   PontoFacultativoOpcoes,
   PontoFacultativoPayload,
   PontoFacultativoPreview,
+  UnidadeComCount,
 } from "./types"
 import { CONTRATOS_PONTO_FACULTATIVO as CONTRATOS } from "./types"
 
@@ -50,7 +51,7 @@ function gerar(prefixo: string, base: string[], extras: number): string[] {
   return out
 }
 
-const MOCK_UNIDADES: Record<ContratoPontoFacultativo, string[]> = {
+const MOCK_UNIDADES_STR: Record<ContratoPontoFacultativo, string[]> = {
   SEMSA: gerar(
     "SEMSA",
     [
@@ -109,6 +110,23 @@ const MOCK_UNIDADES: Record<ContratoPontoFacultativo, string[]> = {
     "CETAM - TEFE",
     "CETAM - PRESIDENCIA",
   ],
+}
+
+/** Converte fallback string[] em UnidadeComCount[] com qtd aleatória mock
+ *  pra UX de teste mostrar mistura de unidades cheias e vazias. */
+function MOCK_UNIDADES_COM_COUNT(): Record<ContratoPontoFacultativo, UnidadeComCount[]> {
+  const seedHash = (s: string) =>
+    s.split("").reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7)
+  const out = {} as Record<ContratoPontoFacultativo, UnidadeComCount[]>
+  for (const contrato of CONTRATOS) {
+    out[contrato] = MOCK_UNIDADES_STR[contrato].map((label) => {
+      const hash = Math.abs(seedHash(label))
+      // ~40% das unidades vazias, resto entre 1-6 pessoas
+      const qtd = hash % 10 < 4 ? 0 : (hash % 6) + 1
+      return { label, qtdIntermitentes: qtd }
+    })
+  }
+  return out
 }
 
 function round2(v: number): number {
@@ -222,21 +240,47 @@ function mapPreview(raw: Record<string, unknown>): PontoFacultativoPreview {
   }
 }
 
+function mapUnidadeEntry(item: unknown): UnidadeComCount | null {
+  if (typeof item === "string") {
+    const label = item.trim()
+    if (!label) return null
+    return { label, qtdIntermitentes: 0 }
+  }
+  if (item && typeof item === "object") {
+    const obj = item as Record<string, unknown>
+    const label = String(obj.label ?? obj.name ?? "").trim()
+    if (!label) return null
+    return {
+      label,
+      qtdIntermitentes: Number(obj.qtd_intermitentes ?? obj.qtdIntermitentes ?? 0),
+      foraRm: Boolean(obj._fora_rm ?? obj.foraRm) || undefined,
+    }
+  }
+  return null
+}
+
 function mapOpcoes(raw: Record<string, unknown>): PontoFacultativoOpcoes {
   const bruto = raw.unidades_por_contrato ?? raw.unidadesPorContrato ?? {}
-  const src = typeof bruto === "object" && bruto ? bruto as Record<string, unknown> : {}
+  const src = typeof bruto === "object" && bruto ? (bruto as Record<string, unknown>) : {}
   const unidadesPorContrato = Object.fromEntries(
     CONTRATOS.map((contrato) => {
       const lista = Array.isArray(src[contrato])
-        ? src[contrato].map(String).filter(Boolean)
+        ? (src[contrato] as unknown[])
+            .map(mapUnidadeEntry)
+            .filter((u): u is UnidadeComCount => u !== null)
         : []
       return [contrato, lista]
     }),
-  ) as Record<ContratoPontoFacultativo, string[]>
+  ) as Record<ContratoPontoFacultativo, UnidadeComCount[]>
+  const contagens = typeof raw.contagens === "object" && raw.contagens
+    ? (raw.contagens as Record<string, number>)
+    : undefined
   return {
     ok: raw.ok !== false,
     unidadeColumnId: String(raw.unidade_column_id ?? raw.unidadeColumnId ?? ""),
     unidadesPorContrato,
+    contagens,
+    mesReferencia: raw.mes_referencia ? String(raw.mes_referencia) : undefined,
   }
 }
 
@@ -246,7 +290,7 @@ export async function buscarOpcoesPontoFacultativo(): Promise<PontoFacultativoOp
     return {
       ok: true,
       unidadeColumnId: "dropdown_mm3mcnmn",
-      unidadesPorContrato: MOCK_UNIDADES,
+      unidadesPorContrato: MOCK_UNIDADES_COM_COUNT(),
     }
   }
 
