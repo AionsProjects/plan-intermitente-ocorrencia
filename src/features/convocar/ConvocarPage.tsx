@@ -1,6 +1,5 @@
 import { useRef, useState } from "react"
-import { useNavigate } from "react-router-dom"
-import { ArrowLeft } from "lucide-react"
+import { NavCluster } from "@/components/NavCluster"
 
 import { SlideStack, type SlideDirection } from "@/components/SlideStack"
 
@@ -28,7 +27,6 @@ function etapaKey(e: Etapa): string {
 }
 
 export function ConvocarPage() {
-  const navigate = useNavigate()
   const [etapa, setEtapa] = useState<Etapa>({ tipo: "busca" })
   const [direcao, setDirecao] = useState<SlideDirection>("forward")
   const ultimoTipoRef = useRef<Etapa["tipo"]>("busca")
@@ -80,16 +78,17 @@ export function ConvocarPage() {
   return (
     <div className="relative z-10 min-h-svh">
       <div className="flex justify-center px-4 py-12">
-        <div className="glass-strong relative w-full max-w-2xl p-8 sm:p-10">
+        <div className="glass-strong card-shimmer relative w-full max-w-2xl p-8 sm:p-10">
           {etapa.tipo !== "sucesso" && (
-            <button
-              type="button"
-              onClick={() => navigate("/")}
-              className="mb-6 inline-flex items-center gap-1.5 text-xs text-white/55 transition hover:text-white/85"
-            >
-              <ArrowLeft className="size-3.5" />
-              Voltar
-            </button>
+            <div className="mb-6 flex justify-end">
+              <NavCluster
+                onVoltar={
+                  etapa.tipo === "form"
+                    ? () => ir({ tipo: "busca" })
+                    : null
+                }
+              />
+            </div>
           )}
           <SlideStack slideKey={etapaKey(etapa)} direction={direcao}>
             {renderEtapa()}

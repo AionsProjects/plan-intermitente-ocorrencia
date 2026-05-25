@@ -2,7 +2,6 @@ import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { format, parseISO } from "date-fns"
 import {
-  ArrowLeft,
   ArrowRight,
   ChevronDown,
   ChevronUp,
@@ -11,6 +10,8 @@ import {
   Loader2,
   Pencil,
 } from "lucide-react"
+
+import { NavCluster } from "@/components/NavCluster"
 
 import { buscarUuidPorProtocolo } from "@/features/preencher/api"
 
@@ -69,26 +70,20 @@ export function CorrecaoPage() {
 
   return (
     <div className="relative z-10 flex min-h-svh items-center justify-center px-4 py-12">
-      <div className="glass-strong relative w-full max-w-xl p-10">
-        {/* Botão discreto de chave de teste — canto superior direito */}
-        <button
-          type="button"
-          onClick={() => void abrir("PROT-DEMO-1234")}
-          title="Abrir protocolo de teste"
-          className="absolute right-4 top-4 inline-flex size-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-white/35 backdrop-blur transition-all hover:border-[#e8c275]/40 hover:bg-[#e8c275]/10 hover:text-[#e8c275]"
-        >
-          <FlaskConical className="size-3.5" />
-          <span className="sr-only">Abrir protocolo de teste PROT-DEMO-1234</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => navigate("/")}
-          className="mb-6 inline-flex items-center gap-1.5 text-xs text-white/55 transition hover:text-white/85"
-        >
-          <ArrowLeft className="size-3.5" />
-          Voltar
-        </button>
+      <div className="glass-strong card-shimmer relative w-full max-w-xl p-10">
+        {/* Header: flask de teste + nav cluster top-right */}
+        <div className="mb-6 flex items-start justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => void abrir("PROT-DEMO-1234")}
+            title="Abrir protocolo de teste"
+            className="inline-flex size-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-white/35 backdrop-blur transition-all hover:border-[#e8c275]/40 hover:bg-[#e8c275]/10 hover:text-[#e8c275]"
+          >
+            <FlaskConical className="size-3.5" />
+            <span className="sr-only">Abrir protocolo de teste PROT-DEMO-1234</span>
+          </button>
+          <NavCluster onVoltar={null} />
+        </div>
 
         <p className="text-[11px] uppercase tracking-[0.32em] text-white/55">
           Aionscorp · Plano de intermitentes

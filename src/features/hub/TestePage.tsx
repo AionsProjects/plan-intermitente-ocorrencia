@@ -1,14 +1,14 @@
-import { Link, useNavigate } from "react-router-dom"
+import { Link } from "react-router-dom"
 import {
-  ArrowLeft,
   ArrowUpRight,
   CalendarDays,
   FlaskConical,
   KeyRound,
 } from "lucide-react"
 
+import { NavCluster } from "@/components/NavCluster"
+
 export function TestePage() {
-  const navigate = useNavigate()
   const usandoMock = !import.meta.env.VITE_N8N_BASE_URL
 
   // UUIDs/protocolos com prefixos reservados que sempre resolvem mock
@@ -63,19 +63,13 @@ export function TestePage() {
 
   return (
     <div className="relative z-10 flex min-h-svh items-center justify-center px-4 py-12">
-      <div className="glass-strong relative w-full max-w-xl p-10">
-        <button
-          type="button"
-          onClick={() => navigate("/")}
-          className="mb-6 inline-flex items-center gap-1.5 text-xs text-white/55 transition hover:text-white/85"
-        >
-          <ArrowLeft className="size-3.5" />
-          Voltar
-        </button>
-
-        <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-amber-200">
-          <FlaskConical className="size-3" />
-          Área de teste
+      <div className="glass-strong card-shimmer relative w-full max-w-xl p-10">
+        <div className="mb-6 flex items-start justify-between gap-3">
+          <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-amber-200">
+            <FlaskConical className="size-3" />
+            Área de teste
+          </div>
+          <NavCluster onVoltar={null} />
         </div>
 
         <p className="text-[11px] uppercase tracking-[0.32em] text-white/55">

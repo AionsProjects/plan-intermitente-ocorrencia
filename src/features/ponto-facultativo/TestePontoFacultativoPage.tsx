@@ -1,6 +1,5 @@
-import { Link, useNavigate } from "react-router-dom"
+import { Link } from "react-router-dom"
 import {
-  ArrowLeft,
   ArrowUpRight,
   CalendarDays,
   CheckCircle2,
@@ -9,6 +8,8 @@ import {
   Users,
   WalletCards,
 } from "lucide-react"
+
+import { NavCluster } from "@/components/NavCluster"
 
 /**
  * Área de testes do fluxo Ponto Facultativo.
@@ -92,24 +93,17 @@ function iconColor(tone: Tone): string {
 }
 
 export function TestePontoFacultativoPage() {
-  const navigate = useNavigate()
   const usandoMock = !import.meta.env.VITE_N8N_BASE_URL
 
   return (
     <div className="relative z-10 flex min-h-svh items-center justify-center px-4 py-12">
-      <div className="glass-strong relative w-full max-w-xl p-10">
-        <button
-          type="button"
-          onClick={() => navigate("/teste")}
-          className="mb-6 inline-flex items-center gap-1.5 text-xs text-white/55 transition hover:text-white/85"
-        >
-          <ArrowLeft className="size-3.5" />
-          Voltar
-        </button>
-
-        <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-300/30 bg-emerald-300/10 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-emerald-200">
-          <FlaskConical className="size-3" />
-          Mocks · ponto facultativo
+      <div className="glass-strong card-shimmer relative w-full max-w-xl p-10">
+        <div className="mb-6 flex items-start justify-between gap-3">
+          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/30 bg-emerald-300/10 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-emerald-200">
+            <FlaskConical className="size-3" />
+            Mocks · ponto facultativo
+          </div>
+          <NavCluster homeTo="/teste" voltarLabel="Voltar pra área de teste" />
         </div>
 
         <p className="text-[11px] uppercase tracking-[0.32em] text-white/55">

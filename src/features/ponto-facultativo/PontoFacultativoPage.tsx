@@ -18,7 +18,6 @@ import {
   ChevronRight,
   Coins,
   GraduationCap,
-  Home,
   Loader2,
   MapPin,
   Search,
@@ -29,6 +28,7 @@ import {
   WalletCards,
 } from "lucide-react"
 
+import { NavCluster } from "@/components/NavCluster"
 import { SlideStack, type SlideDirection } from "@/components/SlideStack"
 import { ChoiceButton } from "@/features/atestados/ChoiceButton"
 import {
@@ -305,27 +305,7 @@ export function PontoFacultativoPage() {
               desconto é aplicado a todos os intermitentes convocados naquele local.
             </p>
           </div>
-          <div className="nav-cluster shrink-0">
-            <button
-              type="button"
-              onClick={voltarEtapa}
-              disabled={!podeVoltarEtapa}
-              className="nav-btn nav-btn-prev"
-              aria-label="Voltar etapa anterior"
-              title="Voltar etapa anterior"
-            >
-              <ArrowLeft className="size-4" />
-            </button>
-            <span className="nav-divider" aria-hidden />
-            <Link
-              to="/"
-              className="nav-btn nav-btn-home"
-              aria-label="Ir para a página inicial"
-              title="Voltar ao Hub"
-            >
-              <Home className="size-4" />
-            </Link>
-          </div>
+          <NavCluster onVoltar={podeVoltarEtapa ? voltarEtapa : null} />
         </header>
 
         <SlideStack slideKey={etapaKey(etapa)} direction={direcao}>
