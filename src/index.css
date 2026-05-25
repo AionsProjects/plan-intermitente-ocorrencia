@@ -643,6 +643,115 @@
   animation: fade-up 680ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* ─── Nav cluster (header de páginas internas) ───
+   Cluster de 2 botões pill — voltar etapa + ir ao hub. Liquid glass
+   aesthetic: backdrop-filter blur saturate, inset highlights,
+   divisória vertical sutil entre os botões pra dar sensação de bloco
+   único esculpido (não 2 buttons soltos). */
+.nav-cluster {
+  display: inline-flex;
+  align-items: center;
+  height: 2.5rem;
+  padding: 0.25rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: linear-gradient(135deg,
+    rgba(255, 255, 255, 0.06) 0%,
+    rgba(255, 255, 255, 0.025) 60%,
+    rgba(255, 255, 255, 0.05) 100%);
+  backdrop-filter: url(#liquid-glass-soft) blur(14px) saturate(160%);
+  -webkit-backdrop-filter: url(#liquid-glass-soft) blur(14px) saturate(160%);
+  box-shadow:
+    0 8px 24px -10px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 0 0 rgba(255, 255, 255, 0.04);
+  transition: border-color 220ms ease, box-shadow 220ms ease;
+}
+
+@supports not (backdrop-filter: url(#liquid-glass-soft)) {
+  .nav-cluster {
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+  }
+}
+
+.nav-cluster:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 12px 32px -10px rgba(0, 0, 0, 0.75),
+    0 0 24px -8px rgba(110, 231, 183, 0.22),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.22);
+}
+
+.nav-divider {
+  width: 1px;
+  height: 1.25rem;
+  background: linear-gradient(to bottom,
+    transparent 0%,
+    rgba(255, 255, 255, 0.15) 50%,
+    transparent 100%);
+}
+
+.nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 2rem;
+  width: 2rem;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.65);
+  cursor: pointer;
+  transition:
+    background 200ms ease,
+    color 200ms ease,
+    border-color 200ms ease,
+    transform 120ms ease;
+}
+
+.nav-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.95);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.nav-btn:active:not(:disabled) {
+  transform: scale(0.94);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.nav-btn:disabled {
+  opacity: 0.32;
+  cursor: not-allowed;
+}
+
+/* Botão Home — tint emerald sutil pra diferenciar visual do voltar */
+.nav-btn-home:hover {
+  background: rgba(110, 231, 183, 0.12) !important;
+  color: rgba(167, 243, 208, 0.98) !important;
+  border-color: rgba(110, 231, 183, 0.28) !important;
+  box-shadow:
+    0 0 12px 0 rgba(110, 231, 183, 0.25),
+    inset 0 1px 0 0 rgba(167, 243, 208, 0.18);
+}
+
+/* Botão Voltar — micro slide horizontal no hover (afim de seta) */
+.nav-btn-prev svg {
+  transition: transform 220ms cubic-bezier(0.34, 1.4, 0.5, 1);
+}
+.nav-btn-prev:hover:not(:disabled) svg {
+  transform: translateX(-2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-btn,
+  .nav-btn-prev svg,
+  .nav-cluster {
+    transition: none !important;
+  }
+}
+
 /* ─── Atestado retroativo: container expansível UNIFICADO ───
    Fechado: pill ícone-only que expande no hover (estilo btn-action-expand).
    Aberto: mesmo container cresce horizontalmente revelando input + Liberar

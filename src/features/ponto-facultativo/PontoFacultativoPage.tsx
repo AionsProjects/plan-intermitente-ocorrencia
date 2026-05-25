@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Coins,
   GraduationCap,
+  Home,
   Loader2,
   MapPin,
   Search,
@@ -271,6 +272,23 @@ export function PontoFacultativoPage() {
     ir("sucesso")
   }
 
+  // Mapeamento reverso de etapas — header navega 1 passo atrás. Quando
+  // já está na primeira etapa (contrato), botão fica disabled visualmente
+  // pra forçar Home explicit se user quer sair do fluxo.
+  const etapaAnterior: Record<Etapa, Etapa | null> = {
+    contrato: null,
+    unidade: "contrato",
+    data: "unidade",
+    beneficios: "data",
+    confirmar: "beneficios",
+    sucesso: null, // sucesso vai pro Hub via CTA dedicado
+  }
+  function voltarEtapa() {
+    const prev = etapaAnterior[etapa]
+    if (prev) ir(prev, "backward")
+  }
+  const podeVoltarEtapa = etapaAnterior[etapa] !== null
+
   return (
     <main className="relative z-10 flex min-h-svh items-center justify-center px-4 py-8 sm:px-6 sm:py-12">
       <div className="glass-strong relative w-full max-w-3xl p-8 sm:p-10">
@@ -287,13 +305,27 @@ export function PontoFacultativoPage() {
               desconto é aplicado a todos os intermitentes convocados naquele local.
             </p>
           </div>
-          <Link
-            to="/"
-            className="inline-flex size-11 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] text-white/70 transition hover:bg-white/[0.08] hover:text-white"
-            aria-label="Voltar ao hub"
-          >
-            <ArrowLeft className="size-4" />
-          </Link>
+          <div className="nav-cluster shrink-0">
+            <button
+              type="button"
+              onClick={voltarEtapa}
+              disabled={!podeVoltarEtapa}
+              className="nav-btn nav-btn-prev"
+              aria-label="Voltar etapa anterior"
+              title="Voltar etapa anterior"
+            >
+              <ArrowLeft className="size-4" />
+            </button>
+            <span className="nav-divider" aria-hidden />
+            <Link
+              to="/"
+              className="nav-btn nav-btn-home"
+              aria-label="Ir para a página inicial"
+              title="Voltar ao Hub"
+            >
+              <Home className="size-4" />
+            </Link>
+          </div>
         </header>
 
         <SlideStack slideKey={etapaKey(etapa)} direction={direcao}>
