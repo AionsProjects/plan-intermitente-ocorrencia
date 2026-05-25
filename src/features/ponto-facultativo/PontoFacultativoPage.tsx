@@ -291,10 +291,10 @@ export function PontoFacultativoPage() {
 
   return (
     <main className="relative z-10 flex min-h-svh items-center justify-center px-4 py-8 sm:px-6 sm:py-12">
-      <div className="glass-strong relative w-full max-w-3xl p-8 sm:p-10">
+      <div className="glass-strong card-shimmer relative w-full max-w-3xl p-8 sm:p-10">
         <header className="mb-7 flex items-start justify-between gap-4">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.28em] text-emerald-200/70">
+            <p className="eyebrow-fade-in text-[11px] uppercase text-emerald-200/70">
               Ponto facultativo
             </p>
             <h1 className="text-display mt-2 text-4xl leading-tight text-white sm:text-5xl">
@@ -659,22 +659,30 @@ function EtapaUnidade({
 
       <div className="mb-5 flex flex-wrap items-center gap-2">
         {contrato && (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1.5 text-xs text-white/82">
+          <span className="chip-context-glass">
             <Building2 className="size-3.5 text-emerald-200/85" />
             {contrato}
           </span>
         )}
         {mesReferencia && totalConvocacoes > 0 && (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/30 bg-emerald-300/[0.08] px-3 py-1.5 text-xs text-emerald-100/90">
+          <span className="chip-context-glass tone-emerald">
             {totalConvocacoes} convocações ativas em {mesReferencia}
           </span>
         )}
       </div>
 
       {carregando && (
-        <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-5 text-sm text-white/65">
-          <Loader2 className="size-4 animate-spin text-emerald-200" />
-          Carregando unidades oficiais do RM...
+        <div className="space-y-2.5">
+          <p className="px-1 text-xs text-white/45">Carregando unidades oficiais do RM…</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div
+                key={i}
+                className="skeleton-glass min-h-14"
+                style={{ animationDelay: `${i * 80}ms` }}
+              />
+            ))}
+          </div>
         </div>
       )}
 
@@ -751,14 +759,21 @@ function EtapaUnidade({
                     key={u.label}
                     type="button"
                     disabled={vazia}
-                    onClick={() => onSelecionar(u.label)}
+                    onClick={(e) => {
+                      // Captura coords do click pra ancorar ripple
+                      const target = e.currentTarget
+                      const rect = target.getBoundingClientRect()
+                      target.style.setProperty("--ripple-x", `${e.clientX - rect.left}px`)
+                      target.style.setProperty("--ripple-y", `${e.clientY - rect.top}px`)
+                      onSelecionar(u.label)
+                    }}
                     title={vazia ? "Nenhum intermitente convocado nesta unidade este mês" : undefined}
-                    className={`fade-up tile-unidade flex min-h-14 items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition ${
+                    className={`fade-up tile-unidade ${vazia ? "" : "tile-ripple-emerald"} flex min-h-14 items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left backdrop-blur-md transition ${
                       selected
                         ? "border-emerald-200/55 bg-emerald-200/16 text-emerald-50 shadow-[0_0_18px_-6px_rgba(110,231,183,0.55)]"
                         : vazia
                           ? "tile-unidade-vazio cursor-not-allowed border-white/8 bg-white/[0.02] text-white/35"
-                          : "border-white/10 bg-white/[0.035] text-white/82 hover:border-emerald-200/35 hover:bg-emerald-200/[0.06] hover:text-white/95"
+                          : "border-white/10 bg-white/[0.035] text-white/82 hover:border-emerald-200/35 hover:bg-emerald-200/[0.07] hover:text-white/95"
                     }`}
                     style={{ animationDelay: `${50 + Math.min(i, 12) * 20}ms` }}
                   >
@@ -922,19 +937,19 @@ function EtapaBeneficios({
       {/* Chips do contexto — substitui a barra vazia anterior */}
       <div className="mb-5 flex flex-wrap items-center gap-2">
         {contrato && (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1.5 text-xs text-white/82">
+          <span className="chip-context-glass">
             <Building2 className="size-3.5 text-emerald-200/85" />
             {contrato}
           </span>
         )}
         {unidade && (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1.5 text-xs text-white/82">
+          <span className="chip-context-glass">
             <MapPin className="size-3.5 text-emerald-200/85" />
             {unidade}
           </span>
         )}
         {data && (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1.5 text-xs text-white/82">
+          <span className="chip-context-glass">
             <CalendarDays className="size-3.5 text-emerald-200/85" />
             {formatarData(data)}
           </span>
@@ -1153,15 +1168,15 @@ function EstadoVazio({ aviso }: { aviso: string | null }) {
 function ContextoPreview({ preview }: { preview: PontoFacultativoPreview }) {
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2">
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1.5 text-xs text-white/82">
+      <span className="chip-context-glass">
         <Building2 className="size-3.5 text-emerald-200/85" />
         {preview.contrato}
       </span>
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1.5 text-xs text-white/82">
+      <span className="chip-context-glass">
         <MapPin className="size-3.5 text-emerald-200/85" />
         {preview.unidade}
       </span>
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1.5 text-xs text-white/82">
+      <span className="chip-context-glass">
         <CalendarDays className="size-3.5 text-emerald-200/85" />
         {formatarData(preview.data)}
       </span>
