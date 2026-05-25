@@ -1,0 +1,32 @@
+{
+  "_doc": "Decisões manuais do user sobre labels ambíguas no dropdown_mm3mcnmn. Carregado pelo consolidar_dropdown_unidades.cjs e mesclado em auto_merge antes de --apply.",
+  "_decisoes_user": "Sessão 2026-05-23 — usuário aprovou em chat",
+  "force_merge": {
+    "CAPS BENJAMIN MATIIAS":              { "canonico": "SEMSA - CAPS BENJAMIM MATIAS FERNANDES",     "contrato": "SEMSA" },
+    "caps benjamin Mathias":              { "canonico": "SEMSA - CAPS BENJAMIM MATIAS FERNANDES",     "contrato": "SEMSA" },
+    "Caps benjamin Mathias":              { "canonico": "SEMSA - CAPS BENJAMIM MATIAS FERNANDES",     "contrato": "SEMSA" },
+    "Centro reabilitação Roll Gracie":    { "canonico": "SEMSA - C DE REABILITAÇÃO PROF ROY GRACE",   "contrato": "SEMSA" },
+    "centro de reabilitação roll Grace":  { "canonico": "SEMSA - C DE REABILITAÇÃO PROF ROY GRACE",   "contrato": "SEMSA" },
+    "centro de reabilitação Roy Grace":   { "canonico": "SEMSA - C DE REABILITAÇÃO PROF ROY GRACE",   "contrato": "SEMSA" },
+    "Caps Afrânio Soares":                { "canonico": "SEMSA - CAPS AD DR. AFRANIO SOARES",         "contrato": "SEMSA" },
+    "Caps AD Eliana Vittorino":           { "canonico": "SEMSA - CAPS AD DRA ELIANA VITORINO SCHA",   "contrato": "SEMSA" },
+    "USF Carson grecie":                  { "canonico": "SEMSA - CF CARLSON GRACIE",                  "contrato": "SEMSA" },
+    "policlínica Dr.jose Antônio":        { "canonico": "SEMSA - POL DR. JOSE ANTONIO DA SILVA",      "contrato": "SEMSA" },
+    "POLICLINICA ANNA BARRETO PEREIRA":   { "canonico": "SEMSA - POLICLINICA ANA BARRETO",            "contrato": "SEMSA" },
+    "USF Enfª Anna Barreto,":             { "canonico": "SEMSA - POLICLINICA ANA BARRETO",            "contrato": "SEMSA" },
+    "SEDUC - CARVALHO LEAL":              { "canonico": "SEDUC ESCOLA - CARVALHO LEAL",               "contrato": "SEDUC ESCOLA" },
+    "TRE - PARAIBA - INTERMITENTE":       { "canonico": "TRE PB - INTERMITENTE",                      "contrato": "TRE PB" },
+    "UBS LEONOR BRILHANTE":               { "canonico": "SEMSA - UBS MARIA LEONOR BRILHANTE",         "contrato": "SEMSA" },
+    "UBS ILIDIO DE ALMEIDA":              { "canonico": "SEMSA - USF ILIDIO DE ALMEIDA LIMA",         "contrato": "SEMSA" },
+    "UBS CARMEM NICOLAU":                 { "canonico": "SEMSA - CF CARMEN NICOLAU",                  "contrato": "SEMSA" }
+  },
+  "force_manter": [
+    "ADMINISTRAÇÃO - INTERMITENTES",
+    "LICENÇA MATERNIDADE",
+    "IFAM TEFE",
+    "SEDE ANTIGA",
+    "Usf Adalgiza",
+    "UBS RURAL NOSSA SRA DE FATIMA",
+    "UBS Rayol dos Santos"
+  ]
+}
