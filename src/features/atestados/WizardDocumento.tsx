@@ -749,12 +749,18 @@ function EtapaCalendario({
     const fim = new Date(inicio)
     fim.setUTCDate(fim.getUTCDate() + n - 1)
     const fimIso = fim.toISOString().slice(0, 10)
-    const fimMesIso = format(fimMesVisivel, "yyyy-MM-dd")
-    if (fimIso > fimMesIso) {
-      setErro(
-        `Período passa do fim do mês visualizado (${fimMesIso}). Reduza a quantidade de dias.`,
-      )
-      return
+    // Restrição só pra retroativo: atestado retroativo NÃO pode passar
+    // do mês visualizado (senão invadiria mês mais recente).
+    // Mês corrente PODE atravessar pro próximo mês (atestado real cobre
+    // período sem se preocupar com fronteira de mês).
+    if (!ehMesCorrente) {
+      const fimMesIso = format(fimMesVisivel, "yyyy-MM-dd")
+      if (fimIso > fimMesIso) {
+        setErro(
+          `Período passa do fim do mês visualizado (${fimMesIso}). Reduza a quantidade de dias.`,
+        )
+        return
+      }
     }
     setDiaFim(fimIso)
     setDialogAberto(false)
