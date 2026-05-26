@@ -1004,6 +1004,11 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
         <DialogDia
           dia={diaEditando}
           respostaAtual={diaEditando ? respostas[diaEditando] : undefined}
+          isPontoFacultativo={
+            diaEditando
+              ? (pontosPorData.get(diaEditando)?.length ?? 0) > 0
+              : false
+          }
           onClose={() => setDiaEditando(null)}
           onSalvar={salvarResposta}
         />
@@ -1426,27 +1431,36 @@ function Header({ dados }: { dados: ProcessamentoDados }) {
 
 /* ─── Dialog: Edit day occurrence ─── */
 
-type Passo = "faltou" | "atraso" | "minutos"
+type Passo = "faltou" | "atraso" | "minutos" | "pf-direto"
 
 type DialogDiaProps = {
   dia: string | null
   respostaAtual: RespostaDia | undefined
+  isPontoFacultativo?: boolean
   onClose: () => void
   onSalvar: (r: RespostaDia) => void
 }
 
-function DialogDia({ dia, respostaAtual, onClose, onSalvar }: DialogDiaProps) {
-  const [passo, setPasso] = useState<Passo>("faltou")
+function DialogDia({
+  dia,
+  respostaAtual,
+  isPontoFacultativo,
+  onClose,
+  onSalvar,
+}: DialogDiaProps) {
+  const [passo, setPasso] = useState<Passo>(
+    isPontoFacultativo ? "pf-direto" : "faltou",
+  )
   const [minutos, setMinutos] = useState<string>("")
 
   useEffect(() => {
-    setPasso("faltou")
+    setPasso(isPontoFacultativo ? "pf-direto" : "faltou")
     setMinutos(
       respostaAtual?.tipo === "atraso" && respostaAtual.minutosAtraso
         ? String(respostaAtual.minutosAtraso)
         : "",
     )
-  }, [dia, respostaAtual])
+  }, [dia, respostaAtual, isPontoFacultativo])
 
   if (!dia) return null
 
@@ -1511,6 +1525,30 @@ function DialogDia({ dia, respostaAtual, onClose, onSalvar }: DialogDiaProps) {
                 variant="primary"
               >
                 Sim
+              </ChoiceButton>
+            </div>
+          </div>
+        ) : null}
+
+        {passo === "pf-direto" ? (
+          <div className="space-y-4">
+            <p className="rounded-xl border border-emerald-200/20 bg-emerald-200/[0.06] px-3 py-2 text-xs text-emerald-100/85">
+              Esse dia teve ponto facultativo. O desconto operacional
+              já foi aplicado. Aqui você só registra se houve atraso
+              extra (chegou tarde no dia que abriu).
+            </p>
+            <h3 className="text-[15px] font-medium text-white/90">
+              O que aconteceu nesse dia?
+            </h3>
+            <div className="grid grid-cols-1 gap-3">
+              <ChoiceButton onClick={marcarSemOcorrencia} variant="primary">
+                Sem ocorrência (manter PF apenas)
+              </ChoiceButton>
+              <ChoiceButton
+                onClick={() => setPasso("minutos")}
+                variant="warning"
+              >
+                Registrar atraso (em minutos)
               </ChoiceButton>
             </div>
           </div>
