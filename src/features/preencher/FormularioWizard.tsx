@@ -188,16 +188,22 @@ function respostasIniciais(
     // Dia coberto por atestado/declaração SEMPRE entra como sem_ocorrencia.
     // Backend/Nexti cuida do desconto via atestado. Sobrescreve qualquer
     // resposta anterior (falta/atraso pré-atestado).
-    if (cobertoPorAtestado(dia) || cobertoPorPonto(dia)) {
+    if (cobertoPorAtestado(dia)) {
       base[dia] = { data: dia, tipo: "sem_ocorrencia" }
       continue
     }
+    // Ponto facultativo NÃO bloqueia mais — DP pode lançar falta/atraso
+    // manual. Se PF já consumiu o desconto, ledger no backend resolve
+    // duplicidade. Cobertura PF mantém resposta anterior se existir.
     base[dia] = prevMap.get(dia) ?? { data: dia, tipo: "sem_ocorrencia" }
   }
   for (const r of prev ?? []) {
-    if (cobertoPorAtestado(r.data) || cobertoPorPonto(r.data)) continue
+    if (cobertoPorAtestado(r.data)) continue
     if (!base[r.data]) base[r.data] = r
   }
+  // void pra silenciar unused se PF nao precisa mais — cobertoPorPonto
+  // pode voltar futuramente se decidir restaurar bloqueio.
+  void cobertoPorPonto
   return base
 }
 
@@ -509,8 +515,9 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
       .map((d) => d.data)
     const cobertoPorAtestado = (data: string) =>
       atestados.some((a) => atestadoCobreDia(a, data))
-    const cobertoPorPonto = (data: string) =>
-      pontosFacultativos.some((p) => pontoFacultativoCobreDia(p, data))
+    // PF nao bloqueia mais — cobertoPorPonto removido do payload final.
+    // pontosFacultativos ainda usado no UI pra mostrar badge.
+    void pontosFacultativos
     // Dias cancelados parcial (local pendente OU já vigente no backend)
     // são tratados como "desativados" no payload do WF3 pra ele pular
     // validação `resposta_faltando`. WF3 não tem campo dedicado pra
@@ -536,9 +543,11 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
         .filter((d) => !diasCancelados.has(d.data))
         .filter((d) => !isFeriadoNacional(d.data))
         .map((d) => {
-          if (cobertoPorAtestado(d.data) || cobertoPorPonto(d.data)) {
+          if (cobertoPorAtestado(d.data)) {
             return { data: d.data, tipo: "sem_ocorrencia" as const }
           }
+          // Ponto facultativo NÃO força sem_ocorrencia — DP pode lançar
+          // falta/atraso manual. Ledger backend resolve dedup contra PF.
           return (
             respostas[d.data] ?? { data: d.data, tipo: "sem_ocorrencia" as const }
           )
@@ -1125,7 +1134,9 @@ function DiaItem({
   atestadosNoDia,
   pontosNoDia,
   onAbrirAtestadoInfo,
-  onAbrirPontoInfo,
+  // onAbrirPontoInfo removido — PF nao bloqueia mais click, edit abre
+  // direto. Mantido como prop pra compat (futuro: long-press ou icone "i").
+  onAbrirPontoInfo: _onAbrirPontoInfo,
   podeRemoverExtra = true,
   isCancelado,
   onAbrirReverter,
@@ -1175,9 +1186,11 @@ function DiaItem({
     }
     if (isAtestado) {
       onAbrirAtestadoInfo()
-    } else if (isPontoFacultativo) {
-      onAbrirPontoInfo()
-    } else if (modoApagar && diaInfo.ativo) {
+      return
+    }
+    // Ponto facultativo NÃO bloqueia mais — DP pode lançar falta/atraso
+    // mesmo em dia com PF. Click abre o editor normal.
+    if (modoApagar && diaInfo.ativo) {
       onApagar()
     } else if (isDisabled) {
       // Reativar via overlay
@@ -2836,14 +2849,14 @@ function DialogDiaComPontoFacultativo({
             {formatarDiaCompleto(data)}
           </DialogTitle>
           <DialogDescription className="text-white/65">
-            Este dia jÃ¡ foi tratado por ponto facultativo. Falta ou atraso
-            manual fica bloqueado para evitar desconto duplicado.
+            Esse dia teve ponto facultativo. Você ainda pode lançar
+            falta ou atraso se precisar — o sistema evita desconto repetido.
           </DialogDescription>
         </DialogHeader>
 
         <div className="mt-2 rounded-2xl border border-emerald-200/18 bg-emerald-200/[0.06] p-4 text-sm text-white/78">
           <p className="text-[10px] uppercase tracking-[0.22em] text-emerald-100/65">
-            BenefÃ­cios aplicados
+            Benefícios aplicados
           </p>
           <p className="mt-1 text-lg font-medium text-white">
             {beneficios || "Sem novo desconto"}
