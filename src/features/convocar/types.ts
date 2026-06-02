@@ -17,6 +17,8 @@ export type EmpregadoRM = {
   secaoCodigo?: string    // alias de codigo
   localUnidade?: string   // ex: "DETRAN - MANAUS"
   contrato?: string       // contrato inferido pelo n8n a partir de localUnidade
+  optanteVT?: boolean
+  optanteVtLabel?: string // "SIM", "NÃO" ou "SIM*"
 }
 
 export type MondayLabel = string
@@ -73,6 +75,7 @@ export type ConvocacaoPayload = {
   solicitante: Solicitante
   contrato: Contrato
   localUnidade: string
+  optanteVT: SimNao
   sabado: SimNao
   insalubridade: Insalubridade
   interior: SimNao

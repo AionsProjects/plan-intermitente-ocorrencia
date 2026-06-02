@@ -42,6 +42,7 @@ type FormState = {
   solicitante: Solicitante | ""
   contrato: Contrato | ""
   localUnidade: string
+  optanteVT: SimNao | ""
   sabado: SimNao | ""
   insalubridade: Insalubridade | ""
   interior: SimNao | ""
@@ -59,6 +60,7 @@ const initialState = (empregado: EmpregadoRM): FormState => ({
   solicitante: "",
   contrato: "",
   localUnidade: "",
+  optanteVT: empregado.optanteVtLabel || (empregado.optanteVT ? "SIM" : "NÃO"),
   sabado: "",
   insalubridade: "",
   interior: "",
@@ -104,6 +106,7 @@ export function FormularioConvocacao({
       form.solicitante !== "" &&
       form.contrato !== "" &&
       form.localUnidade.trim().length > 0 &&
+      form.optanteVT !== "" &&
       form.sabado !== "" &&
       form.insalubridade !== "" &&
       form.interior !== "" &&
@@ -161,6 +164,7 @@ export function FormularioConvocacao({
       solicitante: form.solicitante as Solicitante,
       contrato: form.contrato as Contrato,
       localUnidade: form.localUnidade.trim(),
+      optanteVT: form.optanteVT as SimNao,
       sabado: form.sabado as SimNao,
       insalubridade: form.insalubridade as Insalubridade,
       interior: form.interior as SimNao,
@@ -283,6 +287,19 @@ export function FormularioConvocacao({
             disabled={!form.contrato || unidadesDoContrato.length === 0}
             emptyMessage="Não há unidades cadastradas para este contrato"
             noMatchMessage="Nenhuma unidade encontrada para esse termo"
+          />
+        </FieldWrap>
+
+        <FieldWrap
+          label="Vale Transporte"
+          hint="Define se o intermitente recebe VT nesta convocação."
+          required
+        >
+          <GlassSelect
+            label="Vale Transporte"
+            value={form.optanteVT}
+            onChange={(v) => set("optanteVT", v as SimNao | "")}
+            options={["SIM", "NÃO", "SIM*"]}
           />
         </FieldWrap>
 

@@ -208,6 +208,12 @@ export async function buscarEmpregado(
         ? String(o.localUnidade ?? o.local_unidade)
         : undefined,
       contrato: o.contrato ? String(o.contrato) : undefined,
+      optanteVT:
+        o.optante_vt === true ||
+        o.optante_vt === "SIM" ||
+        o.optante_vt === "SIM*" ||
+        o.optanteVT === true,
+      optanteVtLabel: String(o.optante_vt ?? o.optanteVtLabel ?? ""),
     }
   })
 }
@@ -233,6 +239,7 @@ export async function criarConvocacao(
   fd.append("empregado_admissao", payload.empregado.admissao)
   fd.append("empregado_secao", payload.empregado.secao)
   fd.append("empregado_codcoligada", String(payload.empregado.codcoligada))
+  fd.append("optante_vt", payload.optanteVT)
   fd.append("escala", payload.escala)
   fd.append("solicitante", payload.solicitante)
   fd.append("contrato", payload.contrato)

@@ -40,3 +40,7 @@ cobranca.json
 n8n_all.json
 n8n_folder.json
 determinar.js
+
+# Dumps/scratch de investigação n8n em scripts/ (ignorar)
+scripts/.tmp_*
+scripts/.inspect_*
