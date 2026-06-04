@@ -215,14 +215,14 @@ export function FormularioConvocacao({
       <button
         type="button"
         onClick={onTrocarEmpregado}
-        className="inline-flex items-center gap-1.5 text-xs text-white/55 transition hover:text-white/85"
+        className="inline-flex items-center gap-1.5 text-xs text-foreground/55 transition hover:text-foreground/85"
       >
         <ArrowLeft className="size-3.5" />
         Trocar empregado
       </button>
 
-      <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 backdrop-blur">
-        <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.3em] text-white/55">
+      <section className="rounded-3xl border border-[rgb(var(--ink)/0.1)] bg-[rgb(var(--ink)/0.03)] p-5 backdrop-blur">
+        <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.3em] text-foreground/55">
           <Lock className="size-3" />
           Dados vindos do RM (não editáveis)
         </div>
@@ -385,7 +385,7 @@ export function FormularioConvocacao({
       {alertaConflito && <AlertaConflito alerta={alertaConflito} />}
 
       {erroGeral && (
-        <p className="rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-xs text-rose-200">
+        <p className="rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-xs text-rose-700 dark:text-rose-200">
           {erroGeral}
         </p>
       )}
@@ -426,19 +426,19 @@ function AlertaConflito({ alerta }: { alerta: AlertaConflito }) {
   const periodo = inicio && fim ? `${inicio} a ${fim}` : null
 
   return (
-    <div className="rounded-2xl border border-rose-300/35 bg-rose-300/10 px-4 py-4 text-sm text-rose-100 shadow-[0_0_35px_rgba(251,113,133,0.12)]">
+    <div className="rounded-2xl border border-rose-300/35 bg-rose-300/10 px-4 py-4 text-sm text-rose-700 dark:text-rose-100 shadow-[0_0_35px_rgba(251,113,133,0.12)]">
       <div className="flex gap-3">
-        <AlertTriangle className="mt-0.5 size-5 shrink-0 text-rose-200" />
+        <AlertTriangle className="mt-0.5 size-5 shrink-0 text-rose-700 dark:text-rose-200" />
         <div className="min-w-0 space-y-2">
-          <p className="font-medium text-rose-100">Data divergente</p>
-          <p className="text-xs leading-relaxed text-rose-100/85">
+          <p className="font-medium text-rose-700 dark:text-rose-100">Data divergente</p>
+          <p className="text-xs leading-relaxed text-rose-700/85 dark:text-rose-100/85">
             Este intermitente já foi convocado para um período que cruza com as
             datas informadas.
           </p>
           {periodo && (
-            <p className="text-xs leading-relaxed text-rose-100/85">
+            <p className="text-xs leading-relaxed text-rose-700/85 dark:text-rose-100/85">
               Convocação existente:{" "}
-              <span className="font-medium text-rose-50">{periodo}</span>.
+              <span className="font-medium text-rose-700 dark:text-rose-50">{periodo}</span>.
             </p>
           )}
           {alerta.conflito?.item_url && (
@@ -446,7 +446,7 @@ function AlertaConflito({ alerta }: { alerta: AlertaConflito }) {
               href={alerta.conflito.item_url}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-rose-50 underline-offset-4 transition hover:underline"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-rose-700 dark:text-rose-50 underline-offset-4 transition hover:underline"
             >
               Abrir convocação existente
               <ExternalLink className="size-3.5" />
@@ -461,10 +461,10 @@ function AlertaConflito({ alerta }: { alerta: AlertaConflito }) {
 function ReadonlyField({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-[0.28em] text-white/45">
+      <p className="text-[10px] uppercase tracking-[0.28em] text-foreground/45">
         {label}
       </p>
-      <p className="mt-1 truncate text-sm text-white/75">{value}</p>
+      <p className="mt-1 truncate text-sm text-foreground/75">{value}</p>
     </div>
   )
 }
@@ -480,11 +480,11 @@ function FieldLabel({
 }) {
   return (
     <div className="space-y-1">
-      <label className="block text-sm font-medium text-white/85">
+      <label className="block text-sm font-medium text-foreground/85">
         {children}
-        {required && <span className="ml-1 text-rose-300">*</span>}
+        {required && <span className="ml-1 text-rose-700 dark:text-rose-300">*</span>}
       </label>
-      {hint && <p className="text-[11px] text-white/45">{hint}</p>}
+      {hint && <p className="text-[11px] text-foreground/45">{hint}</p>}
     </div>
   )
 }
@@ -532,7 +532,7 @@ function FieldText({
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-xl border border-white/12 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder:text-white/30 backdrop-blur transition focus:border-[#e8c275]/50 focus:bg-white/[0.07] focus:outline-none"
+        className="w-full rounded-xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] px-4 py-3 text-sm text-foreground placeholder:text-foreground/30 backdrop-blur transition focus:border-[#e8c275]/50 focus:bg-[rgb(var(--ink)/0.07)] focus:outline-none"
       />
     </div>
   )
@@ -551,23 +551,23 @@ function FieldFile({
     <div className="space-y-2">
       <FieldLabel>{label}</FieldLabel>
       {file ? (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-300/25 bg-emerald-300/[0.06] px-4 py-3 text-sm text-white/85">
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-300/25 bg-emerald-300/[0.06] px-4 py-3 text-sm text-foreground/85">
           <span className="flex min-w-0 items-center gap-2">
-            <FileUp className="size-4 shrink-0 text-emerald-200" />
+            <FileUp className="size-4 shrink-0 text-emerald-700 dark:text-emerald-200" />
             <span className="truncate">{file.name}</span>
           </span>
           <button
             type="button"
             onClick={() => onChange(null)}
-            className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/5 text-white/65 transition hover:border-rose-300/40 hover:bg-rose-300/10 hover:text-rose-200"
+            className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-[rgb(var(--ink)/0.15)] bg-[rgb(var(--ink)/0.05)] text-foreground/65 transition hover:border-rose-300/40 hover:bg-rose-300/10 hover:text-rose-700 dark:text-rose-200"
           >
             <X className="size-3.5" />
           </button>
         </div>
       ) : (
-        <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-white/15 bg-white/[0.02] px-4 py-8 text-center transition hover:border-[#e8c275]/40 hover:bg-white/[0.05]">
-          <FileUp className="size-5 text-white/55" />
-          <span className="text-xs text-white/65">
+        <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[rgb(var(--ink)/0.15)] bg-[rgb(var(--ink)/0.02)] px-4 py-8 text-center transition hover:border-[#e8c275]/40 hover:bg-[rgb(var(--ink)/0.05)]">
+          <FileUp className="size-5 text-foreground/55" />
+          <span className="text-xs text-foreground/65">
             <span className="text-[#e8c275] underline-offset-2 hover:underline">
               Escolha um arquivo
             </span>{" "}

@@ -11,8 +11,6 @@ import {
   Pencil,
 } from "lucide-react"
 
-import { NavCluster } from "@/components/NavCluster"
-
 import { buscarUuidPorProtocolo } from "@/features/preencher/api"
 
 import { listarProtocolos, type ProtocoloEntry } from "./protocoloStorage"
@@ -77,21 +75,20 @@ export function CorrecaoPage() {
             type="button"
             onClick={() => void abrir("PROT-DEMO-1234")}
             title="Abrir protocolo de teste"
-            className="inline-flex size-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-white/35 backdrop-blur transition-all hover:border-[#e8c275]/40 hover:bg-[#e8c275]/10 hover:text-[#e8c275]"
+            className="inline-flex size-8 items-center justify-center rounded-full border border-[rgb(var(--ink)/0.1)] bg-[rgb(var(--ink)/0.03)] text-foreground/35 backdrop-blur transition-all hover:border-[#e8c275]/40 hover:bg-[#e8c275]/10 hover:text-[#e8c275]"
           >
             <FlaskConical className="size-3.5" />
             <span className="sr-only">Abrir protocolo de teste PROT-DEMO-1234</span>
           </button>
-          <NavCluster onVoltar={null} />
         </div>
 
-        <p className="text-[11px] uppercase tracking-[0.32em] text-white/55">
+        <p className="text-[11px] uppercase tracking-[0.32em] text-foreground/55">
           Aionscorp · Plano de intermitentes
         </p>
-        <h1 className="text-display mt-3 text-5xl leading-[1.05] text-white">
+        <h1 className="text-display mt-3 text-5xl leading-[1.05] text-foreground">
           Corrigir <em className="italic text-[#e8c275]">registro</em>
         </h1>
-        <p className="mt-4 max-w-md text-sm leading-relaxed text-white/65">
+        <p className="mt-4 max-w-md text-sm leading-relaxed text-foreground/65">
           Use o código de protocolo emitido na finalização para reabrir o
           registro e ajustar dias ou ocorrências.
         </p>
@@ -103,7 +100,7 @@ export function CorrecaoPage() {
             void abrir(valor)
           }}
         >
-          <label className="text-[10px] uppercase tracking-[0.3em] text-white/55">
+          <label className="text-[10px] uppercase tracking-[0.3em] text-foreground/55">
             Código do protocolo
           </label>
           <div className="flex items-stretch gap-2">
@@ -114,7 +111,7 @@ export function CorrecaoPage() {
                 value={valor}
                 onChange={(e) => setValor(e.target.value.toUpperCase())}
                 placeholder="PROT-XXXX-XXXX"
-                className="text-display flex-1 bg-transparent py-3 text-xl tracking-wider text-white placeholder:text-white/30 focus:outline-none"
+                className="text-display flex-1 bg-transparent py-3 text-xl tracking-wider text-foreground placeholder:text-foreground/30 focus:outline-none"
                 autoFocus
                 spellCheck={false}
                 autoCapitalize="characters"
@@ -140,7 +137,7 @@ export function CorrecaoPage() {
           </div>
 
           {erro && (
-            <p className="rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-2 text-xs text-rose-200">
+            <p className="rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-2 text-xs text-rose-700 dark:text-rose-200">
               {erro}
             </p>
           )}
@@ -148,7 +145,7 @@ export function CorrecaoPage() {
 
         {recentes.length > 0 && (
           <div className="mt-10">
-            <p className="text-[10px] uppercase tracking-[0.3em] text-white/55">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-foreground/55">
               Recentes deste navegador
             </p>
             <ul className="mt-3 space-y-2">
@@ -167,7 +164,7 @@ export function CorrecaoPage() {
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="text-display text-lg tracking-wide text-white/95">
+                        <p className="text-display text-lg tracking-wide text-foreground/95">
                           {p.protocolo}
                         </p>
                         {p.editadoEm && (
@@ -177,13 +174,13 @@ export function CorrecaoPage() {
                           </span>
                         )}
                       </div>
-                      <p className="mt-0.5 text-xs text-white/55">
+                      <p className="mt-0.5 text-xs text-foreground/55">
                         {p.nome} ·{" "}
                         {format(parseISO(p.dataInicio), "dd/MM/yyyy")} —{" "}
                         {format(parseISO(p.dataFim), "dd/MM/yyyy")}
                       </p>
                     </div>
-                    <ArrowRight className="size-4 shrink-0 text-white/45 transition-transform group-hover:translate-x-0.5 group-hover:text-white" />
+                    <ArrowRight className="size-4 shrink-0 text-foreground/45 transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
                   </button>
                 </li>
               ))}
@@ -193,7 +190,7 @@ export function CorrecaoPage() {
               <button
                 type="button"
                 onClick={() => setExpandido((v) => !v)}
-                className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-xs font-medium text-white/60 backdrop-blur transition-all hover:border-white/20 hover:bg-white/[0.06] hover:text-white/90"
+                className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-[rgb(var(--ink)/0.1)] bg-[rgb(var(--ink)/0.03)] px-4 py-2.5 text-xs font-medium text-foreground/60 backdrop-blur transition-all hover:border-[rgb(var(--ink)/0.2)] hover:bg-[rgb(var(--ink)/0.06)] hover:text-foreground/90"
               >
                 {expandido ? (
                   <>

@@ -1,5 +1,6 @@
 ﻿import type { MouseEvent } from "react"
 import { Link } from "react-router-dom"
+
 import {
   ArrowUpRight,
   CalendarDays,
@@ -61,44 +62,30 @@ export function HubPage() {
 
         <header>
           <div className="min-w-0">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/35 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.22em] text-white/55">
-              <ClipboardCheck className="size-3 text-[#d8aa53]" />
+            <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/50 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.22em] text-foreground/55">
+              <ClipboardCheck className="size-3 text-[rgb(var(--accent-rgb))]" />
               Plano de intermitentes
             </div>
-            <p className="mt-5 text-[11px] uppercase tracking-[0.28em] text-white/40">
+            <p className="mt-5 text-[11px] uppercase tracking-[0.28em] text-foreground/40">
               Aionscorp
             </p>
-            <h1 className="text-display mt-2 text-4xl leading-[1.02] text-white sm:text-5xl">
+            <h1 className="text-display mt-2 text-4xl leading-[1.02] text-foreground sm:text-5xl">
               Escolha o próximo passo
             </h1>
           </div>
         </header>
 
-        <p className="mt-4 max-w-lg text-sm leading-relaxed text-white/58 sm:text-[15px]">
+        <p className="mt-4 max-w-lg text-sm leading-relaxed text-foreground/58 sm:text-[15px]">
           Acesse o fluxo de convocação ou ajuste uma ocorrência já registrada.
-          Os testes ficam separados para validação sem atrapalhar a operação.
         </p>
 
         <div className="mt-8 grid gap-3 sm:gap-3.5">
           {actions.map((action, index) => {
             const Icon = action.icon
-            const tone = action.tone
+            // Ícones seguem o esquema de cores (accent).
             const ringClass =
-              tone === "gold"
-                ? "bg-[#d8aa53]/10 ring-[#d8aa53]/35"
-                : tone === "amber"
-                  ? "bg-[#e8c275]/10 ring-[#e8c275]/40"
-                  : tone === "emerald"
-                    ? "bg-emerald-300/10 ring-emerald-300/35"
-                    : "bg-[#6f9cff]/10 ring-[#6f9cff]/35"
-            const iconClass =
-              tone === "gold"
-                ? "text-[#d8aa53]"
-                : tone === "amber"
-                  ? "text-[#e8c275]"
-                  : tone === "emerald"
-                    ? "text-emerald-200"
-                    : "text-[#7fb3ff]"
+              "bg-[rgb(var(--accent-rgb)/0.12)] ring-[rgb(var(--accent-rgb)/0.38)]"
+            const iconClass = "text-[rgb(var(--accent-rgb))]"
 
             return (
               <div
@@ -110,7 +97,7 @@ export function HubPage() {
                   to={action.to}
                   onMouseMove={handleTiltMove}
                   onMouseLeave={handleTiltLeave}
-                  className="glass-tile glass-tile-3d group flex min-h-[5.25rem] items-center justify-between gap-4 rounded-2xl px-4 py-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent sm:px-5"
+                  className="glass-tile glass-tile-3d group flex min-h-[5.25rem] items-center justify-between gap-4 rounded-2xl px-4 py-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--ink)/0.7)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent sm:px-5"
                 >
                   <div className="flex min-w-0 items-center gap-3.5">
                     <div
@@ -119,30 +106,19 @@ export function HubPage() {
                       <Icon className={`icon-3d-only size-4.5 ${iconClass}`} />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-base font-medium leading-tight text-white/95">
+                      <p className="text-base font-medium leading-tight text-foreground/95">
                         {action.title}
                       </p>
-                      <p className="mt-1 text-sm leading-snug text-white/50">
+                      <p className="mt-1 text-sm leading-snug text-foreground/50">
                         {action.description}
                       </p>
                     </div>
                   </div>
-                  <ArrowUpRight className="size-4 shrink-0 text-white/38 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-white" />
+                  <ArrowUpRight className="size-4 shrink-0 text-foreground/38 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-foreground" />
                 </Link>
               </div>
             )
           })}
-        </div>
-
-        <div className="mt-6 flex flex-col gap-2 border-t border-white/10 pt-5 text-xs leading-relaxed text-white/40 sm:flex-row sm:items-center sm:justify-between">
-          <span>Área de testes — use para validar cenários sem afetar a operação.</span>
-          <Link
-            to="/teste"
-            className="inline-flex w-fit items-center gap-1.5 text-white/52 transition hover:text-[#d8aa53] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d8aa53]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
-          >
-            Abrir testes
-            <ArrowUpRight className="size-3.5" />
-          </Link>
         </div>
       </section>
     </main>

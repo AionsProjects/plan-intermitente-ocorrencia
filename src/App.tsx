@@ -1,7 +1,10 @@
 import { Route, Routes } from "react-router-dom"
 
 import { AuroraBackground } from "@/components/AuroraBackground"
+import { NavCluster } from "@/components/NavCluster"
+import { NavProvider } from "@/components/NavContext"
 import { PageTransition } from "@/components/PageTransition"
+import { ConfigOverlay } from "@/features/config/ConfigOverlay"
 import { AtestadosPage } from "@/features/atestados/AtestadosPage"
 import { ConvocarPage } from "@/features/convocar/ConvocarPage"
 import { CorrecaoPage } from "@/features/correcao/CorrecaoPage"
@@ -14,7 +17,7 @@ import { TestePontoFacultativoPage } from "@/features/ponto-facultativo/TestePon
 
 function App() {
   return (
-    <>
+    <NavProvider>
       <AuroraBackground />
       <PageTransition
         renderRoutes={(location) => (
@@ -31,7 +34,10 @@ function App() {
           </Routes>
         )}
       />
-    </>
+      {/* Globais — fora do PageTransition (persistem entre rotas) */}
+      <NavCluster />
+      <ConfigOverlay />
+    </NavProvider>
   )
 }
 

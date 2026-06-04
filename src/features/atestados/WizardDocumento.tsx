@@ -490,7 +490,7 @@ export function WizardDocumento({
       <button
         type="button"
         onClick={voltar}
-        className="mb-5 inline-flex items-center gap-1.5 text-xs text-white/55 transition hover:text-white/85"
+        className="mb-5 inline-flex items-center gap-1.5 text-xs text-foreground/55 transition hover:text-foreground/85"
       >
         <ArrowLeft className="size-3.5" />
         {etapa.tipo === etapaInicial.tipo ? "Trocar pessoa" : "Voltar"}
@@ -499,52 +499,52 @@ export function WizardDocumento({
       {modo === "intermitente" && empregado && (
         <div className="mb-5 rounded-2xl border border-amber-300/25 bg-amber-300/[0.04] px-4 py-3 backdrop-blur">
           <div className="flex items-center gap-2">
-            <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.22em] text-amber-100">
+            <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.22em] text-amber-700 dark:text-amber-100">
               Intermitente · RM
             </span>
-            <span className="truncate text-sm font-medium text-white/95">
+            <span className="truncate text-sm font-medium text-foreground/95">
               {empregado.nome}
             </span>
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-white/60">
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-foreground/60">
             <span>
-              Chapa <strong className="text-white/85">{empregado.chapa || "—"}</strong>
+              Chapa <strong className="text-foreground/85">{empregado.chapa || "—"}</strong>
             </span>
-            {empregado.cpf && <span className="text-white/45">·</span>}
+            {empregado.cpf && <span className="text-foreground/45">·</span>}
             {empregado.cpf && (
               <span>
                 CPF{" "}
-                <span className="font-mono text-white/75">
+                <span className="font-mono text-foreground/75">
                   {formatCpf(empregado.cpf)}
                 </span>
               </span>
             )}
             {empregado.funcao && (
-              <span className="text-white/45">·</span>
+              <span className="text-foreground/45">·</span>
             )}
             {empregado.funcao && <span>{empregado.funcao}</span>}
             {empregado.secao && (
-              <span className="text-white/45">·</span>
+              <span className="text-foreground/45">·</span>
             )}
             {empregado.secao && (
-              <span>Seção <span className="text-white/75">{empregado.secao}</span></span>
+              <span>Seção <span className="text-foreground/75">{empregado.secao}</span></span>
             )}
             {(empregado.codigo || empregado.secaoCodigo) && (
-              <span className="text-white/45">·</span>
+              <span className="text-foreground/45">·</span>
             )}
             {(empregado.codigo || empregado.secaoCodigo) && (
               <span>
                 Cód.{" "}
-                <span className="font-mono text-white/65">
+                <span className="font-mono text-foreground/65">
                   {empregado.codigo || empregado.secaoCodigo}
                 </span>
               </span>
             )}
             {empregado.admissao && (
-              <span className="text-white/45">·</span>
+              <span className="text-foreground/45">·</span>
             )}
             {empregado.admissao && (
-              <span>Adm. <span className="text-white/75">{empregado.admissao}</span></span>
+              <span>Adm. <span className="text-foreground/75">{empregado.admissao}</span></span>
             )}
           </div>
         </div>
@@ -553,46 +553,46 @@ export function WizardDocumento({
       {modo === "clt" && empregado && (
         <div className="mb-5 rounded-2xl border border-violet-300/25 bg-violet-300/[0.04] px-4 py-3 backdrop-blur">
           <div className="flex items-center gap-2">
-            <span className="rounded-full border border-violet-300/30 bg-violet-300/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.22em] text-violet-100">
+            <span className="rounded-full border border-violet-300/30 bg-violet-300/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.22em] text-violet-700 dark:text-violet-100">
               CLT · RM
             </span>
-            <span className="truncate text-sm font-medium text-white/95">
+            <span className="truncate text-sm font-medium text-foreground/95">
               {empregado.nome}
             </span>
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-white/60">
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-foreground/60">
             <span>
-              Chapa <strong className="text-white/85">{empregado.chapa || "—"}</strong>
+              Chapa <strong className="text-foreground/85">{empregado.chapa || "—"}</strong>
             </span>
-            {empregado.cpf && <span className="text-white/45">·</span>}
+            {empregado.cpf && <span className="text-foreground/45">·</span>}
             {empregado.cpf && (
               <span>
                 CPF{" "}
-                <span className="font-mono text-white/75">
+                <span className="font-mono text-foreground/75">
                   {formatCpf(empregado.cpf)}
                 </span>
               </span>
             )}
-            {empregado.funcao && <span className="text-white/45">·</span>}
+            {empregado.funcao && <span className="text-foreground/45">·</span>}
             {empregado.funcao && <span>{empregado.funcao}</span>}
-            {empregado.secao && <span className="text-white/45">·</span>}
+            {empregado.secao && <span className="text-foreground/45">·</span>}
             {empregado.secao && (
-              <span>Seção <span className="text-white/75">{empregado.secao}</span></span>
+              <span>Seção <span className="text-foreground/75">{empregado.secao}</span></span>
             )}
             {(empregado.codigo || empregado.secaoCodigo) && (
-              <span className="text-white/45">·</span>
+              <span className="text-foreground/45">·</span>
             )}
             {(empregado.codigo || empregado.secaoCodigo) && (
               <span>
                 Cód.{" "}
-                <span className="font-mono text-white/65">
+                <span className="font-mono text-foreground/65">
                   {empregado.codigo || empregado.secaoCodigo}
                 </span>
               </span>
             )}
-            {empregado.admissao && <span className="text-white/45">·</span>}
+            {empregado.admissao && <span className="text-foreground/45">·</span>}
             {empregado.admissao && (
-              <span>Adm. <span className="text-white/75">{empregado.admissao}</span></span>
+              <span>Adm. <span className="text-foreground/75">{empregado.admissao}</span></span>
             )}
           </div>
         </div>
@@ -618,13 +618,13 @@ function EtapaTipoDocumentacao({
 }) {
   return (
     <div>
-      <p className="text-[11px] uppercase tracking-[0.32em] text-amber-200/85">
+      <p className="text-[11px] uppercase tracking-[0.32em] text-amber-700/85 dark:text-amber-200/85">
         Tipo de documentação
       </p>
-      <h2 className="text-display mt-3 text-4xl leading-[1.05] text-white">
+      <h2 className="text-display mt-3 text-4xl leading-[1.05] text-foreground">
         Qual <em className="italic text-[#e8c275]">documento</em>?
       </h2>
-      <p className="mt-3 max-w-md text-sm leading-relaxed text-white/65">
+      <p className="mt-3 max-w-md text-sm leading-relaxed text-foreground/65">
         Atestados afetam VR/VT. Licenças e declarações têm regra própria.
       </p>
 
@@ -775,10 +775,10 @@ function EtapaCalendario({
 
   return (
     <div>
-      <p className="text-[11px] uppercase tracking-[0.32em] text-amber-200/85">
+      <p className="text-[11px] uppercase tracking-[0.32em] text-amber-700/85 dark:text-amber-200/85">
         Período do documento
       </p>
-      <h2 className="text-display mt-3 text-4xl leading-[1.05] text-white">
+      <h2 className="text-display mt-3 text-4xl leading-[1.05] text-foreground">
         {ehDiaUnico ? (
           <>
             Dia do <em className="italic text-[#e8c275]">comparecimento</em>
@@ -789,19 +789,19 @@ function EtapaCalendario({
           </>
         )}
       </h2>
-      <p className="mt-3 max-w-md text-sm leading-relaxed text-white/65">
+      <p className="mt-3 max-w-md text-sm leading-relaxed text-foreground/65">
         {ehDiaUnico
           ? "Clique no dia do comparecimento."
           : "Clique na data inicial. O sistema vai perguntar quantos dias de ausência."}
       </p>
-      <p className="mt-1 text-xs text-white/45">
+      <p className="mt-1 text-xs text-foreground/45">
         {retroativoAtivo
           ? "Retroativo liberado · navegue para meses anteriores."
           : `Restrito ao mês corrente · ${format(hoje, "MMMM 'de' yyyy", { locale: ptBR })}.`}
         {carregandoConvocacoes && " Carregando convocações…"}
       </p>
 
-      <div className="mt-4 flex flex-wrap items-center gap-3 text-[10px] uppercase tracking-[0.18em] text-white/55">
+      <div className="mt-4 flex flex-wrap items-center gap-3 text-[10px] uppercase tracking-[0.18em] text-foreground/55">
         {mostraConvocacao && (
           <span className="inline-flex items-center gap-1.5">
             <span className="size-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]" />
@@ -830,7 +830,7 @@ function EtapaCalendario({
               <button
                 type="button"
                 onClick={() => setMesVisivel((m) => subMonths(m, 1))}
-                className="flex size-9 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] text-white/70 transition hover:bg-white/[0.08] hover:text-white"
+                className="flex size-9 items-center justify-center rounded-full border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] text-foreground/70 transition hover:bg-[rgb(var(--ink)/0.08)] hover:text-foreground"
                 aria-label="Mês anterior"
               >
                 <ChevronLeft className="size-4" />
@@ -839,11 +839,11 @@ function EtapaCalendario({
           </div>
 
           <div className="flex flex-col items-center gap-1.5">
-            <p className="text-display text-lg capitalize text-white/95">
+            <p className="text-display text-lg capitalize text-foreground/95">
               {format(mesVisivel, "MMMM 'de' yyyy", { locale: ptBR })}
             </p>
             {!ehMesCorrente && (
-              <span className="inline-flex items-center gap-1 rounded-full border border-amber-300/35 bg-amber-300/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-amber-100">
+              <span className="inline-flex items-center gap-1 rounded-full border border-amber-300/35 bg-amber-300/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-amber-700 dark:text-amber-100">
                 <Clock3 className="size-3" />
                 Retroativo
               </span>
@@ -856,7 +856,7 @@ function EtapaCalendario({
               <button
                 type="button"
                 onClick={() => setMesVisivel((m) => addMonths(m, 1))}
-                className="flex size-9 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] text-white/70 transition hover:bg-white/[0.08] hover:text-white"
+                className="flex size-9 items-center justify-center rounded-full border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] text-foreground/70 transition hover:bg-[rgb(var(--ink)/0.08)] hover:text-foreground"
                 aria-label="Próximo mês"
               >
                 <ChevronRight className="size-4" />
@@ -882,8 +882,8 @@ function EtapaCalendario({
               className="btn-action-expand btn-atestado-retroativo btn-atestado-retroativo-active"
               aria-label="Trancar retroativo"
             >
-              <Unlock className="size-4 text-amber-200" />
-              <span className="btn-label text-amber-50">Retroativo liberado · trancar</span>
+              <Unlock className="size-4 text-amber-700 dark:text-amber-200" />
+              <span className="btn-label text-amber-700 dark:text-amber-50">Retroativo liberado · trancar</span>
             </button>
           ) : (
             ehMesCorrente && (
@@ -940,7 +940,7 @@ function EtapaCalendario({
         </div>
 
         {painelSenhaAberto && senhaErro && (
-          <p className="ml-auto max-w-xs rounded-xl border border-rose-300/30 bg-rose-300/10 px-3 py-1.5 text-[11px] text-rose-100">
+          <p className="ml-auto max-w-xs rounded-xl border border-rose-300/30 bg-rose-300/10 px-3 py-1.5 text-[11px] text-rose-700 dark:text-rose-100">
             {senhaErro}
           </p>
         )}
@@ -949,7 +949,7 @@ function EtapaCalendario({
           {["D", "S", "T", "Q", "Q", "S", "S"].map((d, i) => (
             <div
               key={i}
-              className="py-1 text-center text-[10px] uppercase tracking-wider text-white/40"
+              className="py-1 text-center text-[10px] uppercase tracking-wider text-foreground/40"
             >
               {d}
             </div>
@@ -979,16 +979,16 @@ function EtapaCalendario({
                 : "bg-amber-300 text-[#0a1224] shadow-[0_0_18px_rgba(232,194,117,0.45)]"
             } else if (noRange) {
               cls = overlap
-                ? "bg-amber-300/22 text-amber-100 ring-1 ring-emerald-400/40"
-                : "bg-amber-300/16 text-amber-100"
+                ? "bg-amber-300/22 text-amber-700 dark:text-amber-100 ring-1 ring-emerald-400/40"
+                : "bg-amber-300/16 text-amber-700 dark:text-amber-100"
             } else if (eFeriado && noMes) {
               cls = "calendario-dia-feriado"
             } else if (permitido) {
-              cls = "text-white/90 hover:bg-amber-300/15 hover:text-amber-100 glass-tile-3d-mini"
+              cls = "text-foreground/90 hover:bg-amber-300/15 hover:text-amber-700 dark:text-amber-100 glass-tile-3d-mini"
             } else if (noMes) {
-              cls = "cursor-not-allowed text-white/18"
+              cls = "cursor-not-allowed text-foreground/18"
             } else {
-              cls = "cursor-not-allowed text-white/10"
+              cls = "cursor-not-allowed text-foreground/10"
             }
 
             return (
@@ -1018,7 +1018,7 @@ function EtapaCalendario({
           })}
         </div>
 
-        <p className="text-center text-xs text-white/55">
+        <p className="text-center text-xs text-foreground/55">
           {diaInicio && diaFim
             ? diaInicio === diaFim
               ? `${format(parseISO(diaInicio), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })} · 1 dia`
@@ -1027,7 +1027,7 @@ function EtapaCalendario({
         </p>
 
         {erro && (
-          <p className="rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-2 text-xs text-rose-100">
+          <p className="rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-2 text-xs text-rose-700 dark:text-rose-100">
             {erro}
           </p>
         )}
@@ -1083,31 +1083,31 @@ function DialogQuantidadeDias({
   return (
     <Dialog open onOpenChange={(o) => !o && onCancelar()}>
       <DialogContent
-        className="glass-modal border-0 bg-transparent p-7 text-white sm:max-w-sm"
+        className="glass-modal border-0 bg-transparent p-7 text-foreground sm:max-w-sm"
         style={{ backdropFilter: "blur(10px) saturate(140%) brightness(1.05)" }}
       >
         <DialogHeader>
           <div className="flex items-center gap-2">
             <span className="inline-flex size-7 items-center justify-center rounded-full bg-amber-300/15 ring-1 ring-amber-300/40">
-              <CalendarClock className="size-3.5 text-amber-200" />
+              <CalendarClock className="size-3.5 text-amber-700 dark:text-amber-200" />
             </span>
-            <p className="text-[10px] uppercase tracking-[0.3em] text-amber-200/85">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-amber-700/85 dark:text-amber-200/85">
               Período do atestado
             </p>
           </div>
-          <DialogTitle className="text-display mt-2 text-2xl text-white">
+          <DialogTitle className="text-display mt-2 text-2xl text-foreground">
             Quantos <em className="italic text-[#e8c275]">dias</em> de ausência?
           </DialogTitle>
-          <DialogDescription className="text-white/65">
+          <DialogDescription className="text-foreground/65">
             Início em{" "}
-            <strong className="text-white">
+            <strong className="text-foreground">
               {format(parseISO(dataInicio), "dd 'de' MMMM", { locale: ptBR })}
             </strong>
             . O sistema vai destacar todos os dias do atestado no calendário.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="my-2 h-px bg-white/12" />
+        <div className="my-2 h-px bg-[rgb(var(--ink)/0.12)]" />
 
         <div className="flex items-center justify-center gap-3">
           <button
@@ -1115,7 +1115,7 @@ function DialogQuantidadeDias({
             aria-label="Diminuir"
             onClick={() => bump(-1)}
             disabled={n <= 1}
-            className="glass-tile-3d-mini inline-flex size-11 items-center justify-center rounded-2xl border border-white/12 bg-white/[0.04] text-xl text-white/85 transition hover:border-amber-300/40 hover:bg-amber-300/10 hover:text-amber-100 disabled:opacity-30"
+            className="glass-tile-3d-mini inline-flex size-11 items-center justify-center rounded-2xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] text-xl text-foreground/85 transition hover:border-amber-300/40 hover:bg-amber-300/10 hover:text-amber-700 dark:text-amber-100 disabled:opacity-30"
           >
             −
           </button>
@@ -1129,19 +1129,19 @@ function DialogQuantidadeDias({
             onKeyDown={(e) => {
               if (e.key === "Enter" && valido) onConfirmar()
             }}
-            className="w-28 rounded-2xl border border-amber-300/40 bg-amber-300/8 px-3 py-4 text-center text-4xl font-semibold text-amber-100 focus:border-amber-300/80 focus:outline-none focus:ring-2 focus:ring-amber-300/30"
+            className="w-28 rounded-2xl border border-amber-300/40 bg-amber-300/8 px-3 py-4 text-center text-4xl font-semibold text-amber-700 dark:text-amber-100 focus:border-amber-300/80 focus:outline-none focus:ring-2 focus:ring-amber-300/30"
           />
           <button
             type="button"
             aria-label="Aumentar"
             onClick={() => bump(1)}
             disabled={n >= 60}
-            className="glass-tile-3d-mini inline-flex size-11 items-center justify-center rounded-2xl border border-white/12 bg-white/[0.04] text-xl text-white/85 transition hover:border-amber-300/40 hover:bg-amber-300/10 hover:text-amber-100 disabled:opacity-30"
+            className="glass-tile-3d-mini inline-flex size-11 items-center justify-center rounded-2xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] text-xl text-foreground/85 transition hover:border-amber-300/40 hover:bg-amber-300/10 hover:text-amber-700 dark:text-amber-100 disabled:opacity-30"
           >
             +
           </button>
         </div>
-        <p className="mt-2 text-center text-[11px] text-white/45">
+        <p className="mt-2 text-center text-[11px] text-foreground/45">
           {n === 1 ? "1 dia" : n > 0 ? `${n} dias` : "Mínimo 1 · máximo 60"}
         </p>
 
@@ -1149,7 +1149,7 @@ function DialogQuantidadeDias({
           <button
             type="button"
             onClick={onCancelar}
-            className="text-xs text-white/55 transition hover:text-white/85"
+            className="text-xs text-foreground/55 transition hover:text-foreground/85"
           >
             Cancelar
           </button>
@@ -1190,31 +1190,31 @@ function EtapaDadosTrabalho({
 
   return (
     <div>
-      <p className="text-[11px] uppercase tracking-[0.32em] text-amber-200/85">
+      <p className="text-[11px] uppercase tracking-[0.32em] text-amber-700/85 dark:text-amber-200/85">
         Dados de trabalho
       </p>
-      <h2 className="text-display mt-3 text-4xl leading-[1.05] text-white">
+      <h2 className="text-display mt-3 text-4xl leading-[1.05] text-foreground">
         Como foi o <em className="italic text-[#e8c275]">expediente</em>?
       </h2>
 
       <div className="mt-6 space-y-5">
         {draft.contratoColaborador ? (
           <div>
-            <label className="text-[10px] uppercase tracking-[0.3em] text-white/55">
+            <label className="text-[10px] uppercase tracking-[0.3em] text-foreground/55">
               Contrato do colaborador
             </label>
             <div className="mt-3 flex items-center gap-2 rounded-2xl border border-amber-300/25 bg-amber-300/[0.05] px-4 py-3">
-              <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-2 py-0.5 text-[9px] uppercase tracking-[0.22em] text-amber-100">
+              <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-2 py-0.5 text-[9px] uppercase tracking-[0.22em] text-amber-700 dark:text-amber-100">
                 RM
               </span>
-              <span className="text-sm font-medium text-white/90">
+              <span className="text-sm font-medium text-foreground/90">
                 {draft.contratoColaborador}
               </span>
             </div>
           </div>
         ) : (
           <div>
-            <label className="text-[10px] uppercase tracking-[0.3em] text-rose-200/85">
+            <label className="text-[10px] uppercase tracking-[0.3em] text-rose-700/85 dark:text-rose-200/85">
               Contrato do colaborador — não inferido
             </label>
             <SelectGlass
@@ -1230,14 +1230,14 @@ function EtapaDadosTrabalho({
                 }))
               }
             />
-            <p className="mt-2 text-[10px] text-rose-200/70">
+            <p className="mt-2 text-[10px] text-rose-700/70 dark:text-rose-200/70">
               Seção do RM fora do mapa conhecido. Escolha manualmente.
             </p>
           </div>
         )}
 
         <div>
-          <label className="text-[10px] uppercase tracking-[0.3em] text-white/55">
+          <label className="text-[10px] uppercase tracking-[0.3em] text-foreground/55">
             Saída e/ou retorno ao trabalho
           </label>
           <input
@@ -1248,7 +1248,7 @@ function EtapaDadosTrabalho({
               onChange((p) => ({ ...p, saidaRetornoTexto: e.target.value }))
             }
             placeholder="Ex: Saída às 07:30 – Retorno às 15:00"
-            className="mt-3 w-full rounded-2xl border border-white/12 bg-white/[0.04] px-4 py-3 text-white placeholder:text-white/30 focus:border-amber-300/50 focus:outline-none"
+            className="mt-3 w-full rounded-2xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] px-4 py-3 text-foreground placeholder:text-foreground/30 focus:border-amber-300/50 focus:outline-none"
           />
           <div className="mt-2 flex flex-wrap gap-1.5">
             {EXEMPLOS_SAIDA_RETORNO.map((ex) => (
@@ -1258,7 +1258,7 @@ function EtapaDadosTrabalho({
                 onClick={() =>
                   onChange((p) => ({ ...p, saidaRetornoTexto: ex }))
                 }
-                className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[10px] text-white/65 transition hover:border-amber-300/40 hover:bg-amber-300/10 hover:text-amber-100"
+                className="inline-flex items-center gap-1 rounded-full border border-[rgb(var(--ink)/0.1)] bg-[rgb(var(--ink)/0.03)] px-2.5 py-1 text-[10px] text-foreground/65 transition hover:border-amber-300/40 hover:bg-amber-300/10 hover:text-amber-700 dark:text-amber-100"
               >
                 <ClipboardPaste className="size-3" />
                 {ex}
@@ -1268,7 +1268,7 @@ function EtapaDadosTrabalho({
         </div>
 
         <div>
-          <label className="text-[10px] uppercase tracking-[0.3em] text-white/55">
+          <label className="text-[10px] uppercase tracking-[0.3em] text-foreground/55">
             Horário de almoço
           </label>
           <div className="mt-3 grid grid-cols-3 gap-2.5">
@@ -1291,13 +1291,13 @@ function EtapaDadosTrabalho({
 
 
         <div>
-          <label className="flex items-center gap-2 text-[10px] uppercase tracking-[0.3em] text-white/55">
+          <label className="flex items-center gap-2 text-[10px] uppercase tracking-[0.3em] text-foreground/55">
             Acompanhante
-            <span className="rounded-full border border-white/15 bg-white/[0.04] px-2 py-0.5 text-[9px] tracking-normal text-white/45">
+            <span className="rounded-full border border-[rgb(var(--ink)/0.15)] bg-[rgb(var(--ink)/0.04)] px-2 py-0.5 text-[9px] tracking-normal text-foreground/45">
               opcional
             </span>
             {tipoDocAcomp && (
-              <span className="rounded-full border border-amber-300/40 bg-amber-300/10 px-2 py-0.5 text-[9px] tracking-normal text-amber-100">
+              <span className="rounded-full border border-amber-300/40 bg-amber-300/10 px-2 py-0.5 text-[9px] tracking-normal text-amber-700 dark:text-amber-100">
                 relevante
               </span>
             )}
@@ -1346,13 +1346,13 @@ function EtapaUnidade({
 
   return (
     <div>
-      <p className="text-[11px] uppercase tracking-[0.32em] text-amber-200/85">
+      <p className="text-[11px] uppercase tracking-[0.32em] text-amber-700/85 dark:text-amber-200/85">
         Unidade do órgão
       </p>
-      <h2 className="text-display mt-3 text-4xl leading-[1.05] text-white">
+      <h2 className="text-display mt-3 text-4xl leading-[1.05] text-foreground">
         <em className="italic text-[#e8c275]">{contrato}</em> · qual unidade?
       </h2>
-      <p className="mt-3 max-w-md text-sm leading-relaxed text-white/65">
+      <p className="mt-3 max-w-md text-sm leading-relaxed text-foreground/65">
         Selecione a unidade do colaborador. Se não estiver na lista, marque
         "Unidade não encontrada" e descreva no campo livre.
       </p>
@@ -1370,7 +1370,7 @@ function EtapaUnidade({
 
         {ehNaoEncontrada && (
           <div className="fade-up">
-            <label className="text-[10px] uppercase tracking-[0.3em] text-white/55">
+            <label className="text-[10px] uppercase tracking-[0.3em] text-foreground/55">
               Especifique a unidade
             </label>
             <input
@@ -1379,7 +1379,7 @@ function EtapaUnidade({
               value={unidadeNaoEncontradaTexto}
               onChange={(e) => onChange(unidadeLabel, e.target.value)}
               placeholder="Nome da unidade"
-              className="mt-3 w-full rounded-2xl border border-white/12 bg-white/[0.04] px-4 py-3 text-white placeholder:text-white/30 focus:border-amber-300/50 focus:outline-none"
+              className="mt-3 w-full rounded-2xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] px-4 py-3 text-foreground placeholder:text-foreground/30 focus:border-amber-300/50 focus:outline-none"
             />
           </div>
         )}
@@ -1443,13 +1443,13 @@ function EtapaUpload({
 
   return (
     <div>
-      <p className="text-[11px] uppercase tracking-[0.32em] text-amber-200/85">
+      <p className="text-[11px] uppercase tracking-[0.32em] text-amber-700/85 dark:text-amber-200/85">
         Arquivo
       </p>
-      <h2 className="text-display mt-3 text-4xl leading-[1.05] text-white">
+      <h2 className="text-display mt-3 text-4xl leading-[1.05] text-foreground">
         Anexar <em className="italic text-[#e8c275]">documento</em>
       </h2>
-      <p className="mt-3 max-w-md text-sm leading-relaxed text-white/65">
+      <p className="mt-3 max-w-md text-sm leading-relaxed text-foreground/65">
         PDF, JPG, PNG ou HEIC. Tamanho máximo 15 MB.
       </p>
 
@@ -1460,11 +1460,11 @@ function EtapaUpload({
           successFlash ? "upload-success" : ""
         }`}
       >
-        <Upload className="mb-3 size-7 text-amber-200" />
-        <span className="text-sm font-medium text-white/90">
+        <Upload className="mb-3 size-7 text-amber-700 dark:text-amber-200" />
+        <span className="text-sm font-medium text-foreground/90">
           {arquivo ? arquivo.name : "Selecionar arquivo"}
         </span>
-        <span className="mt-1 text-xs text-white/50">
+        <span className="mt-1 text-xs text-foreground/50">
           {arquivo ? formatarBytes(arquivo.size) : "Clique para anexar"}
         </span>
         <input
@@ -1476,7 +1476,7 @@ function EtapaUpload({
       </label>
 
       {erro && (
-        <p className="mt-4 rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
+        <p className="mt-4 rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-sm text-rose-700 dark:text-rose-100">
           {erro}
         </p>
       )}
@@ -1505,13 +1505,13 @@ function EtapaObservacao({
 }) {
   return (
     <div>
-      <p className="text-[11px] uppercase tracking-[0.32em] text-white/55">
+      <p className="text-[11px] uppercase tracking-[0.32em] text-foreground/55">
         Observação · opcional
       </p>
-      <h2 className="text-display mt-3 text-4xl leading-[1.05] text-white">
+      <h2 className="text-display mt-3 text-4xl leading-[1.05] text-foreground">
         Algum <em className="italic text-[#e8c275]">esclarecimento</em>?
       </h2>
-      <p className="mt-3 max-w-md text-sm leading-relaxed text-white/65">
+      <p className="mt-3 max-w-md text-sm leading-relaxed text-foreground/65">
         Use apenas se houver detalhe importante. Pode pular.
       </p>
 
@@ -1521,14 +1521,14 @@ function EtapaObservacao({
         rows={4}
         maxLength={1000}
         placeholder="Ex: Atestado emitido após avaliação no pronto-socorro."
-        className="mt-6 w-full rounded-2xl border border-white/12 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-amber-300/50 focus:outline-none"
+        className="mt-6 w-full rounded-2xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] px-4 py-3 text-sm text-foreground placeholder:text-foreground/30 focus:border-amber-300/50 focus:outline-none"
       />
 
       <div className="mt-6 flex items-center justify-between">
         <button
           type="button"
           onClick={onContinuar}
-          className="text-xs text-white/55 transition hover:text-white/85"
+          className="text-xs text-foreground/55 transition hover:text-foreground/85"
         >
           Pular
         </button>
@@ -1559,14 +1559,14 @@ function EtapaPreview({
 
   return (
     <div>
-      <p className="text-[11px] uppercase tracking-[0.32em] text-emerald-300/85">
+      <p className="text-[11px] uppercase tracking-[0.32em] text-emerald-700/85 dark:text-emerald-300/85">
         Revisar antes de adicionar
       </p>
-      <h2 className="text-display mt-3 text-4xl leading-[1.05] text-white">
-        Conferir <em className="italic text-emerald-300">documento</em>
+      <h2 className="text-display mt-3 text-4xl leading-[1.05] text-foreground">
+        Conferir <em className="italic text-emerald-700 dark:text-emerald-300">documento</em>
       </h2>
 
-      <div className="preview-doc-tile tone-atestado mt-6 space-y-2.5 rounded-2xl border border-white/12 bg-white/5 p-5 pl-7 text-sm text-white/80">
+      <div className="preview-doc-tile tone-atestado mt-6 space-y-2.5 rounded-2xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.05)] p-5 pl-7 text-sm text-foreground/80">
         <Linha label="Modalidade" valor={modo === "clt" ? "CELETISTA" : "INTERMITENTE"} />
         <Linha label="Colaborador" valor={draft.empregadoNome} />
         <Linha label="Contrato" valor={draft.contratoColaborador} />
@@ -1594,16 +1594,16 @@ function EtapaPreview({
         {draft.observacao && <Linha label="Observação" valor={draft.observacao} />}
       </div>
 
-      <p className="mt-4 text-xs text-white/50">
+      <p className="mt-4 text-xs text-foreground/50">
         Adicionando à sessão — envio efetivo só ao clicar em{" "}
-        <strong className="text-white/75">Concluir</strong> no resumo.
+        <strong className="text-foreground/75">Concluir</strong> no resumo.
       </p>
 
       <div className="mt-6 flex items-center justify-between gap-3">
         <button
           type="button"
           onClick={onEditar}
-          className="inline-flex items-center gap-1.5 text-xs text-white/55 transition hover:text-white/85"
+          className="inline-flex items-center gap-1.5 text-xs text-foreground/55 transition hover:text-foreground/85"
         >
           <Pencil className="size-3.5" />
           Voltar e editar
@@ -1619,8 +1619,8 @@ function EtapaPreview({
 function Linha({ label, valor }: { label: string; valor: string }) {
   return (
     <p>
-      <span className="text-white/55">{label}:</span>{" "}
-      <strong className="text-white">{valor}</strong>
+      <span className="text-foreground/55">{label}:</span>{" "}
+      <strong className="text-foreground">{valor}</strong>
     </p>
   )
 }
@@ -1665,28 +1665,28 @@ function SelectGlass({
       <button
         type="button"
         onClick={() => setAberto((v) => !v)}
-        className="flex w-full items-center justify-between rounded-2xl border border-white/12 bg-white/[0.04] px-4 py-3 text-left text-white transition hover:border-amber-300/40 hover:bg-white/[0.06]"
+        className="flex w-full items-center justify-between rounded-2xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] px-4 py-3 text-left text-foreground transition hover:border-amber-300/40 hover:bg-[rgb(var(--ink)/0.06)]"
       >
-        <span className={valor ? "text-white" : "text-white/40"}>
+        <span className={valor ? "text-foreground" : "text-foreground/40"}>
           {valor || placeholder}
         </span>
         <ChevronRight
-          className={`size-4 text-white/55 transition-transform ${aberto ? "rotate-90" : ""}`}
+          className={`size-4 text-foreground/55 transition-transform ${aberto ? "rotate-90" : ""}`}
         />
       </button>
 
       {aberto && (
-        <div className="absolute z-30 mt-2 max-h-72 w-full overflow-hidden rounded-2xl border border-white/12 bg-[#0a1224]/95 shadow-[0_18px_36px_-12px_rgba(0,0,0,0.6)] backdrop-blur-xl">
+        <div className="absolute z-30 mt-2 max-h-72 w-full overflow-hidden rounded-2xl border border-[rgb(var(--ink)/0.12)] bg-card/95 shadow-[0_18px_36px_-12px_rgba(0,0,0,0.6)] backdrop-blur-xl">
           {searchable && (
-            <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2">
-              <Search className="size-3.5 text-white/55" />
+            <div className="flex items-center gap-2 border-b border-[rgb(var(--ink)/0.1)] px-3 py-2">
+              <Search className="size-3.5 text-foreground/55" />
               <input
                 autoFocus
                 type="text"
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
                 placeholder="Buscar..."
-                className="flex-1 bg-transparent text-sm text-white placeholder:text-white/30 focus:outline-none"
+                className="flex-1 bg-transparent text-sm text-foreground placeholder:text-foreground/30 focus:outline-none"
               />
             </div>
           )}
@@ -1700,19 +1700,19 @@ function SelectGlass({
                     setAberto(false)
                     setBusca("")
                   }}
-                  className={`flex w-full items-center gap-2 px-4 py-2 text-left text-sm transition hover:bg-amber-300/10 hover:text-amber-100 ${
+                  className={`flex w-full items-center gap-2 px-4 py-2 text-left text-sm transition hover:bg-amber-300/10 hover:text-amber-700 dark:text-amber-100 ${
                     o === valor
-                      ? "bg-amber-300/15 text-amber-100"
-                      : "text-white/85"
+                      ? "bg-amber-300/15 text-amber-700 dark:text-amber-100"
+                      : "text-foreground/85"
                   }`}
                 >
-                  <Building2 className="size-3.5 shrink-0 text-white/45" />
+                  <Building2 className="size-3.5 shrink-0 text-foreground/45" />
                   {o}
                 </button>
               </li>
             ))}
             {filtradas.length === 0 && (
-              <li className="px-4 py-3 text-xs text-white/50">
+              <li className="px-4 py-3 text-xs text-foreground/50">
                 Nenhum resultado.
               </li>
             )}

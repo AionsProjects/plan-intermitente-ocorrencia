@@ -102,52 +102,52 @@ export function GlassDatePicker({
       <button
         type="button"
         onClick={abrir}
-        className={`flex w-full items-center gap-2 rounded-xl border border-white/12 bg-white/[0.04] px-4 py-3 text-left text-sm backdrop-blur transition hover:border-white/20 hover:bg-white/[0.06] ${
-          aberto ? "border-[#e8c275]/55 bg-white/[0.08]" : ""
+        className={`flex w-full items-center gap-2 rounded-xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] px-4 py-3 text-left text-sm backdrop-blur transition hover:border-[rgb(var(--ink)/0.2)] hover:bg-[rgb(var(--ink)/0.06)] ${
+          aberto ? "border-[#e8c275]/55 bg-[rgb(var(--ink)/0.08)]" : ""
         }`}
       >
-        <CalendarDays className="size-4 shrink-0 text-white/50" />
-        <span className={exibido ? "text-white" : "text-white/40"}>
+        <CalendarDays className="size-4 shrink-0 text-foreground/50" />
+        <span className={exibido ? "text-foreground" : "text-foreground/40"}>
           {exibido || "dd/mm/aaaa"}
         </span>
       </button>
 
       <Dialog open={aberto} onOpenChange={setAberto}>
         <DialogContent
-          className="glass-modal border-0 bg-transparent p-8 text-white sm:max-w-md"
+          className="glass-modal border-0 bg-transparent p-8 text-foreground sm:max-w-md"
           style={{
             backdropFilter: "blur(10px) saturate(140%) brightness(1.05)",
           }}
         >
           <DialogHeader>
-            <p className="text-[10px] uppercase tracking-[0.3em] text-white/55">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-foreground/55">
               Escolher data
             </p>
-            <DialogTitle className="text-display text-3xl text-white">
+            <DialogTitle className="text-display text-3xl text-foreground">
               {label}
             </DialogTitle>
-            <DialogDescription className="text-white/60">
+            <DialogDescription className="text-foreground/60">
               Selecione o dia desejado no calendário.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="my-2 h-px bg-white/12" />
+          <div className="my-2 h-px bg-[rgb(var(--ink)/0.12)]" />
 
           <div className="flex items-center justify-between">
             <button
               type="button"
               onClick={() => setMesVisivel((m) => subMonths(m, 1))}
-              className="inline-flex size-9 items-center justify-center rounded-xl border border-white/12 bg-white/[0.04] text-white/75 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
+              className="inline-flex size-9 items-center justify-center rounded-xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] text-foreground/75 transition hover:border-[rgb(var(--ink)/0.25)] hover:bg-[rgb(var(--ink)/0.08)] hover:text-foreground"
             >
               <ChevronLeft className="size-4" />
             </button>
-            <p className="text-display text-lg capitalize text-white/95">
+            <p className="text-display text-lg capitalize text-foreground/95">
               {labelMesAno}
             </p>
             <button
               type="button"
               onClick={() => setMesVisivel((m) => addMonths(m, 1))}
-              className="inline-flex size-9 items-center justify-center rounded-xl border border-white/12 bg-white/[0.04] text-white/75 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
+              className="inline-flex size-9 items-center justify-center rounded-xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] text-foreground/75 transition hover:border-[rgb(var(--ink)/0.25)] hover:bg-[rgb(var(--ink)/0.08)] hover:text-foreground"
             >
               <ChevronRight className="size-4" />
             </button>
@@ -157,7 +157,7 @@ export function GlassDatePicker({
             {["D", "S", "T", "Q", "Q", "S", "S"].map((d, i) => (
               <div
                 key={i}
-                className="py-1 text-center text-[10px] uppercase tracking-wider text-white/40"
+                className="py-1 text-center text-[10px] uppercase tracking-wider text-foreground/40"
               >
                 {d}
               </div>
@@ -183,8 +183,8 @@ export function GlassDatePicker({
                       : eFeriado && noMes
                         ? "calendario-dia-feriado"
                         : noMes
-                          ? "text-white/90 hover:bg-white/10"
-                          : "text-white/30 hover:bg-white/5"
+                          ? "text-foreground/90 hover:bg-[rgb(var(--ink)/0.1)]"
+                          : "text-foreground/30 hover:bg-[rgb(var(--ink)/0.05)]"
                   } ${ehHoje && !sel ? "ring-1 ring-[#e8c275]/45" : ""} ${
                     desabilitado ? "cursor-not-allowed opacity-40" : ""
                   }`}
@@ -195,13 +195,13 @@ export function GlassDatePicker({
             })}
           </div>
 
-          <div className="my-2 h-px bg-white/12" />
+          <div className="my-2 h-px bg-[rgb(var(--ink)/0.12)]" />
 
           <div className="flex items-center justify-between">
             <button
               type="button"
               onClick={limpar}
-              className="text-sm text-white/55 transition hover:text-white/85"
+              className="text-sm text-foreground/55 transition hover:text-foreground/85"
             >
               Limpar
             </button>

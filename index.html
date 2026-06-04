@@ -5,6 +5,33 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Plano de Intermitentes</title>
+    <script>
+      // Pré-paint: aplica tema/acento antes do 1º render (sem FOUC).
+      (function () {
+        try {
+          var m = localStorage.getItem("pi-theme") || "system";
+          var sysDark = matchMedia("(prefers-color-scheme: dark)").matches;
+          var t = m === "light" || m === "dark" ? m : sysDark ? "dark" : "light";
+          var a = localStorage.getItem("pi-accent");
+          if (["aurora", "seco", "verde", "rosa", "rubi", "roxo"].indexOf(a) < 0)
+            a = "aurora";
+          var e = document.documentElement;
+          e.dataset.theme = t;
+          e.dataset.accent = a;
+          if (t === "dark") e.classList.add("dark");
+          if (localStorage.getItem("pi-reduce-anim") === "1")
+            e.dataset.reduceAnim = "1";
+          var f = localStorage.getItem("pi-font");
+          var fs = f === "sm" ? "0.92" : f === "lg" ? "1.1" : "1";
+          e.style.setProperty("--font-scale", fs);
+        } catch (_) {
+          var el = document.documentElement;
+          el.dataset.theme = "dark";
+          el.dataset.accent = "aurora";
+          el.classList.add("dark");
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -58,8 +58,7 @@
             top: "-130px",
             right: "-90px",
             background:
-              "radial-gradient(circle at 30% 30%, #5f86ff 0%, #18338c 48%, transparent 72%)",
-            opacity: 0.24,
+              "radial-gradient(circle at 30% 30%, rgb(var(--orb-a) / 0.9) 0%, rgb(var(--orb-a) / 0.3) 48%, transparent 72%)",
             animation: "orb-drift-1 14s ease-in-out infinite",
           }}
         />
@@ -71,8 +70,7 @@
           bottom: "-150px",
           left: "-110px",
           background:
-            "radial-gradient(circle at 40% 40%, #d8aa53 0%, #6f4817 52%, transparent 74%)",
-          opacity: 0.16,
+            "radial-gradient(circle at 40% 40%, rgb(var(--orb-b) / 0.85) 0%, rgb(var(--orb-b) / 0.28) 52%, transparent 74%)",
           animation: "orb-drift-2 18s ease-in-out infinite",
         }}
       />
@@ -84,8 +82,7 @@
           top: "55%",
           right: "10%",
           background:
-            "radial-gradient(circle at 50% 50%, #bd8f3d 0%, #503313 55%, transparent 76%)",
-          opacity: 0.12,
+            "radial-gradient(circle at 50% 50%, rgb(var(--orb-b) / 0.7) 0%, rgb(var(--orb-b) / 0.2) 55%, transparent 76%)",
           animation: "orb-drift-3 22s ease-in-out infinite",
         }}
       />
@@ -97,8 +94,7 @@
           top: "18%",
           left: "8%",
           background:
-            "radial-gradient(circle at 50% 50%, #7688a3 0%, #25324a 56%, transparent 78%)",
-          opacity: 0.13,
+            "radial-gradient(circle at 50% 50%, rgb(var(--orb-c) / 0.8) 0%, rgb(var(--orb-c) / 0.24) 56%, transparent 78%)",
           animation: "orb-drift-4 20s ease-in-out infinite",
         }}
       />

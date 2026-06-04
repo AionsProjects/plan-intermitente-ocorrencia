@@ -37,13 +37,13 @@ export function EtapaConfirmar({
     <div>
       <HeaderEmpregado dados={dados} />
 
-      <p className="text-[11px] uppercase tracking-[0.32em] text-sky-200/75">
+      <p className="text-[11px] uppercase tracking-[0.32em] text-sky-700/75 dark:text-sky-200/75">
         Resumo
       </p>
-      <h1 className="text-display mt-3 text-4xl leading-[1.05] text-white">
-        Confirmar <em className="italic text-sky-200">retirada</em>
+      <h1 className="text-display mt-3 text-4xl leading-[1.05] text-foreground">
+        Confirmar <em className="italic text-sky-700 dark:text-sky-200">retirada</em>
       </h1>
-      <p className="mt-3 text-sm text-white/65">
+      <p className="mt-3 text-sm text-foreground/65">
         Ao confirmar, o item no board Desconto é atualizado com os valores
         retirados manualmente da conta Caju.
       </p>
@@ -62,7 +62,7 @@ export function EtapaConfirmar({
       </div>
 
       {erro && (
-        <p className="mt-4 rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-center text-sm text-rose-100">
+        <p className="mt-4 rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-center text-sm text-rose-700 dark:text-rose-100">
           {erro}
         </p>
       )}
@@ -113,18 +113,18 @@ function LinhaResumo({
 }) {
   return (
     <div className="rounded-2xl border border-sky-300/20 bg-sky-300/[0.04] px-4 py-3">
-      <p className="text-[10px] uppercase tracking-[0.28em] text-sky-200/75">
+      <p className="text-[10px] uppercase tracking-[0.28em] text-sky-700/75 dark:text-sky-200/75">
         {rotulo}
       </p>
       <div className="mt-1 flex items-baseline justify-between gap-3">
-        <span className="text-display text-2xl text-white">
+        <span className="text-display text-2xl text-foreground">
           {formatarReal(valor)}
         </span>
-        <span className="text-xs text-white/55">
+        <span className="text-xs text-foreground/55">
           Resta{" "}
           <span
             className={`font-mono ${
-              restante === 0 ? "text-emerald-200/85" : "text-white/85"
+              restante === 0 ? "text-emerald-700/85 dark:text-emerald-200/85" : "text-foreground/85"
             }`}
           >
             {formatarReal(restante)}

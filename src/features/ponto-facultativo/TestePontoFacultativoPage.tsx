@@ -9,7 +9,7 @@ import {
   WalletCards,
 } from "lucide-react"
 
-import { NavCluster } from "@/components/NavCluster"
+import { useRegistrarVoltar } from "@/components/NavContext"
 
 /**
  * Área de testes do fluxo Ponto Facultativo.
@@ -82,43 +82,43 @@ function ringClasses(tone: Tone): string {
 function iconColor(tone: Tone): string {
   switch (tone) {
     case "emerald":
-      return "text-emerald-200"
+      return "text-emerald-700 dark:text-emerald-200"
     case "amber":
-      return "text-amber-200"
+      return "text-amber-700 dark:text-amber-200"
     case "sky":
-      return "text-sky-200"
+      return "text-sky-700 dark:text-sky-200"
     case "rose":
-      return "text-rose-200"
+      return "text-rose-700 dark:text-rose-200"
   }
 }
 
 export function TestePontoFacultativoPage() {
   const usandoMock = !import.meta.env.VITE_N8N_BASE_URL
+  useRegistrarVoltar(null, "/teste")
 
   return (
     <div className="relative z-10 flex min-h-svh items-center justify-center px-4 py-12">
       <div className="glass-strong card-shimmer relative w-full max-w-xl p-10">
         <div className="mb-6 flex items-start justify-between gap-3">
-          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/30 bg-emerald-300/10 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-emerald-200">
+          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/30 bg-emerald-300/10 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-emerald-700 dark:text-emerald-200">
             <FlaskConical className="size-3" />
             Mocks · ponto facultativo
           </div>
-          <NavCluster homeTo="/teste" voltarLabel="Voltar pra área de teste" />
         </div>
 
-        <p className="text-[11px] uppercase tracking-[0.32em] text-white/55">
+        <p className="text-[11px] uppercase tracking-[0.32em] text-foreground/55">
           Aionscorp · plano de intermitentes
         </p>
-        <h1 className="text-display mt-3 text-5xl leading-[1.05] text-white">
+        <h1 className="text-display mt-3 text-5xl leading-[1.05] text-foreground">
           Estados do{" "}
-          <em className="italic text-emerald-200">ponto facultativo</em>
+          <em className="italic text-emerald-700 dark:text-emerald-200">ponto facultativo</em>
         </h1>
-        <p className="mt-4 max-w-md text-sm leading-relaxed text-white/65">
+        <p className="mt-4 max-w-md text-sm leading-relaxed text-foreground/65">
           Cada tile abre a tela com o seed correspondente já aplicado.
           Nenhum item é enviado ao backend — preview e aplicar usam mock.
         </p>
 
-        <div className="mt-6 flex w-fit items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-[11px] text-white/65 backdrop-blur">
+        <div className="mt-6 flex w-fit items-center gap-2 rounded-full border border-[rgb(var(--ink)/0.15)] bg-[rgb(var(--ink)/0.05)] px-3 py-1.5 text-[11px] text-foreground/65 backdrop-blur">
           <span
             className={`size-1.5 rounded-full ${
               usandoMock
@@ -151,15 +151,15 @@ export function TestePontoFacultativoPage() {
                     <Icon className={`size-4 ${iconColor(s.tone)}`} />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[15px] font-medium text-white/95">
+                    <p className="text-[15px] font-medium text-foreground/95">
                       {s.titulo}
                     </p>
-                    <p className="mt-0.5 text-xs leading-relaxed text-white/55">
+                    <p className="mt-0.5 text-xs leading-relaxed text-foreground/55">
                       {s.desc}
                     </p>
                   </div>
                 </div>
-                <ArrowUpRight className="size-4 shrink-0 text-white/55 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-white" />
+                <ArrowUpRight className="size-4 shrink-0 text-foreground/55 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-foreground" />
               </Link>
             )
           })}

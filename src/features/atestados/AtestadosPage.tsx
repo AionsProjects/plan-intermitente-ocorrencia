@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { NavCluster } from "@/components/NavCluster"
+import { useRegistrarVoltar } from "@/components/NavContext"
 
 import { SlideStack, type SlideDirection } from "@/components/SlideStack"
 
@@ -202,15 +202,12 @@ export function AtestadosPage() {
     etapa.tipo !== "wizard-intermitente" &&
     etapa.tipo !== "wizard-clt"
 
+  useRegistrarVoltar(mostrarVoltar ? voltarParaEtapa : null)
+
   return (
     <div className="relative z-10 min-h-svh">
       <div className="flex justify-center px-4 py-12">
         <div className="glass-strong card-shimmer relative w-full max-w-2xl p-8 sm:p-10">
-          {mostrarVoltar && (
-            <div className="mb-6 flex justify-end">
-              <NavCluster onVoltar={voltarParaEtapa} />
-            </div>
-          )}
           <SlideStack slideKey={etapaKey(etapa)} direction={direcao}>
             {renderEtapa()}
           </SlideStack>

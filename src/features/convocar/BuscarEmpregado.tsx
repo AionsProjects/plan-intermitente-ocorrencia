@@ -80,19 +80,19 @@ export function BuscarEmpregado({ onSelecionar }: Props) {
 
   return (
     <div>
-      <p className="text-[11px] uppercase tracking-[0.32em] text-white/55">
+      <p className="text-[11px] uppercase tracking-[0.32em] text-foreground/55">
         Aionscorp · Convocar intermitente
       </p>
-      <h1 className="text-display mt-3 text-5xl leading-[1.05] text-white">
+      <h1 className="text-display mt-3 text-5xl leading-[1.05] text-foreground">
         Buscar <em className="italic text-[#e8c275]">empregado</em>
       </h1>
-      <p className="mt-4 max-w-md text-sm leading-relaxed text-white/65">
+      <p className="mt-4 max-w-md text-sm leading-relaxed text-foreground/65">
         Digite parte do nome para localizar o intermitente no RM. Selecione um
         resultado para preencher a convocação.
       </p>
 
       <div className="mt-8">
-        <label className="text-[10px] uppercase tracking-[0.3em] text-white/55">
+        <label className="text-[10px] uppercase tracking-[0.3em] text-foreground/55">
           Nome do empregado
         </label>
         <div className="mt-3 glass-tile flex items-center gap-3 rounded-2xl px-4">
@@ -105,36 +105,36 @@ export function BuscarEmpregado({ onSelecionar }: Props) {
               setExpandido(false)
             }}
             placeholder="Comece a digitar (mín. 3 letras)"
-            className="text-display flex-1 bg-transparent py-3 text-xl tracking-wider text-white placeholder:text-white/30 focus:outline-none"
+            className="text-display flex-1 bg-transparent py-3 text-xl tracking-wider text-foreground placeholder:text-foreground/30 focus:outline-none"
             autoFocus
             spellCheck={false}
           />
           {isFetching && (
-            <Loader2 className="size-4 shrink-0 animate-spin text-white/55" />
+            <Loader2 className="size-4 shrink-0 animate-spin text-foreground/55" />
           )}
         </div>
 
         {!ativo && (
-          <p className="mt-3 text-xs text-white/45">
+          <p className="mt-3 text-xs text-foreground/45">
             Digite ao menos 3 letras para buscar.
           </p>
         )}
 
         {isError && (
-          <p className="mt-3 rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-2 text-xs text-rose-200">
+          <p className="mt-3 rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-2 text-xs text-rose-700 dark:text-rose-200">
             Erro ao consultar o RM. Tente novamente em alguns segundos.
           </p>
         )}
 
         {ativo && !isFetching && resultados.length === 0 && !isError && (
-          <p className="mt-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/60">
+          <p className="mt-3 rounded-xl border border-[rgb(var(--ink)/0.1)] bg-[rgb(var(--ink)/0.05)] px-4 py-3 text-xs text-foreground/60">
             Nenhum empregado encontrado para "{valor}".
           </p>
         )}
 
         {resultados.length > 0 && (
           <>
-            <p className="mt-5 text-[10px] uppercase tracking-[0.3em] text-white/55">
+            <p className="mt-5 text-[10px] uppercase tracking-[0.3em] text-foreground/55">
               {resultados.length}{" "}
               {resultados.length === 1 ? "resultado" : "resultados"}
             </p>
@@ -157,16 +157,16 @@ export function BuscarEmpregado({ onSelecionar }: Props) {
                         <UserSearch className="icon-3d-only size-4 text-[#e8c275]" />
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate text-[15px] font-medium text-white/95">
+                        <p className="truncate text-[15px] font-medium text-foreground/95">
                           <HighlightedText text={emp.nome} query={valor} />
                         </p>
-                        <p className="mt-0.5 truncate text-xs text-white/55">
+                        <p className="mt-0.5 truncate text-xs text-foreground/55">
                           Chapa {emp.chapa || "—"} ·{" "}
                           {emp.funcao || "função n/d"}
                         </p>
                       </div>
                     </div>
-                    <ArrowRight className="size-4 shrink-0 text-white/45 transition-transform group-hover:translate-x-0.5 group-hover:text-white" />
+                    <ArrowRight className="size-4 shrink-0 text-foreground/45 transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
                   </button>
                 </li>
               ))}
@@ -176,7 +176,7 @@ export function BuscarEmpregado({ onSelecionar }: Props) {
               <button
                 type="button"
                 onClick={() => setExpandido((v) => !v)}
-                className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-xs font-medium text-white/60 backdrop-blur transition-all hover:border-white/20 hover:bg-white/[0.06] hover:text-white/90"
+                className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-[rgb(var(--ink)/0.1)] bg-[rgb(var(--ink)/0.03)] px-4 py-2.5 text-xs font-medium text-foreground/60 backdrop-blur transition-all hover:border-[rgb(var(--ink)/0.2)] hover:bg-[rgb(var(--ink)/0.06)] hover:text-foreground/90"
               >
                 {expandido ? (
                   <>

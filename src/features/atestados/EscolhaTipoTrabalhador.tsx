@@ -21,13 +21,13 @@ export function EscolhaTipoTrabalhador({ onSelecionar }: Props) {
 
   return (
     <div>
-      <p className="text-[11px] uppercase tracking-[0.32em] text-white/55">
+      <p className="text-[11px] uppercase tracking-[0.32em] text-foreground/55">
         Aionscorp · Atestados e declarações
       </p>
-      <h1 className="text-display mt-3 text-5xl leading-[1.05] text-white">
+      <h1 className="text-display mt-3 text-5xl leading-[1.05] text-foreground">
         Qual <em className="italic text-[#e8c275]">tipo</em> de trabalhador?
       </h1>
-      <p className="mt-4 max-w-md text-sm leading-relaxed text-white/65">
+      <p className="mt-4 max-w-md text-sm leading-relaxed text-foreground/65">
         Escolha o tipo de contratação para lançar um atestado médico ou
         declaração de comparecimento.
       </p>
@@ -45,10 +45,10 @@ export function EscolhaTipoTrabalhador({ onSelecionar }: Props) {
               <Hammer className="icon-3d-only size-5 text-[#e8c275]" />
             </div>
             <div className="min-w-0">
-              <p className="text-base font-medium leading-tight text-white/95">
+              <p className="text-base font-medium leading-tight text-foreground/95">
                 Intermitente
               </p>
-              <p className="mt-1 text-sm leading-snug text-white/55">
+              <p className="mt-1 text-sm leading-snug text-foreground/55">
                 Vincular o atestado a uma convocação em andamento.
               </p>
             </div>
@@ -68,10 +68,10 @@ export function EscolhaTipoTrabalhador({ onSelecionar }: Props) {
               <Briefcase className="icon-3d-only size-5 text-[#b6a4ff]" />
             </div>
             <div className="min-w-0">
-              <p className="text-base font-medium leading-tight text-white/95">
+              <p className="text-base font-medium leading-tight text-foreground/95">
                 CLT
               </p>
-              <p className="mt-1 text-sm leading-snug text-white/55">
+              <p className="mt-1 text-sm leading-snug text-foreground/55">
                 Funcionário CLT — busque pelo nome ou matrícula.
               </p>
             </div>

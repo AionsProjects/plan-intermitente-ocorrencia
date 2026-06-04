@@ -28,7 +28,7 @@ import {
   WalletCards,
 } from "lucide-react"
 
-import { NavCluster } from "@/components/NavCluster"
+import { useRegistrarVoltar } from "@/components/NavContext"
 import { SlideStack, type SlideDirection } from "@/components/SlideStack"
 import { ChoiceButton } from "@/features/atestados/ChoiceButton"
 import { isFeriado, nomeFeriado, useFeriados } from "@/lib/feriadosBoard"
@@ -285,24 +285,24 @@ export function PontoFacultativoPage() {
     if (prev) ir(prev, "backward")
   }
   const podeVoltarEtapa = etapaAnterior[etapa] !== null
+  useRegistrarVoltar(podeVoltarEtapa ? voltarEtapa : null)
 
   return (
     <main className="relative z-10 flex min-h-svh items-center justify-center px-4 py-8 sm:px-6 sm:py-12">
       <div className="glass-strong card-shimmer relative w-full max-w-3xl p-8 sm:p-10">
         <header className="mb-7 flex items-start justify-between gap-4">
           <div>
-            <p className="eyebrow-fade-in text-[11px] uppercase text-emerald-200/70">
+            <p className="eyebrow-fade-in text-[11px] uppercase text-emerald-700/70 dark:text-emerald-200/70">
               Ponto facultativo
             </p>
-            <h1 className="text-display mt-2 text-4xl leading-tight text-white sm:text-5xl">
+            <h1 className="text-display mt-2 text-4xl leading-tight text-foreground sm:text-5xl">
               Desconto por contrato
             </h1>
-            <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/58">
+            <p className="mt-3 max-w-xl text-sm leading-relaxed text-foreground/58">
               Escolha contrato, unidade, dia e benefícios. Ao confirmar, o
               desconto é aplicado a todos os intermitentes convocados naquele local.
             </p>
           </div>
-          <NavCluster onVoltar={podeVoltarEtapa ? voltarEtapa : null} />
         </header>
 
         <SlideStack slideKey={etapaKey(etapa)} direction={direcao}>
@@ -406,14 +406,14 @@ function EtapaContrato({
     return (
       <section>
         <div className="mb-5 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 text-white/82">
-            <GraduationCap className="size-5 text-amber-300" />
+          <div className="flex items-center gap-3 text-foreground/82">
+            <GraduationCap className="size-5 text-amber-700 dark:text-amber-300" />
             <h2 className="text-lg font-medium">SEDUC · escolha o subgrupo</h2>
           </div>
           <button
             type="button"
             onClick={() => setSubview("principal")}
-            className="inline-flex items-center gap-1.5 text-xs text-white/55 transition hover:text-white/90"
+            className="inline-flex items-center gap-1.5 text-xs text-foreground/55 transition hover:text-foreground/90"
           >
             <ArrowLeft className="size-3.5" />
             Voltar
@@ -440,8 +440,8 @@ function EtapaContrato({
 
   return (
     <section>
-      <div className="mb-5 flex items-center gap-3 text-white/82">
-        <Building2 className="size-5 text-emerald-200" />
+      <div className="mb-5 flex items-center gap-3 text-foreground/82">
+        <Building2 className="size-5 text-emerald-700 dark:text-emerald-200" />
         <h2 className="text-lg font-medium">Contrato afetado</h2>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -511,8 +511,8 @@ function TileContrato({
       onMouseLeave={handleTiltLeave}
       data-tone={meta.tone}
       data-anim={meta.animOverride}
-      className={`tile-contrato group relative flex w-full items-center gap-3.5 rounded-2xl border border-white/12 px-4 py-4 text-left ${
-        selecionado ? "ring-2 ring-offset-2 ring-offset-transparent ring-white/60" : ""
+      className={`tile-contrato group relative flex w-full items-center gap-3.5 rounded-2xl border border-[rgb(var(--ink)/0.12)] px-4 py-4 text-left ${
+        selecionado ? "ring-2 ring-offset-2 ring-offset-transparent ring-[rgb(var(--ink)/0.6)]" : ""
       }`}
     >
       <div
@@ -524,7 +524,7 @@ function TileContrato({
         />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-base font-medium leading-tight text-white/95">
+        <p className="text-base font-medium leading-tight text-foreground/95">
           {meta.label}
         </p>
         <p className={`mt-0.5 text-xs ${tones.text} opacity-75`}>
@@ -534,21 +534,21 @@ function TileContrato({
           <p className="mt-1.5 text-xs">
             {meta.ativos != null && (
               <>
-                <span className="font-mono font-medium text-white/85">
+                <span className="font-mono font-medium text-foreground/85">
                   {meta.ativos}
                 </span>
-                <span className="text-white/40"> ativos</span>
+                <span className="text-foreground/40"> ativos</span>
               </>
             )}
             {meta.ativos != null && meta.hoje != null && meta.hoje > 0 && (
-              <span className="mx-2 text-white/25">·</span>
+              <span className="mx-2 text-foreground/25">·</span>
             )}
             {meta.hoje != null && meta.hoje > 0 && (
               <>
                 <span className={`font-mono font-medium ${tones.text}`}>
                   {meta.hoje}
                 </span>
-                <span className="text-white/40"> hoje</span>
+                <span className="text-foreground/40"> hoje</span>
               </>
             )}
           </p>
@@ -630,15 +630,15 @@ function EtapaUnidade({
 
   return (
     <section>
-      <div className="mb-5 flex items-center gap-3 text-white/82">
-        <MapPin className="size-5 text-emerald-200" />
+      <div className="mb-5 flex items-center gap-3 text-foreground/82">
+        <MapPin className="size-5 text-emerald-700 dark:text-emerald-200" />
         <h2 className="text-lg font-medium">Unidade afetada</h2>
       </div>
 
       <div className="mb-5 flex flex-wrap items-center gap-2">
         {contrato && (
           <span className="chip-context-glass">
-            <Building2 className="size-3.5 text-emerald-200/85" />
+            <Building2 className="size-3.5 text-emerald-700/85 dark:text-emerald-200/85" />
             {contrato}
           </span>
         )}
@@ -651,7 +651,7 @@ function EtapaUnidade({
 
       {carregando && (
         <div className="space-y-2.5">
-          <p className="px-1 text-xs text-white/45">Carregando unidades oficiais do RM…</p>
+          <p className="px-1 text-xs text-foreground/45">Carregando unidades oficiais do RM…</p>
           <div className="grid gap-2 sm:grid-cols-2">
             {Array.from({ length: 6 }).map((_, i) => (
               <div
@@ -665,20 +665,20 @@ function EtapaUnidade({
       )}
 
       {erro && (
-        <p className="rounded-xl border border-rose-300/30 bg-rose-300/10 px-3 py-2 text-sm text-rose-100">
+        <p className="rounded-xl border border-rose-300/30 bg-rose-300/10 px-3 py-2 text-sm text-rose-700 dark:text-rose-100">
           {erro}
         </p>
       )}
 
       {semUnidades && (
-        <div className="rounded-2xl border border-dashed border-white/12 bg-white/[0.02] px-5 py-8 text-center">
-          <div className="mx-auto flex size-12 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] text-white/55">
+        <div className="rounded-2xl border border-dashed border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.02)] px-5 py-8 text-center">
+          <div className="mx-auto flex size-12 items-center justify-center rounded-full border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] text-foreground/55">
             <UserX className="size-5" />
           </div>
-          <p className="mt-4 text-sm font-medium text-white/78">
+          <p className="mt-4 text-sm font-medium text-foreground/78">
             Não há unidades cadastradas para este contrato
           </p>
-          <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-white/45">
+          <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-foreground/45">
             O Plan não tem unidade preenchida para esse contrato. Volte e escolha
             outro contrato ou confira o cadastro no monday.
           </p>
@@ -687,13 +687,13 @@ function EtapaUnidade({
 
       {todasVazias && (
         <div className="rounded-2xl border border-dashed border-amber-200/25 bg-amber-300/[0.06] px-5 py-8 text-center">
-          <div className="mx-auto flex size-12 items-center justify-center rounded-full border border-amber-200/30 bg-amber-300/15 text-amber-200">
+          <div className="mx-auto flex size-12 items-center justify-center rounded-full border border-amber-200/30 bg-amber-300/15 text-amber-700 dark:text-amber-200">
             <UserX className="size-5" />
           </div>
-          <p className="mt-4 text-sm font-medium text-amber-50">
+          <p className="mt-4 text-sm font-medium text-amber-700 dark:text-amber-50">
             Nenhuma unidade tem intermitentes convocados em {mesReferencia ?? "este mês"}
           </p>
-          <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-amber-100/65">
+          <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-amber-700/65 dark:text-amber-100/65">
             Volte e escolha outro contrato — ou aguarde novas convocações serem cadastradas no Plan.
           </p>
         </div>
@@ -702,16 +702,16 @@ function EtapaUnidade({
       {!carregando && unidades.length > 0 && !todasVazias && (
         <div className="space-y-3">
           <label className="relative block">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-white/35" />
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-foreground/35" />
             <input
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar unidade"
-              className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] pl-10 pr-4 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-emerald-200/45 focus:bg-white/[0.07]"
+              className="h-12 w-full rounded-2xl border border-[rgb(var(--ink)/0.1)] bg-[rgb(var(--ink)/0.04)] pl-10 pr-4 text-sm text-foreground outline-none transition placeholder:text-foreground/30 focus:border-emerald-200/45 focus:bg-[rgb(var(--ink)/0.07)]"
             />
           </label>
 
-          <div className="flex items-center justify-between gap-3 text-xs text-white/45">
+          <div className="flex items-center justify-between gap-3 text-xs text-foreground/45">
             <span>
               {unidadesFiltradas.length} unidades · {totalComPessoas} com convocações
             </span>
@@ -719,11 +719,11 @@ function EtapaUnidade({
           </div>
 
           {unidadesFiltradas.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-white/12 bg-white/[0.02] px-5 py-8 text-center">
-              <p className="text-sm font-medium text-white/78">
+            <div className="rounded-2xl border border-dashed border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.02)] px-5 py-8 text-center">
+              <p className="text-sm font-medium text-foreground/78">
                 Nenhuma unidade encontrada para esse termo
               </p>
-              <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-white/45">
+              <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-foreground/45">
                 Tente buscar por uma parte do nome, sem acento ou abreviação.
               </p>
             </div>
@@ -748,10 +748,10 @@ function EtapaUnidade({
                     title={vazia ? "Nenhum intermitente convocado nesta unidade este mês" : undefined}
                     className={`fade-up tile-unidade ${vazia ? "" : "tile-ripple-emerald"} flex min-h-14 items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left backdrop-blur-md transition ${
                       selected
-                        ? "border-emerald-200/55 bg-emerald-200/16 text-emerald-50 shadow-[0_0_18px_-6px_rgba(110,231,183,0.55)]"
+                        ? "border-emerald-200/55 bg-emerald-200/16 text-emerald-700 dark:text-emerald-50 shadow-[0_0_18px_-6px_rgba(110,231,183,0.55)]"
                         : vazia
-                          ? "tile-unidade-vazio cursor-not-allowed border-white/8 bg-white/[0.02] text-white/35"
-                          : "border-white/10 bg-white/[0.035] text-white/82 hover:border-emerald-200/35 hover:bg-emerald-200/[0.07] hover:text-white/95"
+                          ? "tile-unidade-vazio cursor-not-allowed border-[rgb(var(--ink)/0.08)] bg-[rgb(var(--ink)/0.02)] text-foreground/35"
+                          : "border-[rgb(var(--ink)/0.1)] bg-[rgb(var(--ink)/0.035)] text-foreground/82 hover:border-emerald-200/35 hover:bg-emerald-200/[0.07] hover:text-foreground/95"
                     }`}
                     style={{ animationDelay: `${50 + Math.min(i, 12) * 20}ms` }}
                   >
@@ -759,7 +759,7 @@ function EtapaUnidade({
                       <span className="truncate text-sm font-medium leading-snug">
                         {u.label}
                         {u.foraRm && (
-                          <span className="ml-1.5 align-middle text-[9px] uppercase tracking-wider text-amber-200/65">
+                          <span className="ml-1.5 align-middle text-[9px] uppercase tracking-wider text-amber-700/65 dark:text-amber-200/65">
                             fora-rm
                           </span>
                         )}
@@ -767,8 +767,8 @@ function EtapaUnidade({
                       <span
                         className={`inline-flex w-fit items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${
                           vazia
-                            ? "border-white/8 bg-white/[0.02] text-white/30"
-                            : "border-emerald-300/35 bg-emerald-300/10 text-emerald-200/95"
+                            ? "border-[rgb(var(--ink)/0.08)] bg-[rgb(var(--ink)/0.02)] text-foreground/30"
+                            : "border-emerald-300/35 bg-emerald-300/10 text-emerald-700/95 dark:text-emerald-200/95"
                         }`}
                       >
                         {vazia
@@ -776,7 +776,7 @@ function EtapaUnidade({
                           : `${u.qtdIntermitentes} ${u.qtdIntermitentes === 1 ? "pessoa" : "pessoas"}`}
                       </span>
                     </div>
-                    {!vazia && <ChevronRight className="size-4 shrink-0 text-white/35" />}
+                    {!vazia && <ChevronRight className="size-4 shrink-0 text-foreground/35" />}
                   </button>
                 )
               })}
@@ -805,8 +805,8 @@ function EtapaData({
 }) {
   return (
     <section>
-      <div className="mb-5 flex items-center gap-3 text-white/82">
-        <CalendarDays className="size-5 text-emerald-200" />
+      <div className="mb-5 flex items-center gap-3 text-foreground/82">
+        <CalendarDays className="size-5 text-emerald-700 dark:text-emerald-200" />
         <h2 className="text-lg font-medium">Dia do mês atual</h2>
       </div>
       <CalendarioMesAtual data={data} contrato={contrato} onSelecionar={onSelecionar} />
@@ -841,13 +841,13 @@ function CalendarioMesAtual({
   }, [hoje])
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-      <p className="text-display mb-4 text-center text-2xl capitalize text-white">
+    <div className="rounded-2xl border border-[rgb(var(--ink)/0.1)] bg-[rgb(var(--ink)/0.03)] p-4">
+      <p className="text-display mb-4 text-center text-2xl capitalize text-foreground">
         {format(hoje, "MMMM 'de' yyyy", { locale: ptBR })}
       </p>
       <div className="grid grid-cols-7 gap-1.5">
         {["D", "S", "T", "Q", "Q", "S", "S"].map((d, i) => (
-          <div key={`${d}-${i}`} className="py-1 text-center text-[10px] uppercase tracking-wider text-white/38">
+          <div key={`${d}-${i}`} className="py-1 text-center text-[10px] uppercase tracking-wider text-foreground/38">
             {d}
           </div>
         ))}
@@ -869,8 +869,8 @@ function CalendarioMesAtual({
                 selecionado
                   ? "bg-emerald-300 text-[#02120d] shadow-[0_0_22px_rgba(110,231,183,0.45)]"
                   : disabled
-                    ? "cursor-not-allowed text-white/16"
-                    : "text-white/88 hover:bg-emerald-300/12 hover:text-emerald-100"
+                    ? "cursor-not-allowed text-foreground/16"
+                    : "text-foreground/88 hover:bg-emerald-300/12 hover:text-emerald-700 dark:text-emerald-100"
               }`}
             >
               {d.getDate()}
@@ -881,7 +881,7 @@ function CalendarioMesAtual({
           )
         })}
       </div>
-      <p className="mt-4 text-xs leading-relaxed text-white/45">
+      <p className="mt-4 text-xs leading-relaxed text-foreground/45">
         Domingos e feriados nacionais ficam bloqueados. Sábados seguem
         liberados porque algumas convocações têm sábado ativo ou extra.
       </p>
@@ -912,8 +912,8 @@ function EtapaBeneficios({
 }) {
   return (
     <section>
-      <div className="mb-5 flex items-center gap-3 text-white/82">
-        <WalletCards className="size-5 text-emerald-200" />
+      <div className="mb-5 flex items-center gap-3 text-foreground/82">
+        <WalletCards className="size-5 text-emerald-700 dark:text-emerald-200" />
         <h2 className="text-lg font-medium">Benefícios a descontar</h2>
       </div>
 
@@ -921,19 +921,19 @@ function EtapaBeneficios({
       <div className="mb-5 flex flex-wrap items-center gap-2">
         {contrato && (
           <span className="chip-context-glass">
-            <Building2 className="size-3.5 text-emerald-200/85" />
+            <Building2 className="size-3.5 text-emerald-700/85 dark:text-emerald-200/85" />
             {contrato}
           </span>
         )}
         {unidade && (
           <span className="chip-context-glass">
-            <MapPin className="size-3.5 text-emerald-200/85" />
+            <MapPin className="size-3.5 text-emerald-700/85 dark:text-emerald-200/85" />
             {unidade}
           </span>
         )}
         {data && (
           <span className="chip-context-glass">
-            <CalendarDays className="size-3.5 text-emerald-200/85" />
+            <CalendarDays className="size-3.5 text-emerald-700/85 dark:text-emerald-200/85" />
             {formatarData(data)}
           </span>
         )}
@@ -959,7 +959,7 @@ function EtapaBeneficios({
       </div>
 
       {erro && (
-        <p className="mt-4 rounded-xl border border-rose-300/30 bg-rose-300/10 px-3 py-2 text-sm text-rose-100">
+        <p className="mt-4 rounded-xl border border-rose-300/30 bg-rose-300/10 px-3 py-2 text-sm text-rose-700 dark:text-rose-100">
           {erro}
         </p>
       )}
@@ -1017,7 +1017,7 @@ function TileBeneficio({
       onMouseLeave={handleTiltLeave}
       data-tone={tone}
       data-selected={selecionado || undefined}
-      className="tile-contrato tile-beneficio group relative flex w-full items-center gap-4 rounded-2xl border border-white/12 px-4 py-5 text-left"
+      className="tile-contrato tile-beneficio group relative flex w-full items-center gap-4 rounded-2xl border border-[rgb(var(--ink)/0.12)] px-4 py-5 text-left"
     >
       <div
         className={`icon-3d-host flex size-12 shrink-0 items-center justify-center rounded-2xl ring-1 ${tones.iconBg} ${tones.iconRing}`}
@@ -1025,10 +1025,10 @@ function TileBeneficio({
         <Icone className={`size-5 ${tones.iconColor}`} />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-lg font-semibold leading-tight text-white">
+        <p className="text-lg font-semibold leading-tight text-foreground">
           {titulo}
         </p>
-        <p className="mt-0.5 text-xs text-white/55">{descricao}</p>
+        <p className="mt-0.5 text-xs text-foreground/55">{descricao}</p>
       </div>
       <div
         aria-hidden
@@ -1037,12 +1037,12 @@ function TileBeneficio({
             ? tone === "emerald"
               ? "border-emerald-300/70 bg-emerald-300/25"
               : "border-sky-300/70 bg-sky-300/25"
-            : "border-white/15 bg-white/[0.03]"
+            : "border-[rgb(var(--ink)/0.15)] bg-[rgb(var(--ink)/0.03)]"
         }`}
       >
         {selecionado && (
           <CheckCircle2
-            className={`size-4 ${tone === "emerald" ? "text-emerald-200" : "text-sky-200"}`}
+            className={`size-4 ${tone === "emerald" ? "text-emerald-700 dark:text-emerald-200" : "text-sky-700 dark:text-sky-200"}`}
           />
         )}
       </div>
@@ -1067,20 +1067,20 @@ function EtapaConfirmar({
   return (
     <section>
       <div className="mb-5 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3 text-white/82">
-          <Users className="size-5 text-emerald-200" />
+        <div className="flex items-center gap-3 text-foreground/82">
+          <Users className="size-5 text-emerald-700 dark:text-emerald-200" />
           <h2 className="text-lg font-medium">Prévia de afetados</h2>
         </div>
         <span
           className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs ${
             vazio
-              ? "border-white/15 bg-white/[0.04] text-white/65"
-              : "border-emerald-200/35 bg-emerald-200/14 text-emerald-100"
+              ? "border-[rgb(var(--ink)/0.15)] bg-[rgb(var(--ink)/0.04)] text-foreground/65"
+              : "border-emerald-200/35 bg-emerald-200/14 text-emerald-700 dark:text-emerald-100"
           }`}
         >
           <span
             className={`size-1.5 rounded-full ${
-              vazio ? "bg-white/40" : "bg-emerald-300 shadow-[0_0_8px_2px_rgba(110,231,183,0.55)]"
+              vazio ? "bg-[rgb(var(--ink)/0.4)]" : "bg-emerald-300 shadow-[0_0_8px_2px_rgba(110,231,183,0.55)]"
             }`}
           />
           {preview.totalColaboradores} convocados
@@ -1107,7 +1107,7 @@ function EtapaConfirmar({
       </div>
 
       {erro && (
-        <p className="mt-4 rounded-xl border border-rose-300/30 bg-rose-300/10 px-3 py-2 text-sm text-rose-100">
+        <p className="mt-4 rounded-xl border border-rose-300/30 bg-rose-300/10 px-3 py-2 text-sm text-rose-700 dark:text-rose-100">
           {erro}
         </p>
       )}
@@ -1131,16 +1131,16 @@ function EtapaConfirmar({
 function EstadoVazio({ aviso }: { aviso: string | null }) {
   const { titulo, detalhe } = legendaAviso(aviso)
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/12 bg-white/[0.02] px-5 py-10 text-center">
-      <div className="flex size-14 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] text-white/55">
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.02)] px-5 py-10 text-center">
+      <div className="flex size-14 items-center justify-center rounded-full border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] text-foreground/55">
         <UserX className="size-6" />
       </div>
-      <p className="mt-4 text-sm font-medium text-white/78">{titulo}</p>
-      <p className="mt-1 max-w-xs text-xs leading-relaxed text-white/45">
+      <p className="mt-4 text-sm font-medium text-foreground/78">{titulo}</p>
+      <p className="mt-1 max-w-xs text-xs leading-relaxed text-foreground/45">
         {detalhe}
       </p>
       {aviso && (
-        <p className="mt-3 inline-flex rounded-full border border-white/8 bg-white/[0.03] px-2 py-0.5 font-mono text-[10px] text-white/35">
+        <p className="mt-3 inline-flex rounded-full border border-[rgb(var(--ink)/0.08)] bg-[rgb(var(--ink)/0.03)] px-2 py-0.5 font-mono text-[10px] text-foreground/35">
           {aviso}
         </p>
       )}
@@ -1152,15 +1152,15 @@ function ContextoPreview({ preview }: { preview: PontoFacultativoPreview }) {
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2">
       <span className="chip-context-glass">
-        <Building2 className="size-3.5 text-emerald-200/85" />
+        <Building2 className="size-3.5 text-emerald-700/85 dark:text-emerald-200/85" />
         {preview.contrato}
       </span>
       <span className="chip-context-glass">
-        <MapPin className="size-3.5 text-emerald-200/85" />
+        <MapPin className="size-3.5 text-emerald-700/85 dark:text-emerald-200/85" />
         {preview.unidade}
       </span>
       <span className="chip-context-glass">
-        <CalendarDays className="size-3.5 text-emerald-200/85" />
+        <CalendarDays className="size-3.5 text-emerald-700/85 dark:text-emerald-200/85" />
         {formatarData(preview.data)}
       </span>
     </div>
@@ -1169,26 +1169,26 @@ function ContextoPreview({ preview }: { preview: PontoFacultativoPreview }) {
 
 function CardIntermitente({ item }: { item: PontoFacultativoItem }) {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035] p-4 transition hover:border-white/20 hover:bg-white/[0.05]">
+    <div className="relative overflow-hidden rounded-2xl border border-[rgb(var(--ink)/0.1)] bg-[rgb(var(--ink)/0.035)] p-4 transition hover:border-[rgb(var(--ink)/0.2)] hover:bg-[rgb(var(--ink)/0.05)]">
       {/* halo lateral discreto na cor do total */}
       <span className="pointer-events-none absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b from-emerald-300/60 via-emerald-300/20 to-transparent" />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <p className="truncate font-medium text-white/92">{item.nome}</p>
-          <p className="mt-1 text-xs text-white/45">
+          <p className="truncate font-medium text-foreground/92">{item.nome}</p>
+          <p className="mt-1 text-xs text-foreground/45">
             {item.chapa}
             {item.funcao ? ` · ${item.funcao}` : ""}
           </p>
-          <p className="mt-0.5 text-[11px] text-white/38">
+          <p className="mt-0.5 text-[11px] text-foreground/38">
             {item.unidade}
           </p>
-          <p className="mt-0.5 text-[11px] text-white/35">
+          <p className="mt-0.5 text-[11px] text-foreground/35">
             {item.periodoInicio} a {item.periodoFim}
           </p>
         </div>
         <div className="text-right">
-          <p className="text-[10px] uppercase tracking-[0.22em] text-white/35">Total</p>
-          <p className="mt-0.5 text-base font-semibold text-emerald-100">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-foreground/35">Total</p>
+          <p className="mt-0.5 text-base font-semibold text-emerald-700 dark:text-emerald-100">
             {moeda(item.total)}
           </p>
         </div>
@@ -1199,7 +1199,7 @@ function CardIntermitente({ item }: { item: PontoFacultativoItem }) {
         {item.avisos.map((a) => (
           <span
             key={a}
-            className="inline-flex items-center gap-1 rounded-full border border-amber-300/30 bg-amber-300/10 px-2 py-0.5 text-amber-100"
+            className="inline-flex items-center gap-1 rounded-full border border-amber-300/30 bg-amber-300/10 px-2 py-0.5 text-amber-700 dark:text-amber-100"
           >
             <Sparkles className="size-3" />
             {a}
@@ -1223,9 +1223,9 @@ function BadgeBeneficio({
 }) {
   const cls = aplicado
     ? tone === "emerald"
-      ? "border-emerald-300/35 bg-emerald-300/12 text-emerald-100"
-      : "border-sky-300/35 bg-sky-300/12 text-sky-100"
-    : "border-white/8 bg-white/[0.03] text-white/32 line-through decoration-white/20"
+      ? "border-emerald-300/35 bg-emerald-300/12 text-emerald-700 dark:text-emerald-100"
+      : "border-sky-300/35 bg-sky-300/12 text-sky-700 dark:text-sky-100"
+    : "border-[rgb(var(--ink)/0.08)] bg-[rgb(var(--ink)/0.03)] text-foreground/32 line-through decoration-white/20"
   return (
     <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 ${cls}`}>
       <span className="font-semibold">{label}</span>
@@ -1274,22 +1274,22 @@ function CardTotal({
     tone === "total"
       ? {
           wrap: "border-emerald-200/30 bg-gradient-to-br from-emerald-300/12 via-emerald-200/[0.04] to-transparent shadow-[0_8px_28px_-12px_rgba(110,231,183,0.45)]",
-          label: "text-emerald-100/75",
-          valor: "text-emerald-50",
-          iconBg: "bg-emerald-300/14 ring-emerald-300/35 text-emerald-200",
+          label: "text-emerald-700/75 dark:text-emerald-100/75",
+          valor: "text-emerald-700 dark:text-emerald-50",
+          iconBg: "bg-emerald-300/14 ring-emerald-300/35 text-emerald-700 dark:text-emerald-200",
         }
       : tone === "emerald"
         ? {
-            wrap: "border-white/10 bg-white/[0.035]",
-            label: "text-white/45",
-            valor: "text-white",
-            iconBg: "bg-emerald-300/10 ring-emerald-300/25 text-emerald-200/85",
+            wrap: "border-[rgb(var(--ink)/0.1)] bg-[rgb(var(--ink)/0.035)]",
+            label: "text-foreground/45",
+            valor: "text-foreground",
+            iconBg: "bg-emerald-300/10 ring-emerald-300/25 text-emerald-700/85 dark:text-emerald-200/85",
           }
         : {
-            wrap: "border-white/10 bg-white/[0.035]",
-            label: "text-white/45",
-            valor: "text-white",
-            iconBg: "bg-sky-300/10 ring-sky-300/25 text-sky-200/85",
+            wrap: "border-[rgb(var(--ink)/0.1)] bg-[rgb(var(--ink)/0.035)]",
+            label: "text-foreground/45",
+            valor: "text-foreground",
+            iconBg: "bg-sky-300/10 ring-sky-300/25 text-sky-700/85 dark:text-sky-200/85",
           }
   return (
     <div
@@ -1321,11 +1321,11 @@ function EtapaSucesso({
 }) {
   return (
     <section className="text-center">
-      <div className="mx-auto flex size-16 items-center justify-center rounded-full border border-emerald-200/30 bg-emerald-200/12 text-emerald-100">
+      <div className="mx-auto flex size-16 items-center justify-center rounded-full border border-emerald-200/30 bg-emerald-200/12 text-emerald-700 dark:text-emerald-100">
         <CheckCircle2 className="size-7" />
       </div>
-      <h2 className="text-display mt-5 text-4xl text-white">Aplicado</h2>
-      <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-white/58">
+      <h2 className="text-display mt-5 text-4xl text-foreground">Aplicado</h2>
+      <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-foreground/58">
         O ledger dos históricos foi marcado e a base de desconto recebeu os
         valores do ponto facultativo.
       </p>

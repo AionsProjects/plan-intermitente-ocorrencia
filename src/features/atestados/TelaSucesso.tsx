@@ -16,19 +16,19 @@ export function TelaSucesso({ resultado, totalEnviado, onNovaSessao }: Props) {
   return (
     <div className="text-center">
       <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-emerald-300/12 ring-1 ring-emerald-300/35">
-        <CheckCircle2 className="size-8 text-emerald-300" />
+        <CheckCircle2 className="size-8 text-emerald-700 dark:text-emerald-300" />
       </div>
-      <h1 className="text-display mt-6 text-4xl leading-[1.05] text-white">
-        Documentos <em className="italic text-emerald-300">enviados</em>
+      <h1 className="text-display mt-6 text-4xl leading-[1.05] text-foreground">
+        Documentos <em className="italic text-emerald-700 dark:text-emerald-300">enviados</em>
       </h1>
-      <p className="mt-3 text-sm leading-relaxed text-white/65">
+      <p className="mt-3 text-sm leading-relaxed text-foreground/65">
         {okCount} de {totalEnviado}{" "}
         {totalEnviado === 1 ? "documento processado" : "documentos processados"}
         {errCount > 0 && `, ${errCount} com erro`}.
       </p>
 
       {errCount > 0 && (
-        <ul className="mt-5 space-y-1.5 rounded-2xl border border-rose-300/25 bg-rose-300/8 p-4 text-left text-xs text-rose-100">
+        <ul className="mt-5 space-y-1.5 rounded-2xl border border-rose-300/25 bg-rose-300/8 p-4 text-left text-xs text-rose-700 dark:text-rose-100">
           {resultado.resultados
             .filter((r) => r.erro)
             .map((r) => (
@@ -43,7 +43,7 @@ export function TelaSucesso({ resultado, totalEnviado, onNovaSessao }: Props) {
         <CtaNovaSessao onClick={onNovaSessao} />
         <Link
           to="/"
-          className="text-xs text-white/55 transition hover:text-white/85"
+          className="text-xs text-foreground/55 transition hover:text-foreground/85"
         >
           Voltar ao início
         </Link>

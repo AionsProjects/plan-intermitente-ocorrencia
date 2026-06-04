@@ -81,30 +81,30 @@ export function ResumoSessao({
         <div className="resumo-dock group fixed bottom-6 right-6 z-40">
           <div className="resumo-dock-preview">
             <div className="resumo-dock-preview-card">
-              <p className="text-[9px] uppercase tracking-[0.28em] text-amber-100/65">
+              <p className="text-[9px] uppercase tracking-[0.28em] text-amber-700/65 dark:text-amber-100/65">
                 Sessão · {total} {total === 1 ? "doc" : "docs"}
               </p>
               <ul className="mt-2 space-y-1.5">
                 {grupos.slice(0, 4).map((g) => (
                   <li
                     key={g.chapa || g.nome}
-                    className="flex items-center justify-between gap-3 text-xs text-white/85"
+                    className="flex items-center justify-between gap-3 text-xs text-foreground/85"
                   >
                     <span className="truncate">
                       {g.nome.split(" ").slice(0, 2).join(" ")}
                     </span>
-                    <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-100">
+                    <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-100">
                       {g.docs.length}
                     </span>
                   </li>
                 ))}
                 {grupos.length > 4 && (
-                  <li className="text-[10px] text-white/45">
+                  <li className="text-[10px] text-foreground/45">
                     +{grupos.length - 4} pessoas
                   </li>
                 )}
               </ul>
-              <p className="mt-3 text-[9px] uppercase tracking-[0.22em] text-amber-100/55">
+              <p className="mt-3 text-[9px] uppercase tracking-[0.22em] text-amber-700/55 dark:text-amber-100/55">
                 Clique pra abrir
               </p>
             </div>
@@ -115,12 +115,12 @@ export function ResumoSessao({
             onClick={onAbrir}
             onMouseMove={handleTiltMove}
             onMouseLeave={handleTiltLeave}
-            className={`floating-resumo relative inline-flex items-center gap-2 rounded-full border border-amber-300/40 bg-[#0a1224]/85 px-5 py-3 text-sm font-medium text-amber-100 shadow-[0_8px_24px_rgba(0,0,0,0.45)] backdrop-blur-xl hover:border-amber-300/70 hover:bg-[#0a1224]/95 ${
+            className={`floating-resumo relative inline-flex items-center gap-2 rounded-full border border-amber-300/40 bg-card/85 px-5 py-3 text-sm font-medium text-amber-700 dark:text-amber-100 shadow-[0_8px_24px_rgba(0,0,0,0.45)] backdrop-blur-xl hover:border-amber-300/70 hover:bg-card/95 ${
               pulse ? "pulse-on-add" : ""
             }`}
           >
             <span
-              className={`flex size-6 items-center justify-center rounded-full bg-amber-300/20 text-xs font-semibold text-amber-100 ${
+              className={`flex size-6 items-center justify-center rounded-full bg-amber-300/20 text-xs font-semibold text-amber-700 dark:text-amber-100 ${
                 pulse ? "badge-bounce" : ""
               }`}
             >
@@ -128,7 +128,7 @@ export function ResumoSessao({
             </span>
             Resumo
             {sessao.ultimaPessoa && (
-              <span className="ml-1 hidden text-xs text-amber-100/55 sm:inline">
+              <span className="ml-1 hidden text-xs text-amber-700/55 dark:text-amber-100/55 sm:inline">
                 · última: {sessao.ultimaPessoa.nome.split(" ")[0]}
               </span>
             )}
@@ -138,19 +138,19 @@ export function ResumoSessao({
 
       <Dialog open={open} onOpenChange={(o) => !o && onFechar()}>
         <DialogContent
-          className="glass-modal border-0 bg-transparent p-8 text-white sm:max-w-lg"
+          className="glass-modal border-0 bg-transparent p-8 text-foreground sm:max-w-lg"
           style={{
             backdropFilter: "blur(10px) saturate(140%) brightness(1.05)",
           }}
         >
           <DialogHeader>
-            <p className="text-[10px] uppercase tracking-[0.3em] text-amber-200/80">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-amber-700/80 dark:text-amber-200/80">
               Resumo
             </p>
-            <DialogTitle className="text-display text-3xl text-white">
+            <DialogTitle className="text-display text-3xl text-foreground">
               Documentos <em className="italic text-[#e8c275]">adicionados</em>
             </DialogTitle>
-            <DialogDescription className="text-white/65">
+            <DialogDescription className="text-foreground/65">
               {total === 0
                 ? "Nenhum documento na sessão."
                 : "Revise antes de concluir. O envio só acontece em Concluir."}
@@ -162,10 +162,10 @@ export function ResumoSessao({
               {grupos.map((g) => (
                 <li key={g.chapa || g.nome} className="space-y-1.5">
                   {grupos.length > 1 && (
-                    <p className="px-1 text-[10px] uppercase tracking-[0.28em] text-white/45">
+                    <p className="px-1 text-[10px] uppercase tracking-[0.28em] text-foreground/45">
                       {g.nome}
                       {g.chapa ? (
-                        <span className="text-white/30"> · chapa {g.chapa}</span>
+                        <span className="text-foreground/30"> · chapa {g.chapa}</span>
                       ) : null}
                     </p>
                   )}
@@ -180,7 +180,7 @@ export function ResumoSessao({
           )}
 
           {erro && (
-            <p className="mt-4 rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-center text-sm text-rose-100">
+            <p className="mt-4 rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-center text-sm text-rose-700 dark:text-rose-100">
               {erro}
             </p>
           )}
@@ -244,13 +244,13 @@ function ItemResumo({
       : "preview-doc-tile tone-atestado"
 
   return (
-    <li className={`${toneClass} rounded-2xl border border-white/12 bg-white/5 p-4 pl-6`}>
+    <li className={`${toneClass} rounded-2xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.05)] p-4 pl-6`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-white/95">{rotulo}</p>
-          <p className="mt-0.5 text-xs text-white/65">{doc.empregadoNome}</p>
-          <p className="mt-2 text-xs text-white/55">{periodo}</p>
-          <p className="mt-1 text-xs text-white/45">
+          <p className="text-sm font-semibold text-foreground/95">{rotulo}</p>
+          <p className="mt-0.5 text-xs text-foreground/65">{doc.empregadoNome}</p>
+          <p className="mt-2 text-xs text-foreground/55">{periodo}</p>
+          <p className="mt-1 text-xs text-foreground/45">
             {doc.nomeArquivo} · {formatarBytes(doc.tamanhoArquivo)}
           </p>
         </div>
@@ -258,7 +258,7 @@ function ItemResumo({
           type="button"
           onClick={() => onRemover(doc.id)}
           aria-label="Remover documento"
-          className="inline-flex size-8 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] text-white/55 transition hover:border-rose-300/50 hover:bg-rose-400/10 hover:text-rose-200"
+          className="inline-flex size-8 shrink-0 items-center justify-center rounded-full border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] text-foreground/55 transition hover:border-rose-300/50 hover:bg-rose-400/10 hover:text-rose-700 dark:text-rose-200"
         >
           <Trash2 className="size-3.5" />
         </button>

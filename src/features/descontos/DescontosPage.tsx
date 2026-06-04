@@ -162,10 +162,10 @@ function ToastSucesso() {
   return (
     <div className="flex flex-col items-center gap-4 py-12 text-center">
       <div className="inline-flex size-14 items-center justify-center rounded-full bg-emerald-300/15 ring-1 ring-emerald-300/40">
-        <CheckCircle2 className="size-7 text-emerald-300" />
+        <CheckCircle2 className="size-7 text-emerald-700 dark:text-emerald-300" />
       </div>
-      <p className="text-display text-2xl text-white">Retirada registrada</p>
-      <p className="text-xs uppercase tracking-[0.28em] text-white/45">
+      <p className="text-display text-2xl text-foreground">Retirada registrada</p>
+      <p className="text-xs uppercase tracking-[0.28em] text-foreground/45">
         Fechando esta aba…
       </p>
     </div>

@@ -62,7 +62,7 @@ export function EtapaValorBeneficio({
       <HeaderEmpregado dados={dados} />
 
       {registradoAnterior && (
-        <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-300/25 bg-emerald-300/[0.06] px-3 py-1 text-[11px] text-emerald-200/85">
+        <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-300/25 bg-emerald-300/[0.06] px-3 py-1 text-[11px] text-emerald-700/85 dark:text-emerald-200/85">
           <span className="font-medium">
             {registradoAnterior.tipo} registrado:
           </span>
@@ -72,31 +72,31 @@ export function EtapaValorBeneficio({
         </div>
       )}
 
-      <p className="text-[11px] uppercase tracking-[0.32em] text-sky-200/75">
+      <p className="text-[11px] uppercase tracking-[0.32em] text-sky-700/75 dark:text-sky-200/75">
         {beneficioNome}
       </p>
-      <h1 className="text-display mt-3 text-4xl leading-[1.05] text-white">
+      <h1 className="text-display mt-3 text-4xl leading-[1.05] text-foreground">
         Quanto foi retirado de{" "}
-        <em className="italic text-sky-200">{beneficioCurto}</em>?
+        <em className="italic text-sky-700 dark:text-sky-200">{beneficioCurto}</em>?
       </h1>
 
-      <div className="mt-6 flex items-baseline gap-2 text-sm text-white/55">
+      <div className="mt-6 flex items-baseline gap-2 text-sm text-foreground/55">
         <span>Devido:</span>
-        <span className="font-mono text-white/85">{formatarReal(devido)}</span>
+        <span className="font-mono text-foreground/85">{formatarReal(devido)}</span>
       </div>
 
       <label className="mt-5 block">
-        <span className="text-[10px] uppercase tracking-[0.3em] text-white/55">
+        <span className="text-[10px] uppercase tracking-[0.3em] text-foreground/55">
           Valor retirado
         </span>
         <div
-          className={`mt-2 flex items-center gap-3 rounded-2xl border bg-white/[0.04] px-5 py-4 backdrop-blur transition ${
+          className={`mt-2 flex items-center gap-3 rounded-2xl border bg-[rgb(var(--ink)/0.04)] px-5 py-4 backdrop-blur transition ${
             acimaDoDevido
               ? "border-rose-300/50"
-              : "border-white/15 focus-within:border-sky-300/50"
+              : "border-[rgb(var(--ink)/0.15)] focus-within:border-sky-300/50"
           }`}
         >
-          <span className="text-display text-3xl text-white/55">R$</span>
+          <span className="text-display text-3xl text-foreground/55">R$</span>
           <input
             ref={inputRef}
             type="text"
@@ -109,22 +109,22 @@ export function EtapaValorBeneficio({
               const digitos = e.target.value.replace(/\D/g, "")
               onChange(digitos)
             }}
-            className="text-display flex-1 bg-transparent text-3xl font-medium tracking-wider text-white placeholder:text-white/25 focus:outline-none"
+            className="text-display flex-1 bg-transparent text-3xl font-medium tracking-wider text-foreground placeholder:text-foreground/25 focus:outline-none"
           />
         </div>
       </label>
 
       <div className="mt-3 flex items-baseline gap-2 text-sm">
         {acimaDoDevido ? (
-          <span className="text-rose-200/85">
+          <span className="text-rose-700/85 dark:text-rose-200/85">
             Valor acima do devido ({formatarReal(devido)}).
           </span>
         ) : (
           <>
-            <span className="text-white/55">Restante:</span>
+            <span className="text-foreground/55">Restante:</span>
             <span
               className={`font-mono ${
-                restante === 0 ? "text-emerald-200/85" : "text-white/85"
+                restante === 0 ? "text-emerald-700/85 dark:text-emerald-200/85" : "text-foreground/85"
               }`}
             >
               {formatarReal(restante)}

@@ -1,6 +1,8 @@
 # Ponto Facultativo - mapeamento atual
 
-Ultima atualizacao: 2026-05-23.
+Ultima atualizacao: 2026-06-04.
+
+> **Migracao board (2026-06-04):** Entrada migrada de maio `18408773953` para junho `18413180912` (board principal permanente). Coluna unidade `OP - Local/Unidade` mudou de `dropdown_mm3mcnmn` para `dropdown_mm3ts726`. Os 3 WFs de PF (Opcoes/Preview/Aplicar) ja apontam para junho. Validado E2E (preview+aplicar reais). Maio fica como historico.
 
 ## Objetivo
 
@@ -58,12 +60,12 @@ Fonte oficial de unidades:
 - Endpoint: `GET /intermitente-unidades-rm`
 - WF ID: `5PbFEf8LbmFcsoP5`
 - SQL RM: `231375` / `UNIDADES`
-- Coluna operacional sincronizada no Plan: `OP - Local/Unidade` (`dropdown_mm3mcnmn`)
+- Coluna operacional sincronizada no Plan: `OP - Local/Unidade` (`dropdown_mm3ts726`)
 - Contagens atuais: SEMSA 102, SEDUC ESCOLA 57, SEDUC SEDE 7, SEDUC INTERIOR 68, DETRAN 3, TRE PB 7, CETAM 29.
 
 ## Boards e colunas usadas
 
-### Entrada - `18408773953`
+### Entrada - `18413180912`
 
 Usado para localizar convocacoes ativas.
 
@@ -74,7 +76,7 @@ Usado para localizar convocacoes ativas.
 | CPF | `dup__of_matr_cula` | CPF quando disponivel. |
 | Funcao | `texto0` | Regra/função para valores. |
 | Contrato | `color_mktcnxwn` | Filtro principal do ponto facultativo. |
-| OP - Local/Unidade | `dropdown_mm3mcnmn` | Filtro operacional de unidade; labels sincronizadas a partir do RM. |
+| OP - Local/Unidade | `dropdown_mm3ts726` | Filtro operacional de unidade; labels sincronizadas a partir do RM. |
 | Local/Unidade legado | `texto75` | Fallback quando dropdown ainda nao estiver preenchida. |
 | Data inicio | `date_mktayxhb` | Periodo da convocacao. |
 | Data fim | `date_mktasnwq` | Periodo da convocacao. |

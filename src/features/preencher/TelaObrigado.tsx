@@ -86,15 +86,15 @@ export function TelaObrigado({ dados, ehCorrecao, ehTeste }: Props) {
         <div className="sticky top-0 z-30 w-full border-b border-amber-300/20 bg-amber-500/[0.08] px-4 py-2.5 backdrop-blur-md fade-up">
           <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
-              <FlaskConical className="size-4 shrink-0 text-amber-300" />
-              <p className="truncate text-xs leading-relaxed text-amber-100/85">
+              <FlaskConical className="size-4 shrink-0 text-amber-700 dark:text-amber-300" />
+              <p className="truncate text-xs leading-relaxed text-amber-700/85 dark:text-amber-100/85">
                 <span className="font-semibold">Quadro de teste</span>
-                <span className="text-amber-100/60"> · nada do que for enviado aqui é registrado de verdade.</span>
+                <span className="text-amber-700/60 dark:text-amber-100/60"> · nada do que for enviado aqui é registrado de verdade.</span>
               </p>
             </div>
             <Link
               to="/corrigir"
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-amber-300/30 bg-amber-300/[0.08] px-3 py-1 text-[11px] font-medium text-amber-100 transition hover:border-amber-300/50 hover:bg-amber-300/15"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-amber-300/30 bg-amber-300/[0.08] px-3 py-1 text-[11px] font-medium text-amber-700 dark:text-amber-100 transition hover:border-amber-300/50 hover:bg-amber-300/15"
             >
               <ArrowLeft className="size-3" />
               Sair do teste
@@ -121,25 +121,25 @@ export function TelaObrigado({ dados, ehCorrecao, ehTeste }: Props) {
           <Check className="size-7" strokeWidth={2.4} />
         </div>
 
-        <p className="mt-6 text-[11px] uppercase tracking-[0.32em] text-white/55">
+        <p className="mt-6 text-[11px] uppercase tracking-[0.32em] text-foreground/55">
           Tudo certo
         </p>
-        <h1 className="text-display mt-2 text-4xl leading-tight text-white">
+        <h1 className="text-display mt-2 text-4xl leading-tight text-foreground">
           Obrigado pelo <em className="italic text-[#e8c275]">preenchimento</em>
         </h1>
-        <p className="mt-3 text-sm leading-relaxed text-white/70">
-          As informações de <span className="text-white">{dados.nome}</span>{" "}
+        <p className="mt-3 text-sm leading-relaxed text-foreground/70">
+          As informações de <span className="text-foreground">{dados.nome}</span>{" "}
           foram registradas com sucesso.
         </p>
 
         {dados.protocolo && (
-          <div className="mt-7 rounded-2xl border border-white/12 bg-white/5 p-5 text-left backdrop-blur">
-            <p className="text-[10px] uppercase tracking-[0.3em] text-white/55">
+          <div className="mt-7 rounded-2xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.05)] p-5 text-left backdrop-blur">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-foreground/55">
               Protocolo
             </p>
             <div className="mt-2 flex items-center justify-between gap-3">
               <p
-                className="text-display text-2xl text-white tracking-wide select-all"
+                className="text-display text-2xl text-foreground tracking-wide select-all"
                 onClick={(e) => {
                   const range = document.createRange()
                   range.selectNodeContents(e.currentTarget)
@@ -153,11 +153,11 @@ export function TelaObrigado({ dados, ehCorrecao, ehTeste }: Props) {
               <button
                 type="button"
                 onClick={copiar}
-                className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 transition-all hover:bg-white/10 hover:text-white"
+                className="inline-flex items-center gap-1.5 rounded-full border border-[rgb(var(--ink)/0.15)] bg-[rgb(var(--ink)/0.05)] px-3 py-1.5 text-xs text-foreground/80 transition-all hover:bg-[rgb(var(--ink)/0.1)] hover:text-foreground"
               >
                 {copiado ? (
                   <>
-                    <Check className="size-3.5 text-emerald-300" />
+                    <Check className="size-3.5 text-emerald-700 dark:text-emerald-300" />
                     Copiado
                   </>
                 ) : (
@@ -168,17 +168,17 @@ export function TelaObrigado({ dados, ehCorrecao, ehTeste }: Props) {
                 )}
               </button>
             </div>
-            <p className="mt-3 text-[11px] leading-relaxed text-white/55">
+            <p className="mt-3 text-[11px] leading-relaxed text-foreground/55">
               Guarde este código. Ele permite editar este registro caso seja
               necessário corrigir alguma informação. Também fica registrado
-              no monday, na coluna <span className="text-white/75">Protocolo</span>.
+              no monday, na coluna <span className="text-foreground/75">Protocolo</span>.
             </p>
           </div>
         )}
 
         <div className="mt-5 space-y-1.5">
           {concluidoTexto && (
-            <p className="text-xs text-white/55">
+            <p className="text-xs text-foreground/55">
               Finalizado em {concluidoTexto}
             </p>
           )}
@@ -203,7 +203,7 @@ export function TelaObrigado({ dados, ehCorrecao, ehTeste }: Props) {
           </Link>
         )}
 
-        <p className="mt-8 text-xs text-white/45">
+        <p className="mt-8 text-xs text-foreground/45">
           {ehCorrecao
             ? "Ou simplesmente feche esta aba."
             : "Você já pode fechar esta aba."}

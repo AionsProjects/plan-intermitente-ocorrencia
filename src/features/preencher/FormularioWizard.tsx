@@ -825,19 +825,19 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
       <main className="mx-auto max-w-2xl px-4 pb-16">
         <section className="glass-strong p-8 sm:p-10 fade-up" style={{ animationDelay: "120ms" }}>
           <div className="flex items-start gap-3">
-            <div className="mt-1 flex size-9 items-center justify-center rounded-full bg-white/10 ring-1 ring-white/25 backdrop-blur">
-              <Sparkles className="size-4 text-white" />
+            <div className="mt-1 flex size-9 items-center justify-center rounded-full bg-[rgb(var(--ink)/0.1)] ring-1 ring-[rgb(var(--ink)/0.25)] backdrop-blur">
+              <Sparkles className="size-4 text-foreground" />
             </div>
             <div className="flex-1">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <h2 className="text-display text-3xl text-white">
+                  <h2 className="text-display text-3xl text-foreground">
                     Marque os dias com{" "}
                     <em className="italic text-[#e8c275]">ocorrência</em>
                   </h2>
-                  <p className="mt-2 text-sm leading-relaxed text-white/65">
+                  <p className="mt-2 text-sm leading-relaxed text-foreground/65">
                     Todos os dias começam como{" "}
-                    <span className="text-white/90">sem ocorrências</span>. Toque em
+                    <span className="text-foreground/90">sem ocorrências</span>. Toque em
                     um dia para registrar uma falta ou atraso.
                   </p>
                 </div>
@@ -852,11 +852,11 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
                   aria-label="Desconsiderar dia"
                 >
                   {modoApagar ? (
-                    <X className="size-4 shrink-0 text-orange-300" />
+                    <X className="size-4 shrink-0 text-orange-700 dark:text-orange-300" />
                   ) : (
                     <TrashCanIcon />
                   )}
-                  <span className="btn-label text-orange-200">
+                  <span className="btn-label text-orange-700 dark:text-orange-200">
                     {modoApagar ? "Concluir" : "Desconsiderar dia"}
                   </span>
                 </button>
@@ -874,7 +874,7 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
                   }
                 >
                   <CancelXIcon />
-                  <span className="btn-label text-red-200">
+                  <span className="btn-label text-red-700 dark:text-red-200">
                     {jaCanceladoParcial
                       ? "Reverter cancelamento"
                       : "Cancelar convocação"}
@@ -888,7 +888,7 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
                     aria-label="Adicionar sábados"
                   >
                     <SabadosExtrasIcon />
-                    <span className="btn-label text-blue-200">
+                    <span className="btn-label text-blue-700 dark:text-blue-200">
                       Adicionar sábados
                     </span>
                   </button>
@@ -900,7 +900,7 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
                   aria-label={splitAtivo ? "Editar divisão" : "Dividir convocação"}
                 >
                   <SplitIcon />
-                  <span className="btn-label text-violet-200">
+                  <span className="btn-label text-violet-700 dark:text-violet-200">
                     {splitAtivo ? "Editar divisão" : "Dividir convocação"}
                   </span>
                 </button>
@@ -943,13 +943,13 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
           {jaCanceladoParcial && cancelamentoParcialEfetivo && (
             <div className="mt-4 flex items-start gap-3 rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-3 fade-up">
               <CancelXIcon />
-              <div className="flex-1 text-sm text-amber-100/95">
+              <div className="flex-1 text-sm text-amber-700/95 dark:text-amber-100/95">
                 <p className="font-medium">
                   {cancelamentoParcialPendente
                     ? `Cancelamento parcial pendente a partir de ${formatarDataNumerica(cancelamentoParcialEfetivo)}.`
                     : `Cancelamento parcial registrado a partir de ${formatarDataNumerica(cancelamentoParcialEfetivo)}.`}
                 </p>
-                <p className="mt-1 text-xs text-amber-100/70">
+                <p className="mt-1 text-xs text-amber-700/70 dark:text-amber-100/70">
                   {cancelamentoParcialPendente
                     ? "Será enviado quando você clicar em Finalizar e enviar. Toque em um dia cancelado para reverter antes do envio."
                     : "Os dias a partir dessa data ficam bloqueados. Toque em um dia cancelado para reverter o cancelamento."}
@@ -961,16 +961,16 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
           {/* Desconsiderar mode banner */}
           {modoApagar && (
             <div className="glass-banner-danger mt-4 flex items-center justify-center gap-2 px-4 py-3 fade-up">
-              <Trash2 className="size-4 text-red-300/80" />
-              <p className="text-sm text-red-200/80">
+              <Trash2 className="size-4 text-red-700/80 dark:text-red-300/80" />
+              <p className="text-sm text-red-700/80 dark:text-red-200/80">
                 Toque em um dia para desconsiderá-lo. Clique em{" "}
-                <strong className="text-red-200">Concluir</strong> quando terminar.
+                <strong className="text-red-700 dark:text-red-200">Concluir</strong> quando terminar.
               </p>
             </div>
           )}
 
           {finalizar.isError ? (
-            <p className="mt-6 rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-center text-sm text-rose-100">
+            <p className="mt-6 rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-center text-sm text-rose-700 dark:text-rose-100">
               {erroEnvio}
             </p>
           ) : null}
@@ -997,7 +997,7 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
               )}
             </button>
 
-            <p className="text-center text-xs text-white/55">
+            <p className="text-center text-xs text-foreground/55">
               {totalOcorrencias === 0
                 ? "Nenhuma ocorrência registrada — você pode finalizar sem registrar nada."
                 : `${totalOcorrencias} ${
@@ -1249,10 +1249,10 @@ function DiaItem({
         <p
           className={`text-[10px] uppercase tracking-[0.18em] ${
             isCancelado
-              ? "text-orange-300/55"
+              ? "text-orange-700/55 dark:text-orange-300/55"
               : isDisabled
-                ? "text-white/30"
-                : "text-white/55"
+                ? "text-foreground/30"
+                : "text-foreground/55"
           }`}
         >
           {formatarDiaSemana(diaInfo.data)}
@@ -1260,41 +1260,41 @@ function DiaItem({
         <p
           className={`text-display text-2xl leading-none ${
             isCancelado
-              ? "text-orange-200/60"
+              ? "text-orange-700/60 dark:text-orange-200/60"
               : isDisabled
-                ? "text-white/35 line-through"
-                : "text-white/95"
+                ? "text-foreground/35 line-through"
+                : "text-foreground/95"
           }`}
         >
           {formatarDiaCurto(diaInfo.data)}
         </p>
         <div className="mt-1 text-xs">
           {isCancelado ? (
-            <span className="dia-cancelado-badge inline-flex items-center gap-1.5 text-orange-200/85">
+            <span className="dia-cancelado-badge inline-flex items-center gap-1.5 text-orange-700/85 dark:text-orange-200/85">
               <CancelXIcon />
               Dia cancelado
             </span>
           ) : isDisabled ? (
-            <span className="inline-flex items-center gap-1.5 text-violet-300/75">
+            <span className="inline-flex items-center gap-1.5 text-violet-700/75 dark:text-violet-300/75">
               <LampBroken />
               Desconsiderado
             </span>
           ) : isAtestado ? (
             <span
               className={`inline-flex items-center gap-1.5 ${
-                ehDeclaracaoPura ? "text-violet-200" : "text-amber-200"
+                ehDeclaracaoPura ? "text-violet-700 dark:text-violet-200" : "text-amber-700 dark:text-amber-200"
               }`}
             >
               <FileText className="size-3" />
               {rotularDocumentoTile(atestadosNoDia)}
             </span>
           ) : isPontoFacultativo ? (
-            <span className="inline-flex flex-col items-center gap-0.5 text-emerald-200/95">
+            <span className="inline-flex flex-col items-center gap-0.5 text-emerald-700/95 dark:text-emerald-200/95">
               <span className="inline-flex items-center gap-1.5">
                 <CalendarDays className="size-3" />
                 Ponto facultativo
               </span>
-              <span className="text-[9px] text-emerald-200/65">
+              <span className="text-[9px] text-emerald-700/65 dark:text-emerald-200/65">
                 {pontosNoDia
                   .flatMap((p) => p.beneficios)
                   .filter((v, idx, arr) => arr.indexOf(v) === idx)
@@ -1302,11 +1302,11 @@ function DiaItem({
               </span>
             </span>
           ) : isFeriado ? (
-            <span className="inline-flex flex-col items-center gap-0.5 text-emerald-200/90">
+            <span className="inline-flex flex-col items-center gap-0.5 text-emerald-700/90 dark:text-emerald-200/90">
               <span className="text-[10px] uppercase tracking-[0.18em]">
                 Feriado
               </span>
-              <span className="text-[9px] text-emerald-200/65">
+              <span className="text-[9px] text-emerald-700/65 dark:text-emerald-200/65">
                 {diaInfo.feriado}
               </span>
             </span>
@@ -1358,7 +1358,7 @@ function DiaItem({
 
         {isExtra && !podeRemoverExtra && !isDisabled && !isAtestado && !isPontoFacultativo && (
           <span
-            className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-blue-300/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-blue-200 ring-1 ring-blue-300/30"
+            className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-blue-300/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-blue-700 dark:text-blue-200 ring-1 ring-blue-300/30"
             title="Sábado extra já pago — não removível"
           >
             Pago
@@ -1383,13 +1383,13 @@ function DiaItem({
             }}
             className="btn-remover-sabado absolute right-2 top-2 z-10 flex size-6 items-center justify-center rounded-full ring-1 ring-blue-300/40 transition-all"
           >
-            <X className="size-3 text-blue-200" />
+            <X className="size-3 text-blue-700 dark:text-blue-200" />
           </span>
         )}
 
         {modoApagar && diaInfo.ativo && !isExtra && !isAtestado && !isPontoFacultativo && (
           <div className="absolute right-2 top-2 flex size-6 items-center justify-center rounded-full bg-red-400/15 ring-1 ring-red-400/30 transition-all group-hover:bg-red-400/25">
-            <X className="size-3 text-red-300" />
+            <X className="size-3 text-red-700 dark:text-red-300" />
           </div>
         )}
 
@@ -1402,7 +1402,7 @@ function DiaItem({
               onReativar()
             }}
           >
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-medium text-white/90 backdrop-blur transition-all hover:bg-white/15">
+            <span className="inline-flex items-center gap-2 rounded-full border border-[rgb(var(--ink)/0.2)] bg-[rgb(var(--ink)/0.1)] px-3 py-1.5 text-[11px] font-medium text-foreground/90 backdrop-blur transition-all hover:bg-[rgb(var(--ink)/0.15)]">
               <RotateCcw className="size-3" />
               Reativar
             </span>
@@ -1418,19 +1418,19 @@ function DiaItem({
 function Header({ dados }: { dados: ProcessamentoDados }) {
   return (
     <header className="mx-auto max-w-2xl px-4 pt-12 pb-8 fade-up">
-      <p className="text-[11px] uppercase tracking-[0.32em] text-white/55">
+      <p className="text-[11px] uppercase tracking-[0.32em] text-foreground/55">
         Registro de ocorrências
       </p>
-      <h1 className="text-display mt-3 text-5xl leading-[1.05] text-white">
+      <h1 className="text-display mt-3 text-5xl leading-[1.05] text-foreground">
         {dados.nome}
       </h1>
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {dados.contrato ? (
-          <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-white/75 backdrop-blur">
+          <span className="rounded-full border border-[rgb(var(--ink)/0.15)] bg-[rgb(var(--ink)/0.05)] px-3 py-1 text-xs text-foreground/75 backdrop-blur">
             Contrato {dados.contrato}
           </span>
         ) : null}
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-white/75 backdrop-blur">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-[rgb(var(--ink)/0.15)] bg-[rgb(var(--ink)/0.05)] px-3 py-1 text-xs text-foreground/75 backdrop-blur">
           <CalendarDays className="size-3.5" />
           {format(parseISO(dados.dataInicio), "dd/MM/yyyy")} —{" "}
           {format(parseISO(dados.dataFim), "dd/MM/yyyy")}
@@ -1504,24 +1504,24 @@ function DialogDia({
 
   return (
     <Dialog open={!!dia} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="glass-modal border-0 bg-transparent p-8 text-white sm:max-w-md" style={{ backdropFilter: 'blur(10px) saturate(140%) brightness(1.05)' }}>
+      <DialogContent className="glass-modal border-0 bg-transparent p-8 text-foreground sm:max-w-md" style={{ backdropFilter: 'blur(10px) saturate(140%) brightness(1.05)' }}>
         <DialogHeader>
-          <p className="text-[10px] uppercase tracking-[0.3em] text-white/55">
+          <p className="text-[10px] uppercase tracking-[0.3em] text-foreground/55">
             Registrar dia
           </p>
-          <DialogTitle className="text-display text-3xl capitalize text-white">
+          <DialogTitle className="text-display text-3xl capitalize text-foreground">
             {formatarDiaCompleto(dia)}
           </DialogTitle>
-          <DialogDescription className="text-white/60">
+          <DialogDescription className="text-foreground/60">
             Registre o que aconteceu neste dia.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="my-2 h-px bg-white/12" />
+        <div className="my-2 h-px bg-[rgb(var(--ink)/0.12)]" />
 
         {passo === "faltou" ? (
           <div className="space-y-4">
-            <h3 className="text-[15px] font-medium text-white/90">
+            <h3 className="text-[15px] font-medium text-foreground/90">
               O intermitente foi trabalhar neste dia?
             </h3>
             <div className="grid grid-cols-2 gap-3">
@@ -1543,12 +1543,12 @@ function DialogDia({
 
         {passo === "pf-direto" ? (
           <div className="space-y-4">
-            <p className="rounded-xl border border-emerald-200/20 bg-emerald-200/[0.06] px-3 py-2 text-xs text-emerald-100/85">
+            <p className="rounded-xl border border-emerald-200/20 bg-emerald-200/[0.06] px-3 py-2 text-xs text-emerald-700/85 dark:text-emerald-100/85">
               Esse dia teve ponto facultativo. O desconto operacional
               já foi aplicado. Aqui você só registra se houve atraso
               extra (chegou tarde no dia que abriu).
             </p>
-            <h3 className="text-[15px] font-medium text-white/90">
+            <h3 className="text-[15px] font-medium text-foreground/90">
               O que aconteceu nesse dia?
             </h3>
             <div className="grid grid-cols-1 gap-3">
@@ -1567,7 +1567,7 @@ function DialogDia({
 
         {passo === "atraso" ? (
           <div className="space-y-4">
-            <h3 className="text-[15px] font-medium text-white/90">
+            <h3 className="text-[15px] font-medium text-foreground/90">
               Chegou no horário e cumpriu o expediente?
             </h3>
             <div className="grid grid-cols-2 gap-3">
@@ -1590,7 +1590,7 @@ function DialogDia({
         {passo === "minutos" ? (
           <form className="space-y-4" onSubmit={confirmarMinutos}>
             <div className="space-y-2">
-              <Label htmlFor="minutos" className="text-white/85">
+              <Label htmlFor="minutos" className="text-foreground/85">
                 Quantos minutos fora do expediente?
               </Label>
               <div className="flex items-center gap-3">
@@ -1604,7 +1604,7 @@ function DialogDia({
                   autoFocus
                   className="flex-1"
                 />
-                <span className="text-sm text-white/60">minutos</span>
+                <span className="text-sm text-foreground/60">minutos</span>
               </div>
             </div>
             <ChoiceButton
@@ -1624,7 +1624,7 @@ function DialogDia({
               variant="ghost"
               size="sm"
               onClick={marcarSemOcorrencia}
-              className="text-white/65 hover:bg-white/10 hover:text-white"
+              className="text-foreground/65 hover:bg-[rgb(var(--ink)/0.1)] hover:text-foreground"
             >
               Marcar como sem ocorrências
             </Button>
@@ -1635,7 +1635,7 @@ function DialogDia({
             variant="ghost"
             size="sm"
             onClick={onClose}
-            className="text-white/65 hover:bg-white/10 hover:text-white"
+            className="text-foreground/65 hover:bg-[rgb(var(--ink)/0.1)] hover:text-foreground"
           >
             Cancelar
           </Button>
@@ -1687,14 +1687,14 @@ function DialogCancelamento({
   return (
     <Dialog open={aberto} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
-        className="glass-modal border-0 bg-transparent p-8 text-white sm:max-w-lg"
+        className="glass-modal border-0 bg-transparent p-8 text-foreground sm:max-w-lg"
         style={{ backdropFilter: "blur(10px) saturate(140%) brightness(1.05)" }}
       >
         <DialogHeader>
-          <p className="text-[10px] uppercase tracking-[0.3em] text-white/55">
+          <p className="text-[10px] uppercase tracking-[0.3em] text-foreground/55">
             Cancelamento
           </p>
-          <DialogTitle className="text-display text-3xl text-white">
+          <DialogTitle className="text-display text-3xl text-foreground">
             {etapa === "calendario" ? (
               <>
                 Escolha o <em className="italic text-[#e8c275]">início</em>
@@ -1713,7 +1713,7 @@ function DialogCancelamento({
               </>
             )}
           </DialogTitle>
-          <DialogDescription className="text-white/60">
+          <DialogDescription className="text-foreground/60">
             {etapa === "calendario"
               ? "O cancelamento parcial vale da data escolhida até o fim da convocação."
               : etapa === "confirmar_total"
@@ -1724,7 +1724,7 @@ function DialogCancelamento({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="my-2 h-px bg-white/12" />
+        <div className="my-2 h-px bg-[rgb(var(--ink)/0.12)]" />
 
         {etapa === "escolha" ? (
           <div className="grid gap-3">
@@ -1765,7 +1765,7 @@ function DialogCancelamento({
 
         {etapa === "confirmar_total" ? (
           <div className="space-y-4">
-            <p className="rounded-2xl border border-orange-300/30 bg-orange-300/10 px-4 py-3 text-sm leading-relaxed text-orange-100">
+            <p className="rounded-2xl border border-orange-300/30 bg-orange-300/10 px-4 py-3 text-sm leading-relaxed text-orange-700 dark:text-orange-100">
               A data selecionada é o primeiro dia da convocação. Isso cancela o
               período inteiro. Pode prosseguir?
             </p>
@@ -1793,9 +1793,9 @@ function DialogCancelamento({
 
         {etapa === "confirmar_parcial" ? (
           <div className="space-y-4">
-            <p className="rounded-2xl border border-orange-300/30 bg-orange-300/10 px-4 py-3 text-sm leading-relaxed text-orange-100">
+            <p className="rounded-2xl border border-orange-300/30 bg-orange-300/10 px-4 py-3 text-sm leading-relaxed text-orange-700 dark:text-orange-100">
               Cancelar a convocação a partir de{" "}
-              <strong className="text-orange-50">
+              <strong className="text-orange-700 dark:text-orange-50">
                 {dataInicioCancelamento
                   ? formatarDataNumerica(dataInicioCancelamento)
                   : "—"}
@@ -1825,7 +1825,7 @@ function DialogCancelamento({
         ) : null}
 
         {erro ? (
-          <p className="mt-4 rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
+          <p className="mt-4 rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-sm text-rose-700 dark:text-rose-100">
             {erro}
           </p>
         ) : null}
@@ -1836,7 +1836,7 @@ function DialogCancelamento({
             size="sm"
             onClick={onClose}
             disabled={isPending}
-            className="text-white/65 hover:bg-white/10 hover:text-white"
+            className="text-foreground/65 hover:bg-[rgb(var(--ink)/0.1)] hover:text-foreground"
           >
             Voltar ao registro
           </Button>
@@ -1886,7 +1886,7 @@ function TelaCancelamentoConvocacao({
     <div className="relative z-10 flex min-h-svh flex-col">
       <div className="flex flex-1 items-center justify-center px-4 py-12">
         <div className="glass-strong w-full max-w-md p-10 text-center fade-up">
-          <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-red-950/70 text-red-100 shadow-[0_18px_46px_-10px_rgba(127,29,29,0.72)] ring-1 ring-red-300/35">
+          <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-red-950/70 text-red-700 dark:text-red-100 shadow-[0_18px_46px_-10px_rgba(127,29,29,0.72)] ring-1 ring-red-300/35">
             {sucessoTotal || sucessoParcial ? (
               <span className="text-3xl leading-none">✓</span>
             ) : (
@@ -1894,10 +1894,10 @@ function TelaCancelamentoConvocacao({
             )}
           </div>
 
-          <p className="mt-6 text-[11px] uppercase tracking-[0.32em] text-white/55">
+          <p className="mt-6 text-[11px] uppercase tracking-[0.32em] text-foreground/55">
             Cancelamento
           </p>
-          <h1 className="text-display mt-2 text-4xl leading-tight text-white">
+          <h1 className="text-display mt-2 text-4xl leading-tight text-foreground">
             {sucessoParcial ? (
               <>
                 Cancelamento{" "}
@@ -1914,7 +1914,7 @@ function TelaCancelamentoConvocacao({
               </>
             )}
           </h1>
-          <p className="mt-3 text-sm leading-relaxed text-white/70">
+          <p className="mt-3 text-sm leading-relaxed text-foreground/70">
             {sucessoTotal
               ? `A convocação de ${dados.nome} foi cancelada com sucesso.`
               : sucessoParcial
@@ -1928,7 +1928,7 @@ function TelaCancelamentoConvocacao({
                       : "Escolha se o cancelamento será total ou parcial."}
           </p>
 
-          <div className="mt-7 rounded-2xl border border-white/12 bg-white/5 p-5 text-left backdrop-blur">
+          <div className="mt-7 rounded-2xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.05)] p-5 text-left backdrop-blur">
             {etapa === "escolha" ? (
               <div className="grid gap-3">
                 <ChoiceButton
@@ -1968,7 +1968,7 @@ function TelaCancelamentoConvocacao({
 
             {etapa === "confirmar_total" ? (
               <div className="space-y-4">
-                <p className="rounded-2xl border border-orange-300/30 bg-orange-300/10 px-4 py-3 text-sm leading-relaxed text-orange-100">
+                <p className="rounded-2xl border border-orange-300/30 bg-orange-300/10 px-4 py-3 text-sm leading-relaxed text-orange-700 dark:text-orange-100">
                   A data selecionada é o primeiro dia da convocação. Isso
                   cancela o período inteiro. Pode prosseguir?
                 </p>
@@ -1999,9 +1999,9 @@ function TelaCancelamentoConvocacao({
 
             {etapa === "confirmar_parcial" ? (
               <div className="space-y-4">
-                <p className="rounded-2xl border border-orange-300/30 bg-orange-300/10 px-4 py-3 text-sm leading-relaxed text-orange-100">
+                <p className="rounded-2xl border border-orange-300/30 bg-orange-300/10 px-4 py-3 text-sm leading-relaxed text-orange-700 dark:text-orange-100">
                   Cancelar a convocação a partir de{" "}
-                  <strong className="text-orange-50">
+                  <strong className="text-orange-700 dark:text-orange-50">
                     {dataInicioCancelamento
                       ? formatarDataNumerica(dataInicioCancelamento)
                       : "—"}
@@ -2035,7 +2035,7 @@ function TelaCancelamentoConvocacao({
 
             {sucessoTotal || sucessoParcial ? (
               <div className="space-y-4 text-center">
-                <p className="rounded-2xl border border-emerald-300/30 bg-emerald-300/10 px-4 py-4 text-sm text-emerald-100">
+                <p className="rounded-2xl border border-emerald-300/30 bg-emerald-300/10 px-4 py-4 text-sm text-emerald-700 dark:text-emerald-100">
                   {sucessoTotal
                     ? "Convocação cancelada com sucesso."
                     : `Cancelamento parcial registrado a partir de ${
@@ -2051,7 +2051,7 @@ function TelaCancelamentoConvocacao({
             ) : null}
 
             {erro ? (
-              <p className="mt-4 rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
+              <p className="mt-4 rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-sm text-rose-700 dark:text-rose-100">
                 {erro}
               </p>
             ) : null}
@@ -2062,13 +2062,13 @@ function TelaCancelamentoConvocacao({
               type="button"
               onClick={onClose}
               disabled={isPending}
-              className="mt-6 inline-flex items-center gap-2 text-sm text-white/55 transition hover:text-white"
+              className="mt-6 inline-flex items-center gap-2 text-sm text-foreground/55 transition hover:text-foreground"
             >
               <ArrowLeft className="size-4" />
               Voltar ao registro
             </button>
           ) : (
-            <p className="mt-8 text-xs text-white/45">
+            <p className="mt-8 text-xs text-foreground/45">
               Este registro foi encerrado.
             </p>
           )}
@@ -2115,17 +2115,17 @@ function CalendarioCancelamento({
         <button
           type="button"
           onClick={() => setMesVisivel((m) => subMonths(m, 1))}
-          className="inline-flex size-9 items-center justify-center rounded-xl border border-white/12 bg-white/[0.04] text-white/75 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
+          className="inline-flex size-9 items-center justify-center rounded-xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] text-foreground/75 transition hover:border-[rgb(var(--ink)/0.25)] hover:bg-[rgb(var(--ink)/0.08)] hover:text-foreground"
         >
           <ArrowLeft className="size-4" />
         </button>
-        <p className="text-display text-lg capitalize text-white/95">
+        <p className="text-display text-lg capitalize text-foreground/95">
           {format(mesVisivel, "MMMM 'de' yyyy", { locale: ptBR })}
         </p>
         <button
           type="button"
           onClick={() => setMesVisivel((m) => addMonths(m, 1))}
-          className="inline-flex size-9 items-center justify-center rounded-xl border border-white/12 bg-white/[0.04] text-white/75 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
+          className="inline-flex size-9 items-center justify-center rounded-xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] text-foreground/75 transition hover:border-[rgb(var(--ink)/0.25)] hover:bg-[rgb(var(--ink)/0.08)] hover:text-foreground"
         >
           <ArrowLeft className="size-4 rotate-180" />
         </button>
@@ -2135,7 +2135,7 @@ function CalendarioCancelamento({
         {["D", "S", "T", "Q", "Q", "S", "S"].map((d, i) => (
           <div
             key={i}
-            className="py-1 text-center text-[10px] uppercase tracking-wider text-white/40"
+            className="py-1 text-center text-[10px] uppercase tracking-wider text-foreground/40"
           >
             {d}
           </div>
@@ -2160,10 +2160,10 @@ function CalendarioCancelamento({
                   : eFeriado && noMes
                     ? "calendario-dia-feriado"
                     : permitido
-                      ? "text-white/90 hover:bg-orange-300/15 hover:text-orange-100"
+                      ? "text-foreground/90 hover:bg-orange-300/15 hover:text-orange-700 dark:text-orange-100"
                       : noMes
-                        ? "cursor-not-allowed text-white/18"
-                        : "cursor-not-allowed text-white/10"
+                        ? "cursor-not-allowed text-foreground/18"
+                        : "cursor-not-allowed text-foreground/10"
               }`}
             >
               {dia.getDate()}
@@ -2375,7 +2375,7 @@ function ChoiceButton({
 function BadgeResposta({ resposta }: { resposta: RespostaDia | undefined }) {
   if (!resposta || resposta.tipo === "sem_ocorrencia") {
     return (
-      <span className="inline-flex items-center gap-1.5 text-emerald-300">
+      <span className="inline-flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300">
         <span className="lamp lamp-on-green" />
         Sem ocorrências
       </span>
@@ -2383,14 +2383,14 @@ function BadgeResposta({ resposta }: { resposta: RespostaDia | undefined }) {
   }
   if (resposta.tipo === "falta") {
     return (
-      <span className="inline-flex items-center gap-1.5 text-red-300/85">
+      <span className="inline-flex items-center gap-1.5 text-red-700/85 dark:text-red-300/85">
         <span className="lamp lamp-off" />
         Faltou
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center gap-1.5 text-yellow-300">
+    <span className="inline-flex items-center gap-1.5 text-yellow-700 dark:text-yellow-300">
       <span className="lamp lamp-flicker-yellow" />
       {resposta.minutosAtraso} min
     </span>
@@ -2405,15 +2405,15 @@ function BannerTeste() {
     <div className="sticky top-0 z-30 w-full border-b border-amber-300/20 bg-amber-500/[0.08] px-4 py-2.5 backdrop-blur-md fade-up">
       <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <FlaskConical className="size-4 shrink-0 text-amber-300" />
-          <p className="truncate text-xs leading-relaxed text-amber-100/85">
+          <FlaskConical className="size-4 shrink-0 text-amber-700 dark:text-amber-300" />
+          <p className="truncate text-xs leading-relaxed text-amber-700/85 dark:text-amber-100/85">
             <span className="font-semibold">Quadro de teste</span>
-            <span className="text-amber-100/60"> · nada do que for enviado aqui é registrado de verdade.</span>
+            <span className="text-amber-700/60 dark:text-amber-100/60"> · nada do que for enviado aqui é registrado de verdade.</span>
           </p>
         </div>
         <Link
           to="/corrigir"
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-amber-300/30 bg-amber-300/[0.08] px-3 py-1 text-[11px] font-medium text-amber-100 transition hover:border-amber-300/50 hover:bg-amber-300/15"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-amber-300/30 bg-amber-300/[0.08] px-3 py-1 text-[11px] font-medium text-amber-700 dark:text-amber-100 transition hover:border-amber-300/50 hover:bg-amber-300/15"
         >
           <ArrowLeft className="size-3" />
           Sair do teste
@@ -2532,28 +2532,28 @@ function DialogSelecionarSabados({
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent
-        className="glass-modal border-0 bg-transparent p-8 text-white sm:max-w-md"
+        className="glass-modal border-0 bg-transparent p-8 text-foreground sm:max-w-md"
         style={{
           backdropFilter: "blur(10px) saturate(140%) brightness(1.05)",
         }}
       >
         <DialogHeader>
-          <p className="text-[10px] uppercase tracking-[0.3em] text-blue-200/80">
+          <p className="text-[10px] uppercase tracking-[0.3em] text-blue-700/80 dark:text-blue-200/80">
             Sábados extras
           </p>
-          <DialogTitle className="text-display text-3xl text-white">
+          <DialogTitle className="text-display text-3xl text-foreground">
             Adicionar <em className="italic text-[#6ea0ff]">sábados</em>
           </DialogTitle>
-          <DialogDescription className="text-white/65">
+          <DialogDescription className="text-foreground/65">
             Selecione os sábados extras trabalhados. Você receberá VT pelos
             dias adicionados.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="my-2 h-px bg-white/12" />
+        <div className="my-2 h-px bg-[rgb(var(--ink)/0.12)]" />
 
         {sabadosDisponiveis.length === 0 ? (
-          <p className="rounded-2xl border border-white/12 bg-white/5 px-4 py-6 text-center text-sm text-white/70">
+          <p className="rounded-2xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.05)] px-4 py-6 text-center text-sm text-foreground/70">
             Nenhum sábado disponível no período da convocação.
           </p>
         ) : (
@@ -2562,18 +2562,18 @@ function DialogSelecionarSabados({
               <button
                 type="button"
                 onClick={() => setMesVisivel((m) => subMonths(m, 1))}
-                className="inline-flex size-9 items-center justify-center rounded-xl border border-white/12 bg-white/[0.04] text-white/75 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
+                className="inline-flex size-9 items-center justify-center rounded-xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] text-foreground/75 transition hover:border-[rgb(var(--ink)/0.25)] hover:bg-[rgb(var(--ink)/0.08)] hover:text-foreground"
                 aria-label="Mês anterior"
               >
                 <ArrowLeft className="size-4" />
               </button>
-              <p className="text-display text-lg capitalize text-white/95">
+              <p className="text-display text-lg capitalize text-foreground/95">
                 {format(mesVisivel, "MMMM 'de' yyyy", { locale: ptBR })}
               </p>
               <button
                 type="button"
                 onClick={() => setMesVisivel((m) => addMonths(m, 1))}
-                className="inline-flex size-9 items-center justify-center rounded-xl border border-white/12 bg-white/[0.04] text-white/75 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
+                className="inline-flex size-9 items-center justify-center rounded-xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] text-foreground/75 transition hover:border-[rgb(var(--ink)/0.25)] hover:bg-[rgb(var(--ink)/0.08)] hover:text-foreground"
                 aria-label="Próximo mês"
               >
                 <ArrowLeft className="size-4 rotate-180" />
@@ -2584,7 +2584,7 @@ function DialogSelecionarSabados({
               {["D", "S", "T", "Q", "Q", "S", "S"].map((d, i) => (
                 <div
                   key={i}
-                  className="py-1 text-center text-[10px] uppercase tracking-wider text-white/40"
+                  className="py-1 text-center text-[10px] uppercase tracking-wider text-foreground/40"
                 >
                   {d}
                 </div>
@@ -2604,10 +2604,10 @@ function DialogSelecionarSabados({
                       selecionado
                         ? "bg-blue-300 text-[#0a1224] shadow-[0_0_18px_rgba(110,160,255,0.45)]"
                         : permitido
-                          ? "text-white/90 hover:bg-blue-300/15 hover:text-blue-100"
+                          ? "text-foreground/90 hover:bg-blue-300/15 hover:text-blue-700 dark:text-blue-100"
                           : noMes
-                            ? "cursor-not-allowed text-white/18"
-                            : "cursor-not-allowed text-white/10"
+                            ? "cursor-not-allowed text-foreground/18"
+                            : "cursor-not-allowed text-foreground/10"
                     }`}
                   >
                     {dia.getDate()}
@@ -2616,7 +2616,7 @@ function DialogSelecionarSabados({
               })}
             </div>
 
-            <p className="text-center text-xs text-white/55">
+            <p className="text-center text-xs text-foreground/55">
               {selecionados.size === 0
                 ? "Toque nos sábados para selecionar."
                 : `${selecionados.size} ${
@@ -2633,7 +2633,7 @@ function DialogSelecionarSabados({
             variant="ghost"
             size="sm"
             onClick={onClose}
-            className="text-white/65 hover:bg-white/10 hover:text-white"
+            className="text-foreground/65 hover:bg-[rgb(var(--ink)/0.1)] hover:text-foreground"
           >
             Cancelar
           </Button>
@@ -2669,19 +2669,19 @@ function DialogConfirmarRemoverSabado({
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onCancelar()}>
       <DialogContent
-        className="glass-modal border-0 bg-transparent p-8 text-white sm:max-w-sm"
+        className="glass-modal border-0 bg-transparent p-8 text-foreground sm:max-w-sm"
         style={{
           backdropFilter: "blur(10px) saturate(140%) brightness(1.05)",
         }}
       >
         <DialogHeader>
-          <p className="text-[10px] uppercase tracking-[0.3em] text-blue-200/80">
+          <p className="text-[10px] uppercase tracking-[0.3em] text-blue-700/80 dark:text-blue-200/80">
             Sábado extra
           </p>
-          <DialogTitle className="text-display text-2xl text-white">
+          <DialogTitle className="text-display text-2xl text-foreground">
             Remover este sábado?
           </DialogTitle>
-          <DialogDescription className="text-white/65">
+          <DialogDescription className="text-foreground/65">
             {data
               ? `Remover ${formatarDataNumerica(data)} dos sábados extras. O vale-transporte extra não será mais solicitado para esta data.`
               : "Remover este sábado extra. O vale-transporte extra não será mais solicitado para esta data."}
@@ -2692,7 +2692,7 @@ function DialogConfirmarRemoverSabado({
           <Button
             variant="ghost"
             onClick={onCancelar}
-            className="text-white/85 hover:bg-white/10 hover:text-white"
+            className="text-foreground/85 hover:bg-[rgb(var(--ink)/0.1)] hover:text-foreground"
           >
             Cancelar
           </Button>
@@ -2730,19 +2730,19 @@ function DialogReverterCancelamento({
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onCancelar()}>
       <DialogContent
-        className="glass-modal border-0 bg-transparent p-8 text-white sm:max-w-sm"
+        className="glass-modal border-0 bg-transparent p-8 text-foreground sm:max-w-sm"
         style={{
           backdropFilter: "blur(10px) saturate(140%) brightness(1.05)",
         }}
       >
         <DialogHeader>
-          <p className="text-[10px] uppercase tracking-[0.3em] text-orange-300/80">
+          <p className="text-[10px] uppercase tracking-[0.3em] text-orange-700/80 dark:text-orange-300/80">
             Cancelamento parcial
           </p>
-          <DialogTitle className="text-display text-2xl text-white">
+          <DialogTitle className="text-display text-2xl text-foreground">
             Reverter cancelamento?
           </DialogTitle>
-          <DialogDescription className="text-white/65">
+          <DialogDescription className="text-foreground/65">
             {dataInicioCancelamento
               ? `Os dias cancelados a partir de ${formatarDataNumerica(
                   dataInicioCancelamento,
@@ -2752,7 +2752,7 @@ function DialogReverterCancelamento({
         </DialogHeader>
 
         {erro && (
-          <p className="mt-2 rounded-xl border border-rose-300/30 bg-rose-300/10 px-3 py-2 text-xs text-rose-100">
+          <p className="mt-2 rounded-xl border border-rose-300/30 bg-rose-300/10 px-3 py-2 text-xs text-rose-700 dark:text-rose-100">
             {erro}
           </p>
         )}
@@ -2762,7 +2762,7 @@ function DialogReverterCancelamento({
             variant="ghost"
             onClick={onCancelar}
             disabled={carregando}
-            className="text-white/85 hover:bg-white/10 hover:text-white"
+            className="text-foreground/85 hover:bg-[rgb(var(--ink)/0.1)] hover:text-foreground"
           >
             Voltar
           </Button>
@@ -2796,19 +2796,19 @@ function DialogDiaComDocumento({
   return (
     <Dialog open={!!data} onOpenChange={(o) => !o && onClose()}>
       <DialogContent
-        className="glass-modal border-0 bg-transparent p-8 text-white sm:max-w-md"
+        className="glass-modal border-0 bg-transparent p-8 text-foreground sm:max-w-md"
         style={{ backdropFilter: "blur(10px) saturate(140%) brightness(1.05)" }}
       >
         <DialogHeader>
-          <p className="text-[10px] uppercase tracking-[0.3em] text-amber-200/80">
+          <p className="text-[10px] uppercase tracking-[0.3em] text-amber-700/80 dark:text-amber-200/80">
             Dia com documento
           </p>
-          <DialogTitle className="text-display text-3xl capitalize text-white">
+          <DialogTitle className="text-display text-3xl capitalize text-foreground">
             {formatarDiaCompleto(data)}
           </DialogTitle>
-          <DialogDescription className="text-white/65">
+          <DialogDescription className="text-foreground/65">
             Este dia já tem documento lançado. Para corrigir ou remover,
-            acesse a área <span className="text-white/90">Atestados e declarações</span>.
+            acesse a área <span className="text-foreground/90">Atestados e declarações</span>.
           </DialogDescription>
         </DialogHeader>
 
@@ -2832,19 +2832,19 @@ function DialogDiaComDocumento({
             return (
               <li
                 key={doc.id}
-                className="rounded-2xl border border-white/12 bg-white/5 p-4 text-sm text-white/80"
+                className="rounded-2xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.05)] p-4 text-sm text-foreground/80"
               >
-                <p className="font-medium text-white/95">{rotulo}</p>
-                <p className="mt-1 text-xs text-white/55">{periodo}</p>
+                <p className="font-medium text-foreground/95">{rotulo}</p>
+                <p className="mt-1 text-xs text-foreground/55">{periodo}</p>
                 {doc.nomeArquivo && (
-                  <p className="mt-1 text-xs text-white/45">{doc.nomeArquivo}</p>
+                  <p className="mt-1 text-xs text-foreground/45">{doc.nomeArquivo}</p>
                 )}
                 {doc.mondayItemUrl && (
                   <a
                     href={doc.mondayItemUrl}
                     target="_blank"
                     rel="noreferrer noopener"
-                    className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-amber-200 transition hover:text-amber-100"
+                    className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-200 transition hover:text-amber-700 dark:text-amber-100"
                   >
                     <ExternalLink className="size-3.5" />
                     Abrir no Controle de Atestados
@@ -2859,7 +2859,7 @@ function DialogDiaComDocumento({
           <Button
             variant="ghost"
             onClick={onClose}
-            className="text-white/85 hover:bg-white/10 hover:text-white"
+            className="text-foreground/85 hover:bg-[rgb(var(--ink)/0.1)] hover:text-foreground"
           >
             Fechar
           </Button>
@@ -2887,42 +2887,42 @@ function DialogDiaComPontoFacultativo({
   return (
     <Dialog open={!!data} onOpenChange={(o) => !o && onClose()}>
       <DialogContent
-        className="glass-modal border-0 bg-transparent p-8 text-white sm:max-w-md"
+        className="glass-modal border-0 bg-transparent p-8 text-foreground sm:max-w-md"
         style={{ backdropFilter: "blur(10px) saturate(140%) brightness(1.05)" }}
       >
         <DialogHeader>
-          <p className="text-[10px] uppercase tracking-[0.3em] text-emerald-200/80">
+          <p className="text-[10px] uppercase tracking-[0.3em] text-emerald-700/80 dark:text-emerald-200/80">
             Ponto facultativo
           </p>
-          <DialogTitle className="text-display text-3xl capitalize text-white">
+          <DialogTitle className="text-display text-3xl capitalize text-foreground">
             {formatarDiaCompleto(data)}
           </DialogTitle>
-          <DialogDescription className="text-white/65">
+          <DialogDescription className="text-foreground/65">
             Esse dia teve ponto facultativo. Você ainda pode lançar
             falta ou atraso se precisar — o sistema evita desconto repetido.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="mt-2 rounded-2xl border border-emerald-200/18 bg-emerald-200/[0.06] p-4 text-sm text-white/78">
-          <p className="text-[10px] uppercase tracking-[0.22em] text-emerald-100/65">
+        <div className="mt-2 rounded-2xl border border-emerald-200/18 bg-emerald-200/[0.06] p-4 text-sm text-foreground/78">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-emerald-700/65 dark:text-emerald-100/65">
             Benefícios aplicados
           </p>
-          <p className="mt-1 text-lg font-medium text-white">
+          <p className="mt-1 text-lg font-medium text-foreground">
             {beneficios || "Sem novo desconto"}
           </p>
           <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-            <div className="rounded-xl bg-white/[0.04] px-3 py-2">
-              <span className="block text-white/40">VR</span>
-              <span className="text-white/85">
+            <div className="rounded-xl bg-[rgb(var(--ink)/0.04)] px-3 py-2">
+              <span className="block text-foreground/40">VR</span>
+              <span className="text-foreground/85">
                 {totalVR.toLocaleString("pt-BR", {
                   style: "currency",
                   currency: "BRL",
                 })}
               </span>
             </div>
-            <div className="rounded-xl bg-white/[0.04] px-3 py-2">
-              <span className="block text-white/40">VT</span>
-              <span className="text-white/85">
+            <div className="rounded-xl bg-[rgb(var(--ink)/0.04)] px-3 py-2">
+              <span className="block text-foreground/40">VT</span>
+              <span className="text-foreground/85">
                 {totalVT.toLocaleString("pt-BR", {
                   style: "currency",
                   currency: "BRL",
@@ -2936,7 +2936,7 @@ function DialogDiaComPontoFacultativo({
           <Button
             variant="ghost"
             onClick={onClose}
-            className="text-white/85 hover:bg-white/10 hover:text-white"
+            className="text-foreground/85 hover:bg-[rgb(var(--ink)/0.1)] hover:text-foreground"
           >
             Fechar
           </Button>
@@ -3214,16 +3214,16 @@ function DialogSplit({
   return (
     <Dialog open={aberto} onOpenChange={(o) => !o && onCancelar()}>
       <DialogContent
-        className="glass-modal border-0 bg-transparent p-8 text-white sm:max-w-lg"
+        className="glass-modal border-0 bg-transparent p-8 text-foreground sm:max-w-lg"
         style={{
           backdropFilter: "blur(10px) saturate(140%) brightness(1.05)",
         }}
       >
         <DialogHeader>
-          <p className="text-[10px] uppercase tracking-[0.3em] text-violet-200/80">
+          <p className="text-[10px] uppercase tracking-[0.3em] text-violet-700/80 dark:text-violet-200/80">
             Dividir convocação
           </p>
-          <DialogTitle className="text-display text-3xl text-white">
+          <DialogTitle className="text-display text-3xl text-foreground">
             {etapa === "calendario"
               ? "Escolha a data de divisão"
               : etapa === "contratos"
@@ -3232,7 +3232,7 @@ function DialogSplit({
                   ? "Confirme a divisão"
                   : "Divisão aplicada"}
           </DialogTitle>
-          <DialogDescription className="text-white/65">
+          <DialogDescription className="text-foreground/65">
             {etapa === "calendario"
               ? "O dia escolhido será o primeiro da Parte 2. Os anteriores ficam na Parte 1."
               : etapa === "contratos"
@@ -3258,7 +3258,7 @@ function DialogSplit({
               <Button
                 variant="ghost"
                 onClick={onCancelar}
-                className="text-white/85 hover:bg-white/10 hover:text-white"
+                className="text-foreground/85 hover:bg-[rgb(var(--ink)/0.1)] hover:text-foreground"
               >
                 Cancelar
               </Button>
@@ -3276,13 +3276,13 @@ function DialogSplit({
         {/* ─── Etapa: contratos ─── */}
         {etapa === "contratos" && splitDataParte2 && (
           <div className="mt-4 space-y-4">
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-white/65">
+            <div className="rounded-xl border border-[rgb(var(--ink)/0.1)] bg-[rgb(var(--ink)/0.03)] px-4 py-3 text-xs text-foreground/65">
               <p>
-                <strong className="text-white/90">Parte 1:</strong>{" "}
+                <strong className="text-foreground/90">Parte 1:</strong>{" "}
                 {rangeStr(diasP1())}
               </p>
               <p className="mt-1">
-                <strong className="text-white/90">Parte 2:</strong>{" "}
+                <strong className="text-foreground/90">Parte 2:</strong>{" "}
                 {rangeStr(diasP2())}
               </p>
             </div>
@@ -3303,7 +3303,7 @@ function DialogSplit({
             />
 
             {contratosIguais && (
-              <p className="rounded-xl border border-rose-300/30 bg-rose-300/10 px-3 py-2 text-xs text-rose-100">
+              <p className="rounded-xl border border-rose-300/30 bg-rose-300/10 px-3 py-2 text-xs text-rose-700 dark:text-rose-100">
                 Os contratos devem ser diferentes.
               </p>
             )}
@@ -3312,7 +3312,7 @@ function DialogSplit({
               <Button
                 variant="ghost"
                 onClick={() => onAvancar("calendario")}
-                className="text-white/85 hover:bg-white/10 hover:text-white"
+                className="text-foreground/85 hover:bg-[rgb(var(--ink)/0.1)] hover:text-foreground"
               >
                 Voltar
               </Button>
@@ -3334,23 +3334,23 @@ function DialogSplit({
           <div className="mt-4 space-y-4">
             <div className="space-y-3">
               <div className="rounded-xl border border-violet-300/25 bg-violet-300/[0.05] px-4 py-3">
-                <p className="text-[10px] uppercase tracking-[0.22em] text-violet-200/85">
+                <p className="text-[10px] uppercase tracking-[0.22em] text-violet-700/85 dark:text-violet-200/85">
                   Parte 1
                 </p>
-                <p className="mt-1 text-sm text-white/90">
+                <p className="mt-1 text-sm text-foreground/90">
                   {rangeStr(diasP1())}{" "}
-                  <span className="text-violet-200/85">
+                  <span className="text-violet-700/85 dark:text-violet-200/85">
                     · {splitContratoP1}
                   </span>
                 </p>
               </div>
               <div className="rounded-xl border border-violet-300/25 bg-violet-300/[0.05] px-4 py-3">
-                <p className="text-[10px] uppercase tracking-[0.22em] text-violet-200/85">
+                <p className="text-[10px] uppercase tracking-[0.22em] text-violet-700/85 dark:text-violet-200/85">
                   Parte 2
                 </p>
-                <p className="mt-1 text-sm text-white/90">
+                <p className="mt-1 text-sm text-foreground/90">
                   {rangeStr(diasP2())}{" "}
-                  <span className="text-violet-200/85">
+                  <span className="text-violet-700/85 dark:text-violet-200/85">
                     · {splitContratoP2}
                   </span>
                 </p>
@@ -3358,7 +3358,7 @@ function DialogSplit({
             </div>
 
             {erro && (
-              <p className="rounded-xl border border-rose-300/30 bg-rose-300/10 px-3 py-2 text-xs text-rose-100">
+              <p className="rounded-xl border border-rose-300/30 bg-rose-300/10 px-3 py-2 text-xs text-rose-700 dark:text-rose-100">
                 {erro}
               </p>
             )}
@@ -3369,7 +3369,7 @@ function DialogSplit({
                   variant="ghost"
                   onClick={onReverter}
                   disabled={carregando}
-                  className="text-orange-200/85 hover:bg-orange-300/10 hover:text-orange-100"
+                  className="text-orange-700/85 dark:text-orange-200/85 hover:bg-orange-300/10 hover:text-orange-700 dark:text-orange-100"
                 >
                   Reverter divisão
                 </Button>
@@ -3379,7 +3379,7 @@ function DialogSplit({
                   variant="ghost"
                   onClick={() => onAvancar("contratos")}
                   disabled={carregando}
-                  className="text-white/85 hover:bg-white/10 hover:text-white"
+                  className="text-foreground/85 hover:bg-[rgb(var(--ink)/0.1)] hover:text-foreground"
                 >
                   Voltar
                 </Button>
@@ -3401,7 +3401,7 @@ function DialogSplit({
 
         {/* ─── Etapa: sucesso ─── */}
         {etapa === "sucesso" && (
-          <div className="mt-6 flex items-center justify-center gap-2 text-violet-200">
+          <div className="mt-6 flex items-center justify-center gap-2 text-violet-700 dark:text-violet-200">
             <Sparkles className="size-4" />
             Divisão aplicada
           </div>
@@ -3465,17 +3465,17 @@ function CalendarioSplit({
         <button
           type="button"
           onClick={() => setMesVisivel((m) => subMonths(m, 1))}
-          className="inline-flex size-9 items-center justify-center rounded-xl border border-white/12 bg-white/[0.04] text-white/75 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
+          className="inline-flex size-9 items-center justify-center rounded-xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] text-foreground/75 transition hover:border-[rgb(var(--ink)/0.25)] hover:bg-[rgb(var(--ink)/0.08)] hover:text-foreground"
         >
           <ArrowLeft className="size-4" />
         </button>
-        <p className="text-display text-lg capitalize text-white/95">
+        <p className="text-display text-lg capitalize text-foreground/95">
           {format(mesVisivel, "MMMM 'de' yyyy", { locale: ptBR })}
         </p>
         <button
           type="button"
           onClick={() => setMesVisivel((m) => addMonths(m, 1))}
-          className="inline-flex size-9 items-center justify-center rounded-xl border border-white/12 bg-white/[0.04] text-white/75 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
+          className="inline-flex size-9 items-center justify-center rounded-xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] text-foreground/75 transition hover:border-[rgb(var(--ink)/0.25)] hover:bg-[rgb(var(--ink)/0.08)] hover:text-foreground"
         >
           <ArrowLeft className="size-4 rotate-180" />
         </button>
@@ -3485,7 +3485,7 @@ function CalendarioSplit({
         {["D", "S", "T", "Q", "Q", "S", "S"].map((d, i) => (
           <div
             key={i}
-            className="py-1 text-center text-[10px] uppercase tracking-wider text-white/40"
+            className="py-1 text-center text-[10px] uppercase tracking-wider text-foreground/40"
           >
             {d}
           </div>
@@ -3510,10 +3510,10 @@ function CalendarioSplit({
                   : eFeriado && noMes
                     ? "calendario-dia-feriado"
                     : !motivo
-                      ? "text-white/90 hover:bg-violet-300/15 hover:text-violet-100"
+                      ? "text-foreground/90 hover:bg-violet-300/15 hover:text-violet-700 dark:text-violet-100"
                       : noMes
-                        ? "cursor-not-allowed text-white/18"
-                        : "cursor-not-allowed text-white/10"
+                        ? "cursor-not-allowed text-foreground/18"
+                        : "cursor-not-allowed text-foreground/10"
               }`}
             >
               {dia.getDate()}

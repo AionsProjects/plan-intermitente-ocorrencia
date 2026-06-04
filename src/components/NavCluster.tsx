@@ -1,44 +1,29 @@
-import { ArrowLeft, Home } from "lucide-react"
+import { ArrowLeft, Home, Settings2 } from "lucide-react"
 import { Link } from "react-router-dom"
 
-/**
- * Cluster pill no header de páginas internas — voltar etapa + Home.
- * Liquid glass aesthetic (.nav-cluster + .nav-btn definidos em index.css).
- *
- * Comportamento:
- * - `onVoltar` ausente OU `null` → botão ← fica disabled (página
- *   single-step ou primeira etapa de wizard). Só Home funciona.
- * - `onVoltar` definido → botão ← chama o handler (volta 1 etapa).
- * - Home: link absoluto pra "/" (Hub).
- *
- * Pages multi-step passam mapping próprio (ex: PontoFacultativoPage
- * tem etapaAnterior). Pages single-step (TestePage, DescontosPage)
- * passam `onVoltar={null}` e só ganham Home funcional.
- */
-type Props = {
-  /** Handler pra voltar 1 etapa interna. null/undefined = desabilita. */
-  onVoltar?: (() => void) | null
-  /** Override do destino do Home (default "/"). */
-  homeTo?: string
-  /** Label aria do botão voltar (default "Voltar etapa anterior"). */
-  voltarLabel?: string
-}
+import { useNav } from "./NavContext"
 
-export function NavCluster({
-  onVoltar,
-  homeTo = "/",
-  voltarLabel = "Voltar etapa anterior",
-}: Props) {
-  const podeVoltar = typeof onVoltar === "function"
+/**
+ * Balão de navegação GLOBAL — fixo no topo-direito, flutua sobre o conteúdo
+ * em todas as telas. Liquid glass (.nav-cluster + .nav-btn no index.css).
+ *
+ * - Voltar etapa: vem do contexto (página registra via useRegistrarVoltar).
+ *   null/undefined → desabilitado.
+ * - Home: link pro destino do contexto (default "/").
+ * - Config: abre o overlay de configurações (não navega).
+ */
+export function NavCluster() {
+  const { voltar, homeTo, abrirConfig } = useNav()
+  const podeVoltar = typeof voltar === "function"
   return (
-    <div className="nav-cluster shrink-0">
+    <div className="nav-cluster nav-cluster-fixed">
       <button
         type="button"
-        onClick={() => onVoltar?.()}
+        onClick={() => voltar?.()}
         disabled={!podeVoltar}
         className="nav-btn nav-btn-prev"
-        aria-label={voltarLabel}
-        title={podeVoltar ? voltarLabel : "Sem etapa anterior"}
+        aria-label="Voltar etapa anterior"
+        title={podeVoltar ? "Voltar etapa anterior" : "Sem etapa anterior"}
       >
         <ArrowLeft className="size-4" />
       </button>
@@ -51,6 +36,16 @@ export function NavCluster({
       >
         <Home className="size-4" />
       </Link>
+      <span className="nav-divider" aria-hidden />
+      <button
+        type="button"
+        onClick={abrirConfig}
+        className="nav-btn"
+        aria-label="Configurações"
+        title="Configurações"
+      >
+        <Settings2 className="size-4" />
+      </button>
     </div>
   )
 }
