@@ -401,8 +401,10 @@
 
   .glass-modal {
     /* Base semi-opaca: sem blur (VM sem GPU) ainda fica legível; com blur o
-       backdrop-filter adiciona o frost por cima. NÃO depender só do blur. */
-    background: var(--glass-bg-strong);
+       backdrop-filter adiciona o frost por cima. NÃO depender só do blur.
+       !important vence o `bg-transparent` que os DialogContent usam no JSX
+       (utility layer venceria a component layer sem isto). */
+    background: var(--glass-bg-strong) !important;
     /* borda mais forte e visÃ­vel â€” o "ring" do vidro */
     border: 1.5px solid rgb(var(--ink) / 0.32);
     /* CENTRO do modal: sÃ³ frosted glass, SEM displacement.
