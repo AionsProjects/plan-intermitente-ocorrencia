@@ -104,7 +104,13 @@ export function ConfigOverlay() {
   const { configAberto, fecharConfig } = useNav()
   return (
     <Dialog open={configAberto} onOpenChange={(o) => !o && fecharConfig()}>
-      <DialogContent className="glass-modal border-0 bg-transparent p-6 text-foreground sm:max-w-lg sm:p-7">
+      <DialogContent
+        className="glass-modal border-0 bg-transparent p-6 text-foreground sm:max-w-lg sm:p-7"
+        style={{
+          backdropFilter: "blur(10px) saturate(140%) brightness(1.05)",
+          WebkitBackdropFilter: "blur(10px) saturate(140%) brightness(1.05)",
+        }}
+      >
         <DialogHeader>
           <p className="text-[10px] uppercase tracking-[0.3em] text-foreground/55">
             Configurações
