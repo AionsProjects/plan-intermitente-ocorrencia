@@ -73,7 +73,7 @@ function CtaNovaSessao({ onClick }: { onClick: () => void }) {
       className="floating-resumo glass-strong glow-gold group relative inline-flex h-12 items-center justify-center gap-2 overflow-hidden rounded-full px-8 text-sm font-medium tracking-wide text-[#0a1224]"
       style={{
         background:
-          "linear-gradient(135deg, #e8c275 0%, #d4a64a 55%, #b6a4ff 130%)",
+          "linear-gradient(135deg, rgb(var(--accent-rgb)) 0%, rgb(var(--accent-rgb)) 55%, #b6a4ff 130%)",
         border: "1px solid rgba(255,236,194,0.5)",
       }}
     >

@@ -622,7 +622,7 @@ function EtapaTipoDocumentacao({
         Tipo de documentação
       </p>
       <h2 className="text-display mt-3 text-4xl leading-[1.05] text-foreground">
-        Qual <em className="italic text-[#e8c275]">documento</em>?
+        Qual <em className="italic text-[rgb(var(--accent-rgb))]">documento</em>?
       </h2>
       <p className="mt-3 max-w-md text-sm leading-relaxed text-foreground/65">
         Atestados afetam VR/VT. Licenças e declarações têm regra própria.
@@ -781,11 +781,11 @@ function EtapaCalendario({
       <h2 className="text-display mt-3 text-4xl leading-[1.05] text-foreground">
         {ehDiaUnico ? (
           <>
-            Dia do <em className="italic text-[#e8c275]">comparecimento</em>
+            Dia do <em className="italic text-[rgb(var(--accent-rgb))]">comparecimento</em>
           </>
         ) : (
           <>
-            Data de <em className="italic text-[#e8c275]">início</em>
+            Data de <em className="italic text-[rgb(var(--accent-rgb))]">início</em>
           </>
         )}
       </h2>
@@ -975,8 +975,8 @@ function EtapaCalendario({
             let cls = ""
             if (ehInicio) {
               cls = overlap
-                ? "bg-amber-300 text-[#0a1224] shadow-[0_0_22px_rgba(232,194,117,0.55),inset_0_0_0_1px_rgba(52,211,153,0.65)]"
-                : "bg-amber-300 text-[#0a1224] shadow-[0_0_18px_rgba(232,194,117,0.45)]"
+                ? "bg-amber-300 text-[#0a1224] shadow-[0_0_22px_rgb(var(--accent-rgb)/0.55),inset_0_0_0_1px_rgba(52,211,153,0.65)]"
+                : "bg-amber-300 text-[#0a1224] shadow-[0_0_18px_rgb(var(--accent-rgb)/0.45)]"
             } else if (noRange) {
               cls = overlap
                 ? "bg-amber-300/22 text-amber-700 dark:text-amber-100 ring-1 ring-emerald-400/40"
@@ -1096,7 +1096,7 @@ function DialogQuantidadeDias({
             </p>
           </div>
           <DialogTitle className="text-display mt-2 text-2xl text-foreground">
-            Quantos <em className="italic text-[#e8c275]">dias</em> de ausência?
+            Quantos <em className="italic text-[rgb(var(--accent-rgb))]">dias</em> de ausência?
           </DialogTitle>
           <DialogDescription className="text-foreground/65">
             Início em{" "}
@@ -1194,7 +1194,7 @@ function EtapaDadosTrabalho({
         Dados de trabalho
       </p>
       <h2 className="text-display mt-3 text-4xl leading-[1.05] text-foreground">
-        Como foi o <em className="italic text-[#e8c275]">expediente</em>?
+        Como foi o <em className="italic text-[rgb(var(--accent-rgb))]">expediente</em>?
       </h2>
 
       <div className="mt-6 space-y-5">
@@ -1350,7 +1350,7 @@ function EtapaUnidade({
         Unidade do órgão
       </p>
       <h2 className="text-display mt-3 text-4xl leading-[1.05] text-foreground">
-        <em className="italic text-[#e8c275]">{contrato}</em> · qual unidade?
+        <em className="italic text-[rgb(var(--accent-rgb))]">{contrato}</em> · qual unidade?
       </h2>
       <p className="mt-3 max-w-md text-sm leading-relaxed text-foreground/65">
         Selecione a unidade do colaborador. Se não estiver na lista, marque
@@ -1447,7 +1447,7 @@ function EtapaUpload({
         Arquivo
       </p>
       <h2 className="text-display mt-3 text-4xl leading-[1.05] text-foreground">
-        Anexar <em className="italic text-[#e8c275]">documento</em>
+        Anexar <em className="italic text-[rgb(var(--accent-rgb))]">documento</em>
       </h2>
       <p className="mt-3 max-w-md text-sm leading-relaxed text-foreground/65">
         PDF, JPG, PNG ou HEIC. Tamanho máximo 15 MB.
@@ -1509,7 +1509,7 @@ function EtapaObservacao({
         Observação · opcional
       </p>
       <h2 className="text-display mt-3 text-4xl leading-[1.05] text-foreground">
-        Algum <em className="italic text-[#e8c275]">esclarecimento</em>?
+        Algum <em className="italic text-[rgb(var(--accent-rgb))]">esclarecimento</em>?
       </h2>
       <p className="mt-3 max-w-md text-sm leading-relaxed text-foreground/65">
         Use apenas se houver detalhe importante. Pode pular.

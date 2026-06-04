@@ -123,7 +123,7 @@ export function TestePontoFacultativoPage() {
             className={`size-1.5 rounded-full ${
               usandoMock
                 ? "bg-emerald-300 shadow-[0_0_10px_2px_rgba(127,231,196,0.6)]"
-                : "bg-amber-300 shadow-[0_0_10px_2px_rgba(232,194,117,0.55)]"
+                : "bg-amber-300 shadow-[0_0_10px_2px_rgb(var(--accent-rgb)/0.55)]"
             }`}
           />
           {usandoMock ? (

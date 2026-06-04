@@ -45,7 +45,7 @@ export function GlassSelect({
         }}
         disabled={disabled}
         className={`flex w-full items-center justify-between rounded-xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] px-4 py-3 text-left text-sm backdrop-blur transition hover:border-[rgb(var(--ink)/0.2)] hover:bg-[rgb(var(--ink)/0.06)] ${
-          aberto ? "border-[#e8c275]/55 bg-[rgb(var(--ink)/0.08)]" : ""
+          aberto ? "border-[rgb(var(--accent-rgb)/0.55)] bg-[rgb(var(--ink)/0.08)]" : ""
         } ${disabled ? "cursor-not-allowed opacity-55 hover:border-[rgb(var(--ink)/0.12)] hover:bg-[rgb(var(--ink)/0.04)]" : ""}`}
       >
         <span className={value ? "text-foreground" : "text-foreground/40"}>
@@ -94,12 +94,12 @@ export function GlassSelect({
                   onClick={() => escolher(opt)}
                   className={`flex w-full items-center justify-between rounded-2xl border px-5 py-3.5 text-left text-sm font-medium transition ${
                     sel
-                      ? "border-[#e8c275]/45 bg-[#e8c275]/12 text-[#ffe6b0]"
+                      ? "border-[rgb(var(--accent-rgb)/0.45)] bg-[rgb(var(--accent-rgb)/0.12)] text-[rgb(var(--accent-rgb))]"
                       : "border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] text-foreground/90 hover:border-[rgb(var(--ink)/0.25)] hover:bg-[rgb(var(--ink)/0.08)]"
                   }`}
                 >
                   <span>{opt}</span>
-                  {sel && <Check className="size-4 text-[#e8c275]" />}
+                  {sel && <Check className="size-4 text-[rgb(var(--accent-rgb))]" />}
                 </button>
               )
             })}

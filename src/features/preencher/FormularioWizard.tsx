@@ -833,7 +833,7 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
                 <div>
                   <h2 className="text-display text-3xl text-foreground">
                     Marque os dias com{" "}
-                    <em className="italic text-[#e8c275]">ocorrência</em>
+                    <em className="italic text-[rgb(var(--accent-rgb))]">ocorrência</em>
                   </h2>
                   <p className="mt-2 text-sm leading-relaxed text-foreground/65">
                     Todos os dias começam como{" "}
@@ -983,7 +983,7 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
               className="glass-strong glow-gold group relative inline-flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-full px-8 text-base font-medium tracking-wide text-[#0a1224] transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-70"
               style={{
                 background:
-                  "linear-gradient(135deg, #e8c275 0%, #d4a64a 55%, #6ea0ff 130%)",
+                  "linear-gradient(135deg, rgb(var(--accent-rgb)) 0%, rgb(var(--accent-rgb)) 55%, rgb(var(--surface-rgb)) 130%)",
                 border: "1px solid rgba(255,236,194,0.5)",
               }}
             >
@@ -1697,19 +1697,19 @@ function DialogCancelamento({
           <DialogTitle className="text-display text-3xl text-foreground">
             {etapa === "calendario" ? (
               <>
-                Escolha o <em className="italic text-[#e8c275]">início</em>
+                Escolha o <em className="italic text-[rgb(var(--accent-rgb))]">início</em>
               </>
             ) : etapa === "confirmar_total" ? (
               <>
-                Cancelar <em className="italic text-[#e8c275]">tudo</em>?
+                Cancelar <em className="italic text-[rgb(var(--accent-rgb))]">tudo</em>?
               </>
             ) : etapa === "confirmar_parcial" ? (
               <>
-                Confirmar <em className="italic text-[#e8c275]">cancelamento</em>?
+                Confirmar <em className="italic text-[rgb(var(--accent-rgb))]">cancelamento</em>?
               </>
             ) : (
               <>
-                Cancelar <em className="italic text-[#e8c275]">convocação</em>
+                Cancelar <em className="italic text-[rgb(var(--accent-rgb))]">convocação</em>
               </>
             )}
           </DialogTitle>
@@ -1901,16 +1901,16 @@ function TelaCancelamentoConvocacao({
             {sucessoParcial ? (
               <>
                 Cancelamento{" "}
-                <em className="italic text-[#e8c275]">parcial</em>
+                <em className="italic text-[rgb(var(--accent-rgb))]">parcial</em>
               </>
             ) : etapa === "calendario" ? (
               <>
-                Escolha o <em className="italic text-[#e8c275]">início</em>
+                Escolha o <em className="italic text-[rgb(var(--accent-rgb))]">início</em>
               </>
             ) : (
               <>
                 Cancelar{" "}
-                <em className="italic text-[#e8c275]">convocação</em>
+                <em className="italic text-[rgb(var(--accent-rgb))]">convocação</em>
               </>
             )}
           </h1>
@@ -2542,7 +2542,7 @@ function DialogSelecionarSabados({
             Sábados extras
           </p>
           <DialogTitle className="text-display text-3xl text-foreground">
-            Adicionar <em className="italic text-[#6ea0ff]">sábados</em>
+            Adicionar <em className="italic text-[rgb(var(--surface-rgb))]">sábados</em>
           </DialogTitle>
           <DialogDescription className="text-foreground/65">
             Selecione os sábados extras trabalhados. Você receberá VT pelos

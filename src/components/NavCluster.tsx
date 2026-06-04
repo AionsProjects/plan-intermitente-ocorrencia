@@ -13,13 +13,12 @@ import { useNav } from "./NavContext"
  * - Config: abre o overlay de configurações (não navega).
  */
 export function NavCluster() {
-  const { voltar, homeTo, abrirConfig } = useNav()
-  const podeVoltar = typeof voltar === "function"
+  const { voltar, podeVoltar, homeTo, abrirConfig } = useNav()
   return (
     <div className="nav-cluster nav-cluster-fixed">
       <button
         type="button"
-        onClick={() => voltar?.()}
+        onClick={voltar}
         disabled={!podeVoltar}
         className="nav-btn nav-btn-prev"
         aria-label="Voltar etapa anterior"

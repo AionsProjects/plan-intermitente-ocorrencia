@@ -14,17 +14,17 @@ export function TelaSucesso({ itemId, itemUrl, onNovaConvocacao }: Props) {
         <CheckCircle2 className="size-8 text-emerald-700 dark:text-emerald-200" />
       </div>
       <h1 className="text-display mt-6 text-4xl leading-[1.05] text-foreground">
-        Convocação <em className="italic text-[#e8c275]">criada</em>
+        Convocação <em className="italic text-[rgb(var(--accent-rgb))]">criada</em>
       </h1>
       <p className="mt-3 text-sm text-foreground/65">
         Convocação cadastrada. Ative a coluna{" "}
-        <code className="text-[#e8c275]">Ativar</code> no monday para gerar o
+        <code className="text-[rgb(var(--accent-rgb))]">Ativar</code> no monday para gerar o
         link de preenchimento.
       </p>
 
       <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.05)] px-4 py-2 text-xs text-foreground/70 backdrop-blur">
         Código da convocação:{" "}
-        <code className="text-[#e8c275]">{itemId}</code>
+        <code className="text-[rgb(var(--accent-rgb))]">{itemId}</code>
         {ehMock && (
           <span className="ml-2 rounded-full border border-amber-300/40 bg-amber-300/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-200">
             teste
@@ -50,7 +50,7 @@ export function TelaSucesso({ itemId, itemUrl, onNovaConvocacao }: Props) {
           className="glow-gold inline-flex items-center justify-center gap-2 rounded-2xl px-6 py-3 text-sm font-medium text-[#0a1224] transition-all hover:scale-[1.01] active:scale-[0.99]"
           style={{
             background:
-              "linear-gradient(135deg, #e8c275 0%, #d4a64a 55%, #6ea0ff 130%)",
+              "linear-gradient(135deg, rgb(var(--accent-rgb)) 0%, rgb(var(--accent-rgb)) 55%, rgb(var(--surface-rgb)) 130%)",
             border: "1px solid rgba(255,236,194,0.5)",
           }}
         >

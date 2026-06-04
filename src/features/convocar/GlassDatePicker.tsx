@@ -103,7 +103,7 @@ export function GlassDatePicker({
         type="button"
         onClick={abrir}
         className={`flex w-full items-center gap-2 rounded-xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] px-4 py-3 text-left text-sm backdrop-blur transition hover:border-[rgb(var(--ink)/0.2)] hover:bg-[rgb(var(--ink)/0.06)] ${
-          aberto ? "border-[#e8c275]/55 bg-[rgb(var(--ink)/0.08)]" : ""
+          aberto ? "border-[rgb(var(--accent-rgb)/0.55)] bg-[rgb(var(--ink)/0.08)]" : ""
         }`}
       >
         <CalendarDays className="size-4 shrink-0 text-foreground/50" />
@@ -179,13 +179,13 @@ export function GlassDatePicker({
                   title={feriadoLabel ?? undefined}
                   className={`flex h-10 w-full items-center justify-center rounded-xl text-sm font-medium transition ${
                     sel
-                      ? "bg-[#e8c275] text-[#0a1224] shadow-[0_0_18px_rgba(232,194,117,0.5)]"
+                      ? "bg-[rgb(var(--accent-rgb))] text-[#0a1224] shadow-[0_0_18px_rgb(var(--accent-rgb)/0.5)]"
                       : eFeriado && noMes
                         ? "calendario-dia-feriado"
                         : noMes
                           ? "text-foreground/90 hover:bg-[rgb(var(--ink)/0.1)]"
                           : "text-foreground/30 hover:bg-[rgb(var(--ink)/0.05)]"
-                  } ${ehHoje && !sel ? "ring-1 ring-[#e8c275]/45" : ""} ${
+                  } ${ehHoje && !sel ? "ring-1 ring-[rgb(var(--accent-rgb)/0.45)]" : ""} ${
                     desabilitado ? "cursor-not-allowed opacity-40" : ""
                   }`}
                 >
@@ -208,7 +208,7 @@ export function GlassDatePicker({
             <button
               type="button"
               onClick={hoje}
-              className="text-sm font-medium text-[#e8c275] transition hover:text-[#ffe6b0]"
+              className="text-sm font-medium text-[rgb(var(--accent-rgb))] transition hover:text-[rgb(var(--accent-rgb))]"
             >
               Hoje
             </button>

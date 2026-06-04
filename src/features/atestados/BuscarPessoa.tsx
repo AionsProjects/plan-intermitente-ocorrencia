@@ -45,10 +45,10 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
         p.match ? (
           <mark
             key={j}
-            className="rounded-sm bg-[#e8c275]/30 px-0.5 text-[#ffe6b0]"
+            className="rounded-sm bg-[rgb(var(--accent-rgb)/0.3)] px-0.5 text-[rgb(var(--accent-rgb))]"
             style={{ backgroundColor: "transparent" }}
           >
-            <span className="font-semibold text-[#ffe6b0] underline decoration-[#e8c275] decoration-2 underline-offset-[3px]">
+            <span className="font-semibold text-[rgb(var(--accent-rgb))] underline decoration-[rgb(var(--accent-rgb))] decoration-2 underline-offset-[3px]">
               {p.text}
             </span>
           </mark>
@@ -98,7 +98,7 @@ export function BuscarPessoa({ tipoTrabalhador, onSelecionar }: Props) {
       <h1 className="text-display mt-3 text-5xl leading-[1.05] text-foreground">
         Buscar{" "}
         <em
-          className={`italic ${tipoTrabalhador === "clt" ? "text-[#b6a4ff]" : "text-[#e8c275]"}`}
+          className={`italic ${tipoTrabalhador === "clt" ? "text-[#b6a4ff]" : "text-[rgb(var(--accent-rgb))]"}`}
         >
           {tipoTrabalhador === "clt" ? "celetista" : "intermitente"}
         </em>
@@ -114,7 +114,7 @@ export function BuscarPessoa({ tipoTrabalhador, onSelecionar }: Props) {
           Nome do empregado
         </label>
         <div className="mt-3 glass-tile flex items-center gap-3 rounded-2xl px-4">
-          <Search className="size-4 shrink-0 text-[#e8c275]" />
+          <Search className="size-4 shrink-0 text-[rgb(var(--accent-rgb))]" />
           <input
             type="text"
             value={valor}
@@ -171,8 +171,8 @@ export function BuscarPessoa({ tipoTrabalhador, onSelecionar }: Props) {
                     className="glass-tile glass-tile-3d group relative flex w-full items-center justify-between rounded-2xl px-5 py-4 text-left"
                   >
                     <div className="flex min-w-0 items-center gap-3">
-                      <div className="icon-3d-host flex size-10 shrink-0 items-center justify-center rounded-full bg-[#e8c275]/12 ring-1 ring-[#e8c275]/30">
-                        <UserSearch className="icon-3d-only size-4 text-[#e8c275]" />
+                      <div className="icon-3d-host flex size-10 shrink-0 items-center justify-center rounded-full bg-[rgb(var(--accent-rgb)/0.12)] ring-1 ring-[rgb(var(--accent-rgb)/0.3)]">
+                        <UserSearch className="icon-3d-only size-4 text-[rgb(var(--accent-rgb))]" />
                       </div>
                       <div className="min-w-0">
                         <p className="truncate text-[15px] font-medium text-foreground/95">

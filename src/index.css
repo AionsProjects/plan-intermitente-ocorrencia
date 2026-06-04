@@ -22,12 +22,15 @@
   --orb-a: 95 134 255;
   --orb-b: 216 170 83;
   --orb-c: 138 110 230;
-  --orb-strength: 0.14;
+  --orb-strength: 0.15;
+  /* Quanto do matiz do esquema (--surface-rgb) é misturado no canvas base.
+     Maior = fundo toma mais a cor do esquema. Sobrescrito por esquema e no light. */
+  --canvas-tint: 13%;
 
-  /* Deep dark palette — base mais preta, azul discreto */
-  --aurora-bg-1: #010204;
-  --aurora-bg-2: #04060b;
-  --aurora-bg-3: #090b13;
+  /* Deep dark palette — base NEUTRA near-black (sem azul, p/ o esquema dominar) */
+  --aurora-bg-1: #050505;
+  --aurora-bg-2: #0a0a0a;
+  --aurora-bg-3: #101012;
 
   --aurora-blue: #3f6ff5;
   --aurora-blue-soft: #7da7ff;
@@ -42,10 +45,10 @@
   --status-green: #3fcf79;
 
   /* Glass tokens */
-  --glass-bg: rgba(8, 13, 26, 0.66);
-  --glass-bg-strong: rgba(12, 18, 34, 0.78);
-  --glass-border: rgba(160, 178, 210, 0.14);
-  --glass-border-strong: rgba(170, 188, 220, 0.22);
+  --glass-bg: rgba(13, 13, 16, 0.66);
+  --glass-bg-strong: rgba(17, 17, 20, 0.78);
+  --glass-border: rgba(188, 190, 196, 0.14);
+  --glass-border-strong: rgba(196, 198, 204, 0.22);
   --glass-shadow: 0 26px 74px -16px rgb(var(--shadow) / 0.82), 0 12px 34px -18px rgba(6, 12, 28, 0.9);
   /* Semantic */
   --background: #010204;
@@ -61,62 +64,125 @@
   --muted: rgba(70, 82, 108, 0.14);
   --muted-foreground: rgba(218, 226, 242, 0.58);
   --accent: rgb(var(--accent-rgb) / 0.14);
-  --accent-foreground: #f8f0dd;
+  --accent-foreground: #f4f7ff;
   --destructive: #ef6666;
   --border: rgba(176, 194, 230, 0.12);
   --input: rgba(176, 194, 230, 0.11);
   --ring: rgb(var(--accent-rgb) / 0.55);
 }
 
-/* ===== ESQUEMAS DE COR (3 tons) — surface (caixa) + accent (efeitos) + orbes ===== */
+/* ===== ESQUEMAS DE COR — combos: surface (canvas/caixa) + accent (pop) + 3 orbes =====
+   seco é o ÚNICO monocromático. Os demais combinam 2–3 matizes (orbes de cores
+   distintas + accent contrastante). Dark abaixo; light em blocos próprios adiante. */
+
+/* aurora — ramp preto, detalhes AZUL + OURO (2 cores que combinam) */
 [data-accent="aurora"] {
-  --accent-rgb: 232 194 117;  /* efeitos/botões = dourado */
-  --surface-rgb: 70 116 240;  /* caixas = azul aurora */
-  --orb-a: 95 134 255;        /* azul */
-  --orb-b: 216 170 83;        /* dourado */
-  --orb-c: 138 110 230;       /* roxo */
+  --accent-rgb: 235 196 120;  /* pop = dourado */
+  --surface-rgb: 38 38 38;    /* caixas = #262626 */
+  --orb-a: 70 110 230;        /* azul */
+  --orb-b: 224 176 96;        /* dourado */
+  --orb-c: 57 57 57;          /* cinza p/ manter preto */
+  --canvas-tint: 0%;
+  --orb-strength: 0.12;
 }
-[data-accent="verde"] {
-  --accent-rgb: 52 211 153;
-  --surface-rgb: 16 185 129;
-  --orb-a: 16 185 129;
-  --orb-b: 45 212 191;
-  --orb-c: 14 124 102;
-}
-[data-accent="rosa"] {
-  --accent-rgb: 244 143 177;  /* efeitos = rosa */
-  --surface-rgb: 168 120 235; /* caixas = violeta */
-  --orb-a: 244 114 182;
-  --orb-b: 192 132 252;
-  --orb-c: 251 154 166;
-}
+
+/* seco — Grafite (MONO): ramp preto (#000→#4c4c4c) + BRANCO forte de pop */
 [data-accent="seco"] {
-  --accent-rgb: 148 163 184;
-  --surface-rgb: 90 104 124;
-  --orb-a: 71 85 105;
-  --orb-b: 51 65 85;
-  --orb-c: 100 116 139;
+  --accent-rgb: 250 250 250;  /* pop = branco forte (botões/ícones/itálicos) */
+  --surface-rgb: 38 38 38;    /* caixas = #262626 */
+  --orb-a: 57 57 57;          /* #393939 */
+  --orb-b: 38 38 38;          /* #262626 */
+  --orb-c: 76 76 76;          /* #4c4c4c */
+  --canvas-tint: 0%;          /* canvas = preto (base near-black) */
+  --orb-strength: 0.1;        /* glows cinza sutis = profundidade, não morto */
+}
+
+/* verde (Ouro) — ramp preto do grafite, mas detalhes DOURADOS */
+[data-accent="verde"] {
+  --accent-rgb: 235 196 120;  /* pop = dourado (detalhes) */
+  --surface-rgb: 38 38 38;    /* caixas = #262626 */
+  --orb-a: 57 57 57;          /* #393939 */
+  --orb-b: 224 176 96;        /* dourado (glow de detalhe) */
+  --orb-c: 76 76 76;          /* #4c4c4c */
+  --canvas-tint: 0%;          /* canvas = preto */
+  --orb-strength: 0.1;
+}
+
+/* rosa (Poente) — ramp preto, detalhes ROSA + VIOLETA (2 cores que combinam) */
+[data-accent="rosa"] {
+  --accent-rgb: 244 114 182;  /* pop = rosa */
+  --surface-rgb: 38 38 38;    /* caixas = #262626 */
+  --orb-a: 244 114 182;       /* rosa */
+  --orb-b: 192 100 246;       /* violeta */
+  --orb-c: 57 57 57;          /* cinza p/ manter preto */
+  --canvas-tint: 0%;
+  --orb-strength: 0.12;
+}
+
+/* rubi (Brasa) — ramp preto escuro, detalhes VERMELHO + LARANJA (brasa) */
+[data-accent="rubi"] {
+  --accent-rgb: 251 146 60;   /* pop = laranja */
+  --surface-rgb: 38 38 38;    /* caixas = #262626 */
+  --orb-a: 239 68 68;         /* vermelho (ember) */
+  --orb-b: 251 146 60;        /* laranja (ember) */
+  --orb-c: 57 57 57;          /* cinza p/ manter preto */
+  --canvas-tint: 0%;          /* canvas = preto */
+  --orb-strength: 0.12;
+}
+
+/* roxo (Nebulosa) — ramp preto, detalhes VIOLETA + CIANO (2 cores que combinam) */
+[data-accent="roxo"] {
+  --accent-rgb: 103 232 249;  /* pop = ciano */
+  --surface-rgb: 38 38 38;    /* caixas = #262626 */
+  --orb-a: 139 92 246;        /* violeta */
+  --orb-b: 34 211 238;        /* ciano */
+  --orb-c: 57 57 57;          /* cinza p/ manter preto */
+  --canvas-tint: 0%;
+  --orb-strength: 0.12;
+}
+
+/* ===== LIGHT por esquema — accent mais profundo p/ contraste no off-white ===== */
+[data-theme="light"][data-accent="aurora"] {
+  --accent-rgb: 176 124 28;   /* ouro profundo (detalhe no branco) */
+  --surface-rgb: 208 208 210; /* caixas = cinza claro */
+  --orb-a: 110 150 250;       /* azul */
+  --orb-b: 224 176 96;        /* dourado */
+  --orb-c: 200 200 202;
 }
 [data-theme="light"][data-accent="seco"] {
-  --accent-rgb: 100 116 139;
-  --surface-rgb: 150 162 180;
-  --orb-a: 148 163 184;
-  --orb-b: 203 213 225;
-  --orb-c: 226 232 240;
+  --accent-rgb: 90 94 102;
+  --surface-rgb: 150 152 158;
+  --orb-a: 150 152 158;
+  --orb-b: 200 202 208;
+  --orb-c: 224 226 230;
 }
-[data-accent="rubi"] {
-  --accent-rgb: 239 68 68; /* efeitos = vermelho */
-  --surface-rgb: 218 60 60; /* caixas = vermelho */
-  --orb-a: 239 68 68;
-  --orb-b: 251 113 133;
-  --orb-c: 176 42 58;
+[data-theme="light"][data-accent="verde"] {
+  --accent-rgb: 176 124 28;   /* dourado profundo (detalhes no branco) */
+  --surface-rgb: 208 208 210; /* caixas = cinza claro */
+  --orb-a: 216 216 218;
+  --orb-b: 224 176 96;        /* dourado */
+  --orb-c: 198 198 200;
 }
-[data-accent="roxo"] {
-  --accent-rgb: 167 139 250; /* efeitos = roxo claro */
-  --surface-rgb: 139 92 246; /* caixas = violeta */
-  --orb-a: 139 92 246;
-  --orb-b: 167 139 250;
-  --orb-c: 99 102 241; /* índigo */
+[data-theme="light"][data-accent="rosa"] {
+  --accent-rgb: 213 70 130;   /* rosa profundo (detalhe no branco) */
+  --surface-rgb: 208 208 210; /* caixas = cinza claro */
+  --orb-a: 244 114 182;       /* rosa */
+  --orb-b: 192 132 252;       /* violeta */
+  --orb-c: 200 200 202;
+}
+[data-theme="light"][data-accent="rubi"] {
+  --accent-rgb: 198 70 30;    /* laranja-vermelho profundo (detalhe no branco) */
+  --surface-rgb: 208 208 210; /* caixas = cinza claro */
+  --orb-a: 239 68 68;         /* vermelho */
+  --orb-b: 251 146 60;        /* laranja */
+  --orb-c: 200 200 202;
+}
+[data-theme="light"][data-accent="roxo"] {
+  --accent-rgb: 20 150 185;   /* ciano profundo (detalhe no branco) */
+  --surface-rgb: 208 208 210; /* caixas = cinza claro */
+  --orb-a: 139 92 246;        /* violeta */
+  --orb-b: 45 200 220;        /* ciano */
+  --orb-c: 200 200 202;
 }
 
 /* ===== TEMA CLARO ===== */
@@ -150,10 +216,11 @@
   --muted: rgba(20, 30, 52, 0.045);
   --muted-foreground: rgba(34, 44, 66, 0.6);
   --accent: rgb(var(--accent-rgb) / 0.18);
-  --accent-foreground: #4a3a12;
+  --accent-foreground: #1a2233;
   --border: rgba(22, 34, 64, 0.11);
   --input: rgba(22, 34, 64, 0.09);
-  --orb-strength: 0.26;
+  --orb-strength: 0.46;
+  --canvas-tint: 24%;
 }
 
 /* ===== Transição de tema: crossfade de cor ~1s (sem efeito visual) ===== */
@@ -218,10 +285,17 @@
     font-family: "Geist", ui-sans-serif, system-ui, -apple-system, sans-serif;
     font-feature-settings: "ss01", "cv11";
     background:
-      radial-gradient(1100px 760px at 88% -12%, rgba(55, 91, 190, 0.18), transparent 58%),
-      radial-gradient(900px 620px at -12% 112%, rgba(216, 170, 83, 0.08), transparent 54%),
-      radial-gradient(820px 560px at 50% 55%, rgba(70, 96, 155, 0.08), transparent 72%),
-      linear-gradient(165deg, var(--aurora-bg-1) 0%, var(--aurora-bg-2) 52%, var(--aurora-bg-3) 100%);
+      /* glows de canto SEGUEM o esquema (orb tokens) — não mais azul/dourado fixo */
+      radial-gradient(1100px 760px at 88% -12%, rgb(var(--orb-a) / 0.32), transparent 58%),
+      radial-gradient(900px 620px at -12% 112%, rgb(var(--orb-b) / 0.22), transparent 54%),
+      radial-gradient(820px 560px at 50% 55%, rgb(var(--orb-c) / 0.18), transparent 72%),
+      /* canvas base MISTURADO em direção ao matiz do esquema (--surface-rgb) */
+      linear-gradient(
+        165deg,
+        color-mix(in srgb, var(--aurora-bg-1) calc(100% - var(--canvas-tint)), rgb(var(--surface-rgb))) 0%,
+        color-mix(in srgb, var(--aurora-bg-2) calc(100% - var(--canvas-tint)), rgb(var(--surface-rgb))) 52%,
+        color-mix(in srgb, var(--aurora-bg-3) calc(100% - var(--canvas-tint)), rgb(var(--surface-rgb))) 100%
+      );
     background-attachment: fixed;
     overflow-x: hidden;
   }
@@ -310,14 +384,15 @@
 
   .glass-strong {
     background:
-      linear-gradient(135deg, rgb(var(--surface-rgb) / 0.13), transparent 62%),
+      linear-gradient(135deg, rgb(var(--surface-rgb) / 0.22), rgb(var(--surface-rgb) / 0.04) 62%),
       var(--glass-bg-strong);
-    border: 1px solid var(--glass-border-strong);
+    border: 1px solid rgb(var(--accent-rgb) / 0.22);
     backdrop-filter: blur(42px) saturate(150%);
     -webkit-backdrop-filter: blur(42px) saturate(150%);
     box-shadow:
       0 34px 86px -24px rgb(var(--shadow) / 0.9),
       0 0 0 1px rgb(var(--ink) / 0.03),
+      inset 0 1px 0 0 rgb(var(--accent-rgb) / 0.18),
       inset 1px 1px 0 0 rgb(var(--ink) / 0.17),
       inset -1px -1px 0 0 rgb(var(--shadow) / 0.26);
     border-radius: var(--radius);
@@ -384,7 +459,7 @@
 
   .glass-tile {
     background:
-      linear-gradient(135deg, rgb(var(--surface-rgb) / 0.15), rgb(var(--surface-rgb) / 0.05)),
+      linear-gradient(135deg, rgb(var(--surface-rgb) / 0.24), rgb(var(--surface-rgb) / 0.08)),
       var(--glass-bg);
     border: 1px solid var(--glass-border);
     backdrop-filter: url(#liquid-glass-soft) blur(8px) saturate(125%);
@@ -398,9 +473,9 @@
 
   .glass-tile:hover {
     background:
-      linear-gradient(135deg, rgb(var(--surface-rgb) / 0.22), rgb(var(--surface-rgb) / 0.08)),
+      linear-gradient(135deg, rgb(var(--surface-rgb) / 0.34), rgb(var(--surface-rgb) / 0.12)),
       var(--glass-bg-strong);
-    border-color: var(--glass-border-strong);
+    border-color: rgb(var(--accent-rgb) / 0.3);
   }
 
   @supports not (backdrop-filter: url(#liquid-glass-soft)) {
@@ -496,6 +571,9 @@
     font-family: "Instrument Serif", ui-serif, Georgia, serif;
     font-weight: 400;
     letter-spacing: -0.01em;
+    /* Caligrafia DERIVADA da paleta: quase-foreground com toque do accent.
+       !important pra vencer utilitários `text-foreground` aplicados nos títulos. */
+    color: color-mix(in srgb, var(--foreground) 78%, rgb(var(--accent-rgb))) !important;
   }
 
   .glow-gold {
@@ -1050,7 +1128,7 @@ html {
   border-radius: 9999px;
   border: 1px solid rgb(var(--accent-rgb) / 0.32);
   background: rgb(var(--accent-rgb) / 0.06);
-  color: rgba(255, 230, 176, 0.85);
+  color: color-mix(in srgb, rgb(var(--ink)) 68%, rgb(var(--accent-rgb)));
   backdrop-filter: url(#liquid-glass-soft) blur(6px) saturate(140%);
   -webkit-backdrop-filter: url(#liquid-glass-soft) blur(6px) saturate(140%);
   box-shadow:
@@ -1107,8 +1185,8 @@ html {
   border-color: rgb(var(--accent-rgb) / 0.55);
   box-shadow:
     0 0 24px 2px rgb(var(--accent-rgb) / 0.28),
-    0 8px 18px -4px rgba(180, 128, 40, 0.46),
-    inset 0 1px 0 0 rgba(255, 237, 200, 0.26);
+    0 8px 18px -4px rgb(var(--accent-rgb) / 0.46),
+    inset 0 1px 0 0 rgb(var(--accent-rgb) / 0.26);
 }
 .retroativo-unlock:not(.retroativo-unlock-aberto):hover .retroativo-unlock-trigger {
   gap: 0.375rem;
@@ -1121,18 +1199,18 @@ html {
 
 /* Estado aberto: container amplia pra incluir input + botão Liberar */
 .retroativo-unlock-aberto {
-  background: rgba(40, 28, 8, 0.94);
+  background: rgb(var(--shadow) / 0.9);
   border-color: rgb(var(--accent-rgb) / 0.55);
   box-shadow:
     0 0 32px 3px rgb(var(--accent-rgb) / 0.35),
-    0 10px 24px -4px rgba(180, 128, 40, 0.56),
-    inset 0 1px 0 0 rgba(255, 237, 200, 0.22);
+    0 10px 24px -4px rgb(var(--accent-rgb) / 0.56),
+    inset 0 1px 0 0 rgb(var(--accent-rgb) / 0.22);
   padding-right: 0.25rem;
 }
 .retroativo-unlock-aberto .retroativo-unlock-trigger {
   gap: 0.375rem;
   padding-right: 0.5rem;
-  color: rgba(255, 237, 200, 0.95);
+  color: color-mix(in srgb, rgb(var(--ink)) 68%, rgb(var(--accent-rgb)));
 }
 .retroativo-unlock-aberto .retroativo-unlock-trigger svg {
   transform: rotate(45deg);
@@ -1171,13 +1249,13 @@ html {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.8125rem;
   letter-spacing: 0.18em;
-  color: rgba(255, 237, 200, 0.95);
+  color: color-mix(in srgb, rgb(var(--ink)) 68%, rgb(var(--accent-rgb)));
   outline: none;
   transition: border-color 200ms ease, background 200ms ease;
 }
 .retroativo-unlock-input::placeholder {
   letter-spacing: 0.02em;
-  color: rgba(255, 237, 200, 0.32);
+  color: rgb(var(--ink) / 0.4);
   font-family: inherit;
 }
 .retroativo-unlock-input:focus {
@@ -1513,24 +1591,24 @@ html {
 .btn-action-expand.btn-atestado-retroativo {
   border-color: rgb(var(--accent-rgb) / 0.32);
   background: rgb(var(--accent-rgb) / 0.06);
-  color: rgba(255, 230, 176, 0.85);
+  color: color-mix(in srgb, rgb(var(--ink)) 68%, rgb(var(--accent-rgb)));
 }
 .btn-action-expand.btn-atestado-retroativo:hover {
   background: rgb(var(--accent-rgb) / 0.16);
   border-color: rgb(var(--accent-rgb) / 0.55);
   box-shadow:
     0 0 28px 2px rgb(var(--accent-rgb) / 0.3),
-    0 8px 20px -4px rgba(180, 128, 40, 0.5),
-    inset 0 1px 0 0 rgba(255, 237, 200, 0.3);
+    0 8px 20px -4px rgb(var(--accent-rgb) / 0.5),
+    inset 0 1px 0 0 rgb(var(--accent-rgb) / 0.3);
 }
 .btn-action-expand.btn-atestado-retroativo-active {
-  background: rgba(40, 28, 8, 0.94);
+  background: rgb(var(--shadow) / 0.9);
   border-color: rgb(var(--accent-rgb) / 0.6);
-  color: rgba(255, 237, 200, 0.95);
+  color: color-mix(in srgb, rgb(var(--ink)) 68%, rgb(var(--accent-rgb)));
   box-shadow:
     0 0 28px 2px rgb(var(--accent-rgb) / 0.3),
-    0 8px 20px -4px rgba(180, 128, 40, 0.5),
-    inset 0 1px 0 0 rgba(255, 237, 200, 0.22);
+    0 8px 20px -4px rgb(var(--accent-rgb) / 0.5),
+    inset 0 1px 0 0 rgb(var(--accent-rgb) / 0.22);
   width: auto;
   gap: 0.375rem;
   padding-left: 0.75rem;
@@ -2981,8 +3059,8 @@ html {
   background-color: var(--glass-bg);
   background-image: linear-gradient(
     135deg,
-    rgb(var(--surface-rgb) / 0.13),
-    rgb(var(--surface-rgb) / 0.04)
+    rgb(var(--surface-rgb) / 0.2),
+    rgb(var(--surface-rgb) / 0.07)
   );
   backdrop-filter: blur(28px) saturate(160%);
   -webkit-backdrop-filter: blur(28px) saturate(160%);

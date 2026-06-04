@@ -25,7 +25,7 @@ export function EscolhaTipoTrabalhador({ onSelecionar }: Props) {
         Aionscorp · Atestados e declarações
       </p>
       <h1 className="text-display mt-3 text-5xl leading-[1.05] text-foreground">
-        Qual <em className="italic text-[#e8c275]">tipo</em> de trabalhador?
+        Qual <em className="italic text-[rgb(var(--accent-rgb))]">tipo</em> de trabalhador?
       </h1>
       <p className="mt-4 max-w-md text-sm leading-relaxed text-foreground/65">
         Escolha o tipo de contratação para lançar um atestado médico ou
@@ -41,8 +41,8 @@ export function EscolhaTipoTrabalhador({ onSelecionar }: Props) {
           className="glass-tile glass-tile-3d group relative flex min-h-[5.5rem] items-center justify-between rounded-2xl px-5 py-4 text-left"
         >
           <div className="flex min-w-0 items-center gap-3.5">
-            <div className="icon-3d-host flex size-11 shrink-0 items-center justify-center rounded-full bg-[#e8c275]/12 ring-1 ring-[#e8c275]/35">
-              <Hammer className="icon-3d-only size-5 text-[#e8c275]" />
+            <div className="icon-3d-host flex size-11 shrink-0 items-center justify-center rounded-full bg-[rgb(var(--accent-rgb)/0.12)] ring-1 ring-[rgb(var(--accent-rgb)/0.35)]">
+              <Hammer className="icon-3d-only size-5 text-[rgb(var(--accent-rgb))]" />
             </div>
             <div className="min-w-0">
               <p className="text-base font-medium leading-tight text-foreground/95">
@@ -53,7 +53,7 @@ export function EscolhaTipoTrabalhador({ onSelecionar }: Props) {
               </p>
             </div>
           </div>
-          <Sparkles className="size-4 shrink-0 text-[#e8c275]/60 transition-transform group-hover:scale-110" />
+          <Sparkles className="size-4 shrink-0 text-[rgb(var(--accent-rgb)/0.6)] transition-transform group-hover:scale-110" />
         </button>
 
         <button

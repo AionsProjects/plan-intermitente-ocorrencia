@@ -23,7 +23,7 @@ export type ComboboxFiltravelProps = {
   noMatchMessage?: string
   /** Quando true, desabilita o trigger e mostra opacidade reduzida. */
   disabled?: boolean
-  /** Acento de cor (hex). Default âmbar (#e8c275). */
+  /** Acento de cor (hex). Default âmbar (rgb(var(--accent-rgb))). */
   accent?: string
   /** Ícone à esquerda de cada opção. Default Building2. */
   iconeOpcao?: typeof Building2
@@ -49,7 +49,7 @@ export function ComboboxFiltravel({
   emptyMessage = "Nenhuma opção disponível.",
   noMatchMessage = "Nenhuma unidade encontrada para esse termo",
   disabled = false,
-  accent = "#e8c275",
+  accent = "rgb(var(--accent-rgb))",
   iconeOpcao: IconeOpcao = Building2,
   extraInfo,
 }: ComboboxFiltravelProps) {

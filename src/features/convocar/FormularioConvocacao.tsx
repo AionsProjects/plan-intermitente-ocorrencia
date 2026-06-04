@@ -396,7 +396,7 @@ export function FormularioConvocacao({
         className="plane-btn glow-gold inline-flex w-full items-center justify-center gap-2 rounded-2xl px-6 py-3.5 text-sm font-medium text-[#0a1224] transition-all hover:scale-[1.01] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
         style={{
           background:
-            "linear-gradient(135deg, #e8c275 0%, #d4a64a 55%, #6ea0ff 130%)",
+            "linear-gradient(135deg, rgb(var(--accent-rgb)) 0%, rgb(var(--accent-rgb)) 55%, rgb(var(--surface-rgb)) 130%)",
           border: "1px solid rgba(255,236,194,0.5)",
         }}
       >
@@ -532,7 +532,7 @@ function FieldText({
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] px-4 py-3 text-sm text-foreground placeholder:text-foreground/30 backdrop-blur transition focus:border-[#e8c275]/50 focus:bg-[rgb(var(--ink)/0.07)] focus:outline-none"
+        className="w-full rounded-xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] px-4 py-3 text-sm text-foreground placeholder:text-foreground/30 backdrop-blur transition focus:border-[rgb(var(--accent-rgb)/0.5)] focus:bg-[rgb(var(--ink)/0.07)] focus:outline-none"
       />
     </div>
   )
@@ -565,10 +565,10 @@ function FieldFile({
           </button>
         </div>
       ) : (
-        <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[rgb(var(--ink)/0.15)] bg-[rgb(var(--ink)/0.02)] px-4 py-8 text-center transition hover:border-[#e8c275]/40 hover:bg-[rgb(var(--ink)/0.05)]">
+        <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[rgb(var(--ink)/0.15)] bg-[rgb(var(--ink)/0.02)] px-4 py-8 text-center transition hover:border-[rgb(var(--accent-rgb)/0.4)] hover:bg-[rgb(var(--ink)/0.05)]">
           <FileUp className="size-5 text-foreground/55" />
           <span className="text-xs text-foreground/65">
-            <span className="text-[#e8c275] underline-offset-2 hover:underline">
+            <span className="text-[rgb(var(--accent-rgb))] underline-offset-2 hover:underline">
               Escolha um arquivo
             </span>{" "}
             ou arraste e solte aqui

@@ -75,7 +75,7 @@ export function CorrecaoPage() {
             type="button"
             onClick={() => void abrir("PROT-DEMO-1234")}
             title="Abrir protocolo de teste"
-            className="inline-flex size-8 items-center justify-center rounded-full border border-[rgb(var(--ink)/0.1)] bg-[rgb(var(--ink)/0.03)] text-foreground/35 backdrop-blur transition-all hover:border-[#e8c275]/40 hover:bg-[#e8c275]/10 hover:text-[#e8c275]"
+            className="inline-flex size-8 items-center justify-center rounded-full border border-[rgb(var(--ink)/0.1)] bg-[rgb(var(--ink)/0.03)] text-foreground/35 backdrop-blur transition-all hover:border-[rgb(var(--accent-rgb)/0.4)] hover:bg-[rgb(var(--accent-rgb)/0.1)] hover:text-[rgb(var(--accent-rgb))]"
           >
             <FlaskConical className="size-3.5" />
             <span className="sr-only">Abrir protocolo de teste PROT-DEMO-1234</span>
@@ -86,7 +86,7 @@ export function CorrecaoPage() {
           Aionscorp · Plano de intermitentes
         </p>
         <h1 className="text-display mt-3 text-5xl leading-[1.05] text-foreground">
-          Corrigir <em className="italic text-[#e8c275]">registro</em>
+          Corrigir <em className="italic text-[rgb(var(--accent-rgb))]">registro</em>
         </h1>
         <p className="mt-4 max-w-md text-sm leading-relaxed text-foreground/65">
           Use o código de protocolo emitido na finalização para reabrir o
@@ -105,7 +105,7 @@ export function CorrecaoPage() {
           </label>
           <div className="flex items-stretch gap-2">
             <div className="glass-tile flex flex-1 items-center gap-3 rounded-2xl px-4">
-              <KeyRound className="size-4 shrink-0 text-[#e8c275]" />
+              <KeyRound className="size-4 shrink-0 text-[rgb(var(--accent-rgb))]" />
               <input
                 type="text"
                 value={valor}
@@ -123,7 +123,7 @@ export function CorrecaoPage() {
               className="glow-gold inline-flex items-center justify-center gap-2 rounded-2xl px-6 text-sm font-medium text-[#0a1224] transition-all hover:scale-[1.02] active:scale-[0.99] disabled:opacity-60"
               style={{
                 background:
-                  "linear-gradient(135deg, #e8c275 0%, #d4a64a 55%, #6ea0ff 130%)",
+                  "linear-gradient(135deg, rgb(var(--accent-rgb)) 0%, rgb(var(--accent-rgb)) 55%, rgb(var(--surface-rgb)) 130%)",
                 border: "1px solid rgba(255,236,194,0.5)",
               }}
             >
@@ -168,7 +168,7 @@ export function CorrecaoPage() {
                           {p.protocolo}
                         </p>
                         {p.editadoEm && (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-[#e8c275]/30 bg-[#e8c275]/10 px-2 py-0.5 text-[9px] font-medium uppercase tracking-wider text-[#e8c275]">
+                          <span className="inline-flex items-center gap-1 rounded-full border border-[rgb(var(--accent-rgb)/0.3)] bg-[rgb(var(--accent-rgb)/0.1)] px-2 py-0.5 text-[9px] font-medium uppercase tracking-wider text-[rgb(var(--accent-rgb))]">
                             <Pencil className="size-2.5" />
                             Editado
                           </span>

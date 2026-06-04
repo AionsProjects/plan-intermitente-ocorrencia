@@ -73,7 +73,7 @@ export function TestePage() {
           Aionscorp · Plano de intermitentes
         </p>
         <h1 className="text-display mt-3 text-5xl leading-[1.05] text-foreground">
-          Chaves de <em className="italic text-[#e8c275]">teste</em>
+          Chaves de <em className="italic text-[rgb(var(--accent-rgb))]">teste</em>
         </h1>
         <p className="mt-4 max-w-md text-sm leading-relaxed text-foreground/65">
           Nada do que for enviado aqui é registrado de verdade. Use pra
@@ -85,7 +85,7 @@ export function TestePage() {
             className={`size-1.5 rounded-full ${
               usandoMock
                 ? "bg-emerald-300 shadow-[0_0_10px_2px_rgba(127,231,196,0.6)]"
-                : "bg-[#e8c275] shadow-[0_0_10px_2px_rgba(232,194,117,0.55)]"
+                : "bg-[rgb(var(--accent-rgb))] shadow-[0_0_10px_2px_rgb(var(--accent-rgb)/0.55)]"
             }`}
           />
           {usandoMock ? (
@@ -143,8 +143,8 @@ export function TestePage() {
             className="glass-tile group flex items-center justify-between rounded-2xl px-5 py-4"
           >
             <div className="flex items-center gap-3">
-              <div className="flex size-9 items-center justify-center rounded-full bg-[#e8c275]/12 ring-1 ring-[#e8c275]/30">
-                <KeyRound className="size-4 text-[#e8c275]" />
+              <div className="flex size-9 items-center justify-center rounded-full bg-[rgb(var(--accent-rgb)/0.12)] ring-1 ring-[rgb(var(--accent-rgb)/0.3)]">
+                <KeyRound className="size-4 text-[rgb(var(--accent-rgb))]" />
               </div>
               <div>
                 <p className="text-[15px] font-medium text-foreground/95">
@@ -160,7 +160,7 @@ export function TestePage() {
 
           <p className="mt-3 px-1 text-[11px] leading-relaxed text-foreground/50">
             Protocolo de teste:{" "}
-            <code className="text-[#e8c275]">PROT-DEMO-1234</code>
+            <code className="text-[rgb(var(--accent-rgb))]">PROT-DEMO-1234</code>
           </p>
         </div>
       </div>

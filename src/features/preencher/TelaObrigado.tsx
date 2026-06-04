@@ -105,7 +105,7 @@ export function TelaObrigado({ dados, ehCorrecao, ehTeste }: Props) {
       <div className="flex flex-1 items-center justify-center px-4 py-12">
       <div className="glass-strong w-full max-w-md p-10 text-center fade-up">
         {dados.editado && (
-          <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-[#e8c275]/30 bg-[#e8c275]/10 px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-[#e8c275]">
+          <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-[rgb(var(--accent-rgb)/0.3)] bg-[rgb(var(--accent-rgb)/0.1)] px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-[rgb(var(--accent-rgb))]">
             <Pencil className="size-3" />
             Item editado
           </div>
@@ -125,7 +125,7 @@ export function TelaObrigado({ dados, ehCorrecao, ehTeste }: Props) {
           Tudo certo
         </p>
         <h1 className="text-display mt-2 text-4xl leading-tight text-foreground">
-          Obrigado pelo <em className="italic text-[#e8c275]">preenchimento</em>
+          Obrigado pelo <em className="italic text-[rgb(var(--accent-rgb))]">preenchimento</em>
         </h1>
         <p className="mt-3 text-sm leading-relaxed text-foreground/70">
           As informações de <span className="text-foreground">{dados.nome}</span>{" "}
@@ -183,7 +183,7 @@ export function TelaObrigado({ dados, ehCorrecao, ehTeste }: Props) {
             </p>
           )}
           {editadoTexto && (
-            <p className="text-xs text-[#e8c275]/80">
+            <p className="text-xs text-[rgb(var(--accent-rgb)/0.8)]">
               Editado em {editadoTexto}
             </p>
           )}

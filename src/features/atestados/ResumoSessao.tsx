@@ -148,7 +148,7 @@ export function ResumoSessao({
               Resumo
             </p>
             <DialogTitle className="text-display text-3xl text-foreground">
-              Documentos <em className="italic text-[#e8c275]">adicionados</em>
+              Documentos <em className="italic text-[rgb(var(--accent-rgb))]">adicionados</em>
             </DialogTitle>
             <DialogDescription className="text-foreground/65">
               {total === 0

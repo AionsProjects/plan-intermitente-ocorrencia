@@ -28,12 +28,12 @@ export const SCHEME_META: Record<
   Scheme,
   { label: string; tones: [string, string, string] }
 > = {
-  aurora: { label: "Aurora", tones: ["#3f6ff5", "#7da7ff", "#d8aa53"] },
-  seco: { label: "Seco", tones: ["#5b6675", "#828c9b", "#aab2bf"] },
-  verde: { label: "Esmeralda", tones: ["#10b981", "#2dd4bf", "#0e7c66"] },
-  rosa: { label: "Rosado", tones: ["#f472b6", "#c084fc", "#fb9aa6"] },
-  rubi: { label: "Rubi", tones: ["#ef4444", "#f87171", "#b91c1c"] },
-  roxo: { label: "Roxo", tones: ["#8b5cf6", "#a78bfa", "#6366f1"] },
+  aurora: { label: "Aurora", tones: ["#1a1a1a", "#3f6ff5", "#ebc478"] },
+  seco: { label: "Grafite", tones: ["#000000", "#4c4c4c", "#fafafa"] },
+  verde: { label: "Ouro", tones: ["#1a1a1a", "#ebc478", "#4c4c4c"] },
+  rosa: { label: "Poente", tones: ["#1a1a1a", "#f472b6", "#c084fc"] },
+  rubi: { label: "Brasa", tones: ["#1a1a1a", "#ef4444", "#fb923c"] },
+  roxo: { label: "Nebulosa", tones: ["#1a1a1a", "#8b5cf6", "#22d3ee"] },
 }
 
 function systemDark(): boolean {
