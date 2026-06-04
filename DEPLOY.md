@@ -36,17 +36,28 @@ git clone https://github.com/AionsProjects/plan-intermitente-ocorrencia.git plan
 cd plano-intermitentes
 ```
 
-Crie um `.env` ao lado do `docker-compose.yml` apontando pro n8n:
+Crie um `.env` ao lado do `docker-compose.yml` apontando pros DOIS n8n:
 
 ```bash
 cat > .env <<'EOF'
 VITE_N8N_BASE_URL=https://aionscorp-n8n.cloudfy.live/webhook
+VITE_N8N_ANTIGO_BASE_URL=https://antigoaionscorp-n8n.cloudfy.live/webhook
 EOF
 ```
 
 > Esse `.env` é lido pelo docker compose só pra passar como `--build-arg`
 > ao Vite. **Não confunda com o `.env` do dev local** — é a mesma chave
 > mas o uso é diferente.
+
+> ⚠️ **CRÍTICO — não erre os hosts (já quebrou em produção):**
+> - `VITE_N8N_BASE_URL` = **n8n NOVO** (`aionscorp-n8n`). É onde vivem
+>   WF2 (ler), **WF3 (finalizar)**, descontos, ponto facultativo, atestados,
+>   feriados. Se isso apontar pro ANTIGO, o `/preencher` **não chama o WF3**
+>   (o webhook não existe no antigo) e nada é registrado.
+> - `VITE_N8N_ANTIGO_BASE_URL` = **n8n ANTIGO** (`antigoaionscorp-n8n`).
+>   Usado por convocar (WF7), busca empregado RM (BEN 2/WF8), cancelar.
+> - **Sintoma de host trocado**: form envia mas não aparece execução no WF3.
+>   Confira `cat /opt/plano-intermitentes/.env`.
 
 ### Subir
 
@@ -75,6 +86,10 @@ docker compose up -d --build        # rebuilda imagem e troca container
 
 > O `--build` é importante porque a `VITE_N8N_BASE_URL` é "baked" no bundle
 > JS no momento do build. Mudou o `.env`? Tem que rebuildar.
+
+> ⚠️ **`git pull` NÃO atualiza o `.env`** (é gitignored, fica só na VM). Se
+> o app começar a "não chamar o n8n" depois de um pull, confira os hosts do
+> `.env` da VM (ver bloco crítico acima) e rebuilde.
 
 ### Trocar a porta do host
 
