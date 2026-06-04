@@ -44,9 +44,10 @@
   --status-yellow: #e4bd43;
   --status-green: #3fcf79;
 
-  /* Glass tokens */
-  --glass-bg: rgba(13, 13, 16, 0.66);
-  --glass-bg-strong: rgba(17, 17, 20, 0.78);
+  /* Glass tokens — opacidade alta o bastante p/ legibilidade SEM blur
+     (VMs sem GPU não renderizam backdrop-filter; o blur só enriquece). */
+  --glass-bg: rgba(13, 13, 16, 0.78);
+  --glass-bg-strong: rgba(17, 17, 20, 0.88);
   --glass-border: rgba(188, 190, 196, 0.14);
   --glass-border-strong: rgba(196, 198, 204, 0.22);
   --glass-shadow: 0 26px 74px -16px rgb(var(--shadow) / 0.82), 0 12px 34px -18px rgba(6, 12, 28, 0.9);
@@ -197,8 +198,8 @@
   --aurora-bg-3: #d7dde8;
   --aurora-steel: #6b7892;
 
-  --glass-bg: rgba(247, 249, 252, 0.55);
-  --glass-bg-strong: rgba(244, 247, 251, 0.72);
+  --glass-bg: rgba(247, 249, 252, 0.78);
+  --glass-bg-strong: rgba(244, 247, 251, 0.9);
   --glass-border: rgba(24, 36, 68, 0.12);
   --glass-border-strong: rgba(24, 36, 68, 0.18);
   --glass-shadow: 0 26px 70px -24px rgba(40, 56, 100, 0.22), 0 12px 30px -18px rgba(40, 56, 100, 0.16);
@@ -399,8 +400,9 @@
   }
 
   .glass-modal {
-    /* tint quase nada â€” pra ver o fundo passar pelo "vidro" */
-    background: rgb(var(--ink) / 0.04);
+    /* Base semi-opaca: sem blur (VM sem GPU) ainda fica legível; com blur o
+       backdrop-filter adiciona o frost por cima. NÃO depender só do blur. */
+    background: var(--glass-bg-strong);
     /* borda mais forte e visÃ­vel â€” o "ring" do vidro */
     border: 1.5px solid rgb(var(--ink) / 0.32);
     /* CENTRO do modal: sÃ³ frosted glass, SEM displacement.
