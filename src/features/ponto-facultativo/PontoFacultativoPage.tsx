@@ -31,10 +31,7 @@ import {
 import { NavCluster } from "@/components/NavCluster"
 import { SlideStack, type SlideDirection } from "@/components/SlideStack"
 import { ChoiceButton } from "@/features/atestados/ChoiceButton"
-import {
-  isFeriadoNacional,
-  nomeFeriadoNacional,
-} from "@/lib/feriadosBr"
+import { isFeriado, nomeFeriado, useFeriados } from "@/lib/feriadosBoard"
 import { filtrarPorBusca } from "@/lib/buscaUnidade"
 
 import { mockPreview } from "./api"
@@ -343,6 +340,7 @@ export function PontoFacultativoPage() {
           {etapa === "data" && (
             <EtapaData
               data={data}
+              contrato={contrato}
               onVoltar={() => ir("unidade", "backward")}
               onSelecionar={(d) => {
                 setData(d)
@@ -796,10 +794,12 @@ function EtapaUnidade({
 
 function EtapaData({
   data,
+  contrato,
   onVoltar,
   onSelecionar,
 }: {
   data: string | null
+  contrato: string | null
   onVoltar: () => void
   onSelecionar: (data: string) => void
 }) {
@@ -809,7 +809,7 @@ function EtapaData({
         <CalendarDays className="size-5 text-emerald-200" />
         <h2 className="text-lg font-medium">Dia do mês atual</h2>
       </div>
-      <CalendarioMesAtual data={data} onSelecionar={onSelecionar} />
+      <CalendarioMesAtual data={data} contrato={contrato} onSelecionar={onSelecionar} />
       <div className="mt-6">
         <ChoiceButton onClick={onVoltar}>Voltar</ChoiceButton>
       </div>
@@ -819,11 +819,14 @@ function EtapaData({
 
 function CalendarioMesAtual({
   data,
+  contrato,
   onSelecionar,
 }: {
   data: string | null
+  contrato: string | null
   onSelecionar: (data: string) => void
 }) {
+  useFeriados()
   const hoje = useMemo(() => new Date(), [])
   const dias = useMemo(() => {
     const inicio = startOfWeek(startOfMonth(hoje), { weekStartsOn: 0 })
@@ -852,8 +855,8 @@ function CalendarioMesAtual({
           const iso = format(d, "yyyy-MM-dd")
           const noMes = isSameMonth(d, hoje)
           const domingo = d.getDay() === 0
-          const feriado = nomeFeriadoNacional(iso)
-          const disabled = !noMes || domingo || isFeriadoNacional(iso)
+          const feriado = nomeFeriado(iso, contrato)
+          const disabled = !noMes || domingo || isFeriado(iso, contrato)
           const selecionado = data === iso
           return (
             <button
