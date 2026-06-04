@@ -54,7 +54,7 @@ import {
   revogarRetroativo,
   senhaCorreta,
 } from "./retroativoStorage"
-import { nomeFeriadoNacional } from "@/lib/feriadosBr"
+import { nomeFeriado, useFeriados } from "@/lib/feriadosBoard"
 import {
   ACOMPANHANTES,
   CONTRATOS_COLABORADOR,
@@ -260,6 +260,7 @@ export function WizardDocumento({
   const [draft, setDraft] = useState<Draft>(() =>
     draftInicial(modo, empregado, convocacao),
   )
+  useFeriados()
 
   const sabadosAtivos = useMemo(
     () => (convocacao ? sabadosAtivosDaConvocacao(convocacao) : []),
@@ -323,10 +324,10 @@ export function WizardDocumento({
   }
 
   function diaPermitido(dia: string): { ok: boolean; motivo?: string } {
-    // Feriado nacional bloqueia: atestado em feriado não gera desconto.
-    const feriado = nomeFeriadoNacional(dia)
+    // Feriado (board, por contrato) bloqueia: atestado em feriado não gera desconto.
+    const feriado = nomeFeriado(dia, draft.contratoColaborador)
     if (feriado) {
-      return { ok: false, motivo: `Feriado nacional: ${feriado}` }
+      return { ok: false, motivo: `Feriado: ${feriado}` }
     }
     // Intermitente e CLT agora ambos vêm do RM com chapa.
     // Bloqueia só conflito local: mesma chapa + mesma modalidade já cobrindo
@@ -956,7 +957,7 @@ function EtapaCalendario({
           {diasGrade.map((dia) => {
             const iso = format(dia, "yyyy-MM-dd")
             const noMes = isSameMonth(dia, mesVisivel)
-            const feriadoNome = nomeFeriadoNacional(iso)
+            const feriadoNome = nomeFeriado(iso)
             const eFeriado = !!feriadoNome
             const permitido = noMes && diaPermitido(iso).ok
             const ehInicio = iso === diaInicio

@@ -21,16 +21,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { isFeriadoNacional, nomeFeriadoNacional } from "@/lib/feriadosBr"
+import { isFeriado, nomeFeriado, useFeriados } from "@/lib/feriadosBoard"
 
 type Props = {
   label: string
   value: string // YYYY-MM-DD ou ""
   onChange: (v: string) => void
   min?: string
-  /** Quando retorna true, dia fica disabled. Default: feriados nacionais BR. */
+  /** Contrato p/ feriado por board (estadual/municipal). null = só NACIONAL. */
+  contrato?: string | null
+  /** Quando retorna true, dia fica disabled. Default: feriado efetivo do board. */
   isDateDisabled?: (iso: string) => boolean
-  /** Texto pra tooltip nativo. Default: nome do feriado nacional. */
+  /** Texto pra tooltip nativo. Default: nome do feriado. */
   getDateLabel?: (iso: string) => string | null
 }
 
@@ -39,12 +41,14 @@ export function GlassDatePicker({
   value,
   onChange,
   min,
-  isDateDisabled = isFeriadoNacional,
+  contrato = null,
+  isDateDisabled = (iso) => isFeriado(iso, contrato),
   getDateLabel = (iso) => {
-    const nome = nomeFeriadoNacional(iso)
-    return nome ? `Feriado nacional: ${nome}` : null
+    const nome = nomeFeriado(iso, contrato)
+    return nome ? `Feriado: ${nome}` : null
   },
 }: Props) {
+  useFeriados()
   const [aberto, setAberto] = useState(false)
   const [mesVisivel, setMesVisivel] = useState<Date>(() =>
     value ? parseISO(value) : new Date(),

@@ -53,7 +53,7 @@ import type {
 } from "./types"
 import { GlassSelect } from "@/features/convocar/GlassSelect"
 import { CONTRATOS } from "@/features/convocar/types"
-import { isFeriadoNacional, nomeFeriadoNacional } from "@/lib/feriadosBr"
+import { isFeriado, nomeFeriado, useFeriados } from "@/lib/feriadosBoard"
 import {
   gerarProtocolo,
   salvarProtocolo,
@@ -221,7 +221,7 @@ function diasInfoIniciais(dados: ProcessamentoDados): DiaInfo[] {
       data: d,
       tipo: sabadosExtras.has(d) ? "extra" : "padrao",
       ativo: !desativados.has(d),
-      feriado: nomeFeriadoNacional(d),
+      feriado: nomeFeriado(d, dados.contrato),
     }))
   return aplicarAtestadosNosDias(
     base,
@@ -262,6 +262,17 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
   >(null)
   const [etapaSabados, setEtapaSabados] = useState<EtapaSabados>("fechado")
   const [sabadoARemover, setSabadoARemover] = useState<string | null>(null)
+
+  // Feriado por board (contrato). Re-anota os dias quando os feriados
+  // chegam (o init pode rodar antes do fetch). Só mexe no campo `feriado`,
+  // preserva respostas/ativo/tipo.
+  const { data: feriadosData } = useFeriados()
+  useEffect(() => {
+    if (!feriadosData) return
+    setDiasInfo((prev) =>
+      prev.map((di) => ({ ...di, feriado: nomeFeriado(di.data, dados.contrato) })),
+    )
+  }, [feriadosData, dados.contrato])
 
   // Wizard de split (dividir convocação em 2 subitems com contratos diferentes)
   const [etapaSplit, setEtapaSplit] = useState<EtapaSplit>("fechado")
@@ -412,7 +423,7 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
         const iso = cursor.toISOString().slice(0, 10)
         // Sábado que cai em feriado nacional não é "extra" candidato —
         // backend já não conta como dia trabalhável.
-        if (!existentes.has(iso) && !isFeriadoNacional(iso)) out.push(iso)
+        if (!existentes.has(iso) && !isFeriado(iso, dados.contrato)) out.push(iso)
       }
       cursor.setUTCDate(cursor.getUTCDate() + 1)
     }
@@ -541,7 +552,7 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
       // nacional também sai do payload — backend não deve gerar desconto.
       respostas: diasAtivos
         .filter((d) => !diasCancelados.has(d.data))
-        .filter((d) => !isFeriadoNacional(d.data))
+        .filter((d) => !isFeriado(d.data, dados.contrato))
         .map((d) => {
           if (cobertoPorAtestado(d.data)) {
             return { data: d.data, tipo: "sem_ocorrencia" as const }
@@ -2134,7 +2145,7 @@ function CalendarioCancelamento({
           const permitido = diasPermitidos.has(iso)
           const selecionado = selected && isSameDay(dia, parseISO(selected))
           const noMes = isSameMonth(dia, mesVisivel)
-          const feriadoNome = nomeFeriadoNacional(iso)
+          const feriadoNome = nomeFeriado(iso)
           const eFeriado = !!feriadoNome
           return (
             <button
@@ -3443,7 +3454,7 @@ function CalendarioSplit({
     if (iso === primeiroDia) return "Primeiro dia da convocação"
     if (iso === ultimoDia) return "Último dia da convocação"
     if (diasCancelados.has(iso)) return "Dia em zona cancelada"
-    const feriado = nomeFeriadoNacional(iso)
+    const feriado = nomeFeriado(iso)
     if (feriado) return `Feriado nacional: ${feriado}`
     return null
   }
@@ -3484,7 +3495,7 @@ function CalendarioSplit({
           const motivo = motivoBloqueio(iso)
           const selecionado = selected === iso
           const noMes = isSameMonth(dia, mesVisivel)
-          const feriadoNome = nomeFeriadoNacional(iso)
+          const feriadoNome = nomeFeriado(iso)
           const eFeriado = !!feriadoNome
           return (
             <button
