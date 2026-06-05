@@ -694,15 +694,16 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
 
   function abrirSplit() {
     setSplitErro(null)
-    // Se split já ativo, pré-carrega valores pra edição
+    // Parte 1 = SEMPRE o contrato original da convocação (o funcionário já foi
+    // convocado pra ele; não é editável). Só a Parte 2 pode trocar de contrato.
+    setSplitContratoP1(dados.contrato ?? "")
+    // Se split já ativo, pré-carrega data + contrato da Parte 2 pra edição
     if (dados.split) {
       setSplitDataParte2(dados.split.dataInicioParte2)
-      setSplitContratoP1(dados.split.contratoParte1)
       setSplitContratoP2(dados.split.contratoParte2)
     } else {
       setSplitDataParte2(null)
-      setSplitContratoP1(dados.contrato ?? "")
-      setSplitContratoP2(dados.contrato ?? "")
+      setSplitContratoP2("")
     }
     setEtapaSplit("calendario")
   }
@@ -1106,7 +1107,6 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
           splitContratoP1={splitContratoP1}
           splitContratoP2={splitContratoP2}
           onSelecionarData={setSplitDataParte2}
-          onSelecionarContratoP1={setSplitContratoP1}
           onSelecionarContratoP2={setSplitContratoP2}
           onAvancar={(novaEtapa) => setEtapaSplit(novaEtapa)}
           onCancelar={fecharSplit}
@@ -3160,7 +3160,6 @@ type DialogSplitProps = {
   splitContratoP1: string
   splitContratoP2: string
   onSelecionarData: (d: string) => void
-  onSelecionarContratoP1: (c: string) => void
   onSelecionarContratoP2: (c: string) => void
   onAvancar: (etapa: EtapaSplit) => void
   onCancelar: () => void
@@ -3182,7 +3181,6 @@ function DialogSplit({
   splitContratoP1,
   splitContratoP2,
   onSelecionarData,
-  onSelecionarContratoP1,
   onSelecionarContratoP2,
   onAvancar,
   onCancelar,
@@ -3287,13 +3285,19 @@ function DialogSplit({
               </p>
             </div>
 
-            <GlassSelect
-              label="Contrato Parte 1"
-              value={splitContratoP1}
-              onChange={onSelecionarContratoP1}
-              options={CONTRATOS}
-              placeholder={contratoOriginal || "Selecione..."}
-            />
+            {/* Parte 1 = contrato original (funcionário já convocado): fixo,
+                não editável. Só a Parte 2 pode trocar. */}
+            <div>
+              <p className="mb-1.5 text-xs font-medium text-foreground/70">
+                Contrato Parte 1
+              </p>
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-[rgb(var(--ink)/0.1)] bg-[rgb(var(--ink)/0.04)] px-4 py-3 text-sm text-foreground/90">
+                <span>{splitContratoP1 || contratoOriginal || "—"}</span>
+                <span className="text-[10px] uppercase tracking-[0.18em] text-foreground/45">
+                  Original · fixo
+                </span>
+              </div>
+            </div>
             <GlassSelect
               label="Contrato Parte 2"
               value={splitContratoP2}
