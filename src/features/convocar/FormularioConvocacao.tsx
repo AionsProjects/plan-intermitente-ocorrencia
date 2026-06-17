@@ -29,8 +29,8 @@ import {
 } from "./types"
 import {
   useCriarConvocacao,
+  useMesesConvocacao,
   useOpcoesConvocacao,
-  useProximoMesExiste,
 } from "./useConvocacao"
 import { unidadesParaContrato } from "@/lib/unidadesContrato"
 
@@ -93,8 +93,20 @@ export function FormularioConvocacao({
   const [alertaConflito, setAlertaConflito] =
     useState<AlertaConflito | null>(null)
   const opcoesQuery = useOpcoesConvocacao()
-  const proximoExiste = useProximoMesExiste().data === true
+  const meses = useMesesConvocacao().data
+  const proximoExiste = meses?.proximo.existe === true
   const mutation = useCriarConvocacao()
+
+  // Competência do mês selecionado → trava o range do calendário a esse mês.
+  const competenciaSel =
+    form.papel === "proximo" ? meses?.proximo.competencia : meses?.atual.competencia
+  const minData = competenciaSel ? `${competenciaSel}-01` : undefined
+  const maxData = competenciaSel
+    ? (() => {
+        const [a, m] = competenciaSel.split("-").map(Number)
+        return `${competenciaSel}-${String(new Date(a, m, 0).getDate()).padStart(2, "0")}`
+      })()
+    : undefined
   const opcoes = opcoesQuery.data ?? OPCOES_CONVOCACAO_FALLBACK
   const unidadesPorContrato = opcoes.unidadesPorContrato as Record<
     string,
@@ -245,7 +257,9 @@ export function FormularioConvocacao({
                 key={o.v}
                 type="button"
                 disabled={o.dis}
-                onClick={() => set("papel", o.v)}
+                onClick={() =>
+                  setForm((f) => ({ ...f, papel: o.v, dataInicio: "", dataFim: "" }))
+                }
                 title={o.dis ? "Board do próximo mês ainda não criado" : ""}
                 className={`rounded-lg px-3 py-2 text-sm font-medium transition disabled:opacity-40 ${
                   ativo
@@ -376,6 +390,8 @@ export function FormularioConvocacao({
               label="Data/Início"
               value={form.dataInicio}
               onChange={(v) => set("dataInicio", v)}
+              min={minData}
+              max={maxData}
             />
           </FieldWrap>
           <FieldWrap label="Data/Fim" required>
@@ -383,7 +399,8 @@ export function FormularioConvocacao({
               label="Data/Fim"
               value={form.dataFim}
               onChange={(v) => set("dataFim", v)}
-              min={form.dataInicio || undefined}
+              min={form.dataInicio || minData}
+              max={maxData}
             />
           </FieldWrap>
         </div>

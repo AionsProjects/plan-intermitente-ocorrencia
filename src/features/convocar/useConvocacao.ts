@@ -57,17 +57,25 @@ export function useOpcoesConvocacao() {
   })
 }
 
-// Existe board do próximo mês registrado? (resolver?papel=proximo). Controla o
-// seletor de mês no form (desabilita "próximo" se 404).
-export function useProximoMesExiste() {
+// Meses de convocação (atual/próximo) com a competência (YYYY-MM) de cada board,
+// resolvida pelo registry. Controla o seletor de mês + o range do calendário.
+export type MesConvocacao = { existe: boolean; competencia: string | null }
+async function resolverMes(papel: "atual" | "proximo"): Promise<MesConvocacao> {
+  const res = await fetch(`/api/boards/resolver?papel=${papel}`, {
+    credentials: "same-origin",
+  })
+  if (!res.ok) return { existe: false, competencia: null }
+  const j = (await res.json()) as { competencia?: string | null }
+  return { existe: true, competencia: j.competencia ?? null }
+}
+
+export function useMesesConvocacao() {
   return useQuery({
-    queryKey: ["boards-proximo-existe"],
-    queryFn: async () => {
-      const res = await fetch("/api/boards/resolver?papel=proximo", {
-        credentials: "same-origin",
-      })
-      return res.ok
-    },
+    queryKey: ["boards-meses-convocacao"],
+    queryFn: async () => ({
+      atual: await resolverMes("atual"),
+      proximo: await resolverMes("proximo"),
+    }),
     staleTime: 5 * 60_000,
     retry: false,
   })

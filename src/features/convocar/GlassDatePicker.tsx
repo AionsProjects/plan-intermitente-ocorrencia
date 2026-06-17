@@ -28,6 +28,7 @@ type Props = {
   value: string // YYYY-MM-DD ou ""
   onChange: (v: string) => void
   min?: string
+  max?: string
   /** Contrato p/ feriado por board (estadual/municipal). null = só NACIONAL. */
   contrato?: string | null
   /** Quando retorna true, dia fica disabled. Default: feriado efetivo do board. */
@@ -41,6 +42,7 @@ export function GlassDatePicker({
   value,
   onChange,
   min,
+  max,
   contrato = null,
   isDateDisabled = (iso) => isFeriado(iso, contrato),
   getDateLabel = (iso) => {
@@ -51,17 +53,19 @@ export function GlassDatePicker({
   useFeriados()
   const [aberto, setAberto] = useState(false)
   const [mesVisivel, setMesVisivel] = useState<Date>(() =>
-    value ? parseISO(value) : new Date(),
+    value ? parseISO(value) : min ? parseISO(min) : new Date(),
   )
 
   function abrir() {
     if (value) setMesVisivel(parseISO(value))
+    else if (min) setMesVisivel(parseISO(min))
     else setMesVisivel(new Date())
     setAberto(true)
   }
 
   const selecionado = value ? parseISO(value) : null
   const minDate = min ? parseISO(min) : null
+  const maxDate = max ? parseISO(max) : null
 
   const dias = useMemo(() => {
     const inicio = startOfWeek(startOfMonth(mesVisivel), { weekStartsOn: 0 })
@@ -82,6 +86,7 @@ export function GlassDatePicker({
 
   function selecionar(d: Date) {
     if (minDate && d < minDate) return
+    if (maxDate && d > maxDate) return
     const iso = format(d, "yyyy-MM-dd")
     if (isDateDisabled(iso)) return
     onChange(iso)
@@ -167,7 +172,8 @@ export function GlassDatePicker({
               const noMes = isSameMonth(d, mesVisivel)
               const sel = selecionado && isSameDay(d, selecionado)
               const ehHoje = isSameDay(d, new Date())
-              const desabilitado = minDate && d < minDate
+              const desabilitado =
+                (minDate && d < minDate) || (maxDate && d > maxDate)
               const feriadoLabel = getDateLabel(iso)
               const eFeriado = isDateDisabled(iso)
               return (
