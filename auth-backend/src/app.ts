@@ -1,5 +1,6 @@
 import Fastify, { type FastifyInstance } from "fastify"
 import cookie from "@fastify/cookie"
+import multipart from "@fastify/multipart"
 import { rotasAuth } from "./routes/auth.js"
 import { rotasUsuarios } from "./routes/usuarios.js"
 import { rotasAtividade } from "./routes/atividade.js"
@@ -15,6 +16,7 @@ export async function construirApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: true })
 
   await app.register(cookie)
+  await app.register(multipart, { limits: { fileSize: 15 * 1024 * 1024 } })
   await app.register(rotasAuth)
   await app.register(rotasUsuarios)
   await app.register(rotasAtividade)

@@ -62,6 +62,47 @@ export async function lerColunasSettings(
   return d.boards?.[0]?.columns ?? []
 }
 
+// Cria item num board/grupo com column_values (objeto -> JSON). Retorna id + url.
+export async function createItem(
+  boardId: string,
+  itemName: string,
+  columnValues: Record<string, unknown>,
+  groupId?: string,
+): Promise<{ id: string; url: string }> {
+  const d = await mondayGraphql<{ create_item: { id: string } }>(
+    `mutation($board:ID!,$group:String,$name:String!,$cols:JSON!){
+       create_item(board_id:$board, group_id:$group, item_name:$name, column_values:$cols, create_labels_if_missing:true){ id }
+     }`,
+    { board: boardId, group: groupId ?? null, name: itemName, cols: JSON.stringify(columnValues) },
+  )
+  const id = d.create_item.id
+  return { id, url: `https://contato-serv.monday.com/boards/${boardId}/pulses/${id}` }
+}
+
+// Upload de arquivo numa coluna file (POST /v2/file, multipart GraphQL).
+export async function uploadFileToColumn(
+  itemId: string,
+  columnId: string,
+  buffer: Buffer,
+  filename: string,
+  mime = "application/octet-stream",
+): Promise<void> {
+  if (!config.mondayToken) throw new ErroMonday("MONDAY_TOKEN ausente")
+  const query =
+    `mutation($file:File!){ add_file_to_column(item_id:${itemId}, column_id:"${columnId}", file:$file){ id } }`
+  const fd = new FormData()
+  fd.append("query", query)
+  fd.append("map", JSON.stringify({ "0": ["variables.file"] }))
+  fd.append("0", new Blob([buffer], { type: mime }), filename)
+  const res = await fetch("https://api.monday.com/v2/file", {
+    method: "POST",
+    headers: { Authorization: config.mondayToken },
+    body: fd,
+  })
+  const j = (await res.json()) as { errors?: unknown }
+  if (!res.ok || j.errors) throw new ErroMonday("upload Monday falhou", j.errors)
+}
+
 export interface WebhookMonday {
   id: string
   board_id: string

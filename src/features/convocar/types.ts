@@ -85,6 +85,8 @@ export type ConvocacaoPayload = {
   empregadoSubstituido: string
   termoConvocacao: File | null
   termoInsalubridade: File | null
+  /** Mês destino: board atual (default) ou próximo. Resolve o board no registry. */
+  papel?: "atual" | "proximo"
 }
 
 export type ConvocacaoResposta = {

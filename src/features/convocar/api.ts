@@ -258,10 +258,13 @@ export async function criarConvocacao(
   if (payload.termoInsalubridade) {
     fd.append("termo_insalubridade", payload.termoInsalubridade)
   }
+  // mês destino (atual/proximo) — resolve o board no registry do backend
+  fd.append("papel", payload.papel ?? "atual")
   anexarOperador(fd)
 
-  const res = await fetch(`${BASE_URL}/intermitente-convocar`, {
+  const res = await fetch(`/api/convocar/criar`, {
     method: "POST",
+    credentials: "same-origin",
     body: fd,
   })
   if (!res.ok) {
