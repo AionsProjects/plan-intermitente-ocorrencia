@@ -11,4 +11,41 @@ services:
     container_name: plano-intermitentes
     restart: unless-stopped
     ports:
-      - "80:80"
+      # Host 8081 -> container 80. NAO usar a 80 global da VM.
+      - "8081:80"
+    networks:
+      - interna
+    depends_on:
+      - auth
+
+  # Backend de autenticacao (SSO Google + sessao). So rede interna — o nginx (app)
+  # faz proxy de /auth/* e /api/* pra ca. Sem porta publicada.
+  # Banco = Postgres CLOUDFY (publico). NAO ha db local: o cloudfy concentra os dados
+  # (schema pi) e e o unico alcancavel pelo n8n cloud (migracao futura do historico).
+  auth:
+    build:
+      context: ./auth-backend
+      dockerfile: Dockerfile
+    image: plano-intermitentes-auth:latest
+    container_name: plano-intermitentes-auth
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      # Obrigatorio no .env da VM (com a senha cloudfy). Sem default p/ nao vazar segredo.
+      DATABASE_URL: ${DATABASE_URL}
+      DB_SSL: ${DB_SSL:-0}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      OAUTH_REDIRECT_URI: ${OAUTH_REDIRECT_URI:-http://192.168.0.41:8081/auth/google/callback}
+      APP_BASE_URL: ${APP_BASE_URL:-/}
+      AUTH_ALLOWED_DOMAIN: ${AUTH_ALLOWED_DOMAIN:-contatoserv.com.br}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-pi_sess}
+      SESSION_TTL_DIAS: ${SESSION_TTL_DIAS:-10}
+      COOKIE_SECURE: ${COOKIE_SECURE:-0}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@contatoserv.com.br}
+      AUTH_DEV_BYPASS: ${AUTH_DEV_BYPASS:-0}
+    networks:
+      - interna
+
+networks:
+  interna: {}

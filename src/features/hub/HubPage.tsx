@@ -10,7 +10,17 @@ import {
   UserPlus,
 } from "lucide-react"
 
-const actions = [
+import { useAuth } from "@/components/AuthContext"
+import type { Papel } from "@/features/auth/types"
+
+const actions: {
+  to: string
+  title: string
+  description: string
+  icon: typeof UserPlus
+  tone: string
+  nivelMinimo?: Papel
+}[] = [
   {
     to: "/convocar",
     title: "Nova convocação",
@@ -31,6 +41,7 @@ const actions = [
     description: "Aplicar vale-refeição e vale-transporte para um contrato em um dia específico.",
     icon: CalendarDays,
     tone: "emerald",
+    nivelMinimo: "dp", // só DP + Admin
   },
   {
     to: "/corrigir",
@@ -39,9 +50,14 @@ const actions = [
     icon: KeyRound,
     tone: "gold",
   },
-] as const
+]
 
 export function HubPage() {
+  const { podeVer } = useAuth()
+  const acoesVisiveis = actions.filter(
+    (a) => !a.nivelMinimo || podeVer(a.nivelMinimo),
+  )
+
   function handleTiltMove(e: MouseEvent<HTMLAnchorElement>) {
     const r = e.currentTarget.getBoundingClientRect()
     const mx = ((e.clientX - r.left) / r.width) * 100
@@ -80,7 +96,7 @@ export function HubPage() {
         </p>
 
         <div className="mt-8 grid gap-3 sm:gap-3.5">
-          {actions.map((action, index) => {
+          {acoesVisiveis.map((action, index) => {
             const Icon = action.icon
             // Ícones seguem o esquema de cores (accent).
             const ringClass =

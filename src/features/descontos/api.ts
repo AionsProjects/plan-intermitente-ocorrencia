@@ -1,3 +1,4 @@
+import { comOperador } from "@/lib/http"
 import type {
   DescontoDados,
   PayloadRegistrarRetirada,
@@ -174,11 +175,13 @@ export async function registrarRetiradaManual(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        uuid,
-        vr_retirado: payload.vrRetirado,
-        vt_retirado: payload.vtRetirado,
-      }),
+      body: JSON.stringify(
+        comOperador({
+          uuid,
+          vr_retirado: payload.vrRetirado,
+          vt_retirado: payload.vtRetirado,
+        }),
+      ),
     },
   )
   const data = await res.json().catch(() => ({}))

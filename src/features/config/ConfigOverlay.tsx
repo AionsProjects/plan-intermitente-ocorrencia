@@ -1,4 +1,5 @@
-import { Palette, RotateCcw, SlidersHorizontal } from "lucide-react"
+import { useState } from "react"
+import { History, Palette, RotateCcw, ShieldCheck, SlidersHorizontal, User } from "lucide-react"
 
 import {
   Dialog,
@@ -8,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { useNav } from "@/components/NavContext"
+import { useAuth } from "@/components/AuthContext"
 import {
   resetPrefs,
   setFonte,
@@ -16,6 +18,11 @@ import {
   type Fonte,
 } from "@/lib/theme"
 import { ThemeControls } from "./ThemeControls"
+import { ContaTab } from "./ContaTab"
+import { AdminUsuariosTab } from "./AdminUsuariosTab"
+import { AtividadeTab } from "./AtividadeTab"
+
+type Aba = "aparencia" | "conta" | "atividade" | "admin"
 
 const FONTES: { id: Fonte; label: string }[] = [
   { id: "sm", label: "A−" },
@@ -100,8 +107,26 @@ function PreferenceControls() {
  * Configurações como OVERLAY liquid-glass (abre por cima de qualquer tela).
  * Fundo continua visível (.glass-modal). Controlado pelo NavContext.
  */
+const SUBTITULO: Record<Aba, string> = {
+  aparencia: "Personalize tema e cor. Fica salvo neste navegador.",
+  conta: "Seus dados, senha e sessão.",
+  atividade: "Histórico das ações registradas.",
+  admin: "Gerencie funções e acesso dos usuários.",
+}
+
 export function ConfigOverlay() {
   const { configAberto, fecharConfig } = useNav()
+  const { usuario, podeVer } = useAuth()
+  const [aba, setAba] = useState<Aba>("aparencia")
+
+  const ehAdmin = podeVer("admin")
+  const abas: { id: Aba; label: string; icone: typeof Palette }[] = [
+    { id: "aparencia", label: "Aparência", icone: Palette },
+    ...(usuario ? [{ id: "conta" as Aba, label: "Conta", icone: User }] : []),
+    ...(usuario ? [{ id: "atividade" as Aba, label: "Atividade", icone: History }] : []),
+    ...(ehAdmin ? [{ id: "admin" as Aba, label: "Admin", icone: ShieldCheck }] : []),
+  ]
+
   return (
     <Dialog open={configAberto} onOpenChange={(o) => !o && fecharConfig()}>
       <DialogContent
@@ -116,45 +141,73 @@ export function ConfigOverlay() {
             Configurações
           </p>
           <DialogTitle className="text-display text-3xl text-foreground">
-            Aparência
+            Ajustes
           </DialogTitle>
           <DialogDescription className="text-foreground/60">
-            Personalize tema e cor. Fica salvo neste navegador.
+            {SUBTITULO[aba]}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="mt-2 max-h-[70vh] space-y-4 overflow-y-auto pr-1">
-          <section className="rounded-2xl border border-border bg-[rgb(var(--ink)/0.04)] p-4 sm:p-5">
-            <header className="mb-4 flex items-center gap-3">
-              <div className="grid size-9 place-items-center rounded-full bg-[rgb(var(--accent-rgb)/0.12)] ring-1 ring-[rgb(var(--accent-rgb)/0.35)]">
-                <Palette className="size-4 text-[rgb(var(--accent-rgb))]" />
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-foreground">Tema e cor</h3>
-                <p className="text-xs text-foreground/55">
-                  Modo claro/escuro + esquema.
-                </p>
-              </div>
-            </header>
-            <ThemeControls />
-          </section>
+        {/* Abas */}
+        <div
+          className="mt-1 grid gap-1 rounded-xl border border-border bg-secondary/40 p-1"
+          style={{ gridTemplateColumns: `repeat(${abas.length}, minmax(0, 1fr))` }}
+        >
+          {abas.map((a) => {
+            const Icone = a.icone
+            const ativo = aba === a.id
+            return (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() => setAba(a.id)}
+                className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-sm font-medium transition ${
+                  ativo
+                    ? "bg-[rgb(var(--accent-rgb)/0.16)] text-foreground ring-1 ring-[rgb(var(--accent-rgb)/0.5)]"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Icone className="size-4" />
+                {a.label}
+              </button>
+            )
+          })}
+        </div>
 
-          <section className="rounded-2xl border border-border bg-[rgb(var(--ink)/0.04)] p-4 sm:p-5">
-            <header className="mb-4 flex items-center gap-3">
-              <div className="grid size-9 place-items-center rounded-full bg-[rgb(var(--accent-rgb)/0.12)] ring-1 ring-[rgb(var(--accent-rgb)/0.35)]">
-                <SlidersHorizontal className="size-4 text-[rgb(var(--accent-rgb))]" />
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-foreground">
-                  Preferências
-                </h3>
-                <p className="text-xs text-foreground/55">
-                  Animações, fonte e reset.
-                </p>
-              </div>
-            </header>
-            <PreferenceControls />
-          </section>
+        <div className="mt-3 max-h-[70vh] space-y-4 overflow-y-auto pr-1">
+          {aba === "aparencia" && (
+            <>
+              <section className="rounded-2xl border border-border bg-[rgb(var(--ink)/0.04)] p-4 sm:p-5">
+                <header className="mb-4 flex items-center gap-3">
+                  <div className="grid size-9 place-items-center rounded-full bg-[rgb(var(--accent-rgb)/0.12)] ring-1 ring-[rgb(var(--accent-rgb)/0.35)]">
+                    <Palette className="size-4 text-[rgb(var(--accent-rgb))]" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-foreground">Tema e cor</h3>
+                    <p className="text-xs text-foreground/55">Modo claro/escuro + esquema.</p>
+                  </div>
+                </header>
+                <ThemeControls />
+              </section>
+
+              <section className="rounded-2xl border border-border bg-[rgb(var(--ink)/0.04)] p-4 sm:p-5">
+                <header className="mb-4 flex items-center gap-3">
+                  <div className="grid size-9 place-items-center rounded-full bg-[rgb(var(--accent-rgb)/0.12)] ring-1 ring-[rgb(var(--accent-rgb)/0.35)]">
+                    <SlidersHorizontal className="size-4 text-[rgb(var(--accent-rgb))]" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-foreground">Preferências</h3>
+                    <p className="text-xs text-foreground/55">Animações, fonte e reset.</p>
+                  </div>
+                </header>
+                <PreferenceControls />
+              </section>
+            </>
+          )}
+
+          {aba === "conta" && <ContaTab />}
+          {aba === "atividade" && <AtividadeTab />}
+          {aba === "admin" && ehAdmin && <AdminUsuariosTab />}
         </div>
       </DialogContent>
     </Dialog>

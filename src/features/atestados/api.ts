@@ -7,6 +7,7 @@ import type {
   PeriodoTurno,
   TipoDocumento,
 } from "./types"
+import { comOperador } from "@/lib/http"
 
 const BASE_URL = import.meta.env.VITE_N8N_BASE_URL ?? ""
 const ANTIGO_BASE_URL = import.meta.env.VITE_N8N_ANTIGO_BASE_URL || BASE_URL
@@ -319,7 +320,7 @@ export async function lancarDocumentos(
       periodos: d.periodos ?? [],
     })),
   }
-  fd.append("payload", JSON.stringify(payload))
+  fd.append("payload", JSON.stringify(comOperador(payload)))
   for (const d of documentos) {
     fd.append(`doc_${d.id}`, d.arquivo, d.arquivo.name)
   }

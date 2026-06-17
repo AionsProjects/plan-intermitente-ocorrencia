@@ -8,6 +8,7 @@ import type {
   PontoFacultativoPreview,
   UnidadeComCount,
 } from "./types"
+import { comOperador } from "@/lib/http"
 import { CONTRATOS_PONTO_FACULTATIVO as CONTRATOS } from "./types"
 
 const BASE_URL = import.meta.env.VITE_N8N_BASE_URL ?? ""
@@ -334,7 +335,7 @@ export async function aplicarPontoFacultativo(
   const res = await fetch(`${BASE_URL}/ponto-facultativo-aplicar`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(comOperador(payload)),
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {

@@ -5,6 +5,7 @@ import {
   buscarOpcoesPontoFacultativo,
   previewPontoFacultativo,
 } from "./api"
+import { registrarAtividade } from "@/lib/atividade"
 
 export function useOpcoesPontoFacultativo() {
   return useQuery({
@@ -23,5 +24,16 @@ export function usePreviewPontoFacultativo() {
 export function useAplicarPontoFacultativo() {
   return useMutation({
     mutationFn: aplicarPontoFacultativo,
+    onSuccess: (resp, payload) => {
+      registrarAtividade("ponto_facultativo", {
+        alvo: `${payload.contrato}:${payload.unidade}:${payload.data}`,
+        contrato: payload.contrato,
+        resumo: {
+          unidade: payload.unidade,
+          data: payload.data,
+          qtd: resp?.processados ?? null,
+        },
+      })
+    },
   })
 }

@@ -11,6 +11,7 @@ export default defineConfig([
     'node_modules',
     '.claude',
     '.n8n_backup',
+    'src.bak-fase3',
     '*.json',
     'docs/n8n/*.json',
     'scripts',
@@ -33,6 +34,11 @@ export default defineConfig([
       'react-refresh/only-export-components': [
         'warn',
         { allowConstantExport: true },
+      ],
+      // Vars/args prefixadas com _ = intencionalmente nao usadas.
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
     },
   },

@@ -45,9 +45,13 @@ VITE_N8N_ANTIGO_BASE_URL=https://antigoaionscorp-n8n.cloudfy.live/webhook
 EOF
 ```
 
-> Esse `.env` é lido pelo docker compose só pra passar como `--build-arg`
-> ao Vite. **Não confunda com o `.env` do dev local** — é a mesma chave
+> Esse `.env` é lido pelo docker compose: as `VITE_*` viram `--build-arg`
+> ao Vite; as envs de auth (abaixo) são injetadas no container `auth` em
+> runtime. **Não confunda com o `.env` do dev local** — é a mesma chave
 > mas o uso é diferente.
+
+> Modelo completo das chaves: ver `.env.example` (raiz) e
+> `auth-backend/.env.example`.
 
 > ⚠️ **CRÍTICO — não erre os hosts (já quebrou em produção):**
 > - `VITE_N8N_BASE_URL` = **n8n NOVO** (`aionscorp-n8n`). É onde vivem
@@ -65,7 +69,35 @@ EOF
 docker compose up -d --build
 ```
 
-Pronto. App acessível em `http://192.168.0.40` (porta 80 do host).
+Pronto. App acessível em `http://192.168.0.41:8081` (host 8081 → container 80;
+a 80 global da VM **não** é usada).
+
+### Autenticação (SSO Google + Postgres)
+
+O compose sobe 2 serviços: `app` (nginx+SPA, único exposto na 8081) e `auth`
+(Fastify, só rede interna). O nginx faz proxy de `/auth/*` e `/api/*` pro `auth`.
+**O banco é o Postgres CLOUDFY** (`aionscorp-postgres.cloudfy.live`, schema `pi`) —
+não há Postgres local no compose. Antes de subir:
+
+1. **Google Cloud Console** (projeto do Workspace `contatoserv.com.br`): no OAuth
+   Client ID (Web), adicionar a Authorized redirect URI da VM:
+   `http://192.168.0.41:8081/auth/google/callback` (além da de dev). Anotar
+   `client_id` e `client_secret`.
+2. Adicionar ao `.env` da VM (ver `.env.example` raiz):
+   `DATABASE_URL` (cloudfy, com senha), `DB_SSL` (0 hoje), `GOOGLE_CLIENT_ID`,
+   `GOOGLE_CLIENT_SECRET`, `OAUTH_REDIRECT_URI=http://192.168.0.41:8081/auth/google/callback`,
+   `AUTH_ALLOWED_DOMAIN=contatoserv.com.br`, `SEED_ADMIN_EMAIL` (email real),
+   `AUTH_DEV_BYPASS=0`.
+3. `COOKIE_SECURE=0` enquanto a VM for HTTP puro (cookie `Secure` seria
+   descartado). Ligar (`1`) só com TLS.
+
+No boot, o container `auth` roda migrations (idempotentes, criam o schema `pi`) +
+seed do Admin. Quem é `@contatoserv.com.br` loga e completa cadastro no 1º acesso
+(vira `operacional`/`rh`); Admin promove DP/Admin pelo painel. Backup do banco
+(cloudfy): `pg_dump "$DATABASE_URL" --schema=pi > backup.sql`.
+
+> **n8n não é tocado.** O frontend já envia o campo `operador` nos payloads e
+> registra a atividade no Postgres; as WFs do Monday seguem como estão.
 
 ### Comandos úteis
 
@@ -181,7 +213,7 @@ sudo systemctl reload nginx
 
 ### Caso A — sem domínio, acesso por IP intranet (cenário atual)
 
-VM `192.168.0.40` é IP **privado**. Let's Encrypt **não emite cert** pra
+VM `192.168.0.41:8081` é IP **privado**. Let's Encrypt **não emite cert** pra
 IP privado (não consegue validar pelo lado de fora). Ficamos em HTTP puro.
 
 Implicações já tratadas no código:
@@ -212,7 +244,7 @@ node "Preparar dados" → primeira linha do código.
 
 **Cenário atual (IP intranet):**
 ```js
-const APP_BASE_URL = 'http://192.168.0.40';
+const APP_BASE_URL = 'http://192.168.0.41:8081';
 ```
 
 **Caso B (com domínio):**

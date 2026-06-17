@@ -2,7 +2,16 @@
 
 App web pra **gerenciar convocaÃ§Ãµes de intermitentes** no monday: cria convocaÃ§Ã£o, registra ocorrÃªncias dia-a-dia (faltou/atrasou) e permite correÃ§Ã£o via protocolo. Acesso via link Ãºnico da convocaÃ§Ã£o (registrar ocorrÃªncia) ou via **hub principal** (criar convocaÃ§Ã£o / corrigir).
 
-## Estado atual do projeto (2026-05-23)
+## Estado atual do projeto (2026-06-15)
+
+- **Redesign de tema + Config overlay** (`src/lib/theme.ts`, `src/features/config/`): modo claro/escuro/sistema + 6 esquemas de cor (`aurora`/`seco`/`verde`/`rosa`/`rubi`/`roxo`, labels Aurora/Grafite/Ouro/Poente/Brasa/Nebulosa) + toggle "Reduzir animacoes" + tamanho de fonte (`sm`/`md`/`lg` via `--font-scale`). Persiste por navegador em localStorage (`pi-theme`/`pi-accent`/`pi-reduce-anim`/`pi-font`). Aplica `data-theme`+`data-accent`+`.dark` no `<html>`; troca suave via classe `.theme-anim` (~1s crossfade de cor, respeita `prefers-reduced-motion`). 1o paint setado por script inline em `index.html` (sem FOUC). `ConfigOverlay` (Dialog) aberto pelo NavCluster.
+- **NavCluster global** (`src/components/NavCluster.tsx` + `NavContext.tsx`): balao liquid-glass fixo topo-direito com Voltar etapa / Home / Config, presente em todas as telas (fora do `PageTransition`). Substituiu o botao Voltar por-pagina. Paginas registram seu "voltar etapa" + destino do Home via hook `useRegistrarVoltar(fn, homeTo)`; a fn vive num ref (nao state) pra nao re-montar o balao e engolir cliques.
+- **Feriados vindos do board** (`src/lib/feriadosBoard.ts`): feriado NACIONAL hardcoded substituido pela regra do board monday FERIADOS (`18415442661`) via endpoint n8n novo `GET /intermitente-feriados`. Regra "feriado efetivo" = `aplicaAoContrato(dia) && !recebeFeriado(contrato)`: NACIONAL aplica a todos, ESTADUAL/MUNICIPAL so se contrato na lista; `SEDUC*` e `DETRAN` RECEBEM no feriado (nao bloqueiam). Cache de modulo + react-query; fallback NACIONAL (`feriadosBr.ts`) enquanto nao carrega/falha. Aplicado em `/preencher`, `/convocar`, `/atestados`. Ponto facultativo continua usando feriado por board proprio (commit `c2cf301`).
+- **VT vem do RM** (`/convocar`): Vale Transporte pre-preenchido do RM; pergunta removida do formulario.
+- **Split Parte 1**: contrato fixo + WF3 preenche subitems do board fixo (ver pendencia Split abaixo).
+- **Cleanup pendente (nao feito)**: `@supabase/supabase-js` em `package.json` sem nenhum import no source (dead dep, remover). Diretorios/arquivos de backup nao versionados poluindo lint: `src.bak-fase3/` (909K, ESLint linta ele) + `src/index.css.bak-pretheme` (100K). Lint real com 1 erro: `FormularioWizard.tsx:1155 '_onAbrirPontoInfo' is defined but never used`.
+
+## Estado anterior (2026-05-23)
 
 - **Ponto facultativo atualizado**: `/ponto-facultativo` no Hub, endpoints n8n `GET /ponto-facultativo-opcoes`, `POST /ponto-facultativo-preview` e `POST /ponto-facultativo-aplicar`, unidades oficiais vindas do RM (`GET /intermitente-unidades-rm`, SQL `231375`/`UNIDADES`), filtro por contrato + unidade (`dropdown_mm3mcnmn`, fallback `texto75`), ledger com origem `ponto_facultativo:<contrato>:<unidade_normalizada>:<data>` e `/preencher` bloqueando dias vindos de `pontos_facultativos[]`.
 - **Pontual/FIFO ajustado**: WF ativo fica no n8n antigo (`Bso4k6ddDNcRmU83`) por depender do RM. Ele cria SolicitaÃ§Ã£o de Pagamento, atualiza links de pasta/tratativa/summary, dispara Drive async e agora envia `item_entrada_id` correto (`dados.itemId`). A planilha de conferÃªncia passou a ser disparada pelo WF Drive depois que a pasta da convocaÃ§Ã£o foi resolvida, evitando XLSX perdido na raiz do Drive. Em 27/05/2026, o Pontual tambÃ©m passou a buscar o pedido Caju e enviar dois binÃ¡rios ao Drive central: `caju_boleto` para `CAJU/BOLETOS` (QR Code PIX PNG quando a Caju devolve `pixCode.encodedImage`; TXT fallback com summary quando nÃ£o devolve) e `caju_comprovante` para `CAJU/COMPROVANTES` (TXT do pedido/summary). TambÃ©m espelha no item original do Plan: `VT - DiÃ¡rio`, `VR - UnitÃ¡rio`, `Dias Ãšteis/MÃªs - VT`, `Dias Ãšteis/MÃªs - VR`, `CREDITO CAJU` (VR) e `CREDITO VT`, sempre sobrescrevendo com os valores calculados da execuÃ§Ã£o.
@@ -212,8 +221,10 @@ CORREÃ‡ÃƒO: via protocolo
 
 ## Stack
 
-- **Frontend**: Vite + React 19 + TypeScript (strict)
-- **UI**: Tailwind v4 + shadcn/ui (new-york, neutral) â€” Dialog, Card, Button, Input, Label, Separator
+- **Frontend**: Vite 8 + React 19 + TypeScript 6 (strict)
+- **UI**: Tailwind v4 + shadcn/ui (new-york, neutral) sobre `radix-ui` â€” Dialog, Card, Button, Input, Label, Separator, combobox-filtravel; `react-day-picker` pros calendÃ¡rios; `lucide-react` Ã­cones
+- **Tema**: claro/escuro/sistema + 6 esquemas de cor + fonte + reduzir anim (`src/lib/theme.ts`, localStorage). NÃ£o usa lib externa
+- **Nota**: `@supabase/supabase-js` consta em `package.json` mas NÃ£o Ã© usado (dead dep â€” remover)
 - **Estado server**: @tanstack/react-query (staleTime 0 no preencher)
 - **Roteamento**: react-router-dom v7
 - **Datas**: date-fns + locale pt-BR
@@ -252,14 +263,23 @@ VITE_N8N_ANTIGO_BASE_URL=https://antigoaionscorp-n8n.cloudfy.live/webhook
 
 ```
 src/
-â”œâ”€ App.tsx                          rotas + PageTransition wrapper
-â”œâ”€ main.tsx                         providers (QueryClient + BrowserRouter)
-â”œâ”€ index.css                        Tailwind + glass classes + keyframes + bg-hue-cycle
+â”œâ”€ App.tsx                          rotas + PageTransition + NavProvider/NavCluster/ConfigOverlay globais
+â”œâ”€ main.tsx                         providers (QueryClient + BrowserRouter) + initTheme()
+â”œâ”€ index.css                        Tailwind + glass classes + keyframes + bg-hue-cycle + temas (data-theme/data-accent)
 â”œâ”€ components/
 â”‚  â”œâ”€ AuroraBackground.tsx          fundo com orbes + filtros SVG (#liquid-glass, #liquid-glass-soft)
 â”‚  â”œâ”€ SlideStack.tsx                carrossel horizontal genÃ©rico (200% trilho + 2 slots)
 â”‚  â”œâ”€ PageTransition.tsx            wrapper de Routes que detecta path change e direÃ§Ã£o
-â”‚  â””â”€ ui/                           shadcn customizado (dialog c/ overlayClassName, button, input, label, select, separator, badge, card, table)
+â”‚  â”œâ”€ NavContext.tsx                NavProvider + useNav + useRegistrarVoltar (voltar etapa em ref, estado config)
+â”‚  â”œâ”€ NavCluster.tsx                balÃ£o global fixo topo-direito (Voltar / Home / Config)
+â”‚  â””â”€ ui/                           shadcn customizado (dialog c/ overlayClassName, button, input, label, select, separator, badge, card, table, combobox-filtravel)
+â”œâ”€ features/config/
+â”‚  â”œâ”€ ConfigOverlay.tsx             Dialog de configuraÃ§Ãµes (aberto pelo NavCluster) â€” fonte, reduzir anim, reset
+â”‚  â””â”€ ThemeControls.tsx             modo claro/escuro/sistema + 6 swatches de esquema de cor
+â”œâ”€ features/ponto-facultativo/
+â”‚  â”œâ”€ PontoFacultativoPage.tsx      rota `/ponto-facultativo` â€” preview + aplicar desconto VR/VT por contrato/unidade/data
+â”‚  â”œâ”€ TestePontoFacultativoPage.tsx rota `/teste/ponto-facultativo`
+â”‚  â”œâ”€ api.ts + types.ts + contratosMeta.ts + usePontoFacultativo.ts
 â”œâ”€ features/hub/
 â”‚  â”œâ”€ HubPage.tsx                   rota `/` â€” 3 tiles (Convocar / Atestados / Corrigir) + link teste no rodapÃ©
 â”‚  â””â”€ TestePage.tsx                 rota `/teste` â€” 4 UUIDs mock + chave PROT-DEMO-1234
@@ -310,7 +330,9 @@ src/
 â”‚  â”œâ”€ useDescontos.ts               hooks react-query
 â”‚  â””â”€ shared.ts                     helpers mÃ¡scara R$ (digitosParaReal, digitosParaDisplay, formatarReal)
 â””â”€ lib/
-   â”œâ”€ feriadosBr.ts                 8 fixos + Sexta-feira Santa (Meeus/Jones/Butcher) + cache por ano
+   â”œâ”€ theme.ts                      modo claro/escuro/sistema + 6 esquemas + fonte + reduzir anim (localStorage, data-theme/data-accent)
+   â”œâ”€ feriadosBr.ts                 fallback NACIONAL: 8 fixos + Sexta-feira Santa (Meeus/Jones/Butcher) + cache por ano
+   â”œâ”€ feriadosBoard.ts              feriados do board FERIADOS (18415442661) via n8n /intermitente-feriados, por contrato; fallback feriadosBr
    â””â”€ utils.ts
 
 docs/
@@ -584,3 +606,39 @@ Frontend `useOpcoesConvocacao()` consome com `placeholderData` (fallback local) 
 - `MONDAY_API_TOKEN` apenas dentro do n8n (cred "Ray0"). RM token apenas em cred "rm mike".
 - Frontend expÃµe sÃ³ `VITE_N8N_BASE_URL`.
 - `.env` no `.gitignore`. `.env.local` forÃ§a modo mock em dev.
+
+## Autenticacao / Usuario (esqueleto — 2026-06-16)
+
+Login SSO + identidade do operador. n8n NAO foi tocado nesta etapa.
+
+- **Stack**: backend novo `auth-backend/` (Node + Fastify + TS) + Postgres, 2
+  containers no `docker-compose.yml` (`auth`, `db`) em rede interna. nginx faz
+  proxy de `/auth/*` e `/api/*` -> `auth:3000` (mesma origem, cookie first-party).
+- **Login**: SSO Google Workspace (Authorization Code server-side). So
+  `@contatoserv.com.br` (`AUTH_ALLOWED_DOMAIN`). Sessao = cookie httpOnly opaco
+  (`pi_sess`) com registro no Postgres (revogavel). `COOKIE_SECURE=0` na VM HTTP.
+- **Papeis**: `admin > dp > rh/op` (enum `papel`). Auto-cadastro: dominio loga e no
+  **1o acesso preenche onboarding** (nome, sobrenome, CPF validado+unico, escolhe
+  **RH ou Operacional**). DP/Admin NAO sao auto-escolhiveis — Admin promove pelo painel
+  (`PATCH /api/usuarios`). So o 1o Admin vem do seed (`SEED_ADMIN_EMAIL`).
+- **Onboarding**: `POST /auth/completar-cadastro` (migration `002_perfil.sql` adiciona
+  `sobrenome`/`cpf` unico/`perfil_completo`). Validacao CPF em `auth-backend/src/cpf.ts`
+  e `src/lib/cpf.ts` (espelhadas). Admin/DP pre-existentes mantem papel no onboarding.
+- **Frontend**: `src/components/AuthContext.tsx` (`useAuth`, react-query em
+  `/auth/me`), `RequireAuth` (sem login->/login; perfil incompleto->/completar-cadastro)
+  /`RequireRole` (guards), `LoginPage` (centralizada, sem chip),
+  `CompletarCadastroPage` (onboarding), tipos+`RANK`+`PAPEIS_CADASTRO` em
+  `src/features/auth/types.ts`. Rotas operador atras de `<RequireAuth>` no `App.tsx`;
+  `/preencher/:uuid`, `/descontos/:uuid`, `/login`, `/completar-cadastro` PUBLICAS.
+- **Dev local (sem Docker)**: Postgres local + `vite.config.ts` `server.proxy` manda
+  `/auth` e `/api` -> `localhost:3000`. `AUTH_DEV_BYPASS=1` habilita
+  `GET/POST /auth/dev-login` (browser: `/auth/dev-login?email=x@dom&papel=operacional`).
+- **Identidade do operador**: `src/lib/http.ts` (`comOperador`/`anexarOperador` +
+  `setOperadorProvider`). Os `api.ts` de escrita (convocar/finalizar/cancelar/split/
+  lancar-documentos/ponto-facultativo-aplicar/descontos) injetam `operador`
+  `{email,nome,papel}` no payload. **n8n ignora a chave** ate ser fiado (futuro).
+- **Dev/teste**: `AUTH_DEV_BYPASS=1` habilita `POST /auth/dev-login {email,papel}`
+  (NUNCA em prod). `@supabase/supabase-js` removido (dead dep).
+- **Fora de escopo (futuro)**: fiar `operador` nas WFs (gravar coluna `Solicitante`
+  `text_mm2xxkm8` no Historico), telas so-DP (gating ja existe via `podeVer`/`RANK`),
+  migracao real Monday->Postgres (tabela `audit_lancamentos` ja preparada).

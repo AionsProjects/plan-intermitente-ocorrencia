@@ -10,7 +10,9 @@ import type {
   PayloadAplicarSplit,
   PayloadCancelarConvocacao,
   PayloadFinalizar,
+  ProcessamentoDados,
 } from "./types"
+import { registrarAtividade } from "@/lib/atividade"
 
 export function useProcessamento(uuid: string | undefined) {
   return useQuery({
@@ -26,7 +28,14 @@ export function useFinalizarProcessamento(uuid: string) {
   return useMutation({
     mutationFn: (payload: PayloadFinalizar) =>
       finalizarProcessamento(uuid, payload),
-    onSuccess: () => {
+    onSuccess: (_resp, payload) => {
+      const d = qc.getQueryData<ProcessamentoDados>(["processamento", uuid])
+      registrarAtividade("registro", {
+        alvo: uuid,
+        pessoa: d?.nome ?? null,
+        contrato: d?.contrato ?? null,
+        resumo: { protocolo: payload.protocolo, eh_correcao: payload.ehCorrecao ?? false },
+      })
       qc.invalidateQueries({ queryKey: ["processamento", uuid] })
     },
   })
@@ -37,7 +46,14 @@ export function useCancelarConvocacao(uuid: string) {
   return useMutation({
     mutationFn: (payload: PayloadCancelarConvocacao) =>
       cancelarConvocacao(uuid, payload),
-    onSuccess: () => {
+    onSuccess: (_resp, payload) => {
+      const d = qc.getQueryData<ProcessamentoDados>(["processamento", uuid])
+      registrarAtividade("cancelamento", {
+        alvo: uuid,
+        pessoa: d?.nome ?? null,
+        contrato: d?.contrato ?? null,
+        resumo: { tipo: payload.tipo, data: payload.dataInicioCancelamento },
+      })
       qc.invalidateQueries({ queryKey: ["processamento", uuid] })
     },
   })
@@ -50,7 +66,22 @@ export function useAplicarSplit(uuid: string) {
     // Aguarda o refetch concluir antes de liberar o usuário, pra evitar
     // race condition: usuário clicava "Finalizar" antes do refetch do WF2
     // resolver, e o payload do finalize chegava sem o split.
-    onSuccess: async () => {
+    onSuccess: async (_resp, payload) => {
+      const d = qc.getQueryData<ProcessamentoDados>(["processamento", uuid])
+      registrarAtividade("split", {
+        alvo: uuid,
+        pessoa: d?.nome ?? null,
+        contrato: d?.contrato ?? null,
+        resumo:
+          payload.tipo === "aplicar"
+            ? {
+                tipo: "aplicar",
+                contrato_p1: payload.contratoParte1,
+                contrato_p2: payload.contratoParte2,
+                data_p2: payload.dataInicioParte2,
+              }
+            : { tipo: "reverter" },
+      })
       await qc.invalidateQueries({ queryKey: ["processamento", uuid] })
       await qc.refetchQueries({ queryKey: ["processamento", uuid] })
     },

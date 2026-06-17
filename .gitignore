@@ -30,6 +30,11 @@ dist-ssr
 
 # Claude Code worktrees (cada branch tem seu próprio dir local)
 .claude/worktrees/
+.claude/launch.json
+
+# Backups locais (nao versionar)
+src.bak-fase3/
+*.bak-pretheme
 
 # Arquivos temporários de investigação n8n (ignorar)
 .n8n_backup/

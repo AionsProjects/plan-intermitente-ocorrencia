@@ -7,6 +7,11 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+# Backend tem build proprio (./auth-backend) — fora do contexto do frontend
+auth-backend
+# Backups que nao devem ir pra imagem
+src.bak-fase3
+*.bak-pretheme
 .vscode
 .idea
 .DS_Store

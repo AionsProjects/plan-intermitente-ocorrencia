@@ -10,6 +10,7 @@ import type {
   BuscarConvocacoesEmpregadoQuery,
   DocumentoLancamento,
 } from "./types"
+import { registrarAtividade } from "@/lib/atividade"
 
 function useDebounce<T>(value: T, delay = 250): T {
   const [debounced, setDebounced] = useState(value)
@@ -50,5 +51,16 @@ export function useLancarDocumentos() {
   return useMutation({
     mutationFn: (documentos: DocumentoLancamento[]) =>
       lancarDocumentos(documentos),
+    onSuccess: (_resp, documentos) => {
+      // 1 evento por documento lançado.
+      for (const d of documentos) {
+        registrarAtividade("atestado", {
+          alvo: d.chapa,
+          pessoa: d.empregadoNome,
+          contrato: d.contratoColaborador,
+          resumo: { tipo_doc: d.tipoDocumentacaoLabel, dias: d.diasAtestado },
+        })
+      }
+    },
   })
 }

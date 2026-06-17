@@ -7,6 +7,7 @@ import type {
 } from "./types"
 import { OPCOES_CONVOCACAO_FALLBACK } from "./types"
 import { unidadesParaContrato } from "@/lib/unidadesContrato"
+import { anexarOperador } from "@/lib/http"
 
 const BASE_URL = import.meta.env.VITE_N8N_ANTIGO_BASE_URL || import.meta.env.VITE_N8N_BASE_URL || ""
 const USE_MOCK = !BASE_URL
@@ -257,6 +258,7 @@ export async function criarConvocacao(
   if (payload.termoInsalubridade) {
     fd.append("termo_insalubridade", payload.termoInsalubridade)
   }
+  anexarOperador(fd)
 
   const res = await fetch(`${BASE_URL}/intermitente-convocar`, {
     method: "POST",

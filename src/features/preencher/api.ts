@@ -1,3 +1,4 @@
+import { comOperador } from "@/lib/http"
 import type {
   Atestado,
   PayloadAplicarSplit,
@@ -558,7 +559,7 @@ export async function finalizarProcessamento(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(bodyJson),
+      body: JSON.stringify(comOperador(bodyJson)),
     },
   )
   if (!res.ok) {
@@ -631,11 +632,13 @@ export async function cancelarConvocacao(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        uuid,
-        tipo: payload.tipo,
-        data_inicio_cancelamento: payload.dataInicioCancelamento,
-      }),
+      body: JSON.stringify(
+        comOperador({
+          uuid,
+          tipo: payload.tipo,
+          data_inicio_cancelamento: payload.dataInicioCancelamento,
+        }),
+      ),
     },
   )
   const data = await res.json().catch(() => ({}))
@@ -709,7 +712,7 @@ export async function aplicarSplit(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify(comOperador(body)),
     },
   )
   const data = await res.json().catch(() => ({}))

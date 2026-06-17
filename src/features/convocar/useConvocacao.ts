@@ -8,6 +8,7 @@ import {
 } from "./api"
 import { OPCOES_CONVOCACAO_FALLBACK } from "./types"
 import type { ConvocacaoPayload } from "./types"
+import { registrarAtividade } from "@/lib/atividade"
 
 const FALLBACK_OPCOES_MUTABLE = {
   solicitantes: [...OPCOES_CONVOCACAO_FALLBACK.solicitantes],
@@ -59,5 +60,13 @@ export function useOpcoesConvocacao() {
 export function useCriarConvocacao() {
   return useMutation({
     mutationFn: (payload: ConvocacaoPayload) => criarConvocacao(payload),
+    onSuccess: (resp, payload) => {
+      registrarAtividade("convocacao", {
+        alvo: resp?.itemId ? String(resp.itemId) : payload.empregado.chapa,
+        pessoa: payload.empregado.nome,
+        contrato: payload.contrato,
+        resumo: { data_inicio: payload.dataInicio, data_fim: payload.dataFim },
+      })
+    },
   })
 }
