@@ -4,6 +4,7 @@ import { rotasAuth } from "./routes/auth.js"
 import { rotasUsuarios } from "./routes/usuarios.js"
 import { rotasAtividade } from "./routes/atividade.js"
 import { rotasBoards } from "./routes/boards.js"
+import { rotasFeriados } from "./routes/feriados.js"
 
 // Constroi a app Fastify (sem listen). Usada pelo server.ts (local/Render) e pela
 // funcao serverless do Vercel (api/index.ts). Mesma origem -> sem CORS.
@@ -15,6 +16,7 @@ export async function construirApp(): Promise<FastifyInstance> {
   await app.register(rotasUsuarios)
   await app.register(rotasAtividade)
   await app.register(rotasBoards)
+  await app.register(rotasFeriados)
 
   app.get("/auth/health", async () => ({ ok: true }))
 

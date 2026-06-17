@@ -49,3 +49,4 @@ determinar.js
 # Tooling n8n (scripts de patch/deploy) — contem tokens/URLs internos. NAO versionar
 # (alguns .cjs tinham JWT do Monday hardcoded). Repo vai publico.
 scripts/
+.vercel

@@ -9,8 +9,8 @@
  *   - NACIONAL aplica a todos; ESTADUAL/MUNICIPAL só se o contrato está na lista.
  *   - SEDUC* e DETRAN RECEBEM no feriado → não bloqueiam (efetivo = false).
  *
- * Frontend nunca fala com monday direto: os dados vêm do endpoint n8n
- * (novo) `/intermitente-feriados`. Cache de módulo + react-query.
+ * Frontend nunca fala com monday direto: os dados vêm do NOSSO backend
+ * (`/api/feriados`, lê o board Monday ao vivo). Cache de módulo + react-query.
  * Enquanto não carrega (ou se falhar), cai no fallback NACIONAL (feriadosBr).
  */
 import { useQuery } from "@tanstack/react-query"
@@ -23,8 +23,7 @@ export interface Feriado {
   contratos: string[]
 }
 
-// Endpoint vive sempre no n8n NOVO (independe da feature) — ver plano.
-const BASE = import.meta.env.VITE_N8N_BASE_URL ?? ""
+// Lê do NOSSO backend (rota relativa, mesma origem no Vercel/nginx).
 
 // Cache de módulo: permite helpers síncronos (isFeriado/nomeFeriado) sem
 // threading por props/useMemo. Populado pelo useFeriados ao carregar.
@@ -78,8 +77,7 @@ export function nomeFeriado(iso: string, contrato?: string | null): string | nul
 }
 
 async function fetchFeriados(): Promise<Feriado[]> {
-  if (!BASE) return []
-  const res = await fetch(`${BASE}/intermitente-feriados`)
+  const res = await fetch("/api/feriados", { credentials: "same-origin" })
   if (!res.ok) throw new Error("feriados http " + res.status)
   const j = await res.json()
   return Array.isArray(j?.feriados) ? (j.feriados as Feriado[]) : []

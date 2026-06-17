@@ -62,6 +62,31 @@ export async function listarWebhooks(boardId: string): Promise<WebhookMonday[]> 
   return d.webhooks ?? []
 }
 
+export interface ItemMonday {
+  id: string
+  name: string
+  column_values: { id: string; text: string | null; value: string | null }[]
+}
+
+// Le itens de um board (1 pagina; limit ate 500). Pra boards pequenos (feriados, valores).
+// Pra boards grandes usar cursor (items_page.cursor) — futuro.
+export async function lerItens(
+  boardId: string,
+  columnIds?: string[],
+  limit = 500,
+): Promise<ItemMonday[]> {
+  const colsArg = columnIds && columnIds.length ? `(ids: ${JSON.stringify(columnIds)})` : ""
+  const d = await mondayGraphql<{
+    boards: { items_page: { items: ItemMonday[] } }[]
+  }>(
+    `query($ids:[ID!], $limit:Int!){
+       boards(ids:$ids){ items_page(limit:$limit){ items{ id name column_values${colsArg}{ id text value } } } }
+     }`,
+    { ids: [boardId], limit },
+  )
+  return d.boards?.[0]?.items_page?.items ?? []
+}
+
 // Cria webhook change_column_value num board apontando pra url, restrito a uma coluna.
 export async function criarWebhook(
   boardId: string,
