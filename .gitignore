@@ -46,6 +46,6 @@ n8n_all.json
 n8n_folder.json
 determinar.js
 
-# Dumps/scratch de investigação n8n em scripts/ (ignorar)
-scripts/.tmp_*
-scripts/.inspect_*
+# Tooling n8n (scripts de patch/deploy) — contem tokens/URLs internos. NAO versionar
+# (alguns .cjs tinham JWT do Monday hardcoded). Repo vai publico.
+scripts/
