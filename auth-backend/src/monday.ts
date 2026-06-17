@@ -87,6 +87,31 @@ export async function lerItens(
   return d.boards?.[0]?.items_page?.items ?? []
 }
 
+// Acha itens por valor exato de uma coluna (items_page_by_column_values). Eficiente
+// pra lookup (protocolo, uuid) sem varrer o board todo.
+export async function acharItensPorColuna(
+  boardId: string,
+  columnId: string,
+  valor: string,
+  colunasRetorno?: string[],
+  limit = 10,
+): Promise<ItemMonday[]> {
+  const colsArg =
+    colunasRetorno && colunasRetorno.length ? `(ids: ${JSON.stringify(colunasRetorno)})` : ""
+  const d = await mondayGraphql<{
+    items_page_by_column_values: { items: ItemMonday[] }
+  }>(
+    `query($board:ID!,$col:String!,$val:[String]!,$limit:Int!){
+       items_page_by_column_values(board_id:$board, limit:$limit,
+         columns:[{column_id:$col, column_values:$val}]){
+         items{ id name column_values${colsArg}{ id text value } }
+       }
+     }`,
+    { board: boardId, col: columnId, val: [valor], limit },
+  )
+  return d.items_page_by_column_values?.items ?? []
+}
+
 // Cria webhook change_column_value num board apontando pra url, restrito a uma coluna.
 export async function criarWebhook(
   boardId: string,

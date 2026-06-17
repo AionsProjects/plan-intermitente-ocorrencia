@@ -754,7 +754,8 @@ export async function buscarUuidPorProtocolo(
   }
 
   const res = await fetch(
-    `${BASE_URL}/intermitente-buscar-protocolo?protocolo=${encodeURIComponent(limpo)}`,
+    `/api/intermitente/buscar-protocolo?protocolo=${encodeURIComponent(limpo)}`,
+    { credentials: "same-origin" },
   )
   if (!res.ok) {
     const err = new Error(`Erro ${res.status}`) as Error & { status?: number }
