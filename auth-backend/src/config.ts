@@ -39,6 +39,15 @@ export const config = {
   cookieSecure: process.env.COOKIE_SECURE === "1",
   // SSL no Postgres (remoto/cloudfy costuma exigir). DB_SSL=1 -> ssl sem verificar CA.
   dbSsl: process.env.DB_SSL === "1",
+  // Monday API (registry de boards + create_webhook). Opcional no boot; rotas /api/boards
+  // exigem. NUNCA em VITE_*.
+  mondayToken: opt("MONDAY_TOKEN", ""),
+  mondayApiUrl: opt("MONDAY_API_URL", "https://api.monday.com/v2"),
+  // URL base do webhook n8n que recebe o gatilho "ativar" (create_webhook aponta pra ca).
+  n8nWebhookAtivar: opt(
+    "N8N_WEBHOOK_ATIVAR",
+    "https://aionscorp-n8n.cloudfy.live/webhook/Intermitentehaha",
+  ),
 } as const
 
 export type AppConfig = typeof config
