@@ -10,6 +10,9 @@ import { unidadesParaContrato } from "@/lib/unidadesContrato"
 import { anexarOperador } from "@/lib/http"
 
 const BASE_URL = import.meta.env.VITE_N8N_ANTIGO_BASE_URL || import.meta.env.VITE_N8N_BASE_URL || ""
+// WF8 (buscar empregado RM) foi migrado para o n8n NOVO via AIONS — busca usa o host novo direto.
+// WF7 (criar convocação) e WF9 (opções) seguem no host antigo (BASE_URL) até migrarem.
+const BASE_NOVO = import.meta.env.VITE_N8N_BASE_URL || ""
 const USE_MOCK = !BASE_URL
 
 export class ConvocacaoApiError extends Error {
@@ -175,14 +178,14 @@ export async function buscarEmpregado(
   const query = nome.trim()
   if (query.length < 3) return []
 
-  if (USE_MOCK) {
+  if (!BASE_NOVO) {
     await new Promise((r) => setTimeout(r, 250))
     const q = normaliza(query)
     return MOCK_EMPREGADOS.filter((e) => normaliza(e.nome).includes(q))
   }
 
   const res = await fetch(
-    `${BASE_URL}/convocar-buscar-empregado?nome=${encodeURIComponent(query)}`,
+    `${BASE_NOVO}/convocar-buscar-empregado?nome=${encodeURIComponent(query)}`,
   )
   if (!res.ok) {
     const err = new Error(`Erro ${res.status}`) as Error & { status?: number }
