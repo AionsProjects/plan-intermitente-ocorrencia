@@ -129,7 +129,7 @@ Ponto Facultativo ativo:
 - **AIONS API** â€” middleware HTTP pro RM TOTVS (`https://headed-shawl-annex.ngrok-free.dev`, header `X-API-Key`). WF8 e parte do WF6 jÃ¡ migrados; WF5 SOAPs adaptados mas inativos. **Bloqueio atual**: writes nÃ£o persistem em produÃ§Ã£o. Time AIONS investigando. AtÃ© resolver, WFs que tocam RM ficam no antigo n8n.
 
 ### Deploy
-- Container Docker rodando na VM `192.168.0.41:80` (intranet, sem domÃ­nio pÃºblico).
+- Container Docker rodando na VM `http://192.168.0.41:8081/` (intranet, sem domÃ­nio pÃºblico). Porta 8081 (mudou de :80).
 - Stack: Dockerfile multi-stage (node:20-alpine build â†’ nginx:alpine runtime), `docker-compose.yml`, `docker/nginx.conf` (catch-all server_name).
 - Atualizar: `git pull && docker compose up -d --build`.
 
@@ -146,7 +146,7 @@ Ponto Facultativo ativo:
 
 **Desconto manual (alta prioridade â€” frontend 100% pronto):**
 1. **Monday â€” board Desconto `18400981023`**: colunas `UUID Retirada Manual`, `Link Retirada Manual`, `Retirada Manual VR/VT`, `Status Retirada Manual` (Pendente/Registrado), `Registrado Em`, `Ativar Retirada Manual` (trigger button).
-2. **WF Monday Automation** "Gerar Link": ao ativar trigger, gera UUID + link `http://192.168.0.41/descontos/<uuid>` + Status=Pendente.
+2. **WF Monday Automation** "Gerar Link": ao ativar trigger, gera UUID + link `http://192.168.0.41:8081/descontos/<uuid>` + Status=Pendente.
 3. **WF novo `GET /descontos-ler?uuid=`**: busca item pelo UUID, cross-ref HistÃ³rico, retorna `{empregado_nome, chapa, contrato, periodo, vr_devido, vt_devido, retirada_anterior, status}`.
 4. **WF novo `POST /descontos-registrar-manual?uuid=`**: valida `vr_retirado<=vr_devido` + idem VT, atualiza item Monday, retorna `{ok, vr_restante, vt_restante}`.
 
@@ -210,7 +210,7 @@ CORREÃ‡ÃƒO: via protocolo
 
 ## DecisÃµes-chave
 
-- **Hub principal em `/`** â€” substitui DevIndex antigo. Operacional bate em `http://192.168.0.41` e vÃª opÃ§Ãµes claras (Convocar / Corrigir). Mocks acessÃ­veis via `/teste` (entrada discreta).
+- **Hub principal em `/`** â€” substitui DevIndex antigo. Operacional bate em `http://192.168.0.41:8081` e vÃª opÃ§Ãµes claras (Convocar / Corrigir). Mocks acessÃ­veis via `/teste` (entrada discreta).
 - **Frontend nunca conversa com monday direto** â€” toda I/O via n8n.
 - **Sem login** â€” seguranÃ§a = UUID longo aleatÃ³rio + expiraÃ§Ã£o 30 dias. Protocolo `PROT-XXXX-XXXX` em alfabeto sem ambÃ­guos.
 - **IdempotÃªncia WF3** â€” `change_multiple_column_values` em 1 item. Pode chamar NÃ— sem efeito colateral.
