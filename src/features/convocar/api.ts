@@ -159,7 +159,7 @@ export async function buscarOpcoesConvocacao(): Promise<ConvocacaoOpcoes> {
     return normalizarOpcoes(OPCOES_CONVOCACAO_FALLBACK)
   }
 
-  const res = await fetch(`${BASE_URL}/intermitente-convocar-opcoes`)
+  const res = await fetch(`/api/convocar/opcoes`, { credentials: "same-origin" })
   if (!res.ok) {
     const err = new Error(`Erro ${res.status}`) as Error & { status?: number }
     err.status = res.status

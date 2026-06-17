@@ -93,7 +93,8 @@ export async function buscarDesconto(uuid: string): Promise<DescontoDados> {
   }
 
   const res = await fetch(
-    `${BASE_URL}/descontos-ler?uuid=${encodeURIComponent(uuid)}`,
+    `/api/descontos/ler?uuid=${encodeURIComponent(uuid)}`,
+    { credentials: "same-origin" },
   )
   if (!res.ok) {
     const err = new Error(`Erro ${res.status}`) as Error & { status?: number }

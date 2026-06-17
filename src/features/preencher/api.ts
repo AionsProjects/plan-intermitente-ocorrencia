@@ -444,7 +444,8 @@ export async function buscarProcessamento(
   }
 
   const res = await fetch(
-    `${BASE_URL}/intermitente-ler?uuid=${encodeURIComponent(uuid)}`,
+    `/api/intermitente/ler?uuid=${encodeURIComponent(uuid)}`,
+    { credentials: "same-origin" },
   )
   if (!res.ok) {
     const err = new Error(`Erro ${res.status}`) as Error & { status?: number }

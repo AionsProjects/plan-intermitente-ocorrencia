@@ -176,7 +176,8 @@ export async function buscarConvocacoesEmpregado(
   if (query.mes) params.set("mes", query.mes)
 
   const res = await fetch(
-    `${BASE_URL}/intermitente-convocacoes-empregado?${params.toString()}`,
+    `/api/intermitente/convocacoes-empregado?${params.toString()}`,
+    { credentials: "same-origin" },
   )
   if (!res.ok) {
     const err = new Error(`Erro ${res.status}`) as Error & { status?: number }

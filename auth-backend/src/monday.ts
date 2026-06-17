@@ -48,6 +48,20 @@ export async function lerColunas(boardId: string): Promise<ColunaMonday[]> {
   return d.boards?.[0]?.columns ?? []
 }
 
+// Le colunas com settings_str (pra extrair labels de status/dropdown).
+export async function lerColunasSettings(
+  boardId: string,
+  columnIds: string[],
+): Promise<{ id: string; title: string; settings_str: string }[]> {
+  const d = await mondayGraphql<{
+    boards: { columns: { id: string; title: string; settings_str: string }[] }[]
+  }>(
+    `query($ids:[ID!]){ boards(ids:$ids){ columns(ids:${JSON.stringify(columnIds)}){ id title settings_str } } }`,
+    { ids: [boardId] },
+  )
+  return d.boards?.[0]?.columns ?? []
+}
+
 export interface WebhookMonday {
   id: string
   board_id: string
