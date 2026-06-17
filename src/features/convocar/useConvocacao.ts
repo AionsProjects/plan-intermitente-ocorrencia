@@ -57,6 +57,22 @@ export function useOpcoesConvocacao() {
   })
 }
 
+// Existe board do próximo mês registrado? (resolver?papel=proximo). Controla o
+// seletor de mês no form (desabilita "próximo" se 404).
+export function useProximoMesExiste() {
+  return useQuery({
+    queryKey: ["boards-proximo-existe"],
+    queryFn: async () => {
+      const res = await fetch("/api/boards/resolver?papel=proximo", {
+        credentials: "same-origin",
+      })
+      return res.ok
+    },
+    staleTime: 5 * 60_000,
+    retry: false,
+  })
+}
+
 export function useCriarConvocacao() {
   return useMutation({
     mutationFn: (payload: ConvocacaoPayload) => criarConvocacao(payload),

@@ -6,6 +6,7 @@ import {
   lerColunasSettings,
   uploadFileToColumn,
 } from "../monday.js"
+import { usuarioDaSessao } from "../session.js"
 
 // Opções do form de convocação: labels das colunas status do board Entrada ATUAL
 // (resolvido pelo registry, por nome — robusto à virada). unidadesPorContrato vem do RM
@@ -132,6 +133,9 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
   // Cria convocação no board do mês (atual/proximo) — substitui WF7. Multipart
   // (campos + termos opcionais). Antifraude de período + create_item + upload.
   app.post("/api/convocar/criar", async (req: FastifyRequest, reply: FastifyReply) => {
+    // Escrita no Monday -> exige sessão (operador logado).
+    const usuario = await usuarioDaSessao(req)
+    if (!usuario) return reply.code(401).send({ ok: false, erro: "nao_autenticado" })
     // Lê multipart: campos texto em `campos`, arquivos em `arquivos`.
     const campos: Record<string, string> = {}
     const arquivos: Record<string, { buffer: Buffer; filename: string; mime: string }> = {}
