@@ -8,11 +8,10 @@ import type {
 import { OPCOES_CONVOCACAO_FALLBACK } from "./types"
 import { unidadesParaContrato } from "@/lib/unidadesContrato"
 
-const BASE_URL = import.meta.env.VITE_N8N_ANTIGO_BASE_URL || import.meta.env.VITE_N8N_BASE_URL || ""
-// WF8 (buscar empregado RM) foi migrado para o n8n NOVO via AIONS — busca usa o host novo direto.
-// WF7 (criar convocação) e WF9 (opções) seguem no host antigo (BASE_URL) até migrarem.
-const BASE_NOVO = import.meta.env.VITE_N8N_BASE_URL || ""
-const USE_MOCK = !BASE_URL
+// Convocação migrada 100% para o n8n NOVO: WF8 (buscar empregado RM via AIONS),
+// WF9 (opções) e WF7 (criar convocação). Todos os 3 endpoints usam o host novo.
+const BASE_NOVO = import.meta.env.VITE_N8N_BASE_URL || import.meta.env.VITE_N8N_ANTIGO_BASE_URL || ""
+const USE_MOCK = !BASE_NOVO
 
 export class ConvocacaoApiError extends Error {
   status?: number
@@ -161,7 +160,7 @@ export async function buscarOpcoesConvocacao(): Promise<ConvocacaoOpcoes> {
     return normalizarOpcoes(OPCOES_CONVOCACAO_FALLBACK)
   }
 
-  const res = await fetch(`${BASE_URL}/intermitente-convocar-opcoes`)
+  const res = await fetch(`${BASE_NOVO}/intermitente-convocar-opcoes`)
   if (!res.ok) {
     const err = new Error(`Erro ${res.status}`) as Error & { status?: number }
     err.status = res.status
@@ -261,7 +260,7 @@ export async function criarConvocacao(
     fd.append("termo_insalubridade", payload.termoInsalubridade)
   }
 
-  const res = await fetch(`${BASE_URL}/intermitente-convocar`, {
+  const res = await fetch(`${BASE_NOVO}/intermitente-convocar`, {
     method: "POST",
     body: fd,
   })
