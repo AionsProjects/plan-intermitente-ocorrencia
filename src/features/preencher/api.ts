@@ -700,22 +700,21 @@ export async function aplicarSplit(
 
   const body =
     payload.tipo === "reverter"
-      ? { tipo: "reverter" as const }
+      ? { uuid, tipo: "reverter" as const }
       : {
+          uuid,
           tipo: "aplicar" as const,
           data_inicio_parte2: payload.dataInicioParte2,
           contrato_parte1: payload.contratoParte1,
           contrato_parte2: payload.contratoParte2,
         }
 
-  const res = await fetch(
-    `${BASE_URL}/intermitente-aplicar-split?uuid=${encodeURIComponent(uuid)}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(comOperador(body)),
-    },
-  )
+  const res = await fetch(`/api/intermitente/aplicar-split`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(comOperador(body)),
+  })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     throw new AplicarSplitApiError(

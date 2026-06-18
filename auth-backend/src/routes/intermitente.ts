@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
-import { acharItensPorColuna, type ItemMonday } from "../monday.js"
+import { acharItensPorColuna, changeColumnValues, type ItemMonday } from "../monday.js"
+import { usuarioDaSessao } from "../session.js"
 
 // Leituras do board Histórico (Monday ao vivo) — substituem WFs n8n. Público
 // (correção/preencher/atestados usam). Histórico é FIXO (não duplica na virada).
@@ -189,6 +190,51 @@ export async function rotasIntermitente(app: FastifyInstance): Promise<void> {
       } catch (e) {
         req.log.error(e, "erro convocacoes-empregado")
         return reply.code(502).send({ erro: "monday_falhou" })
+      }
+    },
+  )
+
+  // Aplica/reverte split: escreve Split JSON (long_text_mm3m8k0m) no Histórico.
+  // Puro Monday. Exige sessão (escrita do operador).
+  app.post(
+    "/api/intermitente/aplicar-split",
+    async (
+      req: FastifyRequest<{
+        Body: {
+          uuid?: string
+          tipo?: "aplicar" | "reverter"
+          data_inicio_parte2?: string
+          contrato_parte1?: string
+          contrato_parte2?: string
+        }
+      }>,
+      reply: FastifyReply,
+    ) => {
+      if (!(await usuarioDaSessao(req))) return reply.code(401).send({ ok: false, erro: "nao_autenticado" })
+      const uuid = String(req.body?.uuid ?? "").trim()
+      const tipo = req.body?.tipo === "reverter" ? "reverter" : "aplicar"
+      if (!uuid) return reply.code(400).send({ ok: false, erro: "uuid_obrigatorio" })
+      try {
+        const itens = await acharItensPorColuna(BOARD_HISTORICO, C.uuid, uuid, [C.uuid], 1)
+        const it = itens[0]
+        if (!it) return reply.code(404).send({ ok: false, erro: "nao_encontrado" })
+
+        if (tipo === "reverter") {
+          await changeColumnValues(BOARD_HISTORICO, it.id, { [C.split]: "" })
+          return { ok: true, split: null }
+        }
+        const dip2 = String(req.body?.data_inicio_parte2 ?? "")
+        const cp1 = String(req.body?.contrato_parte1 ?? "")
+        const cp2 = String(req.body?.contrato_parte2 ?? "")
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dip2) || !cp1 || !cp2) {
+          return reply.code(400).send({ ok: false, erro: "split_invalido" })
+        }
+        const split = { data_inicio_parte2: dip2, contrato_parte1: cp1, contrato_parte2: cp2 }
+        await changeColumnValues(BOARD_HISTORICO, it.id, { [C.split]: JSON.stringify(split) })
+        return { ok: true, split }
+      } catch (e) {
+        req.log.error(e, "erro aplicar-split")
+        return reply.code(502).send({ ok: false, erro: "monday_falhou" })
       }
     },
   )

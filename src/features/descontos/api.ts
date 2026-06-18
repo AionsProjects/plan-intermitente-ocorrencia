@@ -171,20 +171,18 @@ export async function registrarRetiradaManual(
     }
   }
 
-  const res = await fetch(
-    `${BASE_URL}/descontos-registrar-manual?uuid=${encodeURIComponent(uuid)}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(
-        comOperador({
-          uuid,
-          vr_retirado: payload.vrRetirado,
-          vt_retirado: payload.vtRetirado,
-        }),
-      ),
-    },
-  )
+  const res = await fetch(`/api/descontos/registrar`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(
+      comOperador({
+        uuid,
+        vr_retirado: payload.vrRetirado,
+        vt_retirado: payload.vtRetirado,
+      }),
+    ),
+  })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     throw new RegistrarRetiradaApiError(

@@ -326,8 +326,9 @@ export async function lancarDocumentos(
     fd.append(`doc_${d.id}`, d.arquivo, d.arquivo.name)
   }
 
-  const res = await fetch(`${BASE_URL}/intermitente-lancar-documentos`, {
+  const res = await fetch(`/api/atestados/lancar`, {
     method: "POST",
+    credentials: "same-origin",
     body: fd,
   })
   const data = await res.json().catch(() => ({}))
