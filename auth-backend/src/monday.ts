@@ -194,7 +194,8 @@ export async function acharItensPorColuna(
   return d.items_page_by_column_values?.items ?? []
 }
 
-// Cria webhook change_column_value num board apontando pra url, restrito a uma coluna.
+// Cria webhook que dispara quando UMA coluna específica muda (change_specific_column_value).
+// Monday faz handshake (challenge) na criação — a url precisa responder {challenge}.
 export async function criarWebhook(
   boardId: string,
   url: string,
@@ -202,9 +203,14 @@ export async function criarWebhook(
 ): Promise<WebhookMonday> {
   const d = await mondayGraphql<{ create_webhook: WebhookMonday }>(
     `mutation($board:ID!,$url:String!,$cfg:JSON){
-       create_webhook(board_id:$board, url:$url, event:change_column_value, config:$cfg){ id board_id }
+       create_webhook(board_id:$board, url:$url, event:change_specific_column_value, config:$cfg){ id board_id }
      }`,
     { board: boardId, url, cfg: JSON.stringify({ columnId }) },
   )
   return d.create_webhook
+}
+
+// Remove um webhook por id.
+export async function deletarWebhook(webhookId: string): Promise<void> {
+  await mondayGraphql(`mutation($id:ID!){ delete_webhook(id:$id){ id } }`, { id: webhookId })
 }
