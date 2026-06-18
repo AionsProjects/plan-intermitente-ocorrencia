@@ -22,6 +22,10 @@ const NOMES = {
 } as const
 const NOME_UNIDADE = "OP - Local/Unidade"
 
+// Descarta labels corrompidas por encoding (contêm o replacement char U+FFFD "�").
+// Sempre há a versão correta coexistindo (ex: "N�O" + "NÃO" → mantém só "NÃO").
+const labelOk = (l: string | undefined): l is string => !!l && !l.includes("�")
+
 function extrairLabels(settingsStr: string): string[] {
   try {
     const s = JSON.parse(settingsStr) as {
@@ -32,17 +36,18 @@ function extrairLabels(settingsStr: string): string[] {
     if (Array.isArray(labels)) {
       return labels
         .map((l) => (typeof l === "string" ? l : (l as { name?: string })?.name))
-        .filter((x): x is string => !!x)
+        .filter(labelOk)
     }
     if (labels && typeof labels === "object") {
       const mapa = labels as Record<string, string>
-      // Só os índices ATIVOS (em labels_positions_v2), na ordem da posição.
-      // Evita labels legadas/desativadas (ex: "N�O" corrompida no Sábado).
+      // Índices ATIVOS (labels_positions_v2) na ordem; se vazio, todas as keys.
       const pos = s.labels_positions_v2
-      const indices = pos
-        ? Object.keys(pos).sort((a, b) => pos[a] - pos[b])
-        : Object.keys(mapa).sort((a, b) => Number(a) - Number(b))
-      return indices.map((i) => mapa[i]).filter(Boolean)
+      const indices =
+        pos && Object.keys(pos).length
+          ? Object.keys(pos).sort((a, b) => pos[a] - pos[b])
+          : Object.keys(mapa).sort((a, b) => Number(a) - Number(b))
+      // Filtra labels corrompidas (�) — cobre Sábado/Insalubridade e quaisquer outras.
+      return indices.map((i) => mapa[i]).filter(labelOk)
     }
   } catch { /* ignore */ }
   return []
