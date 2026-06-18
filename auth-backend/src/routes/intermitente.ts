@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
-import { acharItensPorColuna, changeColumnValues, type ItemMonday } from "../monday.js"
+import { acharItensPorColuna, changeColumnValues, lerItem, type ItemMonday } from "../monday.js"
 import { usuarioDaSessao } from "../session.js"
 
 // Leituras do board Histórico (Monday ao vivo) — substituem WFs n8n. Público
@@ -98,6 +98,32 @@ function montarLeitura(it: ItemMonday) {
 }
 
 export async function rotasIntermitente(app: FastifyInstance): Promise<void> {
+  // uuid -> {interior:bool} (coluna OP-Interior? da ENTRADA). Usado pelo WF Sábados/Caju
+  // (mobilidade vs VT). Histórico tem item_origem (link p/ Entrada) -> lê color__1 lá.
+  app.get(
+    "/api/intermitente/interior",
+    async (req: FastifyRequest<{ Querystring: { uuid?: string } }>, reply: FastifyReply) => {
+      const uuid = String(req.query.uuid ?? "").trim()
+      if (!uuid) return reply.code(400).send({ erro: "uuid_obrigatorio" })
+      try {
+        const itens = await acharItensPorColuna(BOARD_HISTORICO, C.uuid, uuid, [C.itemOrigem], 1)
+        const it = itens[0]
+        if (!it) return reply.code(404).send({ erro: "nao_encontrado", interior: false })
+        const origemUrl = it.column_values.find((c) => c.id === C.itemOrigem)?.text ?? ""
+        const m = origemUrl.match(/pulses\/(\d+)/)
+        const entradaItem = m?.[1]
+        if (!entradaItem) return { interior: false, motivo: "sem_item_origem" }
+        // color__1 = "OP - Interior?" no board Entrada (id estável entre meses)
+        const ent = await lerItem(entradaItem, ["color__1"])
+        const txt = ent?.column_values.find((c) => c.id === "color__1")?.text ?? ""
+        return { interior: txt.trim().toUpperCase() === "SIM", valor: txt }
+      } catch (e) {
+        req.log.error(e, "erro interior")
+        return reply.code(502).send({ erro: "monday_falhou", interior: false })
+      }
+    },
+  )
+
   // protocolo -> {uuid, nome}
   app.get(
     "/api/intermitente/buscar-protocolo",
