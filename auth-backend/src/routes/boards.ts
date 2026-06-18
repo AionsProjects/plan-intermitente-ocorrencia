@@ -84,17 +84,18 @@ export async function rotasBoards(app: FastifyInstance): Promise<void> {
     },
   )
 
-  // Resolve um board (por papel ou competência) -> board_id + mapa nome->column_id.
-  // Consumido pelos WFs/front. Sem sessão (lookup, dado não sensível). Cache curto no client.
+  // Resolve um board (por board_id, papel OU competência) -> board_id + mapa nome->column_id.
+  // Consumido pelos WFs (Code node "preparar") e front. Sem sessão (lookup, dado não sensível).
+  // board_id: usado pelo WF1 (event.boardId) — resolve as colunas do board que disparou.
   app.get(
     "/api/boards/resolver",
     async (
-      req: FastifyRequest<{ Querystring: { papel?: string; competencia?: string } }>,
+      req: FastifyRequest<{ Querystring: { papel?: string; competencia?: string; board_id?: string } }>,
       reply: FastifyReply,
     ) => {
-      const { papel, competencia } = req.query
-      const cond = competencia ? "competencia = $1" : "papel = $1"
-      const val = competencia ?? papel ?? "atual"
+      const { papel, competencia, board_id } = req.query
+      const cond = board_id ? "monday_board_id = $1" : competencia ? "competencia = $1" : "papel = $1"
+      const val = board_id ?? competencia ?? papel ?? "atual"
       const { rows } = await query<BoardRow>(
         `SELECT monday_board_id, competencia, papel, ativo FROM boards
           WHERE ${cond} AND ativo = true ORDER BY atualizado_em DESC LIMIT 1`,
