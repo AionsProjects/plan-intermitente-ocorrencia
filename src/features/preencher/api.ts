@@ -555,14 +555,12 @@ export async function finalizarProcessamento(
   }))
 
   const bodyJson = payloadFinalizarSnake(uuid, payload, respostas)
-  const res = await fetch(
-    `${BASE_URL}/intermitente-finalizar?uuid=${encodeURIComponent(uuid)}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(comOperador(bodyJson)),
-    },
-  )
+  const res = await fetch(`/api/intermitente/finalizar`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(comOperador(bodyJson)),
+  })
   if (!res.ok) {
     const err = new Error(`Erro ${res.status}`) as Error & { status?: number }
     err.status = res.status
@@ -629,10 +627,11 @@ export async function cancelarConvocacao(
   }
 
   const res = await fetch(
-    `${BASE_URL}/intermitente-cancelar-convocacao?uuid=${encodeURIComponent(uuid)}`,
+    `/api/intermitente/cancelar`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
       body: JSON.stringify(
         comOperador({
           uuid,
