@@ -138,11 +138,17 @@ export function GlassDatePicker({
 
           <div className="my-2 h-px bg-[rgb(var(--ink)/0.12)]" />
 
+          {(() => {
+            // Trava a navegação ao range [min..max]: não deixa transitar pra meses fora.
+            const podeVoltar = !minDate || startOfMonth(subMonths(mesVisivel, 1)) >= startOfMonth(minDate)
+            const podeAvancar = !maxDate || startOfMonth(addMonths(mesVisivel, 1)) <= startOfMonth(maxDate)
+            return (
           <div className="flex items-center justify-between">
             <button
               type="button"
-              onClick={() => setMesVisivel((m) => subMonths(m, 1))}
-              className="inline-flex size-9 items-center justify-center rounded-xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] text-foreground/75 transition hover:border-[rgb(var(--ink)/0.25)] hover:bg-[rgb(var(--ink)/0.08)] hover:text-foreground"
+              disabled={!podeVoltar}
+              onClick={() => podeVoltar && setMesVisivel((m) => subMonths(m, 1))}
+              className="inline-flex size-9 items-center justify-center rounded-xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] text-foreground/75 transition hover:border-[rgb(var(--ink)/0.25)] hover:bg-[rgb(var(--ink)/0.08)] hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-[rgb(var(--ink)/0.04)]"
             >
               <ChevronLeft className="size-4" />
             </button>
@@ -151,12 +157,15 @@ export function GlassDatePicker({
             </p>
             <button
               type="button"
-              onClick={() => setMesVisivel((m) => addMonths(m, 1))}
-              className="inline-flex size-9 items-center justify-center rounded-xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] text-foreground/75 transition hover:border-[rgb(var(--ink)/0.25)] hover:bg-[rgb(var(--ink)/0.08)] hover:text-foreground"
+              disabled={!podeAvancar}
+              onClick={() => podeAvancar && setMesVisivel((m) => addMonths(m, 1))}
+              className="inline-flex size-9 items-center justify-center rounded-xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] text-foreground/75 transition hover:border-[rgb(var(--ink)/0.25)] hover:bg-[rgb(var(--ink)/0.08)] hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-[rgb(var(--ink)/0.04)]"
             >
               <ChevronRight className="size-4" />
             </button>
           </div>
+            )
+          })()}
 
           <div className="grid grid-cols-7 gap-1">
             {["D", "S", "T", "Q", "Q", "S", "S"].map((d, i) => (
