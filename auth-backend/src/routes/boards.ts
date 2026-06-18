@@ -6,6 +6,7 @@ import {
   ColunaMonday,
   criarWebhook,
   lerColunas,
+  lerGrupos,
   listarWebhooks,
 } from "../monday.js"
 
@@ -80,7 +81,19 @@ export async function rotasBoards(app: FastifyInstance): Promise<void> {
           [boardId, c.title, c.id, c.type],
         )
       }
-      return { ok: true, board_id: boardId, colunas: colunas.length }
+      // Regrava os grupos (titulo->group_id) — ex: PONTUAL.
+      let grupos: { id: string; title: string }[] = []
+      try { grupos = await lerGrupos(boardId) } catch (e) { req.log.warn(e, "lerGrupos") }
+      await query(`DELETE FROM board_grupos WHERE monday_board_id = $1`, [boardId])
+      for (const g of grupos) {
+        await query(
+          `INSERT INTO board_grupos (monday_board_id, titulo, group_id)
+             VALUES ($1, $2, $3)
+           ON CONFLICT (monday_board_id, titulo) DO UPDATE SET group_id = EXCLUDED.group_id`,
+          [boardId, g.title, g.id],
+        )
+      }
+      return { ok: true, board_id: boardId, colunas: colunas.length, grupos: grupos.length }
     },
   )
 
@@ -109,11 +122,18 @@ export async function rotasBoards(app: FastifyInstance): Promise<void> {
       )
       const colunas: Record<string, string> = {}
       for (const c of cols) colunas[c.nome] = c.column_id
+      const { rows: grps } = await query<{ titulo: string; group_id: string }>(
+        `SELECT titulo, group_id FROM board_grupos WHERE monday_board_id = $1`,
+        [b.monday_board_id],
+      )
+      const grupos: Record<string, string> = {}
+      for (const g of grps) grupos[g.titulo] = g.group_id
       return {
         board_id: b.monday_board_id,
         competencia: b.competencia,
         papel: b.papel,
         colunas,
+        grupos,
       }
     },
   )

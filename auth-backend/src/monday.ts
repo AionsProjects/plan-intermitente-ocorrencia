@@ -48,6 +48,15 @@ export async function lerColunas(boardId: string): Promise<ColunaMonday[]> {
   return d.boards?.[0]?.columns ?? []
 }
 
+// Le os grupos (id+titulo) de um board.
+export async function lerGrupos(boardId: string): Promise<{ id: string; title: string }[]> {
+  const d = await mondayGraphql<{ boards: { groups: { id: string; title: string }[] }[] }>(
+    `query($ids:[ID!]){ boards(ids:$ids){ groups{ id title } } }`,
+    { ids: [boardId] },
+  )
+  return d.boards?.[0]?.groups ?? []
+}
+
 // Le colunas com settings_str (pra extrair labels de status/dropdown).
 export async function lerColunasSettings(
   boardId: string,
