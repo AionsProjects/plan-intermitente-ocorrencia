@@ -27,21 +27,19 @@ import {
   type SimNao,
   type Solicitante,
 } from "./types"
-import {
-  useCriarConvocacao,
-  useMesesConvocacao,
-  useOpcoesConvocacao,
-} from "./useConvocacao"
+import { useCriarConvocacao, useOpcoesConvocacao } from "./useConvocacao"
 import { unidadesParaContrato } from "@/lib/unidadesContrato"
 
 type Props = {
   empregado: EmpregadoRM
+  papel: "atual" | "proximo"
+  competencia: string // YYYY-MM do mês escolhido (trava o calendário)
   onTrocarEmpregado: () => void
+  onVoltarMes: () => void
   onSucesso: (itemId: string, itemUrl: string) => void
 }
 
 type FormState = {
-  papel: "atual" | "proximo"
   name: string
   escala: string
   solicitante: Solicitante | ""
@@ -60,7 +58,6 @@ type FormState = {
 }
 
 const initialState = (empregado: EmpregadoRM): FormState => ({
-  papel: "atual",
   name: `INTERMITENTE - ${empregado.nome}`,
   escala: "",
   solicitante: "",
@@ -85,7 +82,10 @@ type AlertaConflito = {
 
 export function FormularioConvocacao({
   empregado,
+  papel,
+  competencia,
   onTrocarEmpregado,
+  onVoltarMes,
   onSucesso,
 }: Props) {
   const [form, setForm] = useState<FormState>(() => initialState(empregado))
@@ -93,18 +93,14 @@ export function FormularioConvocacao({
   const [alertaConflito, setAlertaConflito] =
     useState<AlertaConflito | null>(null)
   const opcoesQuery = useOpcoesConvocacao()
-  const meses = useMesesConvocacao().data
-  const proximoExiste = meses?.proximo.existe === true
   const mutation = useCriarConvocacao()
 
-  // Competência do mês selecionado → trava o range do calendário a esse mês.
-  const competenciaSel =
-    form.papel === "proximo" ? meses?.proximo.competencia : meses?.atual.competencia
-  const minData = competenciaSel ? `${competenciaSel}-01` : undefined
-  const maxData = competenciaSel
+  // Competência do mês escolhido (etapa anterior) → trava o range do calendário.
+  const minData = competencia ? `${competencia}-01` : undefined
+  const maxData = competencia
     ? (() => {
-        const [a, m] = competenciaSel.split("-").map(Number)
-        return `${competenciaSel}-${String(new Date(a, m, 0).getDate()).padStart(2, "0")}`
+        const [a, m] = competencia.split("-").map(Number)
+        return `${competencia}-${String(new Date(a, m, 0).getDate()).padStart(2, "0")}`
       })()
     : undefined
   const opcoes = opcoesQuery.data ?? OPCOES_CONVOCACAO_FALLBACK
@@ -193,7 +189,7 @@ export function FormularioConvocacao({
       empregadoSubstituido: form.empregadoSubstituido.trim(),
       termoConvocacao: form.termoConvocacao,
       termoInsalubridade: form.termoInsalubridade,
-      papel: form.papel,
+      papel,
     }
     try {
       const res = await mutation.mutateAsync(payload)
@@ -241,37 +237,22 @@ export function FormularioConvocacao({
         Trocar empregado
       </button>
 
-      {/* Seletor de mês: cria a convocação no board atual ou no próximo (se existe) */}
-      <div>
-        <p className="mb-1.5 text-[10px] uppercase tracking-[0.3em] text-foreground/55">
-          Convocar para
-        </p>
-        <div className="grid grid-cols-2 gap-1 rounded-xl border border-border bg-secondary/40 p-1">
-          {([
-            { v: "atual" as const, label: "Mês atual", dis: false },
-            { v: "proximo" as const, label: "Próximo mês", dis: !proximoExiste },
-          ]).map((o) => {
-            const ativo = form.papel === o.v
-            return (
-              <button
-                key={o.v}
-                type="button"
-                disabled={o.dis}
-                onClick={() =>
-                  setForm((f) => ({ ...f, papel: o.v, dataInicio: "", dataFim: "" }))
-                }
-                title={o.dis ? "Board do próximo mês ainda não criado" : ""}
-                className={`rounded-lg px-3 py-2 text-sm font-medium transition disabled:opacity-40 ${
-                  ativo
-                    ? "bg-[rgb(var(--accent-rgb)/0.16)] text-foreground ring-1 ring-[rgb(var(--accent-rgb)/0.5)]"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {o.label}
-              </button>
-            )
-          })}
-        </div>
+      {/* Mês escolhido na etapa anterior — chip + trocar */}
+      <div className="flex items-center justify-between rounded-xl border border-border bg-secondary/40 px-4 py-2.5">
+        <span className="text-sm text-foreground/80">
+          Convocando para:{" "}
+          <span className="font-medium capitalize text-foreground">
+            {papel === "proximo" ? "próximo mês" : "mês atual"}
+            {competencia ? ` (${competencia})` : ""}
+          </span>
+        </span>
+        <button
+          type="button"
+          onClick={onVoltarMes}
+          className="text-xs text-foreground/55 underline-offset-2 transition hover:text-foreground/85 hover:underline"
+        >
+          trocar mês
+        </button>
       </div>
 
       <section className="rounded-3xl border border-[rgb(var(--ink)/0.1)] bg-[rgb(var(--ink)/0.03)] p-5 backdrop-blur">

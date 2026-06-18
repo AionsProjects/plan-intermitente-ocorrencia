@@ -4,24 +4,28 @@ import { useRegistrarVoltar } from "@/components/NavContext"
 import { SlideStack, type SlideDirection } from "@/components/SlideStack"
 
 import { BuscarEmpregado } from "./BuscarEmpregado"
+import { EscolherMes } from "./EscolherMes"
 import { FormularioConvocacao } from "./FormularioConvocacao"
 import { TelaSucesso } from "./TelaSucesso"
 import type { EmpregadoRM } from "./types"
 
 type Etapa =
   | { tipo: "busca" }
-  | { tipo: "form"; empregado: EmpregadoRM }
+  | { tipo: "mes"; empregado: EmpregadoRM }
+  | { tipo: "form"; empregado: EmpregadoRM; papel: "atual" | "proximo"; competencia: string }
   | { tipo: "sucesso"; itemId: string; itemUrl: string }
 
 const ORDEM: Record<Etapa["tipo"], number> = {
   busca: 0,
-  form: 1,
-  sucesso: 2,
+  mes: 1,
+  form: 2,
+  sucesso: 3,
 }
 
 function etapaKey(e: Etapa): string {
+  if (e.tipo === "mes") return `mes-${e.empregado.chapa || e.empregado.nome}`
   if (e.tipo === "form")
-    return `form-${e.empregado.chapa || e.empregado.nome}`
+    return `form-${e.empregado.chapa || e.empregado.nome}-${e.papel}`
   if (e.tipo === "sucesso") return `sucesso-${e.itemId}`
   return "busca"
 }
@@ -51,7 +55,18 @@ export function ConvocarPage() {
     if (etapa.tipo === "busca") {
       return (
         <BuscarEmpregado
-          onSelecionar={(empregado) => ir({ tipo: "form", empregado })}
+          onSelecionar={(empregado) => ir({ tipo: "mes", empregado })}
+        />
+      )
+    }
+    if (etapa.tipo === "mes") {
+      return (
+        <EscolherMes
+          empregado={etapa.empregado}
+          onTrocarEmpregado={() => ir({ tipo: "busca" })}
+          onEscolher={(papel, competencia) =>
+            ir({ tipo: "form", empregado: etapa.empregado, papel, competencia })
+          }
         />
       )
     }
@@ -59,7 +74,10 @@ export function ConvocarPage() {
       return (
         <FormularioConvocacao
           empregado={etapa.empregado}
+          papel={etapa.papel}
+          competencia={etapa.competencia}
           onTrocarEmpregado={() => ir({ tipo: "busca" })}
+          onVoltarMes={() => ir({ tipo: "mes", empregado: etapa.empregado })}
           onSucesso={(itemId, itemUrl) =>
             ir({ tipo: "sucesso", itemId, itemUrl })
           }
@@ -76,7 +94,11 @@ export function ConvocarPage() {
   }
 
   useRegistrarVoltar(
-    etapa.tipo === "form" ? () => ir({ tipo: "busca" }) : null,
+    etapa.tipo === "mes"
+      ? () => ir({ tipo: "busca" })
+      : etapa.tipo === "form"
+        ? () => ir({ tipo: "mes", empregado: etapa.empregado })
+        : null,
   )
 
   return (
