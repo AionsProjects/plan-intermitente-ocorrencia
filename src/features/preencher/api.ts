@@ -555,12 +555,14 @@ export async function finalizarProcessamento(
   }))
 
   const bodyJson = payloadFinalizarSnake(uuid, payload, respostas)
-  const res = await fetch(`/api/intermitente/finalizar`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "same-origin",
-    body: JSON.stringify(comOperador(bodyJson)),
-  })
+  const res = await fetch(
+    `${BASE_URL}/intermitente-finalizar?uuid=${encodeURIComponent(uuid)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(comOperador(bodyJson)),
+    },
+  )
   if (!res.ok) {
     const err = new Error(`Erro ${res.status}`) as Error & { status?: number }
     err.status = res.status
@@ -627,11 +629,10 @@ export async function cancelarConvocacao(
   }
 
   const res = await fetch(
-    `/api/intermitente/cancelar`,
+    `${BASE_URL}/intermitente-cancelar-convocacao?uuid=${encodeURIComponent(uuid)}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      credentials: "same-origin",
       body: JSON.stringify(
         comOperador({
           uuid,
@@ -708,12 +709,14 @@ export async function aplicarSplit(
           contrato_parte2: payload.contratoParte2,
         }
 
-  const res = await fetch(`/api/intermitente/aplicar-split`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "same-origin",
-    body: JSON.stringify(comOperador(body)),
-  })
+  const res = await fetch(
+    `${BASE_URL}/intermitente-aplicar-split?uuid=${encodeURIComponent(uuid)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(comOperador(body)),
+    },
+  )
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     throw new AplicarSplitApiError(
