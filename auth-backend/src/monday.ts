@@ -79,6 +79,33 @@ export async function createItem(
   return { id, url: `https://contato-serv.monday.com/boards/${boardId}/pulses/${id}` }
 }
 
+// Atualiza column_values de um item existente (patch). cols = {column_id: valor}.
+export async function changeColumnValues(
+  boardId: string,
+  itemId: string,
+  cols: Record<string, unknown>,
+): Promise<void> {
+  await mondayGraphql(
+    `mutation($board:ID!,$item:ID!,$cols:JSON!){
+       change_multiple_column_values(board_id:$board, item_id:$item, column_values:$cols, create_labels_if_missing:true){ id }
+     }`,
+    { board: boardId, item: itemId, cols: JSON.stringify(cols) },
+  )
+}
+
+// Le 1 item por id (com colunas opcionais).
+export async function lerItem(
+  itemId: string,
+  columnIds?: string[],
+): Promise<ItemMonday | null> {
+  const colsArg = columnIds && columnIds.length ? `(ids: ${JSON.stringify(columnIds)})` : ""
+  const d = await mondayGraphql<{ items: ItemMonday[] }>(
+    `query($ids:[ID!]){ items(ids:$ids){ id name column_values${colsArg}{ id text value } } }`,
+    { ids: [itemId] },
+  )
+  return d.items?.[0] ?? null
+}
+
 // Upload de arquivo numa coluna file (POST /v2/file, multipart GraphQL).
 export async function uploadFileToColumn(
   itemId: string,

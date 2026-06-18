@@ -48,6 +48,9 @@ export const config = {
     "N8N_WEBHOOK_ATIVAR",
     "https://aionscorp-n8n.cloudfy.live/webhook/Intermitentehaha",
   ),
+  // URL pública ABSOLUTA do app (pros links /preencher gravados no Monday). Default =
+  // domínio Vercel; sobrescreve com PUBLIC_BASE_URL se mudar de domínio.
+  publicBaseUrl: opt("PUBLIC_BASE_URL", "https://plan-intermitente-ocorrencia.vercel.app"),
 } as const
 
 export type AppConfig = typeof config

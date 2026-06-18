@@ -24,7 +24,10 @@ const NOME_UNIDADE = "OP - Local/Unidade"
 
 function extrairLabels(settingsStr: string): string[] {
   try {
-    const s = JSON.parse(settingsStr) as { labels?: unknown }
+    const s = JSON.parse(settingsStr) as {
+      labels?: unknown
+      labels_positions_v2?: Record<string, number>
+    }
     const labels = s.labels
     if (Array.isArray(labels)) {
       return labels
@@ -32,10 +35,14 @@ function extrairLabels(settingsStr: string): string[] {
         .filter((x): x is string => !!x)
     }
     if (labels && typeof labels === "object") {
-      return Object.entries(labels as Record<string, string>)
-        .sort(([a], [b]) => Number(a) - Number(b))
-        .map(([, v]) => v)
-        .filter(Boolean)
+      const mapa = labels as Record<string, string>
+      // Só os índices ATIVOS (em labels_positions_v2), na ordem da posição.
+      // Evita labels legadas/desativadas (ex: "N�O" corrompida no Sábado).
+      const pos = s.labels_positions_v2
+      const indices = pos
+        ? Object.keys(pos).sort((a, b) => pos[a] - pos[b])
+        : Object.keys(mapa).sort((a, b) => Number(a) - Number(b))
+      return indices.map((i) => mapa[i]).filter(Boolean)
     }
   } catch { /* ignore */ }
   return []
