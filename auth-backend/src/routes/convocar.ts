@@ -122,6 +122,18 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
           const ss = id ? settingsPorId.get(id) : undefined
           return ss ? extrairLabels(ss) : []
         }
+        // Unidades vêm do RM (mesma fonte do ponto facultativo) via n8n-thin.
+        // Best-effort: se falhar, front usa fallback local.
+        let unidadesPorContrato: Record<string, string[]> = {}
+        try {
+          const r = await fetch(`${config.n8nWebhookBase}/intermitente-unidades-rm`)
+          if (r.ok) {
+            const j = (await r.json()) as { unidades_por_contrato?: Record<string, string[]> }
+            unidadesPorContrato = j.unidades_por_contrato ?? {}
+          }
+        } catch (e) {
+          req.log.warn(e, "unidades RM falhou (usa fallback)")
+        }
         return {
           ok: true,
           opcoes: {
@@ -131,7 +143,7 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
             insalubridades: labelsDe(NOMES.insalubridades),
             interiores: labelsDe(NOMES.interiores),
             justificativas: labelsDe(NOMES.justificativas),
-            unidades_por_contrato: {}, // RM (n8n-thin) — F6; front usa fallback
+            unidades_por_contrato: unidadesPorContrato,
             unidade_column_id: idPorNome.get(NOME_UNIDADE) ?? null,
           },
         }

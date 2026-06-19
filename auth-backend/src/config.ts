@@ -51,6 +51,8 @@ export const config = {
   // URL pública ABSOLUTA do app (pros links /preencher gravados no Monday). Default =
   // domínio Vercel; sobrescreve com PUBLIC_BASE_URL se mudar de domínio.
   publicBaseUrl: opt("PUBLIC_BASE_URL", "https://plan-intermitente-ocorrencia.vercel.app"),
+  // Base dos webhooks n8n (conectores externos RM/Caju/Drive). Ex: unidades RM.
+  n8nWebhookBase: opt("N8N_WEBHOOK_BASE", "https://aionscorp-n8n.cloudfy.live/webhook"),
 } as const
 
 export type AppConfig = typeof config
