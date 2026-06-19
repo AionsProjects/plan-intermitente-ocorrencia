@@ -50,3 +50,4 @@ determinar.js
 # (alguns .cjs tinham JWT do Monday hardcoded). Repo vai publico.
 scripts/
 .vercel
+_*.mjs
