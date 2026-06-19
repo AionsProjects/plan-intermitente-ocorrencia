@@ -180,19 +180,19 @@ export function ComboboxFiltravel({
                     <button
                       type="button"
                       onClick={() => escolher(o)}
-                      className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm transition hover:bg-[rgb(var(--ink)/0.06)]"
+                      className={`flex w-full items-center gap-2 px-4 py-2 text-left text-sm transition hover:bg-[rgb(var(--ink)/0.06)] ${sel ? "" : "text-foreground/90"}`}
                       style={
                         sel
                           ? {
                               backgroundColor: accentBgSoft,
                               color: accentText,
                             }
-                          : { color: "rgba(255,255,255,0.85)" }
+                          : undefined
                       }
                     >
                       <IconeOpcao
-                        className="size-3.5 shrink-0"
-                        style={{ color: sel ? accentText : "rgba(255,255,255,0.45)" }}
+                        className={`size-3.5 shrink-0 ${sel ? "" : "text-foreground/45"}`}
+                        style={sel ? { color: accentText } : undefined}
                       />
                       <span className="flex-1 truncate">{o}</span>
                       {sel && (
