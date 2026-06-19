@@ -15,7 +15,8 @@ export type BeneficioPontoFacultativo = "VR" | "VT"
 
 export type PontoFacultativoPayload = {
   contrato: ContratoPontoFacultativo
-  unidade: string
+  /** Múltiplas unidades selecionadas (n8n aceita unidades[]). */
+  unidades: string[]
   data: string
   beneficios: BeneficioPontoFacultativo[]
 }
@@ -47,7 +48,7 @@ export type PontoFacultativoItem = {
 export type PontoFacultativoPreview = {
   ok: boolean
   contrato: ContratoPontoFacultativo
-  unidade: string
+  unidades: string[]
   data: string
   beneficios: BeneficioPontoFacultativo[]
   aviso: string | null

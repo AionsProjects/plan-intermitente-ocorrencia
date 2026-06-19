@@ -26,10 +26,10 @@ export function useAplicarPontoFacultativo() {
     mutationFn: aplicarPontoFacultativo,
     onSuccess: (resp, payload) => {
       registrarAtividade("ponto_facultativo", {
-        alvo: `${payload.contrato}:${payload.unidade}:${payload.data}`,
+        alvo: `${payload.contrato}:${payload.unidades.join("+")}:${payload.data}`,
         contrato: payload.contrato,
         resumo: {
-          unidade: payload.unidade,
+          unidades: payload.unidades,
           data: payload.data,
           qtd: resp?.processados ?? null,
         },

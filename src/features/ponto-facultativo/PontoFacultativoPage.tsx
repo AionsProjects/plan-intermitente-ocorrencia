@@ -14,6 +14,7 @@ import {
   ArrowLeft,
   Building2,
   CalendarDays,
+  Check,
   CheckCircle2,
   ChevronRight,
   Coins,
@@ -76,7 +77,7 @@ function dataMockISO(): string {
 function aplicarSeed(seed: string | null): {
   etapa: Etapa
   contrato: ContratoPontoFacultativo | null
-  unidade: string | null
+  unidades: string[]
   data: string | null
   beneficios: BeneficioPontoFacultativo[]
   preview: PontoFacultativoPreview | null
@@ -84,12 +85,12 @@ function aplicarSeed(seed: string | null): {
   const s = seed as Seed
   switch (s) {
     case "data":
-      return { etapa: "data", contrato: "SEMSA", unidade: "SEMSA - INTERMITENTE", data: null, beneficios: [], preview: null }
+      return { etapa: "data", contrato: "SEMSA", unidades: ["SEMSA - INTERMITENTE"], data: null, beneficios: [], preview: null }
     case "beneficios":
       return {
         etapa: "beneficios",
         contrato: "SEDUC SEDE",
-        unidade: "SEDUC - MANAUS",
+        unidades: ["SEDUC - MANAUS"],
         data: dataMockISO(),
         beneficios: ["VR"],
         preview: null,
@@ -97,14 +98,14 @@ function aplicarSeed(seed: string | null): {
     case "confirmar-cheio": {
       const p: PontoFacultativoPayload = {
         contrato: "SEDUC SEDE",
-        unidade: "SEDUC - MANAUS",
+        unidades: ["SEDUC - MANAUS"],
         data: dataMockISO(),
         beneficios: ["VR", "VT"],
       }
       return {
         etapa: "confirmar",
         contrato: p.contrato,
-        unidade: p.unidade,
+        unidades: p.unidades,
         data: p.data,
         beneficios: p.beneficios,
         preview: mockPreview(p),
@@ -113,14 +114,14 @@ function aplicarSeed(seed: string | null): {
     case "confirmar-vazio": {
       const p: PontoFacultativoPayload = {
         contrato: "CETAM",
-        unidade: "GASTRONOMIA",
+        unidades: ["GASTRONOMIA"],
         data: dataMockISO(),
         beneficios: ["VR"],
       }
       return {
         etapa: "confirmar",
         contrato: p.contrato,
-        unidade: p.unidade,
+        unidades: p.unidades,
         data: p.data,
         beneficios: p.beneficios,
         preview: mockPreview(p, { vazio: true }),
@@ -129,21 +130,21 @@ function aplicarSeed(seed: string | null): {
     case "sucesso": {
       const p: PontoFacultativoPayload = {
         contrato: "DETRAN",
-        unidade: "DETRAN - INTERMITENTE",
+        unidades: ["DETRAN - INTERMITENTE"],
         data: dataMockISO(),
         beneficios: ["VR", "VT"],
       }
       return {
         etapa: "sucesso",
         contrato: p.contrato,
-        unidade: p.unidade,
+        unidades: p.unidades,
         data: p.data,
         beneficios: p.beneficios,
         preview: mockPreview(p),
       }
     }
     default:
-      return { etapa: "contrato", contrato: null, unidade: null, data: null, beneficios: [], preview: null }
+      return { etapa: "contrato", contrato: null, unidades: [], data: null, beneficios: [], preview: null }
   }
 }
 
@@ -203,12 +204,12 @@ function legendaAviso(aviso: string | null): {
 
 function payloadValido(
   contrato: ContratoPontoFacultativo | null,
-  unidade: string | null,
+  unidades: string[],
   data: string | null,
   beneficios: BeneficioPontoFacultativo[],
 ): PontoFacultativoPayload | null {
-  if (!contrato || !unidade || !data || beneficios.length === 0) return null
-  return { contrato, unidade, data, beneficios }
+  if (!contrato || unidades.length === 0 || !data || beneficios.length === 0) return null
+  return { contrato, unidades, data, beneficios }
 }
 
 export function PontoFacultativoPage() {
@@ -219,7 +220,7 @@ export function PontoFacultativoPage() {
   const [etapa, setEtapa] = useState<Etapa>(inicial.etapa)
   const [direcao, setDirecao] = useState<SlideDirection>("forward")
   const [contrato, setContrato] = useState<ContratoPontoFacultativo | null>(inicial.contrato)
-  const [unidade, setUnidade] = useState<string | null>(inicial.unidade)
+  const [unidadesSelecionadas, setUnidadesSelecionadas] = useState<string[]>(inicial.unidades)
   const [data, setData] = useState<string | null>(inicial.data)
   const [beneficios, setBeneficios] = useState<BeneficioPontoFacultativo[]>(inicial.beneficios)
   const [preview, setPreview] = useState<PontoFacultativoPreview | null>(inicial.preview)
@@ -228,7 +229,7 @@ export function PontoFacultativoPage() {
   useEffect(() => {
     setEtapa(inicial.etapa)
     setContrato(inicial.contrato)
-    setUnidade(inicial.unidade)
+    setUnidadesSelecionadas(inicial.unidades)
     setData(inicial.data)
     setBeneficios(inicial.beneficios)
     setPreview(inicial.preview)
@@ -253,8 +254,15 @@ export function PontoFacultativoPage() {
     )
   }
 
+  function toggleUnidade(u: string) {
+    setPreview(null)
+    setUnidadesSelecionadas((prev) =>
+      prev.includes(u) ? prev.filter((x) => x !== u) : [...prev, u],
+    )
+  }
+
   async function carregarPreview() {
-    const payload = payloadValido(contrato, unidade, data, beneficios)
+    const payload = payloadValido(contrato, unidadesSelecionadas, data, beneficios)
     if (!payload) return
     const r = await previewMut.mutateAsync(payload)
     setPreview(r)
@@ -262,7 +270,7 @@ export function PontoFacultativoPage() {
   }
 
   async function aplicar() {
-    const payload = payloadValido(contrato, unidade, data, beneficios)
+    const payload = payloadValido(contrato, unidadesSelecionadas, data, beneficios)
     if (!payload) return
     const r = await aplicarMut.mutateAsync(payload)
     setPreview(r)
@@ -311,7 +319,7 @@ export function PontoFacultativoPage() {
               contrato={contrato}
               onSelecionar={(c) => {
                 setContrato(c)
-                setUnidade(null)
+                setUnidadesSelecionadas([])
                 setData(null)
                 setBeneficios([])
                 setPreview(null)
@@ -322,14 +330,18 @@ export function PontoFacultativoPage() {
           {etapa === "unidade" && (
             <EtapaUnidade
               contrato={contrato}
-              unidade={unidade}
+              selecionadas={unidadesSelecionadas}
               unidades={unidadesContrato}
               mesReferencia={mesReferencia}
               carregando={opcoesQuery.isPending}
               erro={opcoesQuery.error instanceof Error ? opcoesQuery.error.message : null}
               onVoltar={() => ir("contrato", "backward")}
-              onSelecionar={(u) => {
-                setUnidade(u)
+              onToggle={toggleUnidade}
+              onSelecionarTodas={(labels) => {
+                setPreview(null)
+                setUnidadesSelecionadas(labels)
+              }}
+              onProsseguir={() => {
                 setData(null)
                 setBeneficios([])
                 setPreview(null)
@@ -353,7 +365,7 @@ export function PontoFacultativoPage() {
           {etapa === "beneficios" && (
             <EtapaBeneficios
               contrato={contrato}
-              unidade={unidade}
+              unidades={unidadesSelecionadas}
               data={data}
               beneficios={beneficios}
               erro={mensagemErroPreview(previewMut.error)}
@@ -378,7 +390,7 @@ export function PontoFacultativoPage() {
               onNovo={() => {
                 setPreview(null)
                 setContrato(null)
-                setUnidade(null)
+                setUnidadesSelecionadas([])
                 setData(null)
                 setBeneficios([])
                 ir("contrato", "backward")
@@ -565,22 +577,26 @@ function TileContrato({
 
 function EtapaUnidade({
   contrato,
-  unidade,
+  selecionadas,
   unidades,
   mesReferencia,
   carregando,
   erro,
   onVoltar,
-  onSelecionar,
+  onToggle,
+  onSelecionarTodas,
+  onProsseguir,
 }: {
   contrato: ContratoPontoFacultativo | null
-  unidade: string | null
+  selecionadas: string[]
   unidades: UnidadeComCount[]
   mesReferencia: string | null
   carregando: boolean
   erro: string | null
   onVoltar: () => void
-  onSelecionar: (unidade: string) => void
+  onToggle: (unidade: string) => void
+  onSelecionarTodas: (labels: string[]) => void
+  onProsseguir: () => void
 }) {
   const [busca, setBusca] = useState("")
   const semUnidades = !carregando && unidades.length === 0
@@ -613,16 +629,13 @@ function EtapaUnidade({
     [unidades],
   )
   const todasVazias = !carregando && unidades.length > 0 && totalComPessoas === 0
-
-  // Auto-select quando só 1 unidade COM PESSOAS — usuário não precisa clicar.
-  useEffect(() => {
-    if (carregando) return
-    const comPessoas = unidades.filter((u) => u.qtdIntermitentes > 0)
-    if (comPessoas.length === 1 && !unidade) {
-      onSelecionar(comPessoas[0].label)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unidades, carregando])
+  // Labels com convocados (alvo do "Selecionar tudo").
+  const labelsComPessoas = useMemo(
+    () => unidades.filter((u) => u.qtdIntermitentes > 0).map((u) => u.label),
+    [unidades],
+  )
+  const todasMarcadas =
+    labelsComPessoas.length > 0 && labelsComPessoas.every((l) => selecionadas.includes(l))
 
   useEffect(() => {
     setBusca("")
@@ -713,9 +726,17 @@ function EtapaUnidade({
 
           <div className="flex items-center justify-between gap-3 text-xs text-foreground/45">
             <span>
-              {unidadesFiltradas.length} unidades · {totalComPessoas} com convocações
+              {selecionadas.length} selecionada{selecionadas.length === 1 ? "" : "s"} · {totalComPessoas} com convocações
             </span>
-            <span>{unidades.length} cadastradas no RM</span>
+            {totalComPessoas > 0 && (
+              <button
+                type="button"
+                onClick={() => onSelecionarTodas(todasMarcadas ? [] : labelsComPessoas)}
+                className="rounded-lg border border-emerald-300/35 bg-emerald-300/10 px-2.5 py-1 text-[11px] font-medium text-emerald-700 transition hover:bg-emerald-300/20 dark:text-emerald-200"
+              >
+                {todasMarcadas ? "Limpar seleção" : "Selecionar tudo"}
+              </button>
+            )}
           </div>
 
           {unidadesFiltradas.length === 0 ? (
@@ -731,7 +752,7 @@ function EtapaUnidade({
             <div className="grid max-h-[25rem] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
               {unidadesFiltradas.map((u, i) => {
                 const vazia = u.qtdIntermitentes === 0
-                const selected = unidade === u.label
+                const selected = selecionadas.includes(u.label)
                 return (
                   <button
                     key={u.label}
@@ -743,7 +764,7 @@ function EtapaUnidade({
                       const rect = target.getBoundingClientRect()
                       target.style.setProperty("--ripple-x", `${e.clientX - rect.left}px`)
                       target.style.setProperty("--ripple-y", `${e.clientY - rect.top}px`)
-                      onSelecionar(u.label)
+                      onToggle(u.label)
                     }}
                     title={vazia ? "Nenhum intermitente convocado nesta unidade este mês" : undefined}
                     className={`fade-up tile-unidade ${vazia ? "" : "tile-ripple-emerald"} flex min-h-14 items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left backdrop-blur-md transition ${
@@ -776,7 +797,17 @@ function EtapaUnidade({
                           : `${u.qtdIntermitentes} ${u.qtdIntermitentes === 1 ? "pessoa" : "pessoas"}`}
                       </span>
                     </div>
-                    {!vazia && <ChevronRight className="size-4 shrink-0 text-foreground/35" />}
+                    {!vazia && (
+                      <span
+                        className={`flex size-5 shrink-0 items-center justify-center rounded-md border transition ${
+                          selected
+                            ? "border-emerald-400/70 bg-emerald-400/30 text-emerald-700 dark:text-emerald-50"
+                            : "border-[rgb(var(--ink)/0.18)] text-transparent"
+                        }`}
+                      >
+                        <Check className="size-3.5" />
+                      </span>
+                    )}
                   </button>
                 )
               })}
@@ -785,8 +816,15 @@ function EtapaUnidade({
         </div>
       )}
 
-      <div className="mt-6">
+      <div className="mt-6 flex items-center justify-between gap-3">
         <ChoiceButton onClick={onVoltar}>Voltar</ChoiceButton>
+        <ChoiceButton
+          variant="primary"
+          onClick={onProsseguir}
+          disabled={selecionadas.length === 0}
+        >
+          Prosseguir{selecionadas.length > 0 ? ` (${selecionadas.length})` : ""}
+        </ChoiceButton>
       </div>
     </section>
   )
@@ -891,7 +929,7 @@ function CalendarioMesAtual({
 
 function EtapaBeneficios({
   contrato,
-  unidade,
+  unidades,
   data,
   beneficios,
   erro,
@@ -901,7 +939,7 @@ function EtapaBeneficios({
   onPreview,
 }: {
   contrato: ContratoPontoFacultativo | null
-  unidade: string | null
+  unidades: string[]
   data: string | null
   beneficios: BeneficioPontoFacultativo[]
   erro: string | null
@@ -925,10 +963,10 @@ function EtapaBeneficios({
             {contrato}
           </span>
         )}
-        {unidade && (
+        {unidades.length > 0 && (
           <span className="chip-context-glass">
             <MapPin className="size-3.5 text-emerald-700/85 dark:text-emerald-200/85" />
-            {unidade}
+            {unidades.length === 1 ? unidades[0] : `${unidades.length} unidades`}
           </span>
         )}
         {data && (
@@ -1157,7 +1195,9 @@ function ContextoPreview({ preview }: { preview: PontoFacultativoPreview }) {
       </span>
       <span className="chip-context-glass">
         <MapPin className="size-3.5 text-emerald-700/85 dark:text-emerald-200/85" />
-        {preview.unidade}
+        {preview.unidades.length === 1
+          ? preview.unidades[0]
+          : `${preview.unidades.length} unidades`}
       </span>
       <span className="chip-context-glass">
         <CalendarDays className="size-3.5 text-emerald-700/85 dark:text-emerald-200/85" />

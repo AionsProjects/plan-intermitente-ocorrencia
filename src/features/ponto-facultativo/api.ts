@@ -151,7 +151,7 @@ function mockItem(
     chapa: `00705${seed}`,
     cpf: `0010813527${seed}`,
     contrato: payload.contrato,
-    unidade: payload.unidade,
+    unidade: payload.unidades[seed % Math.max(1, payload.unidades.length)] ?? payload.unidades[0] ?? "",
     funcao: seed === 1 ? "MOTO BOY" : "TECNICO EM NIVEL MEDIO",
     periodoInicio: payload.data.slice(0, 8) + "01",
     periodoFim: payload.data.slice(0, 8) + "25",
@@ -177,7 +177,7 @@ export function mockPreview(
   return {
     ok: true,
     contrato: payload.contrato,
-    unidade: payload.unidade,
+    unidades: payload.unidades,
     data: payload.data,
     beneficios: payload.beneficios,
     aviso: opts.vazio ? "sem_intermitentes_unidade_data" : null,
@@ -222,10 +222,15 @@ function mapPreview(raw: Record<string, unknown>): PontoFacultativoPreview {
   const itens = Array.isArray(raw.itens)
     ? raw.itens.map((i) => mapItem(i as Record<string, unknown>))
     : []
+  const unidades = Array.isArray(raw.unidades)
+    ? raw.unidades.map(String)
+    : raw.unidade
+      ? [String(raw.unidade)]
+      : [...new Set(itens.map((i) => i.unidade).filter(Boolean))]
   return {
     ok: raw.ok !== false,
     contrato: String(raw.contrato ?? "") as ContratoPontoFacultativo,
-    unidade: String(raw.unidade ?? ""),
+    unidades,
     data: String(raw.data ?? ""),
     beneficios: Array.isArray(raw.beneficios)
       ? (raw.beneficios.map(String).filter((b) => b === "VR" || b === "VT") as BeneficioPontoFacultativo[])
