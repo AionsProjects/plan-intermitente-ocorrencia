@@ -113,10 +113,15 @@ export async function rotasIntermitente(app: FastifyInstance): Promise<void> {
         const m = origemUrl.match(/pulses\/(\d+)/)
         const entradaItem = m?.[1]
         if (!entradaItem) return { interior: false, motivo: "sem_item_origem" }
-        // color__1 = "OP - Interior?" no board Entrada (id estável entre meses)
-        const ent = await lerItem(entradaItem, ["color__1"])
+        // color__1 = "OP - Interior?"; color_mktcnxwn = "Op - Contrato" (ids estáveis)
+        const ent = await lerItem(entradaItem, ["color__1", "color_mktcnxwn"])
         const txt = ent?.column_values.find((c) => c.id === "color__1")?.text ?? ""
-        return { interior: txt.trim().toUpperCase() === "SIM", valor: txt }
+        const contrato = (ent?.column_values.find((c) => c.id === "color_mktcnxwn")?.text ?? "")
+          .trim().toUpperCase()
+        // Sempre interior (mobilidade): TRE PB e SEDUC INTERIOR, além da coluna OP-Interior?=SIM
+        const sempreInterior = ["TRE PB", "SEDUC INTERIOR"].includes(contrato)
+        const interior = txt.trim().toUpperCase() === "SIM" || sempreInterior
+        return { interior, valor: txt, contrato }
       } catch (e) {
         req.log.error(e, "erro interior")
         return reply.code(502).send({ erro: "monday_falhou", interior: false })
