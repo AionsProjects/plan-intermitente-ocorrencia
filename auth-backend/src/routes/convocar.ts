@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
+import { config } from "../config.js"
 import { query } from "../db.js"
 import {
   acharItensPorColuna,
