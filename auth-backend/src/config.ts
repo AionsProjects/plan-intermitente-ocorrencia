@@ -53,6 +53,9 @@ export const config = {
   publicBaseUrl: opt("PUBLIC_BASE_URL", "https://plan-intermitente-ocorrencia.vercel.app"),
   // Base dos webhooks n8n (conectores externos RM/Caju/Drive). Ex: unidades RM.
   n8nWebhookBase: opt("N8N_WEBHOOK_BASE", "https://aionscorp-n8n.cloudfy.live/webhook"),
+  // Token de serviço p/ o WF de virada (n8n, sem sessão) chamar registrar/virada.
+  // Vazio = endpoints de serviço desabilitados. Setar SERVICE_TOKEN no Vercel + no WF.
+  serviceToken: opt("SERVICE_TOKEN", ""),
 } as const
 
 export type AppConfig = typeof config

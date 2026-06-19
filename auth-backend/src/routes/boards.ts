@@ -3,7 +3,6 @@ import { config } from "../config.js"
 import { query } from "../db.js"
 import { usuarioDaSessao } from "../session.js"
 import {
-  ColunaMonday,
   criarWebhook,
   lerColunas,
   lerGrupos,
@@ -34,6 +33,53 @@ async function exigirAdmin(req: FastifyRequest, reply: FastifyReply): Promise<bo
   return true
 }
 
+// Header de serviço (X-Service-Token) — usado pelo WF de virada (n8n, sem sessão).
+function temServiceToken(req: FastifyRequest): boolean {
+  const t = String((req.headers["x-service-token"] ?? "")).trim()
+  return !!config.serviceToken && t === config.serviceToken
+}
+
+// Lê colunas+grupos do board no Monday e grava no registry (boards/board_colunas/board_grupos).
+// Idempotente. Reusado por /registrar e /virada.
+async function registrarBoard(
+  boardId: string,
+  competencia: string | null,
+  papel: string,
+): Promise<{ colunas: number; grupos: number }> {
+  const colunas = await lerColunas(boardId)
+  if (colunas.length === 0) throw new Error("board_sem_colunas")
+  await query(
+    `INSERT INTO boards (monday_board_id, competencia, papel)
+       VALUES ($1, $2, $3)
+     ON CONFLICT (monday_board_id) DO UPDATE
+       SET competencia = EXCLUDED.competencia, papel = EXCLUDED.papel,
+           ativo = true, atualizado_em = now()`,
+    [boardId, competencia, papel],
+  )
+  await query(`DELETE FROM board_colunas WHERE monday_board_id = $1`, [boardId])
+  for (const c of colunas) {
+    await query(
+      `INSERT INTO board_colunas (monday_board_id, nome, column_id, tipo)
+         VALUES ($1, $2, $3, $4)
+       ON CONFLICT (monday_board_id, nome) DO UPDATE
+         SET column_id = EXCLUDED.column_id, tipo = EXCLUDED.tipo`,
+      [boardId, c.title, c.id, c.type],
+    )
+  }
+  let grupos: { id: string; title: string }[] = []
+  try { grupos = await lerGrupos(boardId) } catch { /* grupos best-effort */ }
+  await query(`DELETE FROM board_grupos WHERE monday_board_id = $1`, [boardId])
+  for (const g of grupos) {
+    await query(
+      `INSERT INTO board_grupos (monday_board_id, titulo, group_id)
+         VALUES ($1, $2, $3)
+       ON CONFLICT (monday_board_id, titulo) DO UPDATE SET group_id = EXCLUDED.group_id`,
+      [boardId, g.title, g.id],
+    )
+  }
+  return { colunas: colunas.length, grupos: grupos.length }
+}
+
 export async function rotasBoards(app: FastifyInstance): Promise<void> {
   // Registra/atualiza um board: lê colunas do Monday, grava title->id. Idempotente.
   // Admin-only (operação sensível). A virada (n8n) usa o mesmo via token de serviço — por
@@ -46,54 +92,59 @@ export async function rotasBoards(app: FastifyInstance): Promise<void> {
       }>,
       reply: FastifyReply,
     ) => {
-      if (!(await exigirAdmin(req, reply))) return
+      // Admin (sessão) OU service token (WF n8n).
+      if (!temServiceToken(req) && !(await exigirAdmin(req, reply))) return
       const boardId = String(req.body?.monday_board_id ?? "").trim()
       const papel = req.body?.papel ?? "atual"
       if (!boardId) return reply.code(400).send({ erro: "board_id_obrigatorio" })
-
-      let colunas: ColunaMonday[]
       try {
-        colunas = await lerColunas(boardId)
+        const r = await registrarBoard(boardId, req.body?.competencia ?? null, papel)
+        return { ok: true, board_id: boardId, ...r }
       } catch (e) {
-        req.log.error(e, "erro lerColunas")
+        req.log.error(e, "erro registrar")
+        const msg = e instanceof Error ? e.message : ""
+        if (msg === "board_sem_colunas") return reply.code(404).send({ erro: "board_sem_colunas" })
         return reply.code(502).send({ erro: "monday_falhou" })
       }
-      if (colunas.length === 0) {
-        return reply.code(404).send({ erro: "board_sem_colunas" })
-      }
+    },
+  )
 
-      await query(
-        `INSERT INTO boards (monday_board_id, competencia, papel)
-           VALUES ($1, $2, $3)
-         ON CONFLICT (monday_board_id) DO UPDATE
-           SET competencia = EXCLUDED.competencia, papel = EXCLUDED.papel,
-               ativo = true, atualizado_em = now()`,
-        [boardId, req.body?.competencia ?? null, papel],
-      )
-      // Regrava o mapa de colunas (title->id) do board.
-      await query(`DELETE FROM board_colunas WHERE monday_board_id = $1`, [boardId])
-      for (const c of colunas) {
+  // Virada de mês (chamado pelo WF n8n via X-Service-Token). Promove papéis +
+  // registra a cópia (mês corrente = atual) e o central (mês seguinte = proximo).
+  // Modelo: dia 15 duplica; cópia=atual (convocações vivas), central=proximo (futuro);
+  // o atual anterior vira passado.
+  app.post(
+    "/api/boards/virada",
+    async (
+      req: FastifyRequest<{
+        Body: {
+          copia_board_id?: string
+          copia_competencia?: string
+          central_board_id?: string
+          central_competencia?: string
+        }
+      }>,
+      reply: FastifyReply,
+    ) => {
+      if (!temServiceToken(req)) return reply.code(401).send({ erro: "service_token_invalido" })
+      const copiaId = String(req.body?.copia_board_id ?? "").trim()
+      const centralId = String(req.body?.central_board_id ?? "").trim()
+      if (!copiaId || !centralId) return reply.code(400).send({ erro: "board_ids_obrigatorios" })
+      try {
+        // 1) atual vigente -> passado (exceto os 2 boards desta virada).
         await query(
-          `INSERT INTO board_colunas (monday_board_id, nome, column_id, tipo)
-             VALUES ($1, $2, $3, $4)
-           ON CONFLICT (monday_board_id, nome) DO UPDATE
-             SET column_id = EXCLUDED.column_id, tipo = EXCLUDED.tipo`,
-          [boardId, c.title, c.id, c.type],
+          `UPDATE boards SET papel = 'passado', atualizado_em = now()
+            WHERE papel = 'atual' AND monday_board_id <> ALL($1)`,
+          [[copiaId, centralId]],
         )
+        // 2) cópia = atual (mês corrente); central = proximo (mês seguinte).
+        const c = await registrarBoard(copiaId, req.body?.copia_competencia ?? null, "atual")
+        const k = await registrarBoard(centralId, req.body?.central_competencia ?? null, "proximo")
+        return { ok: true, copia: { board_id: copiaId, ...c }, central: { board_id: centralId, ...k } }
+      } catch (e) {
+        req.log.error(e, "erro virada")
+        return reply.code(502).send({ erro: "virada_falhou" })
       }
-      // Regrava os grupos (titulo->group_id) — ex: PONTUAL.
-      let grupos: { id: string; title: string }[] = []
-      try { grupos = await lerGrupos(boardId) } catch (e) { req.log.warn(e, "lerGrupos") }
-      await query(`DELETE FROM board_grupos WHERE monday_board_id = $1`, [boardId])
-      for (const g of grupos) {
-        await query(
-          `INSERT INTO board_grupos (monday_board_id, titulo, group_id)
-             VALUES ($1, $2, $3)
-           ON CONFLICT (monday_board_id, titulo) DO UPDATE SET group_id = EXCLUDED.group_id`,
-          [boardId, g.title, g.id],
-        )
-      }
-      return { ok: true, board_id: boardId, colunas: colunas.length, grupos: grupos.length }
     },
   )
 
