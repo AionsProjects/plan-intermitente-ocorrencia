@@ -122,6 +122,7 @@ export async function rotasBoards(app: FastifyInstance): Promise<void> {
           copia_competencia?: string
           central_board_id?: string
           central_competencia?: string
+          dry_run?: boolean
         }
       }>,
       reply: FastifyReply,
@@ -130,7 +131,20 @@ export async function rotasBoards(app: FastifyInstance): Promise<void> {
       const copiaId = String(req.body?.copia_board_id ?? "").trim()
       const centralId = String(req.body?.central_board_id ?? "").trim()
       if (!copiaId || !centralId) return reply.code(400).send({ erro: "board_ids_obrigatorios" })
+      const dryRun = req.body?.dry_run === true
       try {
+        if (dryRun) {
+          // Valida acesso aos boards no Monday (lê colunas+grupos) SEM gravar nada.
+          const c = await lerColunas(copiaId)
+          const k = await lerColunas(centralId)
+          return {
+            ok: true,
+            dry_run: true,
+            copia: { board_id: copiaId, colunas: c.length },
+            central: { board_id: centralId, colunas: k.length },
+            faria: "atual->passado; copia=atual; central=proximo",
+          }
+        }
         // 1) atual vigente -> passado (exceto os 2 boards desta virada).
         await query(
           `UPDATE boards SET papel = 'passado', atualizado_em = now()
