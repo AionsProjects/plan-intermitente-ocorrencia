@@ -58,10 +58,17 @@ Tabelas: `pi.boards` (monday_board_id, competencia, papel `atual|proximo|passado
 
 ## 3. Backend Vercel (`auth-backend`)
 
-- **Auth**: SSO Google (`@contatoserv.com.br`) + sessão cookie. Papéis admin>dp>rh/op. (`src/routes/auth.ts`)
-- **Leituras/registry**: `/api/convocar/opcoes` (labels dos selects + unidades RM por contrato), `/api/intermitente/{ler,interior,buscar-protocolo,convocacoes-empregado,descontos-ler}`, `/api/boards/*`, `/api/feriados`, `/api/valores`.
-  - `/api/intermitente/interior?uuid=` → `{interior}` (coluna OP-Interior? OU contrato TRE PB/SEDUC INTERIOR) — usado pelo Sábados pra mobilidade Caju.
-- **Config/env**: `MONDAY_TOKEN`, `VITE_N8N_BASE_URL`, `SERVICE_TOKEN` (WF de virada→backend), `N8N_WEBHOOK_BASE`, `PUBLIC_BASE_URL`.
+Node + Fastify + Postgres. Embrulhado em função serverless (`api/index.ts`). **Importante:** o backend tem rotas de **escrita** (criar/finalizar/cancelar/etc.), mas hoje o **front usa o n8n** para escritas (foram revertidas pro n8n por estabilidade). Na prática o backend serve **auth + leituras + registry**; as rotas de escrita ficam **dormentes** até religar.
+
+- **Auth** (`src/routes/auth.ts`): SSO Google (`@contatoserv.com.br`) + sessão cookie httpOnly. Papéis admin>dp>rh/op. `/auth/{google/login,google/callback,me,logout,login,mudar-senha,completar-cadastro,dev-login}`. Usuários: `/api/usuarios[/:id[/senha]]`. Atividade: `/api/atividade`.
+- **Leituras (USADAS pelo front):**
+  - `GET /api/convocar/opcoes` — labels dos selects (do board, filtra labels corrompidas) + **unidades por contrato do RM** + `unidade_column_id` (do registry).
+  - `GET /api/intermitente/ler` · `/buscar-protocolo` · `/convocacoes-empregado`
+  - `GET /api/intermitente/interior?uuid=` → `{interior}` (coluna OP-Interior? OU contrato TRE PB/SEDUC INTERIOR) — usado pelo **Sábados** p/ mobilidade Caju.
+  - `GET /api/feriados` · `GET /api/descontos/ler`
+  - **Registry** `/api/boards/{resolver,registrar,virada,garantir-webhook}` (ver §2).
+- **Escritas (EXISTEM no código, mas o front usa n8n hoje — dormentes):** `/api/convocar/criar`, `/api/intermitente/{finalizar,cancelar,aplicar-split}`, `/api/atestados/lancar`, `/api/descontos/registrar`, `/api/monday/ativar` (o ativar→link em código — em produção é o **WF1 n8n** que faz isso).
+- **Config/env**: `MONDAY_TOKEN`, `VITE_N8N_BASE_URL`, `SERVICE_TOKEN` (WF de virada→backend), `N8N_WEBHOOK_BASE`, `PUBLIC_BASE_URL`, `DATABASE_URL` (Postgres cloudfy).
 
 ## 4. Workflows n8n — índice
 
