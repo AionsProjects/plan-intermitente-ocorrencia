@@ -2,6 +2,8 @@
 
 App web pra **gerenciar convocaÃ§Ãµes de intermitentes** no monday: cria convocaÃ§Ã£o, registra ocorrÃªncias dia-a-dia (faltou/atrasou) e permite correÃ§Ã£o via protocolo. Acesso via link Ãºnico da convocaÃ§Ã£o (registrar ocorrÃªncia) ou via **hub principal** (criar convocaÃ§Ã£o / corrigir).
 
+> **Documentação completa da automação (técnica + guia de uso): [`docs/AUTOMACAO.md`](docs/AUTOMACAO.md)** — inventário dos ~26 WFs n8n, boards, registry de boards (Postgres), virada de mês, regras de negócio (VR/VT, mobilidade Caju, não-desconto DETRAN/TRE) e passo a passo do DP. Reflete o estado atual (board dinâmico via registry, virada, etc.); este CLAUDE.md tem partes anteriores a essas mudanças.
+
 ## Estado atual do projeto (2026-06-15)
 
 - **Redesign de tema + Config overlay** (`src/lib/theme.ts`, `src/features/config/`): modo claro/escuro/sistema + 6 esquemas de cor (`aurora`/`seco`/`verde`/`rosa`/`rubi`/`roxo`, labels Aurora/Grafite/Ouro/Poente/Brasa/Nebulosa) + toggle "Reduzir animacoes" + tamanho de fonte (`sm`/`md`/`lg` via `--font-scale`). Persiste por navegador em localStorage (`pi-theme`/`pi-accent`/`pi-reduce-anim`/`pi-font`). Aplica `data-theme`+`data-accent`+`.dark` no `<html>`; troca suave via classe `.theme-anim` (~1s crossfade de cor, respeita `prefers-reduced-motion`). 1o paint setado por script inline em `index.html` (sem FOUC). `ConfigOverlay` (Dialog) aberto pelo NavCluster.
