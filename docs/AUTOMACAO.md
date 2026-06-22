@@ -151,38 +151,57 @@ Papéis (3 boards vivos): **passado** (mês fechado) / **atual** (cópia, convoc
 
 # PARTE 2 — GUIA DE USO (DP)
 
-Acesso: `https://plan-intermitente-ocorrencia.vercel.app` (login Google `@contatoserv.com.br`). Hub com os atalhos.
+**Acesso:** `https://plan-intermitente-ocorrencia.vercel.app` → login Google (`@contatoserv.com.br`). No 1º acesso, completar cadastro (nome/CPF/papel). O **Hub** mostra os atalhos.
 
-## Convocar um intermitente
-1. Hub → **Nova convocação**.
-2. Busca o empregado (nome, ≥3 letras) → seleciona.
-3. **Escolhe o mês** (atual ou próximo).
-4. Preenche o formulário (contrato, unidade — filtrada pelo contrato, datas, sábado, insalubridade, interior, justificativa). Anexa termos se houver.
-5. **Convocar** → cria o item no board do mês (grupo PONTUAL).
+**Quem vê o quê:** **Ponto facultativo** aparece só para **DP/Admin**. Os demais (Convocar, Atestados, Atualizar ocorrência) aparecem para todos os logados. **Registrar** (`/preencher`) e **Descontos** (`/descontos`) são abertos por **link** (não têm tile no Hub).
 
-## Gerar o link de preenchimento (ativar)
-No board Monday, no item da convocação, muda a coluna **"ativar"** para **ativar** → o sistema gera o **link** (coluna Link) e cria o registro no Histórico.
+---
 
-## Registrar ocorrência
-Abre o **link** (`/preencher/...`) → marca por dia (foi trabalhar? chegou no horário?) → **Finalizar**. Gera protocolo `PROT-XXXX-XXXX` + aplica desconto de benefício.
+## 1. Convocar um intermitente  (Hub → **Nova convocação**)
+1. **Buscar empregado** — digite o nome (≥3 letras); a lista vem do RM. Selecione.
+2. **Escolher o mês** — *Mês atual* ou *Próximo mês* (só aparecem os que existem no sistema).
+3. **Formulário** — preencha: solicitante, contrato, **unidade** (a lista é filtrada pelo contrato e vem do RM — ex.: SEMSA tem ~100 unidades), datas início/fim, sábado, insalubridade, interior, justificativa. O calendário fica travado no mês escolhido. Anexe os **termos** (convocação/insalubridade) se houver.
+4. **Convocar** — cria o item no board do mês (grupo **PONTUAL**). Se já houver convocação no mesmo período, o sistema **bloqueia** (antifraude) e mostra o conflito.
 
-## Corrigir um registro
-Hub → **Atualizar ocorrência** → digita o protocolo → reabre o preenchimento.
+> A **Admissão** e os valores vêm do RM automaticamente; a data de admissão é gravada como dd/mm/aaaa.
 
-## Cancelar convocação
-No `/preencher`, ícone de cancelar → **total** (finaliza) ou **parcial** (escolhe data; não finaliza). O item **move** pro grupo CANCELADOS / CANCELADOS PARCIAL e gera o desconto.
+## 2. Gerar o link de preenchimento (**ativar**)
+No board Monday, no item da convocação, mude a coluna **"ativar"** para **ativar**. O sistema então **cria o registro no Histórico** e **grava o link** (`/preencher/...`) na coluna *Link* do item. Esse link é o que o RH/operador usa para registrar as ocorrências.
 
-## Ponto facultativo (desconto em massa)
-Hub → **Ponto facultativo** (só DP) → escolhe **contrato** → **marca várias unidades** (ou **Selecionar tudo**) → **Prosseguir** → data → benefícios (VR/VT) → **pré-visualizar** (vê os afetados) → confirmar. *DETRAN e TRE PB não descontam.*
+## 3. Registrar ocorrência  (abrir o **link** `/preencher/...`)
+- Painel com um **modal por dia** — perguntas no positivo: *"foi trabalhar?"*, *"chegou no horário?"* (se atrasou, informa os minutos).
+- **Adicionar dias** extras / **remover** dias.
+- **Sábados extras** (botão azul, só se a convocação não trabalha sábado) — calendário multi-seleção dos sábados; gera boleto VT extra ao finalizar.
+- **Finalizar** → gera o protocolo **`PROT-XXXX-XXXX`** e aplica o desconto de benefício (faltas/atrasos).
 
-## Atestados / declarações
-Hub → **Atestados** → tipo (Intermitente/CLT) → busca empregado → escolhe a convocação → preenche (tipo, datas, upload) → conclui (cria item no Controle de Atestados).
+## 4. Corrigir um registro  (Hub → **Atualizar ocorrência**)
+Digite o protocolo `PROT-XXXX-XXXX` → reabre o preenchimento com as respostas anteriores. Salvar marca como **editado** (não duplica).
 
-## Descontos manuais (retirada Caju)
-Pelo link gerado no board Desconto (`/descontos/...`) → informa VR/VT retirado → registra.
+## 5. Cancelar convocação  (no `/preencher`, ícone de cancelar)
+- **Total** — cancela tudo e **finaliza** a convocação.
+- **Parcial** — escolhe a data de início do cancelamento; **NÃO finaliza** (o painel continua aberto para lançar os dias não-cancelados).
+- O item **move automaticamente** para o grupo **CANCELADOS** (total) ou **CANCELADOS PARCIAL** (parcial), e o sistema **gera o desconto** dos dias cancelados. *(Cancelamento desconta, inclusive DETRAN/TRE PB.)*
 
-## Virada de mês (dia 14)
-Todo dia **14 às 17h** o sistema (quando ativado) duplica o board, arquiva o mês, cria o board do próximo e repovoa com os intermitentes do RM. **Convocar funciona no mês atual e no próximo.** Os links/gatilhos (ativar) são recriados automaticamente na cópia.
+## 6. Ponto facultativo — desconto em massa  (Hub → **Ponto facultativo**, só DP)
+1. Escolha o **contrato**.
+2. **Marque várias unidades** (clique em cada uma) — ou **"Selecionar tudo"** (marca todas as que têm convocados).
+3. **Prosseguir** → escolha a **data** → os **benefícios** (VR e/ou VT).
+4. **Pré-visualizar** → mostra todos os afetados e o total → **Confirmar** aplica o desconto.
+
+> **DETRAN e TRE PB não sofrem desconto** no ponto facultativo (aparecem, mas com valor 0).
+
+## 7. Atestados / declarações  (Hub → **Atestados**)
+1. Escolha **Intermitente** ou **CLT** (ambos buscam no RM por nome/matrícula).
+2. Selecione a convocação/colaborador → preencha (tipo de documento, datas, turno, upload do arquivo).
+3. Pode **acumular vários** documentos na sessão (botão "Resumo (N)") → **Concluir** envia todos (cria itens no board Controle de Atestados + anexa arquivos).
+
+## 8. Descontos manuais (retirada Caju)  (link `/descontos/...`)
+O link é gerado no board de Desconto (botão de ativar). Abre uma tela: informe **VR retirado** e **VT retirado** → confirma. Registra a retirada manual no item.
+
+## 9. Virada de mês (dia 14)
+Todo dia **14 às 17h** (quando o agendamento estiver ligado) o sistema: duplica o board do mês (vira o histórico), **cria o board do próximo mês** e o repovoa com os intermitentes do RM. **Convocar funciona no mês atual E no próximo.** Os gatilhos (a coluna *ativar*) são recriados automaticamente no board novo — você não precisa fazer nada.
+
+> Se após a virada algo parecer no board errado, avise o responsável técnico (pode ser preciso conferir o "registry" de boards).
 
 ---
 
