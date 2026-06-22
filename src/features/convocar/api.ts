@@ -185,8 +185,25 @@ export async function buscarEmpregado(
     `${BASE_URL}/convocar-buscar-empregado?nome=${encodeURIComponent(query)}`,
   )
   if (!res.ok) {
-    const err = new Error(`Erro ${res.status}`) as Error & { status?: number }
+    // Tenta extrair erro específico do corpo (ex.: RM/ponte AIONS offline -> 503
+    // {erro:"rm_indisponivel", mensagem}). Sem isso, vira erro genérico por status.
+    let codigo: string | undefined
+    let mensagem: string | undefined
+    try {
+      const corpo = (await res.json()) as { erro?: string; mensagem?: string }
+      codigo = corpo?.erro
+      mensagem = corpo?.mensagem
+    } catch {
+      /* corpo não-JSON (HTML de erro etc.) */
+    }
+    const err = new Error(mensagem || `Erro ${res.status}`) as Error & {
+      status?: number
+      codigo?: string
+      mensagem?: string
+    }
     err.status = res.status
+    err.codigo = codigo
+    err.mensagem = mensagem
     throw err
   }
   const raw = await res.json()

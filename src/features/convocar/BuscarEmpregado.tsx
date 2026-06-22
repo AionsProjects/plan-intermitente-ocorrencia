@@ -61,7 +61,7 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
 export function BuscarEmpregado({ onSelecionar }: Props) {
   const [valor, setValor] = useState("")
   const [expandido, setExpandido] = useState(false)
-  const { data, isFetching, isError, ativo } = useBuscarEmpregado(valor)
+  const { data, isFetching, isError, error, ativo } = useBuscarEmpregado(valor)
   const resultados = useMemo(() => data ?? [], [data])
   const visiveis = expandido ? resultados : resultados.slice(0, VISIVEIS)
   const ocultos = Math.max(0, resultados.length - VISIVEIS)
@@ -122,7 +122,11 @@ export function BuscarEmpregado({ onSelecionar }: Props) {
 
         {isError && (
           <p className="mt-3 rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-2 text-xs text-rose-700 dark:text-rose-200">
-            Erro ao consultar o RM. Tente novamente em alguns segundos.
+            {(error as { codigo?: string; mensagem?: string } | null)?.codigo ===
+            "rm_indisponivel"
+              ? (error as { mensagem?: string }).mensagem ||
+                "Conexão com o RM indisponível. Tente novamente em alguns minutos."
+              : "Erro ao consultar o RM. Tente novamente em alguns segundos."}
           </p>
         )}
 
