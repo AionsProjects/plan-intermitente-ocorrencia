@@ -39,6 +39,29 @@ export async function usuarioDaSessao(req: FastifyRequest): Promise<Usuario | nu
   return rows[0] ?? null
 }
 
+// Autoriza por cookie (frontend) OU Bearer token de servico (n8n/integracao).
+// O n8n nao tem sessao de usuario -> manda `Authorization: Bearer <token>`,
+// validado contra service_tokens (revogavel via ativo=false). Frontend segue no cookie.
+export async function usuarioDaAutorizacao(req: FastifyRequest): Promise<Usuario | null> {
+  const porCookie = await usuarioDaSessao(req)
+  if (porCookie) return porCookie
+
+  const auth = req.headers.authorization
+  if (auth && auth.startsWith("Bearer ")) {
+    const token = auth.slice(7).trim()
+    if (!token) return null
+    const { rows } = await query<Usuario>(
+      `SELECT u.* FROM service_tokens st
+         JOIN users u ON u.id = st.user_id
+        WHERE st.token = $1 AND st.ativo = true AND u.ativo = true
+          AND (st.expira_em IS NULL OR st.expira_em > now())`,
+      [token],
+    )
+    return rows[0] ?? null
+  }
+  return null
+}
+
 export async function destruirSessao(
   req: FastifyRequest,
   reply: FastifyReply,

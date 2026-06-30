@@ -4,6 +4,7 @@ import { Link } from "react-router-dom"
 import {
   ArrowUpRight,
   CalendarDays,
+  CalendarRange,
   ClipboardCheck,
   FileText,
   KeyRound,
@@ -40,6 +41,14 @@ const actions: {
     title: "Ponto facultativo",
     description: "Aplicar vale-refeição e vale-transporte para um contrato em um dia específico.",
     icon: CalendarDays,
+    tone: "emerald",
+    nivelMinimo: "dp", // só DP + Admin
+  },
+  {
+    to: "/mensal",
+    title: "Fechamento mensal",
+    description: "Pré-visualizar e disparar o fechamento mensal dos intermitentes por contrato.",
+    icon: CalendarRange,
     tone: "emerald",
     nivelMinimo: "dp", // só DP + Admin
   },

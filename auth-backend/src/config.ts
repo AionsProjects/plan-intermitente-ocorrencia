@@ -39,6 +39,25 @@ export const config = {
   cookieSecure: process.env.COOKIE_SECURE === "1",
   // SSL no Postgres (remoto/cloudfy costuma exigir). DB_SSL=1 -> ssl sem verificar CA.
   dbSsl: process.env.DB_SSL === "1",
+  // Monday API (cred "Ray0"). Lido em runtime; o client lanca se vazio quando usado.
+  mondayToken: opt("MONDAY_TOKEN", ""),
+  mondayApiVersion: opt("MONDAY_API_VERSION", "2024-10"),
+  // Ponte AIONS RM (header AIONS-AUTH). Extraido dos nos n8n. Tudo via env (sem hardcode).
+  rmBridgeUrl: opt("RM_BRIDGE_URL", ""),
+  rmAionsAuth: opt("RM_AIONS_AUTH", ""),
+  rmDataServer: opt("RM_DATA_SERVER", ""),
+  // Caju (OAuth password grant + headers de sponsor/integration). Extraido dos nos n8n.
+  caju: {
+    authUrl: opt("CAJU_AUTH_URL", ""),
+    apiBase: opt("CAJU_API_BASE", "https://services.caju.com.br/partners/v1"),
+    clientId: opt("CAJU_CLIENT_ID", ""),
+    clientSecret: opt("CAJU_CLIENT_SECRET", ""),
+    grantType: opt("CAJU_GRANT_TYPE", "password"),
+    username: opt("CAJU_USERNAME", ""),
+    password: opt("CAJU_PASSWORD", ""),
+    sponsorId: opt("CAJU_SPONSOR_ID", ""),
+    integrationId: opt("CAJU_INTEGRATION_ID", ""),
+  },
 } as const
 
 export type AppConfig = typeof config

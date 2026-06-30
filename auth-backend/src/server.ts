@@ -4,6 +4,13 @@ import { config } from "./config.js"
 import { rotasAuth } from "./routes/auth.js"
 import { rotasUsuarios } from "./routes/usuarios.js"
 import { rotasAtividade } from "./routes/atividade.js"
+import { rotasConvocacoes } from "./routes/convocacoes.js"
+import { rotasIntermitente } from "./routes/intermitente.js"
+import { rotasRm } from "./routes/rm.js"
+import { rotasConvocar } from "./routes/convocar.js"
+import { rotasJobs } from "./routes/jobs.js"
+import { rotasPontoFacultativo } from "./routes/pontofac.js"
+import { rotasAtestados } from "./routes/atestados.js"
 
 const app = Fastify({ logger: true })
 
@@ -12,6 +19,13 @@ await app.register(cookie)
 await app.register(rotasAuth)
 await app.register(rotasUsuarios)
 await app.register(rotasAtividade)
+await app.register(rotasConvocacoes)
+await app.register(rotasIntermitente)
+await app.register(rotasRm)
+await app.register(rotasConvocar)
+await app.register(rotasJobs)
+await app.register(rotasPontoFacultativo)
+await app.register(rotasAtestados)
 
 app.get("/auth/health", async () => ({ ok: true }))
 

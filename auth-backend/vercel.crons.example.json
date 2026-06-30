@@ -1,0 +1,7 @@
+{
+  "_comment": "Referência: adicionar este bloco 'crons' ao vercel.json do deploy (NÃO criar root vercel.json aqui — ele controla as rewrites /auth /api -> função e o resto -> SPA). CRON_SECRET no env do projeto; o tick valida via header Authorization.",
+  "crons": [
+    { "path": "/api/jobs/tick", "schedule": "* * * * *" },
+    { "path": "/api/jobs/tick?tipo=expiracao", "schedule": "0 3 * * *" }
+  ]
+}

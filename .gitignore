@@ -49,3 +49,34 @@ determinar.js
 # Dumps/scratch de investigação n8n em scripts/ (ignorar)
 scripts/.tmp_*
 scripts/.inspect_*
+
+# Backups/dumps de workflows n8n — têm tokens inline (Monday/RM/Caju). NAO versionar.
+# (IaC dos WFs virá depois, com tokens em placeholders/env.)
+wf_*.json
+wf*-current.json
+wf*-live.json
+*.backup-*.json
+*.backup.json
+.wfmine/
+.live/
+.wfmine
+.live
+
+# Scripts de patch n8n com credenciais/headers inline (ignorar até limpar tokens)
+scripts/*.cjs
+scripts/*.gs
+
+# Docs gerados com tokens em exemplos (ignorar)
+DOCUMENTACAO-AIONS.html
+DOCUMENTACAO-AIONS.pdf
+01-VISAO-E-PLATAFORMA.md
+ESTADO-*.md
+backup-*.json
+exec-*.json
+inspect-*.json
+_*.json
+put-*.json
+pf-*.json
+pf_*.json
+ben_*.json
+boards-compare.json

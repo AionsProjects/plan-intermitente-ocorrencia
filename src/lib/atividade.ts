@@ -10,6 +10,7 @@ export type TipoAtividade =
   | "atestado"
   | "ponto_facultativo"
   | "desconto"
+  | "mensal_fechamento"
 
 export interface MetaAtividade {
   alvo?: string | null
