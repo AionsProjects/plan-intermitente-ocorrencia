@@ -103,8 +103,8 @@ export function ConvocarPage() {
 
   return (
     <div className="relative z-10 min-h-svh">
-      <div className="flex justify-center px-4 py-12">
-        <div className="glass-strong card-shimmer relative w-full max-w-2xl p-8 sm:p-10">
+      <div className="flex justify-center px-4 py-8 sm:px-6 sm:py-12">
+        <div className="glass-strong card-shimmer relative w-full max-w-2xl p-5 sm:p-8 lg:p-10">
           <SlideStack slideKey={etapaKey(etapa)} direction={direcao}>
             {renderEtapa()}
           </SlideStack>

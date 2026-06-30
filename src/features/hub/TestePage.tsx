@@ -72,7 +72,7 @@ export function TestePage() {
         <p className="text-[11px] uppercase tracking-[0.32em] text-foreground/55">
           Aionscorp · Plano de intermitentes
         </p>
-        <h1 className="text-display mt-3 text-5xl leading-[1.05] text-foreground">
+        <h1 className="text-display mt-3 text-balance text-4xl leading-[1.05] text-foreground sm:text-5xl">
           Chaves de <em className="italic text-[rgb(var(--accent-rgb))]">teste</em>
         </h1>
         <p className="mt-4 max-w-md text-sm leading-relaxed text-foreground/65">

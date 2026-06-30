@@ -18,6 +18,7 @@ import { TestePage } from "@/features/hub/TestePage"
 import { PreencherPage } from "@/features/preencher/PreencherPage"
 import { PontoFacultativoPage } from "@/features/ponto-facultativo/PontoFacultativoPage"
 import { TestePontoFacultativoPage } from "@/features/ponto-facultativo/TestePontoFacultativoPage"
+import { MensalPage } from "@/features/mensal/MensalPage"
 
 function App() {
   return (
@@ -42,6 +43,7 @@ function App() {
               <Route element={<RequireRole nivelMinimo="dp" />}>
                 <Route path="/ponto-facultativo" element={<PontoFacultativoPage />} />
                 <Route path="/teste/ponto-facultativo" element={<TestePontoFacultativoPage />} />
+                <Route path="/mensal" element={<MensalPage />} />
               </Route>
             </Route>
           </Routes>

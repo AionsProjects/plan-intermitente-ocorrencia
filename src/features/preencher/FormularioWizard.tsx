@@ -1421,7 +1421,7 @@ function Header({ dados }: { dados: ProcessamentoDados }) {
       <p className="text-[11px] uppercase tracking-[0.32em] text-foreground/55">
         Registro de ocorrências
       </p>
-      <h1 className="text-display mt-3 text-5xl leading-[1.05] text-foreground">
+      <h1 className="text-display mt-3 break-words text-balance text-4xl leading-[1.05] text-foreground sm:text-5xl">
         {dados.nome}
       </h1>
       <div className="mt-4 flex flex-wrap items-center gap-2">

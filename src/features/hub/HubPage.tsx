@@ -3,6 +3,7 @@ import { Link } from "react-router-dom"
 
 import {
   ArrowUpRight,
+  Banknote,
   CalendarDays,
   ClipboardCheck,
   FileText,
@@ -41,6 +42,14 @@ const actions: {
     description: "Aplicar vale-refeição e vale-transporte para um contrato em um dia específico.",
     icon: CalendarDays,
     tone: "emerald",
+    nivelMinimo: "dp", // só DP + Admin
+  },
+  {
+    to: "/mensal",
+    title: "Pagamento mensal intermitente",
+    description: "Rodar o fechamento/pagamento do mês para o grupo MENSAL (Caju + RM).",
+    icon: Banknote,
+    tone: "gold",
     nivelMinimo: "dp", // só DP + Admin
   },
   {

@@ -95,7 +95,7 @@ export function BuscarPessoa({ tipoTrabalhador, onSelecionar }: Props) {
       <p className="text-[11px] uppercase tracking-[0.32em] text-foreground/55">
         Aionscorp · Atestados e declarações
       </p>
-      <h1 className="text-display mt-3 text-5xl leading-[1.05] text-foreground">
+      <h1 className="text-display mt-3 text-balance text-4xl leading-[1.05] text-foreground sm:text-5xl">
         Buscar{" "}
         <em
           className={`italic ${tipoTrabalhador === "clt" ? "text-[#b6a4ff]" : "text-[rgb(var(--accent-rgb))]"}`}

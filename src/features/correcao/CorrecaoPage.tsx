@@ -67,8 +67,8 @@ export function CorrecaoPage() {
   }
 
   return (
-    <div className="relative z-10 flex min-h-svh items-center justify-center px-4 py-12">
-      <div className="glass-strong card-shimmer relative w-full max-w-xl p-10">
+    <div className="relative z-10 flex min-h-svh items-center justify-center px-4 py-8 sm:px-6 sm:py-12">
+      <div className="glass-strong card-shimmer relative w-full max-w-xl p-6 sm:p-8 lg:p-10">
         {/* Header: flask de teste + nav cluster top-right */}
         <div className="mb-6 flex items-start justify-between gap-3">
           <button
@@ -85,7 +85,7 @@ export function CorrecaoPage() {
         <p className="text-[11px] uppercase tracking-[0.32em] text-foreground/55">
           Aionscorp · Plano de intermitentes
         </p>
-        <h1 className="text-display mt-3 text-5xl leading-[1.05] text-foreground">
+        <h1 className="text-display mt-3 text-balance text-4xl leading-[1.05] text-foreground sm:text-5xl">
           Corrigir <em className="italic text-[rgb(var(--accent-rgb))]">registro</em>
         </h1>
         <p className="mt-4 max-w-md text-sm leading-relaxed text-foreground/65">

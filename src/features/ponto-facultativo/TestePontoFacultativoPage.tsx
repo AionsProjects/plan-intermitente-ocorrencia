@@ -109,7 +109,7 @@ export function TestePontoFacultativoPage() {
         <p className="text-[11px] uppercase tracking-[0.32em] text-foreground/55">
           Aionscorp · plano de intermitentes
         </p>
-        <h1 className="text-display mt-3 text-5xl leading-[1.05] text-foreground">
+        <h1 className="text-display mt-3 text-balance text-4xl leading-[1.05] text-foreground sm:text-5xl">
           Estados do{" "}
           <em className="italic text-emerald-700 dark:text-emerald-200">ponto facultativo</em>
         </h1>

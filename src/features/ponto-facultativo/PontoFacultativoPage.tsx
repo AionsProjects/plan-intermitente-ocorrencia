@@ -297,7 +297,7 @@ export function PontoFacultativoPage() {
 
   return (
     <main className="relative z-10 flex min-h-svh items-center justify-center px-4 py-8 sm:px-6 sm:py-12">
-      <div className="glass-strong card-shimmer relative w-full max-w-3xl p-8 sm:p-10">
+      <div className="glass-strong card-shimmer relative w-full max-w-3xl p-5 sm:p-8 lg:p-10">
         <header className="mb-7 flex items-start justify-between gap-4">
           <div>
             <p className="eyebrow-fade-in text-[11px] uppercase text-emerald-700/70 dark:text-emerald-200/70">
