@@ -20,18 +20,17 @@ export interface PessoaMensal {
   funcao: string
   unidade: string
   interior: string
-  vr: number
-  vt: number
-  diasVr: string
-  diasVt: string
+}
+export interface ContratoQtd {
+  contrato: string
+  qtd: number
 }
 export interface PessoasResp {
   papel: Papel
   board_id: string
   competencia: string | null
   total: number
-  totalVR: number
-  totalVT: number
+  porContrato: ContratoQtd[]
   pessoas: PessoaMensal[]
 }
 

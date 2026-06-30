@@ -16,9 +16,6 @@ import {
 
 type Etapa = "mes" | "tabela" | "confirma" | "processando" | "ok"
 
-const brl = (n: number) =>
-  n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-
 function rotuloMes(comp: string | null | undefined): string {
   if (!comp) return "—"
   try {
@@ -142,13 +139,11 @@ export function MensalPage() {
             <>
               <div className="mt-5 flex flex-wrap items-center gap-5 rounded-2xl border border-border bg-card/40 px-5 py-4">
                 <Stat k="Pessoas" v={String(pessoas.data.total)} />
-                <Stat k="Total VR" v={`R$ ${brl(pessoas.data.totalVR)}`} tone="gold" />
-                <Stat k="Total VT" v={`R$ ${brl(pessoas.data.totalVT)}`} tone="blue" />
-                <Stat
-                  k="Total geral"
-                  v={`R$ ${brl(pessoas.data.totalVR + pessoas.data.totalVT)}`}
-                  tone="green"
-                />
+                <Stat k="Contratos" v={String(pessoas.data.porContrato.length)} />
+                <p className="text-[11px] text-foreground/45">
+                  Os valores (VR/VT, crédito, PIX) são calculados pela automação no momento do
+                  pagamento.
+                </p>
               </div>
 
               <div className="mt-4">
@@ -156,41 +151,15 @@ export function MensalPage() {
                   <table className="w-full border-collapse text-[13px]">
                     <thead className="sticky top-0 z-20">
                       <tr className="bg-[#13131b] text-foreground [&_th]:bg-[#13131b] [&_th]:shadow-[0_8px_14px_-6px_rgba(0,0,0,0.9)]">
-                        <Th>#</Th>
-                        <Th>Nome</Th>
-                        <Th>Chapa</Th>
                         <Th>Contrato</Th>
-                        <Th>Unidade</Th>
-                        <Th center>Benefício</Th>
-                        <Th right>VR</Th>
-                        <Th right>VT</Th>
-                        <Th center>Dias VR/VT</Th>
+                        <Th right>Pessoas</Th>
                       </tr>
                     </thead>
                     <tbody>
-                      {pessoas.data.pessoas.map((p, i) => (
-                        <tr key={p.chapa + i} className="border-t border-border/70 hover:bg-white/[0.025]">
-                          <Td className="text-center text-foreground/40">{i + 1}</Td>
-                          <Td className="font-medium text-foreground/95 whitespace-nowrap">{p.nome}</Td>
-                          <Td className="font-mono">{p.chapa}</Td>
-                          <Td>{p.contrato}</Td>
-                          <Td className="max-w-[180px] truncate text-foreground/50">{p.unidade}</Td>
-                          <Td className="text-center">
-                            {p.interior === "SIM" ? (
-                              <span className="rounded-full border border-[rgb(var(--accent-rgb)/0.4)] bg-[rgb(var(--accent-rgb)/0.1)] px-2 py-0.5 text-[10px] text-[rgb(var(--accent-rgb))]">
-                                Mobilidade
-                              </span>
-                            ) : (
-                              <span className="rounded-full border border-[rgb(var(--surface-rgb)/0.4)] bg-[rgb(var(--surface-rgb)/0.1)] px-2 py-0.5 text-[10px] text-[rgb(var(--surface-rgb))]">
-                                VT
-                              </span>
-                            )}
-                          </Td>
-                          <Td className="text-right">R$ {brl(p.vr)}</Td>
-                          <Td className="text-right">R$ {brl(p.vt)}</Td>
-                          <Td className="text-center text-foreground/45">
-                            {p.diasVr}/{p.diasVt}
-                          </Td>
+                      {pessoas.data.porContrato.map((c) => (
+                        <tr key={c.contrato} className="border-t border-border/70 hover:bg-white/[0.025]">
+                          <Td className="font-medium text-foreground/95">{c.contrato}</Td>
+                          <Td className="text-right font-mono text-foreground/80">{c.qtd}</Td>
                         </tr>
                       ))}
                     </tbody>
@@ -227,10 +196,9 @@ export function MensalPage() {
               Inicia o pagamento real (Caju + lançamento no RM) das {pessoas.data.total} pessoas do grupo
               MENSAL. Não dá pra desfazer pelo app.
             </div>
-            <div className="mt-5 grid grid-cols-3 gap-3">
+            <div className="mt-5 grid grid-cols-2 gap-3">
               <Stat box k="Pessoas" v={String(pessoas.data.total)} />
-              <Stat box k="Total VR" v={`R$ ${brl(pessoas.data.totalVR)}`} tone="gold" />
-              <Stat box k="Total VT" v={`R$ ${brl(pessoas.data.totalVT)}`} tone="blue" />
+              <Stat box k="Contratos" v={String(pessoas.data.porContrato.length)} />
             </div>
             {erroDisparo && (
               <p className="mt-4 text-sm text-[rgb(var(--status-red))]">{erroDisparo}</p>

@@ -33,7 +33,6 @@ async function grupoMensal(boardId: string): Promise<string> {
   return rows[0]?.group_id ?? "group_mktahh9f"
 }
 
-const num = (v: unknown) => { const n = Number(String(v ?? "").replace(",", ".")); return isFinite(n) ? n : 0 }
 
 export async function rotasMensal(app: FastifyInstance): Promise<void> {
   // meses disponíveis (atual / proximo) — pra tela de escolha
@@ -68,6 +67,9 @@ export async function rotasMensal(app: FastifyInstance): Promise<void> {
         return reply.code(502).send({ erro: "monday_falhou" })
       }
       const val = (cv: typeof items[0]["column_values"], t: string) => cv.find((c) => c.column.title === t)?.text ?? ""
+      // Conferência: quem está no grupo MENSAL + de quais contratos. Os VALORES (VR/VT,
+      // crédito/PIX) NÃO são calculados aqui — a automação n8n calcula no momento do pagamento
+      // (board Valores + dias úteis). Aqui é só "quem/quantos por contrato".
       const pessoas = items
         .map((it) => {
           const cv = it.column_values
@@ -79,22 +81,24 @@ export async function rotasMensal(app: FastifyInstance): Promise<void> {
             funcao: val(cv, "Função"),
             unidade: val(cv, "Local/Unidade"),
             interior: val(cv, "OP - Interior?"),
-            vr: num(val(cv, "CREDITO CAJU")),
-            vt: num(val(cv, "CREDITO VT") || val(cv, "VT - Diário")),
-            diasVr: val(cv, "Dias Úteis/Mês - VR"),
-            diasVt: val(cv, "Dias Úteis/Mês - VT"),
           }
         })
-        .filter((p) => p.nome && p.nome !== "INTERMITENTE" ? true : !!p.chapa)
-      const totalVR = pessoas.reduce((s, p) => s + p.vr, 0)
-      const totalVT = pessoas.reduce((s, p) => s + p.vt, 0)
+        .filter((p) => (p.nome && p.nome !== "INTERMITENTE" ? true : !!p.chapa))
+      // Agrupa por contrato (só contratos que tiveram convocação = têm pessoas).
+      const mapaContratos = new Map<string, number>()
+      for (const p of pessoas) {
+        const c = (p.contrato || "").trim() || "(sem contrato)"
+        mapaContratos.set(c, (mapaContratos.get(c) ?? 0) + 1)
+      }
+      const porContrato = [...mapaContratos.entries()]
+        .map(([contrato, qtd]) => ({ contrato, qtd }))
+        .sort((a, b) => b.qtd - a.qtd)
       return {
         papel,
         board_id: board.monday_board_id,
         competencia: board.competencia,
         total: pessoas.length,
-        totalVR,
-        totalVT,
+        porContrato,
         pessoas,
       }
     },
