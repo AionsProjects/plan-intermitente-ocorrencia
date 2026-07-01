@@ -113,13 +113,14 @@ export async function chamarProcesso(
     // escrita NUNCA faz failover automático — timeout não prova que o n8n não executou.
     return fetch(urlN8n, init)
   }
-  // auto + leitura: tenta n8n com timeout; erro de rede/timeout/5xx → backend.
+  // auto + leitura: tenta n8n com timeout; erro de rede/timeout/5xx/404 → backend.
+  // (404 no host do n8n = webhook desregistrado = WF desligado → failover.)
   try {
     const ctl = new AbortController()
     const t = setTimeout(() => ctl.abort(), TIMEOUT_LEITURA_MS)
     const res = await fetch(urlN8n, { ...init, signal: ctl.signal })
     clearTimeout(t)
-    if (res.status >= 500) throw new Error(`n8n ${res.status}`)
+    if (res.status >= 500 || res.status === 404) throw new Error(`n8n ${res.status}`)
     return res
   } catch {
     degradado = true

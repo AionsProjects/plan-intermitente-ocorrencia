@@ -7,7 +7,7 @@ import type {
 } from "./types"
 import { OPCOES_CONVOCACAO_FALLBACK } from "./types"
 import { unidadesParaContrato } from "@/lib/unidadesContrato"
-import { anexarOperador } from "@/lib/http"
+import { anexarOperador, chamarProcesso } from "@/lib/http"
 
 const BASE_URL = import.meta.env.VITE_N8N_ANTIGO_BASE_URL || import.meta.env.VITE_N8N_BASE_URL || ""
 const USE_MOCK = !BASE_URL
@@ -181,8 +181,11 @@ export async function buscarEmpregado(
     return MOCK_EMPREGADOS.filter((e) => normaliza(e.nome).includes(q))
   }
 
-  const res = await fetch(
-    `${BASE_URL}/convocar-buscar-empregado?nome=${encodeURIComponent(query)}`,
+  const res = await chamarProcesso(
+    "convocar",
+    `convocar-buscar-empregado?nome=${encodeURIComponent(query)}`,
+    {},
+    { tipo: "leitura" },
   )
   if (!res.ok) {
     // Tenta extrair erro específico do corpo (ex.: RM/ponte AIONS offline -> 503
