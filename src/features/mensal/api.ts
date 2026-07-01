@@ -101,6 +101,7 @@ export interface RunHeader {
   ok_contratos: number
   erro_contratos: number
   criado_em: string
+  atualizado_em: string
   finalizado_em: string | null
 }
 export interface RunStatus {

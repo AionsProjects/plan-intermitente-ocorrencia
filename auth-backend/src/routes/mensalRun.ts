@@ -138,7 +138,8 @@ export async function rotasMensalRun(app: FastifyInstance): Promise<void> {
       const runId = String(req.params.runId ?? "").trim()
       if (!UUID_RE.test(runId)) return reply.code(400).send({ erro: "run_id_invalido" })
       const { rows: runs } = await query(
-        `SELECT run_id, papel, competencia, status, total_contratos, ok_contratos, erro_contratos, criado_em, finalizado_em
+        `SELECT run_id, papel, competencia, status, total_contratos, ok_contratos, erro_contratos,
+                criado_em, atualizado_em, finalizado_em
            FROM mensal_run WHERE run_id = $1`,
         [runId],
       )

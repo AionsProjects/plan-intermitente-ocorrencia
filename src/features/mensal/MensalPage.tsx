@@ -56,6 +56,11 @@ export function MensalPage() {
     runData?.status === "concluido" ||
     runData?.status === "concluido_com_erro" ||
     runData?.status === "falhou"
+  // Guarda contra run travado: rodando mas sem atualizar há >4min (n8n pode ter caído).
+  const travado =
+    !!runData &&
+    (runData.status === "rodando" || runData.status === "preparando") &&
+    Date.now() - new Date(runData.atualizado_em).getTime() > 4 * 60 * 1000
 
   function escolher(p: Papel) {
     setPapel(p)
@@ -277,6 +282,7 @@ export function MensalPage() {
           fallbackContratos={pessoas.data?.porContrato ?? []}
           competencia={pessoas.data?.competencia ?? runData?.competencia ?? null}
           finalizado={finalizado}
+          travado={travado}
           onConcluir={() => nav("/")}
           rotuloMes={rotuloMes}
         />
@@ -290,6 +296,7 @@ function Acompanhamento({
   fallbackContratos,
   competencia,
   finalizado,
+  travado,
   onConcluir,
   rotuloMes,
 }: {
@@ -297,6 +304,7 @@ function Acompanhamento({
   fallbackContratos: { contrato: string; qtd: number }[]
   competencia: string | null
   finalizado: boolean
+  travado: boolean
   onConcluir: () => void
   rotuloMes: (c: string | null | undefined) => string
 }) {
@@ -426,10 +434,24 @@ function Acompanhamento({
         )}
 
         {/* Pendentes — contador discreto */}
-        {!finalizado && pendentesN > 0 && (
+        {!finalizado && !travado && pendentesN > 0 && (
           <p className="mt-4 text-center text-xs text-foreground/40">
             {pendentesN} contrato(s) aguardando…
           </p>
+        )}
+
+        {/* Guarda: run travado (n8n pode ter caído) */}
+        {!finalizado && travado && (
+          <div className="mt-5 rounded-xl border border-[rgb(var(--accent-rgb)/0.34)] bg-[rgb(var(--accent-rgb)/0.08)] px-4 py-3 text-center text-xs text-[rgb(var(--accent-rgb))]">
+            <TriangleAlert className="mx-auto mb-1 size-4" />
+            Sem atualização há alguns minutos — o processo pode ter travado. Verifique o board/n8n
+            antes de re-disparar.
+          </div>
+        )}
+        {!finalizado && travado && (
+          <div className="mt-4 flex justify-center">
+            <ChoiceButton onClick={onConcluir}>Sair</ChoiceButton>
+          </div>
         )}
 
         {finalizado && comErro.length > 0 && (
