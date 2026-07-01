@@ -31,8 +31,12 @@ const WF5_ID = "Bso4k6ddDNcRmU83"
 const BASE = "https://antigoaionscorp-n8n.cloudfy.live/api/v1"
 const BOARD_ENTRADA = 18408773953
 const BOARD_SOLICITACAO = 18393673859
-const MONDAY_TOKEN_HEADER =
-  "eyJhbGciOiJIUzI1NiJ9.eyJ0aWQiOjQ0MDQyMzQ0NywiYWFpIjoxMSwidWlkIjo0NTk4NTI3NSwiaWFkIjoiMjAyNC0xMS0yM1QxODowNDo1MC4wMDBaIiwicGVyIjoibWU6d3JpdGUiLCJhY3RpZCI6MTI2ODUwMDYsInJnbiI6InVzZTEifQ.rQ4gm1nLNGZnI24LD4awmZIKM67iNZP7GDyI_tquLHA"
+// Token via env — NUNCA hardcodar (repo público; o token que estava aqui deve ser REVOGADO no Monday).
+const MONDAY_TOKEN_HEADER = process.env.MONDAY_TOKEN
+if (!MONDAY_TOKEN_HEADER) {
+  console.error("Defina MONDAY_TOKEN antes de rodar.")
+  process.exit(1)
+}
 
 // ===============================================================
 //  jsCode dos nodes NOVOS
