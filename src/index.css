@@ -622,7 +622,7 @@
     background: transparent;
     border: none;
     outline: none;
-    color: white;
+    color: rgb(var(--ink));
     font-size: 1rem;
     font-weight: 500;
     padding: 0 1rem;
@@ -2346,7 +2346,7 @@ html {
 .rdp-root .rdp-month_caption {
   font-family: "Instrument Serif", ui-serif, Georgia, serif;
   font-size: 1.25rem;
-  color: white;
+  color: rgb(var(--ink));
   padding: 0.5rem 0;
 }
 
@@ -2372,7 +2372,7 @@ html {
 
 .rdp-root .rdp-selected .rdp-day_button {
   background: rgba(110, 160, 255, 0.22) !important;
-  color: white !important;
+  color: rgb(var(--ink)) !important;
   box-shadow: 0 0 12px -2px rgba(110, 160, 255, 0.4);
   font-weight: 600;
 }
