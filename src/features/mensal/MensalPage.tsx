@@ -301,7 +301,6 @@ function Acompanhamento({
   rotuloMes: (c: string | null | undefined) => string
 }) {
   const header = run?.run ?? null
-  // Enquanto o n8n não gravou o run, mostra os contratos previstos como "pendente".
   const itens =
     run && run.itens.length
       ? run.itens
@@ -315,25 +314,28 @@ function Acompanhamento({
   const total = header?.total_contratos ?? itens.length
   const okN = header?.ok_contratos ?? 0
   const erroN = header?.erro_contratos ?? 0
+  const feitos = okN + erroN
+  const pct = total > 0 ? Math.round((feitos / total) * 100) : 0
+
+  // Revela contrato-a-contrato: só o atual (rodando) e os já concluídos aparecem; o resto vira contador.
+  const atual = itens.find((i) => i.status === "rodando") ?? null
+  const concluidos = itens.filter((i) => i.status === "ok" || i.status === "erro")
+  const pendentesN = itens.filter((i) => i.status === "pendente").length
   const comErro = itens.filter((i) => i.status === "erro")
 
   return (
     <section className="fade-up mx-auto mt-6 max-w-xl">
       <div className="glass-strong rounded-3xl px-7 py-8">
+        {/* Cabeçalho */}
         {!finalizado ? (
-          <>
-            <p className="text-center text-[11px] uppercase tracking-[0.2em] text-foreground/45">
+          <div className="text-center">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-foreground/45">
               Processando pagamento
             </p>
-            <h2 className="text-display mt-2 text-center text-2xl text-foreground">
+            <h2 className="text-display mt-2 text-2xl text-foreground">
               Mês <span className="capitalize">{rotuloMes(competencia)}</span>
             </h2>
-            <div className="mt-5 flex justify-center gap-3">
-              <Stat box k="Contratos" v={String(total)} />
-              <Stat box k="Prontos" v={String(okN)} tone="green" />
-              {erroN > 0 && <Stat box k="Com erro" v={String(erroN)} tone="red" />}
-            </div>
-          </>
+          </div>
         ) : (
           <div className="text-center">
             <div
@@ -355,42 +357,80 @@ function Acompanhamento({
           </div>
         )}
 
-        <div className="mt-6 space-y-2">
-          {itens.map((it) => (
+        {/* Barra de progresso */}
+        <div className="mt-6">
+          <div className="mb-1.5 flex items-center justify-between text-[11px] text-foreground/55">
+            <span>
+              {feitos} de {total} contratos
+              {erroN > 0 && (
+                <span className="text-[rgb(var(--status-red))]"> · {erroN} com erro</span>
+              )}
+            </span>
+            <span className="font-mono">{pct}%</span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-foreground/10">
             <div
-              key={it.contrato}
-              className="flex items-center gap-3 rounded-xl border border-border bg-card/40 px-4 py-3"
-            >
-              <span className="flex size-6 shrink-0 items-center justify-center">
-                {it.status === "ok" && (
-                  <Check className="size-4 text-[rgb(var(--status-green))]" />
-                )}
-                {it.status === "erro" && (
-                  <TriangleAlert className="size-4 text-[rgb(var(--status-red))]" />
-                )}
-                {it.status === "rodando" && (
-                  <Loader2 className="size-4 animate-spin text-[rgb(var(--accent-rgb))]" />
-                )}
-                {it.status === "pendente" && (
-                  <span className="size-2 rounded-full bg-foreground/25" />
-                )}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p
-                  className={`truncate text-sm font-medium ${
-                    it.status === "pendente" ? "text-foreground/45" : "text-foreground/90"
-                  }`}
-                >
-                  {it.contrato}
-                </p>
-                {it.status === "erro" && it.erro_msg && (
-                  <p className="truncate text-xs text-[rgb(var(--status-red))]">{it.erro_msg}</p>
-                )}
-              </div>
-              <span className="shrink-0 font-mono text-xs text-foreground/45">{it.qtd}</span>
-            </div>
-          ))}
+              className={`h-full rounded-full transition-all duration-500 ease-out ${
+                finalizado && erroN > 0
+                  ? "bg-[rgb(var(--status-red))]"
+                  : finalizado
+                    ? "bg-[rgb(var(--status-green))]"
+                    : "bg-[rgb(var(--accent-rgb))]"
+              }`}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
         </div>
+
+        {/* Contrato atual em destaque */}
+        {atual && !finalizado && (
+          <div className="fade-up mt-5 flex items-center gap-3 rounded-2xl border border-[rgb(var(--accent-rgb)/0.4)] bg-[rgb(var(--accent-rgb)/0.08)] px-5 py-4">
+            <Loader2 className="size-5 shrink-0 animate-spin text-[rgb(var(--accent-rgb))]" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-[rgb(var(--accent-rgb))]">
+                Pagando agora
+              </p>
+              <p className="truncate text-lg font-semibold text-foreground">{atual.contrato}</p>
+            </div>
+            <span className="shrink-0 font-mono text-sm text-foreground/55">
+              {atual.qtd} <span className="text-[10px]">pessoas</span>
+            </span>
+          </div>
+        )}
+
+        {/* Concluídos — aparecem conforme terminam */}
+        {concluidos.length > 0 && (
+          <div className="mt-4 space-y-2">
+            {concluidos.map((it) => (
+              <div
+                key={it.contrato}
+                className="fade-up flex items-center gap-3 rounded-xl border border-border bg-card/40 px-4 py-2.5"
+              >
+                <span className="flex size-5 shrink-0 items-center justify-center">
+                  {it.status === "ok" ? (
+                    <Check className="size-4 text-[rgb(var(--status-green))]" />
+                  ) : (
+                    <TriangleAlert className="size-4 text-[rgb(var(--status-red))]" />
+                  )}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-foreground/90">{it.contrato}</p>
+                  {it.status === "erro" && it.erro_msg && (
+                    <p className="truncate text-xs text-[rgb(var(--status-red))]">{it.erro_msg}</p>
+                  )}
+                </div>
+                <span className="shrink-0 font-mono text-xs text-foreground/40">{it.qtd}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Pendentes — contador discreto */}
+        {!finalizado && pendentesN > 0 && (
+          <p className="mt-4 text-center text-xs text-foreground/40">
+            {pendentesN} contrato(s) aguardando…
+          </p>
+        )}
 
         {finalizado && comErro.length > 0 && (
           <p className="mt-5 rounded-xl border border-[rgb(var(--status-red)/0.3)] bg-[rgb(var(--status-red)/0.08)] px-4 py-3 text-xs text-[rgb(var(--status-red))]">
