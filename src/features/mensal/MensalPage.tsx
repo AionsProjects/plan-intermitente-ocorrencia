@@ -9,12 +9,14 @@ import { ChoiceButton } from "@/features/atestados/ChoiceButton"
 import {
   buscarMeses,
   buscarPessoas,
+  buscarRunStatus,
   dispararPagamentoMensal,
   type Papel,
   type PessoasResp,
+  type RunStatus,
 } from "./api"
 
-type Etapa = "mes" | "tabela" | "confirma" | "processando" | "ok"
+type Etapa = "mes" | "tabela" | "confirma" | "acompanhando" | "ok"
 
 function rotuloMes(comp: string | null | undefined): string {
   if (!comp) return "—"
@@ -30,6 +32,7 @@ export function MensalPage() {
   const [etapa, setEtapa] = useState<Etapa>("mes")
   const [papel, setPapel] = useState<Papel>("atual")
   const [erroDisparo, setErroDisparo] = useState<string | null>(null)
+  const [runId, setRunId] = useState<string | null>(null)
 
   const meses = useQuery({ queryKey: ["mensal-meses"], queryFn: buscarMeses })
   const pessoas = useQuery<PessoasResp>({
@@ -38,17 +41,34 @@ export function MensalPage() {
     enabled: etapa === "tabela" || etapa === "confirma",
   })
 
+  // Polling do progresso ao vivo enquanto acompanha. Para quando o run finaliza.
+  const run = useQuery<RunStatus>({
+    queryKey: ["mensal-run", runId],
+    queryFn: () => buscarRunStatus(runId!),
+    enabled: etapa === "acompanhando" && !!runId,
+    refetchInterval: (q) => {
+      const s = q.state.data?.run?.status
+      return s === "concluido" || s === "concluido_com_erro" || s === "falhou" ? false : 2000
+    },
+  })
+  const runData = run.data?.run ?? null
+  const finalizado =
+    runData?.status === "concluido" ||
+    runData?.status === "concluido_com_erro" ||
+    runData?.status === "falhou"
+
   function escolher(p: Papel) {
     setPapel(p)
     setEtapa("tabela")
   }
 
   async function pagar() {
-    setEtapa("processando")
+    const id = crypto.randomUUID()
+    setRunId(id)
+    setEtapa("acompanhando")
     setErroDisparo(null)
     try {
-      await dispararPagamentoMensal(papel, pessoas.data?.competencia ?? null)
-      setEtapa("ok")
+      await dispararPagamentoMensal(papel, pessoas.data?.competencia ?? null, id)
     } catch (e) {
       setErroDisparo(e instanceof Error ? e.message : "Falha ao disparar")
       setEtapa("confirma")
@@ -214,7 +234,7 @@ export function MensalPage() {
       )}
 
       {/* ETAPA: CONFIRMAÇÃO */}
-      {(etapa === "confirma" || etapa === "processando") && pessoas.data && (
+      {etapa === "confirma" && pessoas.data && (
         <section className="fade-up mx-auto mt-6 max-w-xl">
           <div className="glass-strong rounded-3xl px-8 py-9 text-center">
             <p className="text-[11px] uppercase tracking-[0.2em] text-foreground/45">Confirmar pagamento</p>
@@ -237,43 +257,153 @@ export function MensalPage() {
               <p className="mt-4 text-sm text-[rgb(var(--status-red))]">{erroDisparo}</p>
             )}
             <div className="mt-7 flex justify-center gap-3">
-              <ChoiceButton disabled={etapa === "processando"} onClick={() => setEtapa("tabela")}>
-                ← Revisar
-              </ChoiceButton>
-              <ChoiceButton variant="primary" disabled={etapa === "processando"} onClick={pagar}>
-                {etapa === "processando" ? (
-                  <span className="inline-flex items-center gap-2">
-                    <Loader2 className="size-4 animate-spin" /> Disparando…
-                  </span>
-                ) : (
-                  "Confirmar e pagar"
-                )}
+              <ChoiceButton onClick={() => setEtapa("tabela")}>← Revisar</ChoiceButton>
+              <ChoiceButton variant="primary" onClick={pagar}>
+                Confirmar e pagar
               </ChoiceButton>
             </div>
           </div>
         </section>
       )}
 
-      {/* ETAPA: OK */}
-      {etapa === "ok" && pessoas.data && (
-        <section className="fade-up mx-auto mt-10 max-w-md text-center">
-          <div className="mx-auto flex size-16 items-center justify-center rounded-full border border-[rgb(var(--status-green)/0.5)] bg-[rgb(var(--status-green)/0.14)] text-[rgb(var(--status-green))]">
-            <Check className="size-7" />
+      {/* ETAPA: ACOMPANHAMENTO AO VIVO */}
+      {etapa === "acompanhando" && (
+        <Acompanhamento
+          run={run.data ?? null}
+          fallbackContratos={pessoas.data?.porContrato ?? []}
+          competencia={pessoas.data?.competencia ?? runData?.competencia ?? null}
+          finalizado={finalizado}
+          onConcluir={() => nav("/")}
+          rotuloMes={rotuloMes}
+        />
+      )}
+    </main>
+  )
+}
+
+function Acompanhamento({
+  run,
+  fallbackContratos,
+  competencia,
+  finalizado,
+  onConcluir,
+  rotuloMes,
+}: {
+  run: RunStatus | null
+  fallbackContratos: { contrato: string; qtd: number }[]
+  competencia: string | null
+  finalizado: boolean
+  onConcluir: () => void
+  rotuloMes: (c: string | null | undefined) => string
+}) {
+  const header = run?.run ?? null
+  // Enquanto o n8n não gravou o run, mostra os contratos previstos como "pendente".
+  const itens =
+    run && run.itens.length
+      ? run.itens
+      : fallbackContratos.map((c, i) => ({
+          ordem: i + 1,
+          contrato: c.contrato,
+          qtd: c.qtd,
+          status: "pendente" as const,
+          erro_msg: null,
+        }))
+  const total = header?.total_contratos ?? itens.length
+  const okN = header?.ok_contratos ?? 0
+  const erroN = header?.erro_contratos ?? 0
+  const comErro = itens.filter((i) => i.status === "erro")
+
+  return (
+    <section className="fade-up mx-auto mt-6 max-w-xl">
+      <div className="glass-strong rounded-3xl px-7 py-8">
+        {!finalizado ? (
+          <>
+            <p className="text-center text-[11px] uppercase tracking-[0.2em] text-foreground/45">
+              Processando pagamento
+            </p>
+            <h2 className="text-display mt-2 text-center text-2xl text-foreground">
+              Mês <span className="capitalize">{rotuloMes(competencia)}</span>
+            </h2>
+            <div className="mt-5 flex justify-center gap-3">
+              <Stat box k="Contratos" v={String(total)} />
+              <Stat box k="Prontos" v={String(okN)} tone="green" />
+              {erroN > 0 && <Stat box k="Com erro" v={String(erroN)} tone="red" />}
+            </div>
+          </>
+        ) : (
+          <div className="text-center">
+            <div
+              className={`mx-auto flex size-14 items-center justify-center rounded-full border ${
+                erroN > 0
+                  ? "border-[rgb(var(--status-red)/0.5)] bg-[rgb(var(--status-red)/0.14)] text-[rgb(var(--status-red))]"
+                  : "border-[rgb(var(--status-green)/0.5)] bg-[rgb(var(--status-green)/0.14)] text-[rgb(var(--status-green))]"
+              }`}
+            >
+              {erroN > 0 ? <TriangleAlert className="size-6" /> : <Check className="size-6" />}
+            </div>
+            <h2 className="text-display mt-4 text-2xl text-foreground">
+              {erroN > 0 ? `Concluído com ${erroN} erro(s)` : "Pagamento concluído"}
+            </h2>
+            <p className="mt-1 text-sm text-foreground/55">
+              {okN} de {total} contrato(s) pago(s) —{" "}
+              <span className="capitalize">{rotuloMes(competencia)}</span>.
+            </p>
           </div>
-          <h2 className="text-display mt-5 text-3xl text-foreground">Pagamento iniciado</h2>
-          <p className="mt-2 text-sm text-foreground/55">
-            A automação mensal foi disparada para <b>{pessoas.data.total} pessoas</b> da competência{" "}
-            <span className="capitalize">{rotuloMes(pessoas.data.competencia)}</span>. Acompanhe no
-            board.
+        )}
+
+        <div className="mt-6 space-y-2">
+          {itens.map((it) => (
+            <div
+              key={it.contrato}
+              className="flex items-center gap-3 rounded-xl border border-border bg-card/40 px-4 py-3"
+            >
+              <span className="flex size-6 shrink-0 items-center justify-center">
+                {it.status === "ok" && (
+                  <Check className="size-4 text-[rgb(var(--status-green))]" />
+                )}
+                {it.status === "erro" && (
+                  <TriangleAlert className="size-4 text-[rgb(var(--status-red))]" />
+                )}
+                {it.status === "rodando" && (
+                  <Loader2 className="size-4 animate-spin text-[rgb(var(--accent-rgb))]" />
+                )}
+                {it.status === "pendente" && (
+                  <span className="size-2 rounded-full bg-foreground/25" />
+                )}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p
+                  className={`truncate text-sm font-medium ${
+                    it.status === "pendente" ? "text-foreground/45" : "text-foreground/90"
+                  }`}
+                >
+                  {it.contrato}
+                </p>
+                {it.status === "erro" && it.erro_msg && (
+                  <p className="truncate text-xs text-[rgb(var(--status-red))]">{it.erro_msg}</p>
+                )}
+              </div>
+              <span className="shrink-0 font-mono text-xs text-foreground/45">{it.qtd}</span>
+            </div>
+          ))}
+        </div>
+
+        {finalizado && comErro.length > 0 && (
+          <p className="mt-5 rounded-xl border border-[rgb(var(--status-red)/0.3)] bg-[rgb(var(--status-red)/0.08)] px-4 py-3 text-xs text-[rgb(var(--status-red))]">
+            {comErro.length} contrato(s) com erro. Verifique no board/Caju e re-dispare esses
+            contratos manualmente.
           </p>
-          <div className="mt-7">
-            <ChoiceButton variant="primary" onClick={() => nav("/")}>
+        )}
+
+        {finalizado && (
+          <div className="mt-6 flex justify-center">
+            <ChoiceButton variant="primary" onClick={onConcluir}>
               Concluir
             </ChoiceButton>
           </div>
-        </section>
-      )}
-    </main>
+        )}
+      </div>
+    </section>
   )
 }
 
@@ -322,7 +452,7 @@ function Stat({
 }: {
   k: string
   v: string
-  tone?: "gold" | "blue" | "green"
+  tone?: "gold" | "blue" | "green" | "red"
   box?: boolean
 }) {
   const color =
@@ -332,7 +462,9 @@ function Stat({
         ? "text-[rgb(var(--surface-rgb))]"
         : tone === "green"
           ? "text-[rgb(var(--status-green))]"
-          : "text-foreground"
+          : tone === "red"
+            ? "text-[rgb(var(--status-red))]"
+            : "text-foreground"
   return (
     <div className={box ? "rounded-xl border border-border bg-card/30 px-3 py-3" : ""}>
       <div className="text-[10px] uppercase tracking-[0.1em] text-foreground/45">{k}</div>

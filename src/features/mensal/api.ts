@@ -56,10 +56,11 @@ export interface DisparoResp {
   mensagem?: string
 }
 
-// Dispara a automação mensal (n8n krRj3). Webhook ainda a conectar no n8n.
+// Dispara a automação mensal (n8n krRj3) com um runId — o n8n usa pra reportar o progresso ao vivo.
 export async function dispararPagamentoMensal(
   papel: Papel,
   competencia: string | null,
+  runId: string,
 ): Promise<DisparoResp> {
   if (!N8N) {
     // sem backend n8n configurado (dev): simula sucesso pra validar o fluxo
@@ -69,9 +70,44 @@ export async function dispararPagamentoMensal(
   const res = await fetch(`${N8N}/intermitente-mensal-fechamento`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ papel, competencia }),
+    body: JSON.stringify({ papel, competencia, runId }),
   })
   const j = (await res.json().catch(() => ({}))) as { mensagem?: string }
   if (!res.ok) throw new Error(j.mensagem || `Erro ${res.status} ao disparar`)
   return { ok: true, mensagem: j.mensagem }
+}
+
+// Acompanhamento ao vivo do run (polling).
+export type RunItemStatus = "pendente" | "rodando" | "ok" | "erro"
+export type RunStatusGeral =
+  | "preparando"
+  | "rodando"
+  | "concluido"
+  | "concluido_com_erro"
+  | "falhou"
+export interface RunItem {
+  ordem: number
+  contrato: string
+  qtd: number
+  status: RunItemStatus
+  erro_msg: string | null
+}
+export interface RunHeader {
+  run_id: string
+  papel: string
+  competencia: string | null
+  status: RunStatusGeral
+  total_contratos: number
+  ok_contratos: number
+  erro_contratos: number
+  criado_em: string
+  finalizado_em: string | null
+}
+export interface RunStatus {
+  run: RunHeader | null
+  itens: RunItem[]
+}
+
+export function buscarRunStatus(runId: string): Promise<RunStatus> {
+  return getJson<RunStatus>(`/api/mensal/run/${runId}`)
 }
