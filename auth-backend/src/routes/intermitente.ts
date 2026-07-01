@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
 import { acharItensPorColuna, changeColumnValues, lerItem, type ItemMonday } from "../monday.js"
 import { usuarioDaSessao } from "../session.js"
+import { lerConvocacaoPg, protocoloPg, convocacoesEmpregadoPg } from "./espelhoIntermitente.js"
 
 // Leituras do board Histórico (Monday ao vivo) — substituem WFs n8n. Público
 // (correção/preencher/atestados usam). Histórico é FIXO (não duplica na virada).
@@ -142,8 +143,15 @@ export async function rotasIntermitente(app: FastifyInstance): Promise<void> {
         const uuid = it.column_values.find((c) => c.id === C.uuid)?.text ?? ""
         return { uuid, nome: it.name }
       } catch (e) {
-        req.log.error(e, "erro buscar-protocolo")
-        return reply.code(502).send({ erro: "monday_falhou" })
+        // Monday caiu → rota de fuga: serve do espelho Postgres (pi.convocacoes).
+        req.log.error(e, "erro buscar-protocolo (tentando espelho PG)")
+        try {
+          const r = await protocoloPg(protocolo)
+          if (r) return r
+          return reply.code(404).send({ erro: "protocolo_nao_encontrado" })
+        } catch {
+          return reply.code(502).send({ erro: "monday_falhou" })
+        }
       }
     },
   )
@@ -163,8 +171,15 @@ export async function rotasIntermitente(app: FastifyInstance): Promise<void> {
         if (!it) return reply.code(404).send({ erro: "nao_encontrado" })
         return montarLeitura(it)
       } catch (e) {
-        req.log.error(e, "erro intermitente-ler")
-        return reply.code(502).send({ erro: "monday_falhou" })
+        // Monday caiu → rota de fuga: serve do espelho Postgres (pi.convocacoes).
+        req.log.error(e, "erro intermitente-ler (tentando espelho PG)")
+        try {
+          const payload = await lerConvocacaoPg(uuid)
+          if (payload) return payload
+          return reply.code(404).send({ erro: "nao_encontrado" })
+        } catch {
+          return reply.code(502).send({ erro: "monday_falhou" })
+        }
       }
     },
   )
@@ -219,8 +234,14 @@ export async function rotasIntermitente(app: FastifyInstance): Promise<void> {
           .map((x) => x.data)
         return { convocacoes }
       } catch (e) {
-        req.log.error(e, "erro convocacoes-empregado")
-        return reply.code(502).send({ erro: "monday_falhou" })
+        // Monday caiu → rota de fuga: serve do espelho Postgres (pi.convocacoes).
+        req.log.error(e, "erro convocacoes-empregado (tentando espelho PG)")
+        try {
+          const convocacoes = await convocacoesEmpregadoPg(chapa, mes)
+          return { convocacoes }
+        } catch {
+          return reply.code(502).send({ erro: "monday_falhou" })
+        }
       }
     },
   )
