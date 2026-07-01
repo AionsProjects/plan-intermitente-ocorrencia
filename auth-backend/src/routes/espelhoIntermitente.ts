@@ -360,12 +360,36 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
         if (dataCancel! < di || dataCancel! > df)
           return reply.code(400).send({ ok: false, erro: "data_fora_periodo" })
       }
+      // Paridade com o WF (fix parcial→total de 30/06): só CANCELADA TOTAL bloqueia.
+      // Parcial sobre parcial bloqueia; TOTAL sobre parcial PERMITE e cancela só os
+      // dias FALTANTES [di .. dataCancelAnterior-1] (não re-desconta o já cancelado).
       const jaCancel = String(c.status_cancelamento ?? "").toLowerCase()
-      if (jaCancel.includes("cancelad"))
+      const eraParcial = jaCancel.includes("parcial")
+      if (jaCancel.includes("cancelad") && !eraParcial)
+        return reply.code(409).send({ ok: false, erro: "convocacao_ja_cancelada" })
+      if (eraParcial && tipo === "parcial")
         return reply.code(409).send({ ok: false, erro: "convocacao_ja_cancelada" })
 
-      const inicioDesc = tipo === "total" ? di : dataCancel!
-      const dias = diasUteis(inicioDesc, df, c.trabalha_sabado === true, c.sabados_extras ?? [])
+      let inicioDesc = tipo === "total" ? di : dataCancel!
+      let fimDesc = df
+      if (eraParcial && tipo === "total") {
+        // total sobre parcial: só o trecho que faltava (antes do início do parcial anterior).
+        const anterior = soData(c.data_inicio_cancelamento)
+        if (anterior) {
+          const d = new Date(anterior + "T00:00:00Z")
+          d.setUTCDate(d.getUTCDate() - 1)
+          fimDesc = d.toISOString().slice(0, 10)
+          if (fimDesc < di) {
+            // parcial já cobria desde o início — nada a descontar; só promove o status.
+            await query(
+              `UPDATE convocacoes SET status_cancelamento = 'Cancelada', data_inicio_cancelamento = NULL, atualizado_em = now() WHERE uuid = $1`,
+              [uuid],
+            )
+            return { ok: true, tipo, promovido: true, desconto: { descontoVR: 0, descontoVT: 0 } }
+          }
+        }
+      }
+      const dias = diasUteis(inicioDesc, fimDesc, c.trabalha_sabado === true, c.sabados_extras ?? [])
 
       // Valores -> desconto (cancelamento desconta sempre).
       const linhas = await lerValores()
@@ -383,9 +407,11 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
         `UPDATE convocacoes SET status_cancelamento = $2, data_inicio_cancelamento = $3, atualizado_em = now() WHERE uuid = $1`,
         [uuid, label, tipo === "parcial" ? dataCancel : null],
       )
+      // Período do desconto = o trecho efetivamente cancelado AGORA (paridade com o WF:
+      // total-sobre-parcial usa range diferente do parcial → não sobrescreve nem duplica).
       await upsertDesconto({
         uuid_convocacao: uuid, protocolo: c.protocolo, nome: c.nome, chapa: c.chapa,
-        contrato: c.contrato, data_inicio: di, data_fim: df,
+        contrato: c.contrato, data_inicio: inicioDesc, data_fim: fimDesc,
         dias_perde_vr: dias.length, dias_perde_vt: dias.length,
         desconto_vr: desc.descontoVR, desconto_vt: desc.descontoVT, status: "PENDENTE",
       })

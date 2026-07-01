@@ -1,4 +1,4 @@
-import { comOperador } from "@/lib/http"
+import { chamarProcesso, comOperador } from "@/lib/http"
 import type {
   DescontoDados,
   PayloadRegistrarRetirada,
@@ -171,8 +171,9 @@ export async function registrarRetiradaManual(
     }
   }
 
-  const res = await fetch(
-    `${BASE_URL}/descontos-registrar-manual?uuid=${encodeURIComponent(uuid)}`,
+  const res = await chamarProcesso(
+    "descontos",
+    `descontos-registrar-manual?uuid=${encodeURIComponent(uuid)}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -184,6 +185,7 @@ export async function registrarRetiradaManual(
         }),
       ),
     },
+    { tipo: "escrita" },
   )
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {

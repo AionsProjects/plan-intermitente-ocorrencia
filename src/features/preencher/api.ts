@@ -1,4 +1,4 @@
-import { comOperador } from "@/lib/http"
+import { chamarProcesso, comOperador } from "@/lib/http"
 import type {
   Atestado,
   PayloadAplicarSplit,
@@ -555,13 +555,15 @@ export async function finalizarProcessamento(
   }))
 
   const bodyJson = payloadFinalizarSnake(uuid, payload, respostas)
-  const res = await fetch(
-    `${BASE_URL}/intermitente-finalizar?uuid=${encodeURIComponent(uuid)}`,
+  const res = await chamarProcesso(
+    "registro",
+    `intermitente-finalizar?uuid=${encodeURIComponent(uuid)}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(comOperador(bodyJson)),
     },
+    { tipo: "escrita" },
   )
   if (!res.ok) {
     const err = new Error(`Erro ${res.status}`) as Error & { status?: number }
@@ -628,8 +630,9 @@ export async function cancelarConvocacao(
     }
   }
 
-  const res = await fetch(
-    `${BASE_URL}/intermitente-cancelar-convocacao?uuid=${encodeURIComponent(uuid)}`,
+  const res = await chamarProcesso(
+    "cancelar",
+    `intermitente-cancelar-convocacao?uuid=${encodeURIComponent(uuid)}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -641,6 +644,7 @@ export async function cancelarConvocacao(
         }),
       ),
     },
+    { tipo: "escrita" },
   )
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
@@ -709,13 +713,15 @@ export async function aplicarSplit(
           contrato_parte2: payload.contratoParte2,
         }
 
-  const res = await fetch(
-    `${BASE_URL}/intermitente-aplicar-split?uuid=${encodeURIComponent(uuid)}`,
+  const res = await chamarProcesso(
+    "split",
+    `intermitente-aplicar-split?uuid=${encodeURIComponent(uuid)}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(comOperador(body)),
     },
+    { tipo: "escrita" },
   )
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
