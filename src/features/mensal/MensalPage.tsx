@@ -68,14 +68,10 @@ export function MensalPage() {
   }
 
   async function pagar() {
-    // Modo simulação (?sim=1): usa runId fixo, NÃO dispara pagamento — só acompanha um run
-    // alimentado externamente (teste do progresso ao vivo sem envio real).
-    const sim = new URLSearchParams(window.location.search).get("sim") === "1"
-    const id = sim ? "22222222-2222-4222-8222-222222222222" : crypto.randomUUID()
+    const id = crypto.randomUUID()
     setRunId(id)
     setEtapa("acompanhando")
     setErroDisparo(null)
-    if (sim) return
     try {
       await dispararPagamentoMensal(papel, pessoas.data?.competencia ?? null, id)
     } catch (e) {
