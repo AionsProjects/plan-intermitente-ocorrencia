@@ -39,10 +39,11 @@ export const config = {
   cookieSecure: process.env.COOKIE_SECURE === "1",
   // SSL no Postgres (remoto/cloudfy costuma exigir). DB_SSL=1 -> ssl sem verificar CA.
   dbSsl: process.env.DB_SSL === "1",
-  // Monday API (registry de boards + create_webhook). Opcional no boot; rotas /api/boards
-  // exigem. NUNCA em VITE_*.
+  // Monday API (cred "Ray0" — registry de boards, create_webhook, clients/monday).
+  // Opcional no boot; rotas que usam exigem. NUNCA em VITE_*.
   mondayToken: opt("MONDAY_TOKEN", ""),
   mondayApiUrl: opt("MONDAY_API_URL", "https://api.monday.com/v2"),
+  mondayApiVersion: opt("MONDAY_API_VERSION", "2024-10"),
   // URL base do webhook n8n que recebe o gatilho "ativar" (create_webhook aponta pra ca).
   n8nWebhookAtivar: opt(
     "N8N_WEBHOOK_ATIVAR",
@@ -53,9 +54,25 @@ export const config = {
   publicBaseUrl: opt("PUBLIC_BASE_URL", "https://plan-intermitente-ocorrencia.vercel.app"),
   // Base dos webhooks n8n (conectores externos RM/Caju/Drive). Ex: unidades RM.
   n8nWebhookBase: opt("N8N_WEBHOOK_BASE", "https://aionscorp-n8n.cloudfy.live/webhook"),
-  // Token de serviço p/ o WF de virada (n8n, sem sessão) chamar registrar/virada.
+  // Token de serviço p/ WFs n8n (sem sessão) chamarem endpoints do backend (X-Service-Token).
   // Vazio = endpoints de serviço desabilitados. Setar SERVICE_TOKEN no Vercel + no WF.
   serviceToken: opt("SERVICE_TOKEN", ""),
+  // Ponte AIONS RM (header AIONS-AUTH). Extraido dos nos n8n. Tudo via env (sem hardcode).
+  rmBridgeUrl: opt("RM_BRIDGE_URL", ""),
+  rmAionsAuth: opt("RM_AIONS_AUTH", ""),
+  rmDataServer: opt("RM_DATA_SERVER", ""),
+  // Caju (OAuth password grant + headers de sponsor/integration). Extraido dos nos n8n.
+  caju: {
+    authUrl: opt("CAJU_AUTH_URL", ""),
+    apiBase: opt("CAJU_API_BASE", "https://services.caju.com.br/partners/v1"),
+    clientId: opt("CAJU_CLIENT_ID", ""),
+    clientSecret: opt("CAJU_CLIENT_SECRET", ""),
+    grantType: opt("CAJU_GRANT_TYPE", "password"),
+    username: opt("CAJU_USERNAME", ""),
+    password: opt("CAJU_PASSWORD", ""),
+    sponsorId: opt("CAJU_SPONSOR_ID", ""),
+    integrationId: opt("CAJU_INTEGRATION_ID", ""),
+  },
 } as const
 
 export type AppConfig = typeof config

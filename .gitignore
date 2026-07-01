@@ -47,7 +47,32 @@ n8n_folder.json
 determinar.js
 
 # Tooling n8n (scripts de patch/deploy) — contem tokens/URLs internos. NAO versionar
-# (alguns .cjs tinham JWT do Monday hardcoded). Repo vai publico.
+# (alguns .cjs tinham JWT do Monday hardcoded). Repo publico.
 scripts/
 .vercel
 _*.mjs
+
+# Backups/dumps de workflows n8n — têm tokens inline (Monday/RM/Caju). NAO versionar.
+# (IaC dos WFs virá depois, com tokens em placeholders/env.)
+wf_*.json
+wf*-current.json
+wf*-live.json
+*.backup-*.json
+*.backup.json
+.wfmine/
+.live/
+
+# Docs gerados com tokens em exemplos (ignorar)
+DOCUMENTACAO-AIONS.html
+DOCUMENTACAO-AIONS.pdf
+01-VISAO-E-PLATAFORMA.md
+ESTADO-*.md
+backup-*.json
+exec-*.json
+inspect-*.json
+_*.json
+put-*.json
+pf-*.json
+pf_*.json
+ben_*.json
+boards-compare.json

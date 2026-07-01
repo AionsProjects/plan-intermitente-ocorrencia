@@ -12,6 +12,8 @@
     "migrate": "node --env-file=.env --import tsx src/scripts/migrate.ts",
     "seed": "node --env-file=.env --import tsx src/scripts/seed.ts",
     "registrar-boards": "node --env-file=.env --import tsx src/scripts/registrar-boards.ts",
+    "token:servico": "node --env-file=.env --import tsx src/scripts/token-servico.ts",
+    "importar:convocacoes": "node --env-file=.env --import tsx src/scripts/importar-convocacoes.ts",
     "migrate:dist": "node dist/scripts/migrate.js",
     "seed:dist": "node dist/scripts/seed.js"
   },

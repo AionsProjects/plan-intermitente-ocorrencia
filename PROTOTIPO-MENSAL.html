@@ -1,0 +1,379 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AIONS · Pagamento Mensal Intermitente (protótipo)</title>
+<link rel="icon" href="data:image/svg+xml,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%20standalone%3D%22no%22%3F%3E%3C!DOCTYPE%20svg%20PUBLIC%20%22-%2F%2FW3C%2F%2FDTD%20SVG%201.1%2F%2FEN%22%20%22http%3A%2F%2Fwww.w3.org%2FGraphics%2FSVG%2F1.1%2FDTD%2Fsvg11.dtd%22%3E%3Csvg%20width%3D%22100%25%22%20height%3D%22100%25%22%20viewBox%3D%220%200%20633%20632%22%20version%3D%221.1%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20xmlns%3Axlink%3D%22http%3A%2F%2Fwww.w3.org%2F1999%2Fxlink%22%20xml%3Aspace%3D%22preserve%22%20xmlns%3Aserif%3D%22http%3A%2F%2Fwww.serif.com%2F%22%20style%3D%22fill-rule%3Aevenodd%3Bclip-rule%3Aevenodd%3Bstroke-linejoin%3Around%3Bstroke-miterlimit%3A2%3B%22%3E%3Crect%20id%3D%22__bg__%22%20x%3D%220%22%20y%3D%220%22%20width%3D%22633%22%20height%3D%22632%22%20rx%3D%22132%22%20fill%3D%22%230e0e14%22%2F%3E%20%20%20%20%3Cg%20transform%3D%22matrix(1.777778%2C0%2C0%2C1.777778%2C-5.306399%2C-131.999987)%22%3E%20%20%20%20%20%20%20%20%3Cg%20transform%3D%22matrix(1%2C0%2C0%2C1.107173%2C1.492425%2C-40.358298)%22%3E%20%20%20%20%20%20%20%20%20%20%20%20%3Crect%20x%3D%221.492%22%20y%3D%22103.514%22%20width%3D%22355.515%22%20height%3D%22321.088%22%20style%3D%22fill-opacity%3A0%3B%22%2F%3E%20%20%20%20%20%20%20%20%3C%2Fg%3E%20%20%20%20%3C%2Fg%3E%20%20%20%20%3Cg%20transform%3D%22matrix(1.777778%2C0%2C0%2C1.777778%2C-5.306399%2C-131.999987)%22%3E%20%20%20%20%20%20%20%20%3Cg%20transform%3D%22matrix(0.582529%2C0%2C0%2C0.58256%2C68.443582%2C135.875311)%22%3E%20%20%20%20%20%20%20%20%20%20%20%20%3Cpath%20d%3D%22M183.759%2C218.636L-5.587%2C296.885C-5.587%2C296.885%20196.902%2C2.818%20197.214%2C2.727C197.214%2C2.727%20376.078%2C273.531%20391.144%2C296.885L208.752%2C218.152C209.598%2C217.633%20349.039%2C270.316%20349.039%2C270.316C349.046%2C270.283%20197.214%2C44.556%20197.214%2C44.556L44.432%2C263.509L183.759%2C218.636Z%22%20style%3D%22fill%3Awhite%3B%22%2F%3E%20%20%20%20%20%20%20%20%20%20%20%20%3Cg%20transform%3D%22matrix(1%2C0%2C0%2C1%2C8.237882%2C0.595988)%22%3E%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%3Cpath%20d%3D%22M282.049%2C293.263L188.976%2C395.347L194.113%2C239.916L382.906%2C298.869C382.906%2C298.869%20282.284%2C293.106%20282.049%2C293.263Z%22%20style%3D%22fill%3Argb(157%2C157%2C157)%3B%22%2F%3E%20%20%20%20%20%20%20%20%20%20%20%20%3C%2Fg%3E%20%20%20%20%20%20%20%20%20%20%20%20%3Cg%20transform%3D%22matrix(1%2C0%2C0%2C1%2C5.306285%2C0.147113)%22%3E%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%3Cpath%20d%3D%22M-10.893%2C299.311L186.745%2C240.41L191.908%2C395.796L98.809%2C292.96C98.809%2C292.96%20-10.897%2C299.411%20-10.893%2C299.311Z%22%20style%3D%22fill%3Argb(157%2C157%2C157)%3B%22%2F%3E%20%20%20%20%20%20%20%20%20%20%20%20%3C%2Fg%3E%20%20%20%20%20%20%20%20%20%20%20%20%3Cg%20transform%3D%22matrix(1%2C0%2C0%2C1%2C11.833082%2C-4.042063)%22%3E%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%3Cpath%20d%3D%22M185.381%2C71.086L278.5%2C244.599L190.518%2C214.306L185.381%2C71.086Z%22%20style%3D%22fill%3Awhite%3B%22%2F%3E%20%20%20%20%20%20%20%20%20%20%20%20%3C%2Fg%3E%20%20%20%20%20%20%20%20%20%20%20%20%3Cg%20transform%3D%22matrix(-1%2C0%2C0%2C1%2C382.595225%2C-4.042063)%22%3E%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%3Cpath%20d%3D%22M185.381%2C71.086L278.5%2C244.554L190.544%2C214.306L185.381%2C71.086Z%22%20style%3D%22fill%3Awhite%3B%22%2F%3E%20%20%20%20%20%20%20%20%20%20%20%20%3C%2Fg%3E%20%20%20%20%20%20%20%20%20%20%20%20%3Cpath%20d%3D%22M-5.587%2C296.885L197.214%2C213.073C200.645%2C214.775%20391.144%2C296.885%20391.144%2C296.885L391.144%2C299.462L197.214%2C219.565L-5.587%2C299.465L-5.587%2C296.885Z%22%20style%3D%22fill%3Awhite%3B%22%2F%3E%20%20%20%20%20%20%20%20%20%20%20%20%3Cpath%20d%3D%22M61.086%2C273.252C175.78%2C227.09%20197.214%2C219.549%20197.214%2C219.549L327.488%2C273.233L197.214%2C228.961L61.086%2C273.252Z%22%20style%3D%22fill%3Argb(157%2C157%2C157)%3B%22%2F%3E%20%20%20%20%20%20%20%20%3C%2Fg%3E%20%20%20%20%3C%2Fg%3E%3C%2Fsvg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Geist:wght@300;400;500;600;700&family=Geist+Mono&display=swap" rel="stylesheet">
+<style>
+:root{--bg1:#040406;--bg2:#08080b;--bg3:#0e0e12;--gold:#e8c275;--gold2:#caa052;--blue:#5f86ff;--blue-soft:#9db8ff;--purple:#a87bff;--ink:#f5f5f8;--dim:rgba(245,245,248,.62);--faint:rgba(245,245,248,.4);--glass:rgba(16,16,21,.72);--glass2:rgba(22,22,29,.9);--border:rgba(190,192,200,.14);--border2:rgba(200,202,210,.26);--green:#3fcf79;--r:18px}
+*{box-sizing:border-box}html,body{margin:0;height:100%}
+body{background:var(--bg1);color:var(--ink);font-family:"Geist",system-ui,sans-serif;font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh}
+.aurora{position:fixed;inset:0;z-index:-1;background:radial-gradient(1100px 760px at 10% -8%,rgba(95,134,255,.13),transparent 55%),radial-gradient(900px 640px at 96% 6%,rgba(232,194,117,.1),transparent 55%),radial-gradient(1000px 720px at 72% 108%,rgba(134,59,255,.12),transparent 55%),linear-gradient(165deg,var(--bg1),var(--bg2) 48%,var(--bg3))}
+.top{display:flex;align-items:center;gap:13px;padding:18px 30px;border-bottom:1px solid var(--border);background:var(--glass);backdrop-filter:blur(18px);position:sticky;top:0;z-index:5}
+.top svg{width:30px;height:30px}.top .tt{font-family:"Instrument Serif",serif;font-size:21px}.top .ts{font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.24em}
+.top .proto{margin-left:auto;font-size:10.5px;color:var(--gold);border:1px solid var(--gold);border-radius:999px;padding:4px 12px;letter-spacing:.14em}
+.wrap{max-width:1120px;margin:0 auto;padding:34px 30px 90px}
+.steps{display:flex;gap:8px;margin-bottom:30px;flex-wrap:wrap}
+.steps .st{font-size:11.5px;color:var(--faint);padding:6px 14px;border-radius:999px;border:1px solid var(--border);background:rgba(255,255,255,.02)}
+.steps .st.on{color:var(--ink);border-color:var(--gold);background:linear-gradient(135deg,rgba(232,194,117,.16),rgba(95,134,255,.1))}
+.steps .st.done{color:var(--green);border-color:rgba(63,207,121,.4)}
+.scr{display:none;animation:f .35s ease}.scr.on{display:block}@keyframes f{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+h1{font-family:"Instrument Serif",serif;font-weight:400;font-size:34px;margin:.1em 0 .3em;background:linear-gradient(110deg,#fff,var(--gold));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+h2{font-family:"Instrument Serif",serif;font-weight:400;font-size:25px;margin:.2em 0}
+.sub{color:var(--dim);margin-bottom:24px}
+.tile{display:block;width:100%;text-align:left;background:var(--glass);border:1px solid var(--border);border-radius:var(--r);padding:22px 24px;cursor:pointer;transition:.18s;color:var(--ink);font-family:inherit;margin:10px 0}
+.tile:hover{border-color:var(--gold);transform:translateY(-2px);box-shadow:0 16px 40px -22px rgba(232,194,117,.5)}
+.tile .h{font-size:18px;font-weight:600;display:flex;align-items:center;gap:11px}
+.tile .d{color:var(--dim);font-size:13.5px;margin-top:5px}
+.tile .ico{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;background:rgba(232,194,117,.12);border:1px solid rgba(232,194,117,.34);color:var(--gold);font-size:19px;flex-shrink:0}
+.dponly{font-size:10px;color:var(--purple);border:1px solid rgba(168,123,255,.4);border-radius:999px;padding:2px 9px;margin-left:auto}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:680px}
+.mescard{background:var(--glass);border:1px solid var(--border);border-radius:var(--r);padding:24px;cursor:pointer;transition:.18s}
+.mescard:hover{border-color:var(--gold);transform:translateY(-2px)}
+.mescard .mlbl{font-size:11px;text-transform:uppercase;letter-spacing:.2em;color:var(--faint)}
+.mescard .mmes{font-family:"Instrument Serif",serif;font-size:26px;margin:7px 0;text-transform:capitalize}
+.mescard .mcomp{color:var(--dim);font-size:13px}
+.bar{display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:var(--glass);border:1px solid var(--border);border-radius:14px;padding:14px 18px;margin-bottom:16px}
+.bar .k{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.1em}.bar .v{font-size:18px;font-weight:600}
+.bar .vg{color:var(--gold)}.bar .vb{color:var(--blue-soft)}.bar .vgr{color:var(--green)}
+.tablewrap{border:1px solid var(--border2);border-radius:var(--r);overflow:hidden;background:var(--glass2)}
+.tablescroll{overflow:auto;max-height:62vh}
+table{border-collapse:collapse;width:100%;font-size:12.5px;white-space:nowrap}
+th{background:rgba(95,134,255,.16);color:#fff;font-weight:600;text-align:left;padding:11px 13px;position:sticky;top:0;border-bottom:1px solid var(--border2)}
+th.r,td.r{text-align:right}th.c,td.c{text-align:center}
+td{padding:9px 13px;border-bottom:1px solid var(--border);color:var(--dim)}
+td.nm{color:#fff;font-weight:500;white-space:nowrap}td.mono{font-family:"Geist Mono",monospace}td.dim{color:var(--faint);max-width:200px;overflow:hidden;text-overflow:ellipsis}
+tbody tr:hover td{background:rgba(95,134,255,.06)}
+.pill{font-size:10px;padding:2px 9px;border-radius:999px;border:1px solid}
+.pill.vt{color:var(--blue-soft);border-color:rgba(95,134,255,.4);background:rgba(95,134,255,.1)}
+.pill.mob{color:var(--gold);border-color:rgba(232,194,117,.4);background:rgba(232,194,117,.1)}
+.actions{display:flex;gap:12px;margin-top:22px;justify-content:flex-end}
+.btn{font-family:inherit;font-size:14px;font-weight:600;padding:12px 22px;border-radius:12px;cursor:pointer;border:1px solid var(--border2);background:rgba(255,255,255,.04);color:var(--ink);transition:.16s}
+.btn:hover{border-color:var(--ink)}
+.btn.primary{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#1a1407;border:none;box-shadow:0 10px 30px -12px rgba(232,194,117,.7)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{background:transparent}
+.confirm{max-width:560px;margin:30px auto;background:var(--glass2);border:1px solid var(--border2);border-radius:var(--r);padding:32px;text-align:center}
+.confirm .big{font-family:"Instrument Serif",serif;font-size:30px;margin:6px 0}
+.confirm .warn{background:rgba(232,194,117,.1);border:1px solid rgba(232,194,117,.34);border-radius:12px;padding:13px 16px;color:var(--gold);font-size:13.5px;margin:18px 0}
+.confirm .resumo{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin:20px 0}
+.confirm .resumo div{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:11px;padding:12px}
+.confirm .resumo .k{font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.1em}
+.confirm .resumo .v{font-size:19px;font-weight:600;margin-top:4px}
+.proc{max-width:520px;margin:60px auto;text-align:center}
+.spin{width:54px;height:54px;border-radius:50%;border:3px solid rgba(255,255,255,.12);border-top-color:var(--gold);margin:0 auto 22px;animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+.ok{width:66px;height:66px;border-radius:50%;background:rgba(63,207,121,.14);border:1px solid rgba(63,207,121,.5);color:var(--green);display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto 20px}
+.back{background:none;border:none;color:var(--faint);font-family:inherit;font-size:13px;cursor:pointer;margin-bottom:14px}.back:hover{color:var(--ink)}
+::-webkit-scrollbar{width:9px;height:9px}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.13);border-radius:6px}
+</style></head><body>
+<div class="aurora"></div>
+<div class="top"><?xml version="1.0" encoding="UTF-8" standalone="no"?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"><svg width="100%" height="100%" viewBox="0 0 633 632" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:2;">    <g transform="matrix(1.777778,0,0,1.777778,-5.306399,-131.999987)">        <g transform="matrix(1,0,0,1.107173,1.492425,-40.358298)">            <rect x="1.492" y="103.514" width="355.515" height="321.088" style="fill-opacity:0;"/>        </g>    </g>    <g transform="matrix(1.777778,0,0,1.777778,-5.306399,-131.999987)">        <g transform="matrix(0.582529,0,0,0.58256,68.443582,135.875311)">            <path d="M183.759,218.636L-5.587,296.885C-5.587,296.885 196.902,2.818 197.214,2.727C197.214,2.727 376.078,273.531 391.144,296.885L208.752,218.152C209.598,217.633 349.039,270.316 349.039,270.316C349.046,270.283 197.214,44.556 197.214,44.556L44.432,263.509L183.759,218.636Z" style="fill:white;"/>            <g transform="matrix(1,0,0,1,8.237882,0.595988)">                <path d="M282.049,293.263L188.976,395.347L194.113,239.916L382.906,298.869C382.906,298.869 282.284,293.106 282.049,293.263Z" style="fill:rgb(157,157,157);"/>            </g>            <g transform="matrix(1,0,0,1,5.306285,0.147113)">                <path d="M-10.893,299.311L186.745,240.41L191.908,395.796L98.809,292.96C98.809,292.96 -10.897,299.411 -10.893,299.311Z" style="fill:rgb(157,157,157);"/>            </g>            <g transform="matrix(1,0,0,1,11.833082,-4.042063)">                <path d="M185.381,71.086L278.5,244.599L190.518,214.306L185.381,71.086Z" style="fill:white;"/>            </g>            <g transform="matrix(-1,0,0,1,382.595225,-4.042063)">                <path d="M185.381,71.086L278.5,244.554L190.544,214.306L185.381,71.086Z" style="fill:white;"/>            </g>            <path d="M-5.587,296.885L197.214,213.073C200.645,214.775 391.144,296.885 391.144,296.885L391.144,299.462L197.214,219.565L-5.587,299.465L-5.587,296.885Z" style="fill:white;"/>            <path d="M61.086,273.252C175.78,227.09 197.214,219.549 197.214,219.549L327.488,273.233L197.214,228.961L61.086,273.252Z" style="fill:rgb(157,157,157);"/>        </g>    </g></svg><div><div class="tt">AIONS</div><div class="ts">Pagamento Mensal Intermitente</div></div><div class="proto">PROTÓTIPO · só DP</div></div>
+<div class="wrap">
+  <div class="steps">
+    <div class="st" data-s="0">Início</div><div class="st" data-s="1">Escolher mês</div><div class="st" data-s="2">Conferir pessoas</div><div class="st" data-s="3">Confirmar</div><div class="st" data-s="4">Pagamento</div>
+  </div>
+
+  <!-- 0: HUB -->
+  <section class="scr on" id="s0">
+    <h1>Departamento Pessoal</h1><p class="sub">Escolha a operação. O pagamento mensal é exclusivo do DP.</p>
+    <button class="tile" onclick="go(1)"><div class="h"><span class="ico">$</span>Pagamento Mensal Intermitente<span class="dponly">só DP</span></div><div class="d">Roda o fechamento/pagamento do mês para o grupo MENSAL — Caju + lançamento no RM.</div></button>
+    <button class="tile" style="opacity:.5;cursor:not-allowed"><div class="h"><span class="ico" style="background:rgba(95,134,255,.12);border-color:rgba(95,134,255,.34);color:var(--blue-soft)">+</span>Nova convocação</div><div class="d">(fora do protótipo)</div></button>
+  </section>
+
+  <!-- 1: ESCOLHER MÊS -->
+  <section class="scr" id="s1">
+    <button class="back" onclick="go(0)">← voltar</button>
+    <h2>Qual mês pagar?</h2><p class="sub">Só aparecem os meses disponíveis no registro de boards. Mesma regra da convocação.</p>
+    <div class="grid2">
+      <div class="mescard" onclick="escolher('atual','06/2026')"><div class="mlbl">Mês atual</div><div class="mmes">junho de 2026</div><div class="mcomp">competência 06/2026 · board 18413180912</div></div>
+      <div class="mescard" onclick="escolher('proximo','07/2026')"><div class="mlbl">Próximo mês</div><div class="mmes">julho de 2026</div><div class="mcomp">competência 07/2026 · board 18418191275</div></div>
+    </div>
+  </section>
+
+  <!-- 2: TABELA -->
+  <section class="scr" id="s2">
+    <button class="back" onclick="go(1)">← trocar mês</button>
+    <h2>Conferir pessoas do grupo MENSAL</h2><p class="sub">Réplica do board/grupo <b>MENSAL</b> da competência <b id="comp2">06/2026</b>. Confira antes de pagar.</p>
+    <div class="bar">
+      <div><div class="k">Pessoas</div><div class="v">20</div></div>
+      <div><div class="k">Total VR</div><div class="v vg">R$ 1.396,35</div></div>
+      <div><div class="k">Total VT</div><div class="v vb">R$ 202,70</div></div>
+      <div><div class="k">Total geral</div><div class="v vgr">R$ 1.599,05</div></div>
+      <div style="margin-left:auto"><div class="k">Contratos</div><div class="v" style="font-size:13px">SEMSA · SEDUC ESCOLA · DETRAN · CETAM · TRE PB</div></div>
+    </div>
+    <div class="tablewrap"><div class="tablescroll"><table>
+      <thead><tr><th class="c">#</th><th>Nome do Empregado</th><th>Chapa</th><th>Contrato</th><th>Função</th><th>Unidade</th><th class="c">Benefício</th><th class="r">VR</th><th class="r">VT</th><th class="c">Dias VR/VT</th></tr></thead>
+      <tbody><tr>
+  <td class="c">1</td>
+  <td class="nm">ADRIANE DOS SANTOS ANDRADE</td>
+  <td class="mono">007337</td>
+  <td>SEMSA</td>
+  <td class="dim">AUXILIAR DE SERVIÇOS GERAIS</td>
+  <td class="dim">UBS MJ PM SALVIO BELOTA</td>
+  <td class="c"><span class="pill vt">VT</span></td>
+  <td class="r">R$ 73,50</td>
+  <td class="r">R$ 10,00</td>
+  <td class="c dim">11/13</td>
+</tr>
+<tr>
+  <td class="c">2</td>
+  <td class="nm">ALCINEI ALENCAR BARBOSA</td>
+  <td class="mono">007223</td>
+  <td>SEDUC ESCOLA</td>
+  <td class="dim">AUXILIAR DE SERVIÇOS GERAIS</td>
+  <td class="dim">SEDUC ESCOLA - PROF. JACIRA CABOCLO</td>
+  <td class="c"><span class="pill vt">VT</span></td>
+  <td class="r">R$ 73,50</td>
+  <td class="r">R$ 10,00</td>
+  <td class="c dim">22/22</td>
+</tr>
+<tr>
+  <td class="c">3</td>
+  <td class="nm">ALEXSANDRO ARAUJO DE CASTRO</td>
+  <td class="mono">007277</td>
+  <td>SEDUC ESCOLA</td>
+  <td class="dim">AUXILIAR DE SERVIÇOS GERAIS</td>
+  <td class="dim">SEDUC - DEPOSITO V8</td>
+  <td class="c"><span class="pill vt">VT</span></td>
+  <td class="r">R$ 73,50</td>
+  <td class="r">R$ 10,00</td>
+  <td class="c dim">22/22</td>
+</tr>
+<tr>
+  <td class="c">4</td>
+  <td class="nm">ALMIRA TELMA TEIXEIRA SOARES</td>
+  <td class="mono">003861</td>
+  <td>DETRAN</td>
+  <td class="dim">AGENTE DE PORTARIA</td>
+  <td class="dim">DETRAN - INTERMITENTE</td>
+  <td class="c"><span class="pill vt">VT</span></td>
+  <td class="r">R$ 51,45</td>
+  <td class="r">R$ 0,00</td>
+  <td class="c dim">30/22</td>
+</tr>
+<tr>
+  <td class="c">5</td>
+  <td class="nm">ANA CAROLINE COSTA REBELO</td>
+  <td class="mono">006491</td>
+  <td>DETRAN</td>
+  <td class="dim">AGENTE DE PORTARIA</td>
+  <td class="dim">DETRAN - INTERMITENTE</td>
+  <td class="c"><span class="pill vt">VT</span></td>
+  <td class="r">R$ 51,45</td>
+  <td class="r">R$ 10,00</td>
+  <td class="c dim">30/22</td>
+</tr>
+<tr>
+  <td class="c">6</td>
+  <td class="nm">ANDRIELSON NASCIMENTO TAVARES</td>
+  <td class="mono">003330</td>
+  <td>DETRAN</td>
+  <td class="dim">AGENTE DE PORTARIA</td>
+  <td class="dim">DETRAN - INTERMITENTE</td>
+  <td class="c"><span class="pill vt">VT</span></td>
+  <td class="r">R$ 51,45</td>
+  <td class="r">R$ 10,00</td>
+  <td class="c dim">30/22</td>
+</tr>
+<tr>
+  <td class="c">7</td>
+  <td class="nm">ANGELA GUIMARAES DE SOUSA</td>
+  <td class="mono">007093</td>
+  <td>SEDUC ESCOLA</td>
+  <td class="dim">AUXILIAR DE SERVIÇOS GERAIS</td>
+  <td class="dim">SEDUC ESCOLA - DIOFANTO VIEIRA</td>
+  <td class="c"><span class="pill vt">VT</span></td>
+  <td class="r">R$ 73,50</td>
+  <td class="r">R$ 10,00</td>
+  <td class="c dim">22/22</td>
+</tr>
+<tr>
+  <td class="c">8</td>
+  <td class="nm">BARBARA JUREMA FERNANDES DA SILVA</td>
+  <td class="mono">007213</td>
+  <td>SEMSA</td>
+  <td class="dim">AUXILIAR DE SERVIÇOS GERAIS</td>
+  <td class="dim">dr José Rayol dos Santo</td>
+  <td class="c"><span class="pill vt">VT</span></td>
+  <td class="r">R$ 73,50</td>
+  <td class="r">R$ 10,00</td>
+  <td class="c dim">21/25</td>
+</tr>
+<tr>
+  <td class="c">9</td>
+  <td class="nm">CARLA DA SILVA OLIVEIRA</td>
+  <td class="mono">006994</td>
+  <td>SEDUC ESCOLA</td>
+  <td class="dim">AUXILIAR DE SERVIÇOS GERAIS</td>
+  <td class="dim">SEDUC ESCOLA - MANUEL ANTONIO</td>
+  <td class="c"><span class="pill vt">VT</span></td>
+  <td class="r">R$ 73,50</td>
+  <td class="r">R$ 10,00</td>
+  <td class="c dim">22/22</td>
+</tr>
+<tr>
+  <td class="c">10</td>
+  <td class="nm">CRISTIANE DOS SANTOS MEDEIROS</td>
+  <td class="mono">007319</td>
+  <td>SEMSA</td>
+  <td class="dim">AUXILIAR DE SERVIÇOS GERAIS</td>
+  <td class="dim">UBS LUCIO FLAVIO DE VASCONCELOS</td>
+  <td class="c"><span class="pill vt">VT</span></td>
+  <td class="r">R$ 73,50</td>
+  <td class="r">R$ 10,00</td>
+  <td class="c dim">11/11</td>
+</tr>
+<tr>
+  <td class="c">11</td>
+  <td class="nm">CRISTIANE VASCONCELOS CHAVES</td>
+  <td class="mono">007143</td>
+  <td>SEMSA</td>
+  <td class="dim">AUXILIAR DE SERVIÇOS GERAIS</td>
+  <td class="dim">CAPS INFANTO JUVENIL LESTE</td>
+  <td class="c"><span class="pill vt">VT</span></td>
+  <td class="r">R$ 73,50</td>
+  <td class="r">R$ 10,00</td>
+  <td class="c dim">8/8</td>
+</tr>
+<tr>
+  <td class="c">12</td>
+  <td class="nm">CRISTIANO DE OLIVEIRA BRAZ</td>
+  <td class="mono">007272</td>
+  <td>SEMSA</td>
+  <td class="dim">AUXILIAR DE SERVIÇOS GERAIS</td>
+  <td class="dim">SEMSA SEDE</td>
+  <td class="c"><span class="pill vt">VT</span></td>
+  <td class="r">R$ 73,50</td>
+  <td class="r">R$ 10,00</td>
+  <td class="c dim">11/11</td>
+</tr>
+<tr>
+  <td class="c">13</td>
+  <td class="nm">ELAINE RIBEIRO DA CRUZ</td>
+  <td class="mono">007326</td>
+  <td>SEMSA</td>
+  <td class="dim">AUXILIAR DE SERVIÇOS GERAIS</td>
+  <td class="dim">SEMSA - UBS GUILHERME ALEXANDRE</td>
+  <td class="c"><span class="pill vt">VT</span></td>
+  <td class="r">R$ 73,50</td>
+  <td class="r">R$ 10,00</td>
+  <td class="c dim">11/11</td>
+</tr>
+<tr>
+  <td class="c">14</td>
+  <td class="nm">ELBER PAULA COUTINHO</td>
+  <td class="mono">007046</td>
+  <td>CETAM</td>
+  <td class="dim">AUXILIAR DE SERVIÇOS GERAIS</td>
+  <td class="dim">CETAM - INTERMITENTE</td>
+  <td class="c"><span class="pill mob">Mobilidade</span></td>
+  <td class="r">R$ 73,50</td>
+  <td class="r">R$ 0,00</td>
+  <td class="c dim">8/8</td>
+</tr>
+<tr>
+  <td class="c">15</td>
+  <td class="nm">ERIENE SOUZA DOS SANTOS</td>
+  <td class="mono">007313</td>
+  <td>CETAM</td>
+  <td class="dim">AUXILIAR DE SERVIÇOS GERAIS</td>
+  <td class="dim">CETAM - GASTRONOMIA</td>
+  <td class="c"><span class="pill vt">VT</span></td>
+  <td class="r">R$ 73,50</td>
+  <td class="r">R$ 10,00</td>
+  <td class="c dim">6/6</td>
+</tr>
+<tr>
+  <td class="c">16</td>
+  <td class="nm">FABIANA DOS ANJOS SILVA</td>
+  <td class="mono">006824</td>
+  <td>TRE PB</td>
+  <td class="dim">AUXILIAR DE SERVIÇOS GERAIS</td>
+  <td class="dim">TRE PB - INTERMITENTE</td>
+  <td class="c"><span class="pill vt">VT</span></td>
+  <td class="r">R$ 66,00</td>
+  <td class="r">R$ 32,70</td>
+  <td class="c dim">22/22</td>
+</tr>
+<tr>
+  <td class="c">17</td>
+  <td class="nm">FABIANA MATEUS GONCALVES</td>
+  <td class="mono">007209</td>
+  <td>SEMSA</td>
+  <td class="dim">AUXILIAR DE SERVIÇOS GERAIS</td>
+  <td class="dim">Centro reabilitação Roll Gracie</td>
+  <td class="c"><span class="pill vt">VT</span></td>
+  <td class="r">R$ 73,50</td>
+  <td class="r">R$ 10,00</td>
+  <td class="c dim">21/21</td>
+</tr>
+<tr>
+  <td class="c">18</td>
+  <td class="nm">GEARA LOPES BARBOSA</td>
+  <td class="mono">007317</td>
+  <td>SEDUC ESCOLA</td>
+  <td class="dim">AUXILIAR DE SERVIÇOS GERAIS</td>
+  <td class="dim">SEDUC ESCOLA - PAULO FREIRE</td>
+  <td class="c"><span class="pill vt">VT</span></td>
+  <td class="r">R$ 73,50</td>
+  <td class="r">R$ 10,00</td>
+  <td class="c dim">22/22</td>
+</tr>
+<tr>
+  <td class="c">19</td>
+  <td class="nm">JACIANE FERREIRA DA SILVA</td>
+  <td class="mono">007190</td>
+  <td>SEMSA</td>
+  <td class="dim">AUXILIAR DE SERVIÇOS GERAIS</td>
+  <td class="dim">UBS MEGUMO KADO</td>
+  <td class="c"><span class="pill vt">VT</span></td>
+  <td class="r">R$ 73,50</td>
+  <td class="r">R$ 10,00</td>
+  <td class="c dim">11/11</td>
+</tr>
+<tr>
+  <td class="c">20</td>
+  <td class="nm">JACIRENE ALVES ANSELMO</td>
+  <td class="mono">007250</td>
+  <td>SEMSA</td>
+  <td class="dim">AUXILIAR DE SERVIÇOS GERAIS</td>
+  <td class="dim">UBS ILIDIO DE ALMEIDA</td>
+  <td class="c"><span class="pill vt">VT</span></td>
+  <td class="r">R$ 73,50</td>
+  <td class="r">R$ 10,00</td>
+  <td class="c dim">21/21</td>
+</tr></tbody>
+    </table></div></div>
+    <div class="actions"><button class="btn ghost" onclick="go(1)">Cancelar</button><button class="btn primary" onclick="go(3)">Tudo certo, prosseguir →</button></div>
+  </section>
+
+  <!-- 3: CONFIRMAÇÃO -->
+  <section class="scr" id="s3">
+    <div class="confirm">
+      <div class="mlbl" style="font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.2em">Confirmar pagamento</div>
+      <div class="big">Pagar <span style="color:var(--gold)">20 pessoas</span><br>do mês <span id="comp3">06/2026</span>?</div>
+      <div class="warn">⚠ Esta ação inicia o pagamento real (Caju + lançamento no RM) para todas as 20 pessoas do grupo MENSAL. Não dá pra desfazer pelo app.</div>
+      <div class="resumo">
+        <div><div class="k">Pessoas</div><div class="v">20</div></div>
+        <div><div class="k">Total VR</div><div class="v" style="color:var(--gold)">R$ 1.396,35</div></div>
+        <div><div class="k">Total VT</div><div class="v" style="color:var(--blue-soft)">R$ 202,70</div></div>
+      </div>
+      <div class="actions" style="justify-content:center"><button class="btn ghost" onclick="go(2)">← revisar</button><button class="btn primary" onclick="go(4);pagar()">Confirmar e pagar</button></div>
+    </div>
+  </section>
+
+  <!-- 4: PAGAMENTO -->
+  <section class="scr" id="s4">
+    <div class="proc" id="proc"><div class="spin"></div><h2>Iniciando pagamento…</h2><p class="sub">Disparando a automação mensal (Caju + RM) para 20 pessoas.</p></div>
+    <div class="proc" id="done" style="display:none"><div class="ok">✓</div><h2>Pagamento iniciado</h2><p class="sub">A automação mensal foi disparada para <b>20 pessoas</b> da competência <span id="comp4">06/2026</span>. Acompanhe o progresso no board.</p><div class="actions" style="justify-content:center"><button class="btn primary" onclick="go(0)">Concluir</button></div></div>
+  </section>
+</div>
+<script>
+let papel="atual",comp="06/2026";
+function go(n){document.querySelectorAll(".scr").forEach(s=>s.classList.remove("on"));document.getElementById("s"+n).classList.add("on");
+  document.querySelectorAll(".steps .st").forEach(st=>{const s=+st.dataset.s;st.classList.toggle("on",s===n);st.classList.toggle("done",s<n);});window.scrollTo(0,0);}
+function escolher(p,c){papel=p;comp=c;["comp2","comp3","comp4"].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=c;});go(2);}
+function pagar(){document.getElementById("proc").style.display="";document.getElementById("done").style.display="none";
+  setTimeout(()=>{document.getElementById("proc").style.display="none";document.getElementById("done").style.display="";},2200);
+  /* REAL: fetch(N8N+'/intermitente-mensal-fechamento',{method:'POST',body:JSON.stringify({papel,competencia:comp.split('/').reverse().join('-')})}) */
+}
+go(0);
+</script></body></html>

@@ -19,7 +19,13 @@
       "Bash(git push *)",
       "WebFetch(domain:api.nexti.com)",
       "Bash(python3 -c ' *)",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(echo \"===EXIT $?===\")",
+      "Bash(cmd /c start \"\" \"https://platform.claude.com/oauth/authorize?code=true&client_id=9d1c250a-e61b-44d9-88ed-5944d1962f5e&response_type=code&redirect_uri=https%3A%2F%2Fplatform.claude.com%2Foauth%2Fcode%2Fcallback&scope=org%3Acreate_api_key+user%3Aprofile+user%3Ainference+user%3Asessions%3Aclaude_code+user%3Amcp_servers+user%3Afile_upload&code_challenge=RPm-E6Pa2yMM1s8e8TgtA5VIpgVB2bRNtrx20TBX4bc&code_challenge_method=S256&state=uLg_UlM3lpZhto5CDuMg-3sX8-V62znI15r2PnKeSt0\")",
+      "PowerShell(Start-Process \"https://platform.claude.com/oauth/authorize?code=true&client_id=9d1c250a-e61b-44d9-88ed-5944d1962f5e&response_type=code&redirect_uri=https%3A%2F%2Fplatform.claude.com%2Foauth%2Fcode%2Fcallback&scope=org%3Acreate_api_key+user%3Aprofile+user%3Ainference+user%3Asessions%3Aclaude_code+user%3Amcp_servers+user%3Afile_upload&code_challenge=RPm-E6Pa2yMM1s8e8TgtA5VIpgVB2bRNtrx20TBX4bc&code_challenge_method=S256&state=uLg_UlM3lpZhto5CDuMg-3sX8-V62znI15r2PnKeSt0\")",
+      "Bash(python -c \"import fitz; print\\('ok'\\)\")",
+      "Bash(pip install *)",
+      "Bash(python -c ' *)"
     ]
   }
 }
