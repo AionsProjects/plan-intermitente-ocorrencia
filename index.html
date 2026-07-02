@@ -13,7 +13,7 @@
           var sysDark = matchMedia("(prefers-color-scheme: dark)").matches;
           var t = m === "light" || m === "dark" ? m : sysDark ? "dark" : "light";
           var a = localStorage.getItem("pi-accent");
-          if (["aurora", "seco", "verde", "rosa", "rubi", "roxo"].indexOf(a) < 0)
+          if (["aurora", "seco", "verde", "rosa", "rubi", "roxo", "campo"].indexOf(a) < 0)
             a = "aurora";
           var e = document.documentElement;
           e.dataset.theme = t;

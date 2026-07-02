@@ -11,6 +11,7 @@ import { useThemeState } from "@/lib/theme"
  *   seco     → neve fina caindo                                  ("Grafite")
  *   rubi     → brasas subindo com fade                           ("Brasa")
  *   roxo     → estrelas cintilando + estrela cadente rara        ("Nebulosa")
+ *   campo    → grama balançando no rodapé + rajadas de vento     ("Campo")
  * Respeita a preferência "reduzir animações" e prefers-reduced-motion (CSS).
  */
 
@@ -131,6 +132,36 @@ export function FundoTematico() {
             height: `${2 + rnd(i + 85) * 2.5}px`,
           })}
         />
+      )}
+
+      {scheme === "campo" && (
+        <>
+          <div className="ft-campo-solo" />
+          {/* lâminas de grama: alturas/fases variadas, balanço dessincronizado */}
+          <Particulas
+            n={26}
+            className="ft-grama"
+            estilo={(i) => ({
+              left: `${(i / 26) * 100 + rnd(i) * 3}%`,
+              height: `${24 + rnd(i + 31) * 44}px`,
+              width: `${2 + rnd(i + 61) * 1.6}px`,
+              animationDuration: `${2.6 + rnd(i + 7) * 2.6}s`,
+              animationDelay: `${rnd(i + 91) * -6}s`,
+              opacity: 0.45 + rnd(i + 21) * 0.3,
+            })}
+          />
+          {/* rajadas de vento atravessando a tela */}
+          <Particulas
+            n={4}
+            className="ft-vento-linha"
+            estilo={(i) => ({
+              top: `${16 + rnd(i + 5) * 58}%`,
+              width: `${90 + rnd(i + 35) * 130}px`,
+              animationDuration: `${7 + rnd(i + 65) * 6}s`,
+              animationDelay: `${rnd(i + 95) * -12}s`,
+            })}
+          />
+        </>
       )}
 
       {scheme === "roxo" && (
