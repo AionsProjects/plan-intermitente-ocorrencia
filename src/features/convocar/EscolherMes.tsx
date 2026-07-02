@@ -1,4 +1,5 @@
-import { ArrowLeft, CalendarDays, Loader2 } from "lucide-react"
+import { useState } from "react"
+import { ArrowLeft, CalendarDays, Loader2, TriangleAlert } from "lucide-react"
 import { format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
@@ -23,8 +24,12 @@ function rotuloMes(competencia: string | null): string {
 // Etapa ENTRE buscar empregado e formulário: escolhe o mês (board) da convocação.
 // Mostra os meses VÁLIDOS vindos do registry — mês atual + próximo (se o board já
 // existe). Na virada, o registry promove os papéis e isto reflete automático.
+type Opcao = { papel: "passado" | "atual" | "proximo"; competencia: string | null; titulo: string }
+
 export function EscolherMes({ empregado, onTrocarEmpregado, onEscolher }: Props) {
   const { data: meses, isLoading } = useMesesConvocacao()
+  // Mês passado pede confirmação: aviso de lançamento retroativo antes de seguir.
+  const [confirmandoPassado, setConfirmandoPassado] = useState<Opcao | null>(null)
 
   const opcoes = [
     meses?.passado.existe
@@ -69,7 +74,11 @@ export function EscolherMes({ empregado, onTrocarEmpregado, onEscolher }: Props)
             <button
               key={o.papel}
               type="button"
-              onClick={() => onEscolher(o.papel, o.competencia ?? "")}
+              onClick={() =>
+                o.papel === "passado"
+                  ? setConfirmandoPassado(o)
+                  : onEscolher(o.papel, o.competencia ?? "")
+              }
               className="glass-tile glass-tile-3d group flex items-center justify-between gap-4 rounded-2xl px-5 py-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--ink)/0.7)]"
             >
               <div className="flex items-center gap-3.5">
@@ -83,6 +92,11 @@ export function EscolherMes({ empregado, onTrocarEmpregado, onEscolher }: Props)
                   </p>
                 </div>
               </div>
+              {o.papel === "passado" && (
+                <span className="shrink-0 rounded-full border border-amber-400/40 bg-amber-400/10 px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-700 dark:text-amber-200">
+                  Retroativo
+                </span>
+              )}
             </button>
           ))}
           {opcoes.length === 0 && (
@@ -90,6 +104,44 @@ export function EscolherMes({ empregado, onTrocarEmpregado, onEscolher }: Props)
               Nenhum mês disponível para convocação. Verifique o registro dos boards.
             </p>
           )}
+        </div>
+      )}
+
+      {confirmandoPassado && (
+        <div className="fade-up rounded-2xl border border-amber-400/35 bg-amber-400/[0.08] px-5 py-4">
+          <div className="flex items-start gap-3">
+            <TriangleAlert className="mt-0.5 size-5 shrink-0 text-amber-700 dark:text-amber-300" />
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-foreground/95">
+                Lançamento retroativo —{" "}
+                <span className="capitalize">{rotuloMes(confirmandoPassado.competencia)}</span> já
+                foi encerrado.
+              </p>
+              <p className="mt-1.5 text-[13px] leading-relaxed text-foreground/65">
+                Este mês só continua aberto para regularizar pendências que deveriam ter sido
+                lançadas dentro do próprio mês. O ideal é que as convocações sejam feitas na
+                competência certa — use esta opção apenas para corrigir o que ficou para trás.
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setConfirmandoPassado(null)}
+              className="rounded-full border border-border px-4 py-1.5 text-xs text-foreground/70 transition hover:text-foreground"
+            >
+              Voltar
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                onEscolher(confirmandoPassado.papel, confirmandoPassado.competencia ?? "")
+              }
+              className="rounded-full border border-amber-400/50 bg-amber-400/15 px-4 py-1.5 text-xs font-medium text-amber-800 transition hover:bg-amber-400/25 dark:text-amber-100"
+            >
+              Entendi, continuar
+            </button>
+          </div>
         </div>
       )}
     </div>
