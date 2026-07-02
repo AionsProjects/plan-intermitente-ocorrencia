@@ -75,6 +75,8 @@ const COL = {
   justificativa: "OP - Justificativa",
   substituido: "OP - Empregado Substituído",
   statusConvocacao: "Status", // título no board Entrada (= Status Convocação, color_mm3a8ana)
+  optanteVT: "Vale Transporte",
+  vtSoVolta: "OP - VT só volta?",
   termoConvocacao: "Termo de Convocação",
   termoInsalubridade: "Termo de Insalubridade",
 } as const
@@ -92,11 +94,38 @@ async function resolverBoard(papel: string) {
     `SELECT nome, column_id FROM board_colunas WHERE monday_board_id=$1`,
     [boardId],
   )
-  return { boardId, idPorNome: new Map(cols.map((c) => [c.nome, c.column_id])) }
+  const { rows: grupos } = await query<{ group_id: string }>(
+    `SELECT group_id FROM board_grupos WHERE monday_board_id=$1 AND upper(titulo)='PONTUAL' LIMIT 1`,
+    [boardId],
+  )
+  return {
+    boardId,
+    idPorNome: new Map(cols.map((c) => [c.nome, c.column_id])),
+    grupoPontual: grupos[0]?.group_id,
+  }
 }
 
 function overlap(aIni: string, aFim: string, bIni: string, bFim: string): boolean {
   return aIni <= bFim && bIni <= aFim
+}
+
+function semAcento(v: string): string {
+  return v.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+}
+
+function normalizeVtLabel(v: string | undefined): string {
+  const raw = semAcento(String(v ?? "").trim()).toUpperCase()
+  if (raw === "SIM*") return "SIM*"
+  if (raw === "SIM" || raw === "TRUE" || raw === "1") return "SIM"
+  return "NÃO"
+}
+
+function normCode(v: string): string {
+  return v.replace(/\D/g, "").replace(/^0+/, "") || v.trim().toUpperCase()
+}
+
+function normName(v: string): string {
+  return semAcento(v).toUpperCase().replace(/\s+/g, " ").trim()
 }
 
 export async function rotasConvocar(app: FastifyInstance): Promise<void> {
@@ -157,7 +186,7 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
 
   // Cria convocação no board do mês (atual/proximo) — substitui WF7. Multipart
   // (campos + termos opcionais). Antifraude de período + create_item + upload.
-  app.post("/api/convocar/criar", async (req: FastifyRequest, reply: FastifyReply) => {
+  const criarConvocacaoHandler = async (req: FastifyRequest, reply: FastifyReply) => {
     // Escrita no Monday -> exige sessão (operador logado).
     const usuario = await usuarioDaSessao(req)
     if (!usuario) return reply.code(401).send({ ok: false, erro: "nao_autenticado" })
@@ -182,33 +211,69 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
       return reply.code(400).send({ ok: false, erro: "multipart_invalido" })
     }
 
-    const obrig = ["empregado_nome", "empregado_chapa", "contrato", "data_inicio", "data_fim"]
+    const obrig = [
+      "name",
+      "empregado_nome",
+      "escala",
+      "solicitante",
+      "contrato",
+      "local_unidade",
+      "sabado",
+      "insalubridade",
+      "interior",
+      "data_inicio",
+      "data_fim",
+      "justificativa",
+      "empregado_substituido",
+    ]
     for (const k of obrig) {
       if (!campos[k]) return reply.code(400).send({ ok: false, erro: "campo_obrigatorio", campo: k })
     }
     const dataInicio = campos.data_inicio
     const dataFim = campos.data_fim
-    if (dataInicio > dataFim) {
-      return reply.code(400).send({ ok: false, erro: "data_invalida" })
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dataInicio) || !/^\d{4}-\d{2}-\d{2}$/.test(dataFim)) {
+      return reply.code(400).send({
+        ok: false,
+        erro: "data_invalida",
+        mensagem: "Datas devem estar no formato YYYY-MM-DD.",
+      })
     }
+    if (dataInicio > dataFim) {
+      return reply.code(400).send({
+        ok: false,
+        erro: "data_invalida",
+        mensagem: "Data início > data fim.",
+      })
+    }
+    const optanteVt = normalizeVtLabel(campos.optante_vt || campos.optanteVT || campos.vale_transporte)
 
-    // papel/competência (seletor de mês). Default atual.
-    const papel = campos.papel === "proximo" ? "proximo" : "atual"
+    // papel/competência (seletor de mês). Default atual. "passado" = lançamento
+    // retroativo no board do mês anterior (regra: SÓ o mês passado, nada antes).
+    const papel = campos.papel === "proximo" ? "proximo"
+      : campos.papel === "passado" ? "passado"
+      : "atual"
     const b = await resolverBoard(papel)
     if (!b) return reply.code(404).send({ ok: false, erro: "board_nao_registrado" })
     const id = (nome: string) => b.idPorNome.get(nome)
 
     try {
       // ANTIFRAUDE: busca convocações da chapa no board, checa overlap de período efetivo.
-      const colChapa = id(COL.chapa)
-      if (colChapa) {
+      const temChapa = !!campos.empregado_chapa?.trim()
+      const colIdentidade = temChapa ? id(COL.chapa) : id(COL.nomeEmpregado)
+      const valorIdentidade = temChapa ? campos.empregado_chapa : campos.empregado_nome
+      if (colIdentidade && valorIdentidade) {
         const existentes = await acharItensPorColuna(
-          b.boardId, colChapa, campos.empregado_chapa,
-          [id(COL.dataInicio)!, id(COL.dataFim)!, COL.statusConvocacao && id(COL.statusConvocacao)!, CANCEL_INICIO_ID].filter(Boolean) as string[],
+          b.boardId, colIdentidade, valorIdentidade,
+          [id(COL.nomeEmpregado)!, id(COL.chapa)!, id(COL.dataInicio)!, id(COL.dataFim)!, id(COL.statusConvocacao)!, CANCEL_INICIO_ID].filter(Boolean) as string[],
           50,
         )
         for (const it of existentes) {
           const m = new Map(it.column_values.map((c) => [c.id, c.text]))
+          const atual = temChapa ? normCode(campos.empregado_chapa) : normName(campos.empregado_nome)
+          const existente = temChapa
+            ? normCode(String(m.get(id(COL.chapa) ?? "") ?? ""))
+            : normName(String(m.get(id(COL.nomeEmpregado) ?? "") ?? it.name))
+          if (!existente || existente !== atual) continue
           const statusConv = String(m.get(id(COL.statusConvocacao) ?? "") ?? "").toLowerCase()
           if (statusConv.includes("cancelada") && !statusConv.includes("parcial")) continue
           if (statusConv.includes("bloque")) continue
@@ -261,8 +326,15 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
       setStatus(COL.justificativa, campos.justificativa)
       setTexto(COL.substituido, campos.empregado_substituido)
       setStatus(COL.statusConvocacao, "Válida")
+      setStatus(COL.optanteVT, optanteVt)
+      setStatus(COL.vtSoVolta, optanteVt === "SIM*" ? "SIM" : "NÃO")
 
-      const item = await createItem(b.boardId, campos.name || `INTERMITENTE - ${campos.empregado_nome}`, cv)
+      const item = await createItem(
+        b.boardId,
+        campos.name || `INTERMITENTE - ${campos.empregado_nome}`,
+        cv,
+        b.grupoPontual,
+      )
 
       // UPLOAD termos (best-effort: não derruba a criação se falhar).
       const uploads: [string, string][] = [
@@ -286,5 +358,7 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
       req.log.error(e, "erro criar convocacao")
       return reply.code(502).send({ ok: false, erro: "erro_monday" })
     }
-  })
+  }
+  app.post("/api/convocar/criar", criarConvocacaoHandler)
+  app.post("/api/intermitente-convocar", criarConvocacaoHandler)
 }

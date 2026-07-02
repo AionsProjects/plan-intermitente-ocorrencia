@@ -32,7 +32,7 @@ import { unidadesParaContrato } from "@/lib/unidadesContrato"
 
 type Props = {
   empregado: EmpregadoRM
-  papel: "atual" | "proximo"
+  papel: "passado" | "atual" | "proximo"
   competencia: string // YYYY-MM do mês escolhido (trava o calendário)
   onTrocarEmpregado: () => void
   onVoltarMes: () => void

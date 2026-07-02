@@ -8,7 +8,7 @@ import type { EmpregadoRM } from "./types"
 type Props = {
   empregado: EmpregadoRM
   onTrocarEmpregado: () => void
-  onEscolher: (papel: "atual" | "proximo", competencia: string) => void
+  onEscolher: (papel: "passado" | "atual" | "proximo", competencia: string) => void
 }
 
 function rotuloMes(competencia: string | null): string {
@@ -27,13 +27,16 @@ export function EscolherMes({ empregado, onTrocarEmpregado, onEscolher }: Props)
   const { data: meses, isLoading } = useMesesConvocacao()
 
   const opcoes = [
+    meses?.passado.existe
+      ? { papel: "passado" as const, competencia: meses.passado.competencia, titulo: "Mês passado (retroativo)" }
+      : null,
     meses?.atual.existe
       ? { papel: "atual" as const, competencia: meses.atual.competencia, titulo: "Mês atual" }
       : null,
     meses?.proximo.existe
       ? { papel: "proximo" as const, competencia: meses.proximo.competencia, titulo: "Próximo mês" }
       : null,
-  ].filter((x): x is { papel: "atual" | "proximo"; competencia: string | null; titulo: string } => !!x)
+  ].filter((x): x is { papel: "passado" | "atual" | "proximo"; competencia: string | null; titulo: string } => !!x)
 
   return (
     <div className="space-y-6">

@@ -43,7 +43,7 @@ export function anexarOperador(fd: FormData): FormData {
 //  - n8n : sempre VITE_N8N_BASE_URL (comportamento de hoje; default).
 //  - api : sempre /api (flip manual de contingência; leitura E escrita).
 //  - auto: LEITURA tenta n8n (timeout) e cai pro /api em erro de rede/timeout/5xx.
-//          ESCRITA em auto = só n8n (timeout ≠ não-executou; retry duplicaria).
+//          ESCRITA em auto cai pro /api somente em 404 (webhook desligado/ausente).
 // Convenção espelho: a rota backend tem o MESMO path do webhook, sob /api.
 // ---------------------------------------------------------------------------
 
@@ -109,9 +109,18 @@ export async function chamarProcesso(
   if (modo === "api" || !N8N_BASE) {
     return fetch(urlApi, { ...init, credentials: "include" })
   }
-  if (modo === "n8n" || opts.tipo === "escrita") {
-    // escrita NUNCA faz failover automático — timeout não prova que o n8n não executou.
+  if (modo === "n8n") {
     return fetch(urlN8n, init)
+  }
+  if (opts.tipo === "escrita") {
+    // Timeout/5xx/rede nao provam que o n8n deixou de executar; 404 sim.
+    const res = await fetch(urlN8n, init)
+    if (modo === "auto" && res.status === 404) {
+      degradado = true
+      console.warn(`[fuga] escrita '${processo}' caiu pro backend (/api/${path})`)
+      return fetch(urlApi, { ...init, credentials: "include" })
+    }
+    return res
   }
   // auto + leitura: tenta n8n com timeout; erro de rede/timeout/5xx/404 → backend.
   // (404 no host do n8n = webhook desregistrado = WF desligado → failover.)

@@ -60,7 +60,7 @@ export function useOpcoesConvocacao() {
 // Meses de convocação (atual/próximo) com a competência (YYYY-MM) de cada board,
 // resolvida pelo registry. Controla o seletor de mês + o range do calendário.
 export type MesConvocacao = { existe: boolean; competencia: string | null }
-async function resolverMes(papel: "atual" | "proximo"): Promise<MesConvocacao> {
+async function resolverMes(papel: "passado" | "atual" | "proximo"): Promise<MesConvocacao> {
   const res = await fetch(`/api/boards/resolver?papel=${papel}`, {
     credentials: "same-origin",
   })
@@ -73,6 +73,8 @@ export function useMesesConvocacao() {
   return useQuery({
     queryKey: ["boards-meses-convocacao"],
     queryFn: async () => ({
+      // "passado" = lançamento retroativo (SÓ o mês anterior; nada antes disso).
+      passado: await resolverMes("passado"),
       atual: await resolverMes("atual"),
       proximo: await resolverMes("proximo"),
     }),

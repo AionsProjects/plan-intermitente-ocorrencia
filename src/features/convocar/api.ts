@@ -281,12 +281,12 @@ export async function criarConvocacao(
   fd.append("papel", payload.papel ?? "atual")
   anexarOperador(fd)
 
-  // WF7 n8n pronto (cria item com cálculo do board). Seletor de mês fica inócuo
-  // aqui (WF7 cria no board dele) até o WF7 virar dinâmico.
-  const res = await fetch(`${BASE_URL}/intermitente-convocar`, {
+  // Escrita: n8n continua primario. Em contingencia, admin muda `convocar=api`
+  // e este mesmo path cai no backend espelho (/api/intermitente-convocar).
+  const res = await chamarProcesso("convocar", "intermitente-convocar", {
     method: "POST",
     body: fd,
-  })
+  }, { tipo: "escrita" })
   if (!res.ok) {
     let mensagem = `Erro ${res.status}`
     let erro: string | undefined

@@ -12,7 +12,7 @@ import type { EmpregadoRM } from "./types"
 type Etapa =
   | { tipo: "busca" }
   | { tipo: "mes"; empregado: EmpregadoRM }
-  | { tipo: "form"; empregado: EmpregadoRM; papel: "atual" | "proximo"; competencia: string }
+  | { tipo: "form"; empregado: EmpregadoRM; papel: "passado" | "atual" | "proximo"; competencia: string }
   | { tipo: "sucesso"; itemId: string; itemUrl: string }
 
 const ORDEM: Record<Etapa["tipo"], number> = {
