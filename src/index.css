@@ -2216,29 +2216,36 @@ html {
 /* Estado "selecionado" persistente — usado por seletores de opção (radio-like)
    tipo Horário de almoço. Mantém o gold permanentemente, sem depender do hover. */
 .choice-btn--selected {
-  background: linear-gradient(135deg, #f0cc7d 0%, #d4a64a 55%, #8a6420 130%);
-  border-color: rgba(255, 236, 194, 0.6);
-  color: #0a1224;
+  /* Gradiente derivado do ACCENT do tema (claro → accent → escuro) — segue o esquema de cor. */
+  background: linear-gradient(135deg,
+    color-mix(in srgb, rgb(var(--accent-rgb)) 62%, white) 0%,
+    rgb(var(--accent-rgb)) 55%,
+    color-mix(in srgb, rgb(var(--accent-rgb)) 55%, black) 130%);
+  border-color: color-mix(in srgb, rgb(var(--accent-rgb)) 40%, rgb(255 255 255 / 0.65));
+  color: color-mix(in srgb, rgb(var(--accent-rgb)) 18%, #06080f);
   box-shadow:
     0 0 36px 4px rgb(var(--accent-rgb) / 0.35),
     0 12px 28px -6px rgb(var(--accent-rgb) / 0.55),
     inset 0 1px 0 0 rgb(var(--ink) / 0.5),
-    inset 0 -1px 0 0 rgba(138, 100, 32, 0.35);
+    inset 0 -1px 0 0 color-mix(in srgb, rgb(var(--accent-rgb)) 55%, rgb(0 0 0 / 0.55));
 }
 .choice-btn--selected:hover {
   box-shadow:
     0 0 48px 6px rgb(var(--accent-rgb) / 0.45),
     0 16px 36px -6px rgb(var(--accent-rgb) / 0.7),
     inset 0 1px 0 0 rgb(var(--ink) / 0.55),
-    inset 0 -1px 0 0 rgba(138, 100, 32, 0.4);
+    inset 0 -1px 0 0 color-mix(in srgb, rgb(var(--accent-rgb)) 55%, rgb(0 0 0 / 0.6));
 }
 
 /* Variante "primary" â€” comeÃ§a neutra (igual ghost), sÃ³ "acende" dourada
    no hover. Evita que o cÃ©rebro prÃ©-ative o "Sim" antes do usuÃ¡rio decidir. */
 .choice-btn--primary:hover {
-  background: linear-gradient(135deg, #f0cc7d 0%, #d4a64a 55%, #8a6420 130%);
-  border-color: rgba(255, 236, 194, 0.55);
-  color: #0a1224;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, rgb(var(--accent-rgb)) 62%, white) 0%,
+    rgb(var(--accent-rgb)) 55%,
+    color-mix(in srgb, rgb(var(--accent-rgb)) 55%, black) 130%);
+  border-color: color-mix(in srgb, rgb(var(--accent-rgb)) 40%, rgb(255 255 255 / 0.6));
+  color: color-mix(in srgb, rgb(var(--accent-rgb)) 18%, #06080f);
   box-shadow:
     /* Halo dourado distante (luz ambiente "vazando" ao redor) */
     0 0 60px 8px rgb(var(--accent-rgb) / 0.5),
@@ -2246,7 +2253,7 @@ html {
     0 20px 44px -6px rgb(var(--accent-rgb) / 0.75),
     /* Highlight da face (pop de cor) */
     inset 0 1px 0 0 rgb(var(--ink) / 0.55),
-    inset 0 -1px 0 0 rgba(138, 100, 32, 0.4);
+    inset 0 -1px 0 0 color-mix(in srgb, rgb(var(--accent-rgb)) 55%, rgb(0 0 0 / 0.6));
 }
 
 /* Variante "danger" â€” comeÃ§a neutro, vermelho escuro no hover, vermelho vivo no active */
@@ -2303,15 +2310,21 @@ html {
 }
 
 .choice-btn--primary:active {
-  background: linear-gradient(135deg, #d4a64a 0%, #b8862a 60%, #4a7dff 140%);
+  background: linear-gradient(135deg,
+    rgb(var(--accent-rgb)) 0%,
+    color-mix(in srgb, rgb(var(--accent-rgb)) 72%, black) 60%,
+    color-mix(in srgb, rgb(var(--accent-rgb)) 45%, black) 140%);
 }
 
 /* ===== Variantes de botão — tons por MODO CLARO ===== */
 [data-theme="light"] .choice-btn--selected,
 [data-theme="light"] .choice-btn--primary:hover {
-  background: linear-gradient(135deg, #f6d894 0%, #e6bd66 58%, #cf9a3c 130%);
-  color: #2a2208;
-  border-color: rgba(180, 140, 60, 0.5);
+  background: linear-gradient(135deg,
+    color-mix(in srgb, rgb(var(--accent-rgb)) 50%, white) 0%,
+    color-mix(in srgb, rgb(var(--accent-rgb)) 82%, white) 58%,
+    rgb(var(--accent-rgb)) 130%);
+  color: color-mix(in srgb, rgb(var(--accent-rgb)) 25%, #1a1a10);
+  border-color: color-mix(in srgb, rgb(var(--accent-rgb)) 55%, rgb(255 255 255 / 0.5));
 }
 [data-theme="light"] .choice-btn--danger:hover {
   background: rgba(244, 113, 113, 0.16);
