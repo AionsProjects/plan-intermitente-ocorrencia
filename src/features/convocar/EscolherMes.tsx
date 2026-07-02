@@ -3,7 +3,7 @@ import { ArrowLeft, CalendarCheck, CalendarPlus, History, Loader2 } from "lucide
 import { format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
-import { Button } from "@/components/ui/button"
+import { ChoiceButton } from "@/features/atestados/ChoiceButton"
 import {
   Dialog,
   DialogContent,
@@ -91,49 +91,45 @@ export function EscolherMes({ empregado, onTrocarEmpregado, onEscolher }: Props)
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {opcoes.map((o, i) => (
-            <button
-              key={o.papel}
-              type="button"
-              onMouseMove={tilt}
-              onMouseLeave={untilt}
-              onClick={() =>
-                o.papel === "passado"
-                  ? setConfirmandoPassado(o)
-                  : onEscolher(o.papel, o.competencia ?? "")
-              }
-              style={{ animationDelay: `${i * 90}ms` }}
-              className="fade-up glass-tile glass-tile-3d group relative flex items-center gap-4 overflow-hidden rounded-2xl px-5 py-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--ink)/0.7)]"
-            >
-              <div
-                className={`icon-3d-host flex size-11 shrink-0 items-center justify-center rounded-full ring-1 transition-transform duration-300 group-hover:scale-110 ${
+            /* wrapper com a animação de entrada — animation com fill-mode no próprio
+               botão sobrescreve o transform e MATA o efeito 3D (perspective) */
+            <div key={o.papel} className="fade-up" style={{ animationDelay: `${i * 90}ms` }}>
+              <button
+                type="button"
+                onMouseMove={tilt}
+                onMouseLeave={untilt}
+                onClick={() =>
                   o.papel === "passado"
-                    ? "bg-amber-400/12 ring-amber-400/40"
-                    : "bg-[rgb(var(--accent-rgb)/0.12)] ring-[rgb(var(--accent-rgb)/0.38)]"
-                }`}
+                    ? setConfirmandoPassado(o)
+                    : onEscolher(o.papel, o.competencia ?? "")
+                }
+                className="glass-tile glass-tile-3d group relative flex w-full items-center gap-4 overflow-hidden rounded-2xl px-5 py-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--ink)/0.7)]"
               >
-                {o.papel === "passado" ? (
-                  <History className="icon-3d-only size-5 text-amber-500 dark:text-amber-300 transition-transform duration-500 group-hover:-rotate-[25deg]" />
-                ) : o.papel === "atual" ? (
-                  <CalendarCheck className="icon-3d-only size-5 text-[rgb(var(--accent-rgb))]" />
-                ) : (
-                  <CalendarPlus className="icon-3d-only size-5 text-[rgb(var(--accent-rgb))]" />
+                <div className="icon-3d-host flex size-11 shrink-0 items-center justify-center rounded-full bg-[rgb(var(--accent-rgb)/0.12)] ring-1 ring-[rgb(var(--accent-rgb)/0.38)] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-110">
+                  {o.papel === "passado" ? (
+                    <History className="icon-3d-only size-5 text-[rgb(var(--accent-rgb))] transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-rotate-[30deg]" />
+                  ) : o.papel === "atual" ? (
+                    <CalendarCheck className="icon-3d-only size-5 text-[rgb(var(--accent-rgb))]" />
+                  ) : (
+                    <CalendarPlus className="icon-3d-only size-5 text-[rgb(var(--accent-rgb))]" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-foreground/45">
+                    {o.titulo}
+                  </p>
+                  <p className="text-display mt-0.5 truncate text-xl capitalize text-foreground">
+                    {rotuloMes(o.competencia)}
+                  </p>
+                  <p className="text-xs text-foreground/45">competência {o.competencia ?? "—"}</p>
+                </div>
+                {o.papel === "passado" && (
+                  <span className="absolute right-3 top-3 rounded-full border border-[rgb(var(--accent-rgb)/0.4)] bg-[rgb(var(--accent-rgb)/0.1)] px-2 py-0.5 text-[9px] font-medium uppercase tracking-wider text-[rgb(var(--accent-rgb))]">
+                    Retroativo
+                  </span>
                 )}
-              </div>
-              <div className="min-w-0">
-                <p className="text-[11px] uppercase tracking-[0.2em] text-foreground/45">
-                  {o.titulo}
-                </p>
-                <p className="text-display mt-0.5 truncate text-xl capitalize text-foreground">
-                  {rotuloMes(o.competencia)}
-                </p>
-                <p className="text-xs text-foreground/45">competência {o.competencia ?? "—"}</p>
-              </div>
-              {o.papel === "passado" && (
-                <span className="absolute right-3 top-3 rounded-full border border-amber-400/40 bg-amber-400/10 px-2 py-0.5 text-[9px] font-medium uppercase tracking-wider text-amber-700 dark:text-amber-200">
-                  Retroativo
-                </span>
-              )}
-            </button>
+              </button>
+            </div>
           ))}
           {opcoes.length === 0 && (
             <p className="text-sm text-foreground/55">
@@ -151,7 +147,7 @@ export function EscolherMes({ empregado, onTrocarEmpregado, onEscolher }: Props)
           style={{ backdropFilter: "blur(10px) saturate(130%)" }}
         >
           <DialogHeader>
-            <p className="text-[10px] uppercase tracking-[0.3em] text-amber-700/80 dark:text-amber-200/80">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-[rgb(var(--accent-rgb)/0.8)]">
               Lançamento retroativo
             </p>
             <DialogTitle className="text-display text-2xl text-foreground">
@@ -166,22 +162,16 @@ export function EscolherMes({ empregado, onTrocarEmpregado, onEscolher }: Props)
           </DialogHeader>
 
           <DialogFooter className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-2">
-            <Button
-              variant="ghost"
-              onClick={() => setConfirmandoPassado(null)}
-              className="text-foreground/85 hover:bg-[rgb(var(--ink)/0.1)] hover:text-foreground"
-            >
-              Voltar
-            </Button>
-            <Button
+            <ChoiceButton onClick={() => setConfirmandoPassado(null)}>Voltar</ChoiceButton>
+            <ChoiceButton
+              variant="primary"
               onClick={() =>
                 confirmandoPassado &&
                 onEscolher(confirmandoPassado.papel, confirmandoPassado.competencia ?? "")
               }
-              className="bg-amber-300 text-[#241a0a] hover:bg-amber-200"
             >
               Entendi, continuar
-            </Button>
+            </ChoiceButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>
