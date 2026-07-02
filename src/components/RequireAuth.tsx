@@ -15,5 +15,19 @@ export function RequireAuth() {
   }
   if (!usuario) return <Navigate to="/login" replace />
   if (!usuario.perfilCompleto) return <Navigate to="/completar-cadastro" replace />
-  return <Outlet />
+  return (
+    <>
+      {/* Assinatura visual do console (mesma do hub): orbes do accent respirando
+          atrás do conteúdo, em todas as telas de operador. */}
+      <div
+        aria-hidden
+        className="hub-orb pointer-events-none fixed left-1/2 top-1/2 z-0 size-[42rem] -translate-x-1/2 -translate-y-1/2 rounded-full"
+      />
+      <div
+        aria-hidden
+        className="hub-orb hub-orb--b pointer-events-none fixed left-[62%] top-[38%] z-0 size-[26rem] -translate-x-1/2 -translate-y-1/2 rounded-full"
+      />
+      <Outlet />
+    </>
+  )
 }

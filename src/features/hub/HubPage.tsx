@@ -99,15 +99,6 @@ export function HubPage() {
 
   return (
     <main className="relative z-10 flex min-h-svh items-center justify-center px-4 py-8 sm:px-6 sm:py-12">
-      {/* Orbe de luz do tema respirando atrás do console (profundidade) */}
-      <div
-        aria-hidden
-        className="hub-orb pointer-events-none absolute left-1/2 top-1/2 -z-10 size-[42rem] -translate-x-1/2 -translate-y-1/2 rounded-full"
-      />
-      <div
-        aria-hidden
-        className="hub-orb hub-orb--b pointer-events-none absolute left-[62%] top-[38%] -z-10 size-[26rem] -translate-x-1/2 -translate-y-1/2 rounded-full"
-      />
 
       <section className="glass-strong relative w-full max-w-3xl overflow-hidden rounded-3xl px-5 py-6 sm:px-8 sm:py-8 lg:px-10 lg:py-10">
         <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[rgb(var(--ink)/0.3)] to-transparent" />
