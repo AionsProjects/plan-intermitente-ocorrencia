@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react"
 import type { MouseEvent } from "react"
 import { Link } from "react-router-dom"
 import { format } from "date-fns"
@@ -89,6 +90,12 @@ export function HubPage() {
 
   const primeiroNome = (usuario?.nome ?? "").split(" ")[0]
   const hoje = format(new Date(), "EEEE, d 'de' MMMM", { locale: ptBR })
+  // Relógio vivo — console, não página estática.
+  const [agora, setAgora] = useState(() => format(new Date(), "HH:mm"))
+  useEffect(() => {
+    const t = setInterval(() => setAgora(format(new Date(), "HH:mm")), 15_000)
+    return () => clearInterval(t)
+  }, [])
 
   return (
     <main className="relative z-10 flex min-h-svh items-center justify-center px-4 py-8 sm:px-6 sm:py-12">
@@ -96,6 +103,10 @@ export function HubPage() {
       <div
         aria-hidden
         className="hub-orb pointer-events-none absolute left-1/2 top-1/2 -z-10 size-[42rem] -translate-x-1/2 -translate-y-1/2 rounded-full"
+      />
+      <div
+        aria-hidden
+        className="hub-orb hub-orb--b pointer-events-none absolute left-[62%] top-[38%] -z-10 size-[26rem] -translate-x-1/2 -translate-y-1/2 rounded-full"
       />
 
       <section className="glass-strong relative w-full max-w-3xl overflow-hidden rounded-3xl px-5 py-6 sm:px-8 sm:py-8 lg:px-10 lg:py-10">
@@ -120,7 +131,11 @@ export function HubPage() {
               ) : null}
               .
             </h1>
-            <p className="mt-2 text-sm capitalize text-foreground/50">{hoje}</p>
+            <p className="mt-2 text-sm text-foreground/50">
+              <span className="capitalize">{hoje}</span>
+              <span className="mx-2 text-foreground/25">·</span>
+              <span className="font-mono tabular-nums text-[rgb(var(--accent-rgb)/0.85)]">{agora}</span>
+            </p>
           </div>
           {usuario && (
             <span className="mt-1 shrink-0 rounded-full border border-[rgb(var(--accent-rgb)/0.3)] bg-[rgb(var(--accent-rgb)/0.08)] px-3 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-[rgb(var(--accent-rgb))]">
@@ -139,6 +154,7 @@ export function HubPage() {
                 onMouseLeave={tiltLeave}
                 className="glass-tile glass-tile-3d group relative flex h-full min-h-[13rem] flex-col justify-between overflow-hidden rounded-2xl border-[rgb(var(--accent-rgb)/0.28)] px-5 py-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--ink)/0.7)]"
               >
+                <span aria-hidden className="hub-shine pointer-events-none absolute inset-0" />
                 {/* brilho accent interno do hero */}
                 <div className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-[rgb(var(--accent-rgb)/0.14)] blur-3xl" />
                 <span
