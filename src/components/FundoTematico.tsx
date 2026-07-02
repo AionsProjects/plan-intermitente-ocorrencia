@@ -11,7 +11,6 @@ import { useThemeState } from "@/lib/theme"
  *   seco     → neve fina caindo                                  ("Grafite")
  *   rubi     → brasas subindo com fade                           ("Brasa")
  *   roxo     → estrelas cintilando + estrela cadente rara        ("Nebulosa")
- *   brasil   → gramado + confete verde-amarelo + bola rolando    ("Brasil")
  * Respeita a preferência "reduzir animações" e prefers-reduced-motion (CSS).
  */
 
@@ -132,40 +131,6 @@ export function FundoTematico() {
             height: `${2 + rnd(i + 85) * 2.5}px`,
           })}
         />
-      )}
-
-      {scheme === "brasil" && (
-        <>
-          <div className="ft-campo-solo" />
-          {/* gramado: denso e baixinho, balanço dessincronizado */}
-          <Particulas
-            n={56}
-            className="ft-grama"
-            estilo={(i) => ({
-              left: `${(i / 56) * 100 + rnd(i) * 1.6}%`,
-              height: `${7 + rnd(i + 31) * 14}px`,
-              width: `${1.6 + rnd(i + 61) * 1.2}px`,
-              animationDuration: `${2.6 + rnd(i + 7) * 2.6}s`,
-              animationDelay: `${rnd(i + 91) * -6}s`,
-              opacity: 0.45 + rnd(i + 21) * 0.3,
-            })}
-          />
-          {/* confete da torcida: verde bandeira, amarelo canarinho, azul */}
-          <Particulas
-            n={15}
-            className="ft-confete"
-            estilo={(i) => ({
-              left: `${rnd(i) * 100}%`,
-              background: ["rgb(34 197 94 / 0.6)", "rgb(250 204 21 / 0.6)", "rgb(59 130 246 / 0.55)"][i % 3],
-              animationDuration: `${11 + rnd(i + 40) * 10}s, ${2.6 + rnd(i + 80) * 2}s`,
-              animationDelay: `${rnd(i + 20) * -20}s, 0s`,
-              width: `${4 + rnd(i + 60) * 4}px`,
-              height: `${7 + rnd(i + 60) * 5}px`,
-            })}
-          />
-          {/* bola rolando pelo gramado, rara */}
-          <span className="ft-bola" />
-        </>
       )}
 
       {scheme === "roxo" && (

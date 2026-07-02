@@ -141,17 +141,6 @@
   --orb-strength: 0.12;
 }
 
-/* brasil (Brasil) — ramp preto, detalhes AMARELO canarinho + VERDE bandeira (copa) */
-[data-accent="brasil"] {
-  --accent-rgb: 250 204 21;   /* pop = amarelo canarinho */
-  --surface-rgb: 38 38 38;    /* caixas = #262626 */
-  --orb-a: 34 197 94;         /* verde bandeira */
-  --orb-b: 59 130 246;        /* azul do círculo */
-  --orb-c: 57 57 57;          /* cinza p/ manter preto */
-  --canvas-tint: 0%;
-  --orb-strength: 0.12;
-}
-
 /* ===== LIGHT por esquema — accent mais profundo p/ contraste no off-white ===== */
 [data-theme="light"][data-accent="aurora"] {
   --accent-rgb: 176 124 28;   /* ouro profundo (detalhe no branco) */
@@ -193,13 +182,6 @@
   --surface-rgb: 208 208 210; /* caixas = cinza claro */
   --orb-a: 139 92 246;        /* violeta */
   --orb-b: 45 200 220;        /* ciano */
-  --orb-c: 200 200 202;
-}
-[data-theme="light"][data-accent="brasil"] {
-  --accent-rgb: 22 128 61;    /* verde profundo (amarelo não segura contraste no branco) */
-  --surface-rgb: 208 208 210; /* caixas = cinza claro */
-  --orb-a: 34 197 94;         /* verde bandeira */
-  --orb-b: 250 204 21;        /* amarelo canarinho */
   --orb-c: 200 200 202;
 }
 
@@ -3603,78 +3585,6 @@ html {
   8% { opacity: 0.55; }
   60% { opacity: 0.3; transform: translateY(-55vh) translateX(18px); }
   to { transform: translateY(-92vh) translateX(-14px); opacity: 0; }
-}
-
-/* Brasil: gramado balançando no rodapé + confete verde-amarelo-azul +
-   bola rolando de vez em quando (é época de copa).
-   Grama/solo em VERDE fixo (é o campo de futebol — o accent amarelo do
-   esquema não deve pintar o gramado; precedente: pétalas do Poente). */
-.ft-grama {
-  position: absolute;
-  bottom: -4px;
-  border-radius: 9999px 9999px 0 0;
-  background: linear-gradient(
-    to top,
-    rgb(34 197 94 / 0.32),
-    rgb(34 197 94 / 0.04)
-  );
-  transform-origin: bottom center;
-  animation: ft-grama-balanca ease-in-out infinite alternate;
-}
-@keyframes ft-grama-balanca {
-  from { transform: rotate(-6deg) scaleY(0.97); }
-  to { transform: rotate(9deg) scaleY(1.03); }
-}
-.ft-confete {
-  position: absolute;
-  top: -3%;
-  border-radius: 1px;
-  animation: ft-confete-cai linear infinite, ft-balanca ease-in-out infinite alternate;
-  opacity: 0.45;
-}
-@keyframes ft-confete-cai {
-  from { transform: translateY(-4vh) rotate(0deg) rotateX(0deg); }
-  to { transform: translateY(108vh) rotate(300deg) rotateX(720deg); }
-}
-.ft-campo-solo {
-  position: absolute;
-  inset-inline: -10%;
-  bottom: -60px;
-  height: 200px;
-  background: radial-gradient(
-    ellipse at 50% 100%,
-    rgb(34 197 94 / 0.09),
-    transparent 70%
-  );
-}
-.ft-bola {
-  position: absolute;
-  bottom: 10px;
-  left: -6%;
-  width: 22px;
-  height: 22px;
-  border-radius: 9999px;
-  /* Bola listrada: brilho no topo + gomos claro/escuro que giram junto
-     com o rotate da animação — sensação de bola rolando de verdade. */
-  background:
-    radial-gradient(circle at 32% 26%, rgb(255 255 255 / 0.5), transparent 52%),
-    repeating-linear-gradient(
-      55deg,
-      rgb(238 238 238 / 0.85) 0 5px,
-      rgb(34 34 34 / 0.8) 5px 9px
-    );
-  box-shadow:
-    inset -3px -3px 5px rgb(0 0 0 / 0.35),
-    0 3px 6px -2px rgb(0 0 0 / 0.4);
-  animation: ft-bola-rola 17s linear infinite;
-  opacity: 0;
-}
-@keyframes ft-bola-rola {
-  0%, 70% { opacity: 0; transform: translateX(0) rotate(0deg); }
-  72% { opacity: 0.55; }
-  82% { transform: translateX(45vw) rotate(540deg) translateY(-6px); }
-  94% { opacity: 0.55; }
-  100% { opacity: 0; transform: translateX(112vw) rotate(1260deg); }
 }
 
 /* Nebulosa: estrelas cintilando + cadente rara */

@@ -13,14 +13,14 @@
 import { useEffect, useReducer } from "react"
 
 export type Mode = "system" | "light" | "dark"
-export type Scheme = "aurora" | "seco" | "verde" | "rosa" | "rubi" | "roxo" | "brasil"
+export type Scheme = "aurora" | "seco" | "verde" | "rosa" | "rubi" | "roxo"
 export type Fonte = "sm" | "md" | "lg"
 
 const MODE_KEY = "pi-theme"
 const SCHEME_KEY = "pi-accent"
 const REDUCE_KEY = "pi-reduce-anim"
 const FONTE_KEY = "pi-font"
-const SCHEMES: Scheme[] = ["aurora", "seco", "verde", "rosa", "rubi", "roxo", "brasil"]
+const SCHEMES: Scheme[] = ["aurora", "seco", "verde", "rosa", "rubi", "roxo"]
 const FONT_SCALE: Record<Fonte, string> = { sm: "0.92", md: "1", lg: "1.1" }
 
 /** Tons exibidos no swatch (3 bolinhas) de cada esquema. */
@@ -34,7 +34,6 @@ export const SCHEME_META: Record<
   rosa: { label: "Poente", tones: ["#1a1a1a", "#f472b6", "#c084fc"] },
   rubi: { label: "Brasa", tones: ["#1a1a1a", "#ef4444", "#fb923c"] },
   roxo: { label: "Nebulosa", tones: ["#1a1a1a", "#8b5cf6", "#22d3ee"] },
-  brasil: { label: "Brasil", tones: ["#009c3b", "#ffdf00", "#002776"] },
 }
 
 function systemDark(): boolean {

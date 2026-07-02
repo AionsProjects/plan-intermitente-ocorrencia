@@ -15,7 +15,7 @@ const MODES: { id: Mode; label: string; icon: typeof Monitor }[] = [
   { id: "dark", label: "Escuro", icon: Moon },
 ]
 
-const SCHEMES: Scheme[] = ["aurora", "seco", "verde", "rosa", "rubi", "roxo", "brasil"]
+const SCHEMES: Scheme[] = ["aurora", "seco", "verde", "rosa", "rubi", "roxo"]
 
 // Swatch: os tons do esquema como um "orbe" em gradiente (visual > texto).
 function Orbe({ tones, ativo }: { tones: readonly string[]; ativo: boolean }) {
