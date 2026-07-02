@@ -137,14 +137,14 @@ export function FundoTematico() {
       {scheme === "brasil" && (
         <>
           <div className="ft-campo-solo" />
-          {/* gramado: alturas/fases variadas, balanço dessincronizado */}
+          {/* gramado: denso e baixinho, balanço dessincronizado */}
           <Particulas
-            n={26}
+            n={56}
             className="ft-grama"
             estilo={(i) => ({
-              left: `${(i / 26) * 100 + rnd(i) * 3}%`,
-              height: `${24 + rnd(i + 31) * 44}px`,
-              width: `${2 + rnd(i + 61) * 1.6}px`,
+              left: `${(i / 56) * 100 + rnd(i) * 1.6}%`,
+              height: `${7 + rnd(i + 31) * 14}px`,
+              width: `${1.6 + rnd(i + 61) * 1.2}px`,
               animationDuration: `${2.6 + rnd(i + 7) * 2.6}s`,
               animationDelay: `${rnd(i + 91) * -6}s`,
               opacity: 0.45 + rnd(i + 21) * 0.3,
