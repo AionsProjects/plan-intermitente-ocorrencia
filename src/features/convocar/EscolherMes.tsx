@@ -1,8 +1,17 @@
 import { useState } from "react"
-import { ArrowLeft, CalendarDays, Loader2, TriangleAlert } from "lucide-react"
+import { ArrowLeft, CalendarDays, Loader2 } from "lucide-react"
 import { format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { useMesesConvocacao } from "./useConvocacao"
 import type { EmpregadoRM } from "./types"
 
@@ -131,56 +140,47 @@ export function EscolherMes({ empregado, onTrocarEmpregado, onEscolher }: Props)
         </div>
       )}
 
-      {/* Modal de confirmação do retroativo — balão glass sobre backdrop liquid-glass */}
-      {confirmandoPassado && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          role="dialog"
-          aria-modal="true"
+      {/* Modal de confirmação do retroativo — padrão glass-modal do registrar */}
+      <Dialog open={!!confirmandoPassado} onOpenChange={(o) => !o && setConfirmandoPassado(null)}>
+        <DialogContent
+          className="glass-modal border-0 bg-transparent p-8 text-foreground sm:max-w-md"
+          style={{ backdropFilter: "blur(10px) saturate(140%) brightness(1.05)" }}
         >
-          {/* backdrop: escurece + liquid glass */}
-          <button
-            type="button"
-            aria-label="Fechar"
-            onClick={() => setConfirmandoPassado(null)}
-            className="absolute inset-0 cursor-default bg-[rgb(var(--shadow)/0.45)] backdrop-blur-md backdrop-saturate-125"
-          />
-          <div className="fade-up glass-strong relative w-full max-w-md rounded-3xl px-7 py-7">
-            <div className="mx-auto flex size-13 w-fit items-center justify-center rounded-full border border-amber-400/45 bg-amber-400/12 p-3">
-              <TriangleAlert className="size-6 text-amber-600 dark:text-amber-300" />
-            </div>
-            <h3 className="text-display mt-4 text-center text-2xl text-foreground">
+          <DialogHeader>
+            <p className="text-[10px] uppercase tracking-[0.3em] text-amber-700/80 dark:text-amber-200/80">
               Lançamento retroativo
-            </h3>
-            <p className="mt-1 text-center text-sm capitalize text-foreground/55">
-              {rotuloMes(confirmandoPassado.competencia)} — mês encerrado
             </p>
-            <p className="mt-4 rounded-xl border border-amber-400/25 bg-amber-400/[0.07] px-4 py-3 text-[13px] leading-relaxed text-foreground/70">
+            <DialogTitle className="text-display text-2xl text-foreground">
+              <span className="capitalize">{rotuloMes(confirmandoPassado?.competencia ?? null)}</span>{" "}
+              já foi encerrado
+            </DialogTitle>
+            <DialogDescription className="text-foreground/65">
               Este mês só continua aberto para regularizar pendências que deveriam ter sido
               lançadas dentro do próprio mês. O ideal é que as convocações sejam feitas na
               competência certa — use esta opção apenas para corrigir o que ficou para trás.
-            </p>
-            <div className="mt-6 flex justify-center gap-3">
-              <button
-                type="button"
-                onClick={() => setConfirmandoPassado(null)}
-                className="rounded-full border border-border px-5 py-2 text-sm text-foreground/70 transition hover:border-foreground/30 hover:text-foreground"
-              >
-                Voltar
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  onEscolher(confirmandoPassado.papel, confirmandoPassado.competencia ?? "")
-                }
-                className="rounded-full border border-amber-400/55 bg-amber-400/15 px-5 py-2 text-sm font-medium text-amber-800 shadow-[0_8px_24px_-8px_rgba(245,158,11,0.45)] transition hover:bg-amber-400/25 dark:text-amber-100"
-              >
-                Entendi, continuar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-2">
+            <Button
+              variant="ghost"
+              onClick={() => setConfirmandoPassado(null)}
+              className="text-foreground/85 hover:bg-[rgb(var(--ink)/0.1)] hover:text-foreground"
+            >
+              Voltar
+            </Button>
+            <Button
+              onClick={() =>
+                confirmandoPassado &&
+                onEscolher(confirmandoPassado.papel, confirmandoPassado.competencia ?? "")
+              }
+              className="bg-amber-300 text-[#241a0a] hover:bg-amber-200"
+            >
+              Entendi, continuar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
