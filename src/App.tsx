@@ -1,6 +1,7 @@
 import { Route, Routes } from "react-router-dom"
 
 import { AuroraBackground } from "@/components/AuroraBackground"
+import { FundoTematico } from "@/components/FundoTematico"
 import { NavCluster } from "@/components/NavCluster"
 import { NavProvider } from "@/components/NavContext"
 import { PageTransition } from "@/components/PageTransition"
@@ -24,6 +25,7 @@ function App() {
   return (
     <NavProvider>
       <AuroraBackground />
+      <FundoTematico />
       <PageTransition
         renderRoutes={(location) => (
           <Routes location={location}>

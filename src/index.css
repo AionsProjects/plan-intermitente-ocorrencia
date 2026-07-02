@@ -3501,3 +3501,119 @@ html {
   .hub-orb--b { animation: none; }
   .group:hover .hub-shine::after { animation: none; opacity: 0; }
 }
+
+/* ═══ Fundo temático — personalidade discreta por esquema de cor ═══ */
+
+/* Aurora: ondas do mar deslizando no rodapé */
+.ft-onda {
+  position: absolute;
+  left: 0;
+  width: 200%;
+  height: 120px;
+  animation: ft-onda-desliza linear infinite;
+}
+@keyframes ft-onda-desliza {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+/* Poente: pétalas de sakura caindo com balanço */
+.ft-petala {
+  position: absolute;
+  top: -3%;
+  border-radius: 150% 0 150% 0;
+  background: linear-gradient(135deg, rgb(244 114 182 / 0.5), rgb(192 132 252 / 0.35));
+  animation: ft-cai linear infinite, ft-balanca ease-in-out infinite alternate;
+  opacity: 0.5;
+}
+@keyframes ft-cai {
+  from { transform: translateY(-4vh) rotate(0deg); }
+  to { transform: translateY(108vh) rotate(340deg); }
+}
+@keyframes ft-balanca {
+  from { margin-left: -22px; }
+  to { margin-left: 22px; }
+}
+
+/* Ouro: grãos de areia no vento + duna sutil */
+.ft-areia {
+  position: absolute;
+  left: -2%;
+  border-radius: 9999px;
+  background: rgb(var(--accent-rgb) / 0.55);
+  animation: ft-vento linear infinite;
+  opacity: 0.4;
+}
+@keyframes ft-vento {
+  from { transform: translate(-3vw, 0); opacity: 0; }
+  12% { opacity: 0.45; }
+  88% { opacity: 0.45; }
+  to { transform: translate(104vw, -9vh); opacity: 0; }
+}
+.ft-duna {
+  position: absolute;
+  inset-inline: -10%;
+  bottom: -40px;
+  height: 180px;
+  border-radius: 100% 100% 0 0;
+  background: radial-gradient(ellipse at 50% 100%, rgb(var(--accent-rgb) / 0.07), transparent 70%);
+}
+
+/* Grafite: neve fina caindo */
+.ft-neve {
+  position: absolute;
+  top: -3%;
+  border-radius: 9999px;
+  background: rgb(var(--ink) / 0.85);
+  animation: ft-cai linear infinite;
+}
+
+/* Brasa: brasas subindo com fade */
+.ft-brasa {
+  position: absolute;
+  bottom: -2%;
+  border-radius: 9999px;
+  background: rgb(var(--accent-rgb));
+  box-shadow: 0 0 6px 1px rgb(var(--accent-rgb) / 0.55);
+  animation: ft-sobe ease-out infinite;
+}
+@keyframes ft-sobe {
+  from { transform: translateY(0) translateX(0); opacity: 0; }
+  8% { opacity: 0.55; }
+  60% { opacity: 0.3; transform: translateY(-55vh) translateX(18px); }
+  to { transform: translateY(-92vh) translateX(-14px); opacity: 0; }
+}
+
+/* Nebulosa: estrelas cintilando + cadente rara */
+.ft-estrela {
+  position: absolute;
+  border-radius: 9999px;
+  background: rgb(var(--accent-rgb));
+  animation: ft-cintila ease-in-out infinite;
+}
+@keyframes ft-cintila {
+  0%, 100% { opacity: 0.1; transform: scale(0.8); }
+  50% { opacity: 0.55; transform: scale(1.15); }
+}
+.ft-cadente {
+  position: absolute;
+  top: 12%;
+  left: -12%;
+  width: 130px;
+  height: 1.5px;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, transparent, rgb(var(--accent-rgb) / 0.7));
+  transform: rotate(16deg);
+  animation: ft-cadente-corre 14s ease-in infinite;
+  opacity: 0;
+}
+@keyframes ft-cadente-corre {
+  0%, 88% { opacity: 0; transform: translate(0, 0) rotate(16deg); }
+  90% { opacity: 0.7; }
+  96% { opacity: 0; }
+  100% { opacity: 0; transform: translate(130vw, 36vh) rotate(16deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ft-raiz { display: none; }
+}
