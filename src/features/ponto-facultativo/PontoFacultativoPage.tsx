@@ -10,6 +10,7 @@ import {
 } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { Link, useSearchParams } from "react-router-dom"
+import type { LucideIcon } from "lucide-react"
 import {
   ArrowLeft,
   Building2,
@@ -298,9 +299,9 @@ export function PontoFacultativoPage() {
   return (
     <main className="relative z-10 flex min-h-svh items-center justify-center px-4 py-8 sm:px-6 sm:py-12">
       <div className="glass-strong card-shimmer relative w-full max-w-3xl p-5 sm:p-8 lg:p-10">
-        <header className="mb-7 flex items-start justify-between gap-4">
+        <header className="mb-6 flex items-start justify-between gap-4">
           <div>
-            <p className="eyebrow-fade-in text-[11px] uppercase text-emerald-700/70 dark:text-emerald-200/70">
+            <p className="eyebrow-fade-in text-[11px] uppercase text-foreground/55">
               Ponto facultativo
             </p>
             <h1 className="text-display mt-2 text-4xl leading-tight text-foreground sm:text-5xl">
@@ -312,6 +313,8 @@ export function PontoFacultativoPage() {
             </p>
           </div>
         </header>
+
+        <Stepper etapa={etapa} />
 
         <SlideStack slideKey={etapaKey(etapa)} direction={direcao}>
           {etapa === "contrato" && (
@@ -403,6 +406,75 @@ export function PontoFacultativoPage() {
   )
 }
 
+/** Trilha de progresso do fluxo — feito vira ponto accent com check,
+ *  atual vira pill com o nome da etapa, futuro fica ponto neutro. */
+const PASSOS: { id: Etapa; label: string }[] = [
+  { id: "contrato", label: "Contrato" },
+  { id: "unidade", label: "Unidade" },
+  { id: "data", label: "Dia" },
+  { id: "beneficios", label: "Benefícios" },
+  { id: "confirmar", label: "Confirmar" },
+]
+
+function Stepper({ etapa }: { etapa: Etapa }) {
+  if (etapa === "sucesso") return null
+  const atual = PASSOS.findIndex((p) => p.id === etapa)
+  return (
+    <nav aria-label="Progresso" className="mb-7 flex items-center gap-1.5">
+      {PASSOS.map((p, i) => {
+        const feito = i < atual
+        const ativo = i === atual
+        return (
+          <div key={p.id} className="flex items-center gap-1.5">
+            {ativo ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-[rgb(var(--accent-rgb)/0.45)] bg-[rgb(var(--accent-rgb)/0.12)] px-3 py-1 text-[11px] font-medium text-foreground shadow-[0_6px_18px_-8px_rgb(var(--accent-rgb)/0.6)]">
+                <span className="size-1.5 rounded-full bg-[rgb(var(--accent-rgb))]" />
+                {p.label}
+              </span>
+            ) : (
+              <span
+                title={p.label}
+                className={`grid size-5 place-items-center rounded-full border transition-colors duration-300 ${
+                  feito
+                    ? "border-[rgb(var(--accent-rgb)/0.5)] bg-[rgb(var(--accent-rgb)/0.15)]"
+                    : "border-[rgb(var(--ink)/0.14)] bg-[rgb(var(--ink)/0.03)]"
+                }`}
+              >
+                {feito && <Check className="size-3 text-[rgb(var(--accent-rgb))]" />}
+              </span>
+            )}
+            {i < PASSOS.length - 1 && (
+              <span
+                className={`h-px w-4 sm:w-6 ${
+                  feito ? "bg-[rgb(var(--accent-rgb)/0.4)]" : "bg-[rgb(var(--ink)/0.12)]"
+                }`}
+              />
+            )}
+          </div>
+        )
+      })}
+    </nav>
+  )
+}
+
+/** Título de etapa no padrão do console: ícone em bolha accent + label. */
+function TituloEtapa({
+  icone: Icone,
+  children,
+}: {
+  icone: LucideIcon
+  children: React.ReactNode
+}) {
+  return (
+    <div className="mb-5 flex items-center gap-3">
+      <div className="grid size-9 shrink-0 place-items-center rounded-full bg-[rgb(var(--accent-rgb)/0.12)] ring-1 ring-[rgb(var(--accent-rgb)/0.35)]">
+        <Icone className="size-4 text-[rgb(var(--accent-rgb))]" />
+      </div>
+      <h2 className="text-lg font-medium text-foreground/85">{children}</h2>
+    </div>
+  )
+}
+
 function EtapaContrato({
   contrato,
   onSelecionar,
@@ -418,9 +490,11 @@ function EtapaContrato({
     return (
       <section>
         <div className="mb-5 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 text-foreground/82">
-            <GraduationCap className="size-5 text-amber-700 dark:text-amber-300" />
-            <h2 className="text-lg font-medium">SEDUC · escolha o subgrupo</h2>
+          <div className="flex items-center gap-3">
+            <div className="grid size-9 shrink-0 place-items-center rounded-full bg-[rgb(var(--accent-rgb)/0.12)] ring-1 ring-[rgb(var(--accent-rgb)/0.35)]">
+              <GraduationCap className="size-4 text-[rgb(var(--accent-rgb))]" />
+            </div>
+            <h2 className="text-lg font-medium text-foreground/85">SEDUC · escolha o subgrupo</h2>
           </div>
           <button
             type="button"
@@ -452,10 +526,7 @@ function EtapaContrato({
 
   return (
     <section>
-      <div className="mb-5 flex items-center gap-3 text-foreground/82">
-        <Building2 className="size-5 text-emerald-700 dark:text-emerald-200" />
-        <h2 className="text-lg font-medium">Contrato afetado</h2>
-      </div>
+      <TituloEtapa icone={Building2}>Contrato afetado</TituloEtapa>
       <div className="grid gap-3 sm:grid-cols-2">
         {(Object.entries(GRUPO_META) as [GrupoContratoId, ContratoMeta][]).map(
           ([id, meta], i) => {
@@ -524,7 +595,7 @@ function TileContrato({
       data-tone={meta.tone}
       data-anim={meta.animOverride}
       className={`tile-contrato group relative flex w-full items-center gap-3.5 rounded-2xl border border-[rgb(var(--ink)/0.12)] px-4 py-4 text-left ${
-        selecionado ? "ring-2 ring-offset-2 ring-offset-transparent ring-[rgb(var(--ink)/0.6)]" : ""
+        selecionado ? "ring-2 ring-offset-2 ring-offset-transparent ring-[rgb(var(--accent-rgb)/0.6)]" : ""
       }`}
     >
       <div
@@ -643,20 +714,17 @@ function EtapaUnidade({
 
   return (
     <section>
-      <div className="mb-5 flex items-center gap-3 text-foreground/82">
-        <MapPin className="size-5 text-emerald-700 dark:text-emerald-200" />
-        <h2 className="text-lg font-medium">Unidade afetada</h2>
-      </div>
+      <TituloEtapa icone={MapPin}>Unidade afetada</TituloEtapa>
 
       <div className="mb-5 flex flex-wrap items-center gap-2">
         {contrato && (
           <span className="chip-context-glass">
-            <Building2 className="size-3.5 text-emerald-700/85 dark:text-emerald-200/85" />
+            <Building2 className="size-3.5 text-[rgb(var(--accent-rgb)/0.85)]" />
             {contrato}
           </span>
         )}
         {mesReferencia && totalConvocacoes > 0 && (
-          <span className="chip-context-glass tone-emerald">
+          <span className="chip-context-glass tone-accent">
             {totalConvocacoes} convocações ativas em {mesReferencia}
           </span>
         )}
@@ -699,14 +767,14 @@ function EtapaUnidade({
       )}
 
       {todasVazias && (
-        <div className="rounded-2xl border border-dashed border-amber-200/25 bg-amber-300/[0.06] px-5 py-8 text-center">
-          <div className="mx-auto flex size-12 items-center justify-center rounded-full border border-amber-200/30 bg-amber-300/15 text-amber-700 dark:text-amber-200">
+        <div className="rounded-2xl border border-dashed border-[rgb(var(--accent-rgb)/0.25)] bg-[rgb(var(--accent-rgb)/0.05)] px-5 py-8 text-center">
+          <div className="mx-auto flex size-12 items-center justify-center rounded-full border border-[rgb(var(--accent-rgb)/0.35)] bg-[rgb(var(--accent-rgb)/0.12)] text-[rgb(var(--accent-rgb))]">
             <UserX className="size-5" />
           </div>
-          <p className="mt-4 text-sm font-medium text-amber-700 dark:text-amber-50">
+          <p className="mt-4 text-sm font-medium text-foreground/85">
             Nenhuma unidade tem intermitentes convocados em {mesReferencia ?? "este mês"}
           </p>
-          <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-amber-700/65 dark:text-amber-100/65">
+          <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-foreground/50">
             Volte e escolha outro contrato — ou aguarde novas convocações serem cadastradas no Plan.
           </p>
         </div>
@@ -720,7 +788,7 @@ function EtapaUnidade({
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar unidade"
-              className="h-12 w-full rounded-2xl border border-[rgb(var(--ink)/0.1)] bg-[rgb(var(--ink)/0.04)] pl-10 pr-4 text-sm text-foreground outline-none transition placeholder:text-foreground/30 focus:border-emerald-200/45 focus:bg-[rgb(var(--ink)/0.07)]"
+              className="h-12 w-full rounded-2xl border border-[rgb(var(--ink)/0.1)] bg-[rgb(var(--ink)/0.04)] pl-10 pr-4 text-sm text-foreground outline-none transition placeholder:text-foreground/30 focus:border-[rgb(var(--accent-rgb)/0.45)] focus:bg-[rgb(var(--ink)/0.07)]"
             />
           </label>
 
@@ -732,7 +800,7 @@ function EtapaUnidade({
               <button
                 type="button"
                 onClick={() => onSelecionarTodas(todasMarcadas ? [] : labelsComPessoas)}
-                className="rounded-lg border border-emerald-300/35 bg-emerald-300/10 px-2.5 py-1 text-[11px] font-medium text-emerald-700 transition hover:bg-emerald-300/20 dark:text-emerald-200"
+                className="rounded-lg border border-[rgb(var(--accent-rgb)/0.35)] bg-[rgb(var(--accent-rgb)/0.1)] px-2.5 py-1 text-[11px] font-medium text-[rgb(var(--accent-rgb))] transition hover:bg-[rgb(var(--accent-rgb)/0.2)]"
               >
                 {todasMarcadas ? "Limpar seleção" : "Selecionar tudo"}
               </button>
@@ -767,12 +835,12 @@ function EtapaUnidade({
                       onToggle(u.label)
                     }}
                     title={vazia ? "Nenhum intermitente convocado nesta unidade este mês" : undefined}
-                    className={`fade-up tile-unidade ${vazia ? "" : "tile-ripple-emerald"} flex min-h-14 items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left backdrop-blur-md transition ${
+                    className={`fade-up tile-unidade ${vazia ? "" : "tile-ripple"} flex min-h-14 items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left backdrop-blur-md transition ${
                       selected
-                        ? "border-emerald-200/55 bg-emerald-200/16 text-emerald-700 dark:text-emerald-50 shadow-[0_0_18px_-6px_rgba(110,231,183,0.55)]"
+                        ? "border-[rgb(var(--accent-rgb)/0.55)] bg-[rgb(var(--accent-rgb)/0.14)] text-foreground shadow-[0_0_18px_-6px_rgb(var(--accent-rgb)/0.55)]"
                         : vazia
                           ? "tile-unidade-vazio cursor-not-allowed border-[rgb(var(--ink)/0.08)] bg-[rgb(var(--ink)/0.02)] text-foreground/35"
-                          : "border-[rgb(var(--ink)/0.1)] bg-[rgb(var(--ink)/0.035)] text-foreground/82 hover:border-emerald-200/35 hover:bg-emerald-200/[0.07] hover:text-foreground/95"
+                          : "border-[rgb(var(--ink)/0.1)] bg-[rgb(var(--ink)/0.035)] text-foreground/82 hover:border-[rgb(var(--accent-rgb)/0.35)] hover:bg-[rgb(var(--accent-rgb)/0.07)] hover:text-foreground/95"
                     }`}
                     style={{ animationDelay: `${50 + Math.min(i, 12) * 20}ms` }}
                   >
@@ -780,7 +848,7 @@ function EtapaUnidade({
                       <span className="truncate text-sm font-medium leading-snug">
                         {u.label}
                         {u.foraRm && (
-                          <span className="ml-1.5 align-middle text-[9px] uppercase tracking-wider text-amber-700/65 dark:text-amber-200/65">
+                          <span className="ml-1.5 align-middle text-[9px] uppercase tracking-wider text-[rgb(var(--accent-rgb)/0.65)]">
                             fora-rm
                           </span>
                         )}
@@ -789,7 +857,7 @@ function EtapaUnidade({
                         className={`inline-flex w-fit items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${
                           vazia
                             ? "border-[rgb(var(--ink)/0.08)] bg-[rgb(var(--ink)/0.02)] text-foreground/30"
-                            : "border-emerald-300/35 bg-emerald-300/10 text-emerald-700/95 dark:text-emerald-200/95"
+                            : "border-[rgb(var(--accent-rgb)/0.35)] bg-[rgb(var(--accent-rgb)/0.1)] text-[rgb(var(--accent-rgb))]"
                         }`}
                       >
                         {vazia
@@ -801,7 +869,7 @@ function EtapaUnidade({
                       <span
                         className={`flex size-5 shrink-0 items-center justify-center rounded-md border transition ${
                           selected
-                            ? "border-emerald-400/70 bg-emerald-400/30 text-emerald-700 dark:text-emerald-50"
+                            ? "border-[rgb(var(--accent-rgb)/0.7)] bg-[rgb(var(--accent-rgb)/0.3)] text-[rgb(var(--accent-rgb))]"
                             : "border-[rgb(var(--ink)/0.18)] text-transparent"
                         }`}
                       >
@@ -843,10 +911,7 @@ function EtapaData({
 }) {
   return (
     <section>
-      <div className="mb-5 flex items-center gap-3 text-foreground/82">
-        <CalendarDays className="size-5 text-emerald-700 dark:text-emerald-200" />
-        <h2 className="text-lg font-medium">Dia do mês atual</h2>
-      </div>
+      <TituloEtapa icone={CalendarDays}>Dia do mês atual</TituloEtapa>
       <CalendarioMesAtual data={data} contrato={contrato} onSelecionar={onSelecionar} />
       <div className="mt-6">
         <ChoiceButton onClick={onVoltar}>Voltar</ChoiceButton>
@@ -905,15 +970,15 @@ function CalendarioMesAtual({
               onClick={() => onSelecionar(iso)}
               className={`relative flex h-12 items-center justify-center rounded-xl text-sm font-medium transition ${
                 selecionado
-                  ? "bg-emerald-300 text-[#02120d] shadow-[0_0_22px_rgba(110,231,183,0.45)]"
+                  ? "bg-[rgb(var(--accent-rgb))] text-[rgb(var(--surface-rgb))] shadow-[0_0_22px_rgb(var(--accent-rgb)/0.45)]"
                   : disabled
                     ? "cursor-not-allowed text-foreground/16"
-                    : "text-foreground/88 hover:bg-emerald-300/12 hover:text-emerald-700 dark:text-emerald-100"
+                    : "text-foreground/88 hover:bg-[rgb(var(--accent-rgb)/0.12)] hover:text-[rgb(var(--accent-rgb))]"
               }`}
             >
               {d.getDate()}
               {feriado && noMes && (
-                <span className="absolute bottom-1 size-1 rounded-full bg-amber-200/75" />
+                <span className="absolute bottom-1 size-1 rounded-full bg-[rgb(var(--accent-rgb)/0.75)]" />
               )}
             </button>
           )
@@ -950,28 +1015,25 @@ function EtapaBeneficios({
 }) {
   return (
     <section>
-      <div className="mb-5 flex items-center gap-3 text-foreground/82">
-        <WalletCards className="size-5 text-emerald-700 dark:text-emerald-200" />
-        <h2 className="text-lg font-medium">Benefícios a descontar</h2>
-      </div>
+      <TituloEtapa icone={WalletCards}>Benefícios a descontar</TituloEtapa>
 
       {/* Chips do contexto — substitui a barra vazia anterior */}
       <div className="mb-5 flex flex-wrap items-center gap-2">
         {contrato && (
           <span className="chip-context-glass">
-            <Building2 className="size-3.5 text-emerald-700/85 dark:text-emerald-200/85" />
+            <Building2 className="size-3.5 text-[rgb(var(--accent-rgb)/0.85)]" />
             {contrato}
           </span>
         )}
         {unidades.length > 0 && (
           <span className="chip-context-glass">
-            <MapPin className="size-3.5 text-emerald-700/85 dark:text-emerald-200/85" />
+            <MapPin className="size-3.5 text-[rgb(var(--accent-rgb)/0.85)]" />
             {unidades.length === 1 ? unidades[0] : `${unidades.length} unidades`}
           </span>
         )}
         {data && (
           <span className="chip-context-glass">
-            <CalendarDays className="size-3.5 text-emerald-700/85 dark:text-emerald-200/85" />
+            <CalendarDays className="size-3.5 text-[rgb(var(--accent-rgb)/0.85)]" />
             {formatarData(data)}
           </span>
         )}
@@ -1055,7 +1117,9 @@ function TileBeneficio({
       onMouseLeave={handleTiltLeave}
       data-tone={tone}
       data-selected={selecionado || undefined}
-      className="tile-contrato tile-beneficio group relative flex w-full items-center gap-4 rounded-2xl border border-[rgb(var(--ink)/0.12)] px-4 py-5 text-left"
+      className={`tile-contrato tile-beneficio group relative flex w-full items-center gap-4 rounded-2xl border border-[rgb(var(--ink)/0.12)] px-4 py-5 text-left ${
+        selecionado ? "ring-2 ring-offset-2 ring-offset-transparent ring-[rgb(var(--accent-rgb)/0.6)]" : ""
+      }`}
     >
       <div
         className={`icon-3d-host flex size-12 shrink-0 items-center justify-center rounded-2xl ring-1 ${tones.iconBg} ${tones.iconRing}`}
@@ -1072,16 +1136,12 @@ function TileBeneficio({
         aria-hidden
         className={`flex size-6 shrink-0 items-center justify-center rounded-full border transition ${
           selecionado
-            ? tone === "emerald"
-              ? "border-emerald-300/70 bg-emerald-300/25"
-              : "border-sky-300/70 bg-sky-300/25"
+            ? "border-[rgb(var(--accent-rgb)/0.7)] bg-[rgb(var(--accent-rgb)/0.25)]"
             : "border-[rgb(var(--ink)/0.15)] bg-[rgb(var(--ink)/0.03)]"
         }`}
       >
         {selecionado && (
-          <CheckCircle2
-            className={`size-4 ${tone === "emerald" ? "text-emerald-700 dark:text-emerald-200" : "text-sky-700 dark:text-sky-200"}`}
-          />
+          <CheckCircle2 className="size-4 text-[rgb(var(--accent-rgb))]" />
         )}
       </div>
     </button>
@@ -1105,20 +1165,22 @@ function EtapaConfirmar({
   return (
     <section>
       <div className="mb-5 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3 text-foreground/82">
-          <Users className="size-5 text-emerald-700 dark:text-emerald-200" />
-          <h2 className="text-lg font-medium">Prévia de afetados</h2>
+        <div className="flex items-center gap-3">
+          <div className="grid size-9 shrink-0 place-items-center rounded-full bg-[rgb(var(--accent-rgb)/0.12)] ring-1 ring-[rgb(var(--accent-rgb)/0.35)]">
+            <Users className="size-4 text-[rgb(var(--accent-rgb))]" />
+          </div>
+          <h2 className="text-lg font-medium text-foreground/85">Prévia de afetados</h2>
         </div>
         <span
           className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs ${
             vazio
               ? "border-[rgb(var(--ink)/0.15)] bg-[rgb(var(--ink)/0.04)] text-foreground/65"
-              : "border-emerald-200/35 bg-emerald-200/14 text-emerald-700 dark:text-emerald-100"
+              : "border-[rgb(var(--accent-rgb)/0.35)] bg-[rgb(var(--accent-rgb)/0.12)] text-[rgb(var(--accent-rgb))]"
           }`}
         >
           <span
             className={`size-1.5 rounded-full ${
-              vazio ? "bg-[rgb(var(--ink)/0.4)]" : "bg-emerald-300 shadow-[0_0_8px_2px_rgba(110,231,183,0.55)]"
+              vazio ? "bg-[rgb(var(--ink)/0.4)]" : "bg-[rgb(var(--accent-rgb))] shadow-[0_0_8px_2px_rgb(var(--accent-rgb)/0.55)]"
             }`}
           />
           {preview.totalColaboradores} convocados
@@ -1190,17 +1252,17 @@ function ContextoPreview({ preview }: { preview: PontoFacultativoPreview }) {
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2">
       <span className="chip-context-glass">
-        <Building2 className="size-3.5 text-emerald-700/85 dark:text-emerald-200/85" />
+        <Building2 className="size-3.5 text-[rgb(var(--accent-rgb)/0.85)]" />
         {preview.contrato}
       </span>
       <span className="chip-context-glass">
-        <MapPin className="size-3.5 text-emerald-700/85 dark:text-emerald-200/85" />
+        <MapPin className="size-3.5 text-[rgb(var(--accent-rgb)/0.85)]" />
         {preview.unidades.length === 1
           ? preview.unidades[0]
           : `${preview.unidades.length} unidades`}
       </span>
       <span className="chip-context-glass">
-        <CalendarDays className="size-3.5 text-emerald-700/85 dark:text-emerald-200/85" />
+        <CalendarDays className="size-3.5 text-[rgb(var(--accent-rgb)/0.85)]" />
         {formatarData(preview.data)}
       </span>
     </div>
@@ -1210,8 +1272,8 @@ function ContextoPreview({ preview }: { preview: PontoFacultativoPreview }) {
 function CardIntermitente({ item }: { item: PontoFacultativoItem }) {
   return (
     <div className="relative overflow-hidden rounded-2xl border border-[rgb(var(--ink)/0.1)] bg-[rgb(var(--ink)/0.035)] p-4 transition hover:border-[rgb(var(--ink)/0.2)] hover:bg-[rgb(var(--ink)/0.05)]">
-      {/* halo lateral discreto na cor do total */}
-      <span className="pointer-events-none absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b from-emerald-300/60 via-emerald-300/20 to-transparent" />
+      {/* halo lateral discreto na cor do accent */}
+      <span className="pointer-events-none absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b from-[rgb(var(--accent-rgb)/0.6)] via-[rgb(var(--accent-rgb)/0.2)] to-transparent" />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="truncate font-medium text-foreground/92">{item.nome}</p>
@@ -1228,7 +1290,7 @@ function CardIntermitente({ item }: { item: PontoFacultativoItem }) {
         </div>
         <div className="text-right">
           <p className="text-[10px] uppercase tracking-[0.22em] text-foreground/35">Total</p>
-          <p className="mt-0.5 text-base font-semibold text-emerald-700 dark:text-emerald-100">
+          <p className="mt-0.5 text-base font-semibold text-[rgb(var(--accent-rgb))]">
             {moeda(item.total)}
           </p>
         </div>
@@ -1239,7 +1301,7 @@ function CardIntermitente({ item }: { item: PontoFacultativoItem }) {
         {item.avisos.map((a) => (
           <span
             key={a}
-            className="inline-flex items-center gap-1 rounded-full border border-amber-300/30 bg-amber-300/10 px-2 py-0.5 text-amber-700 dark:text-amber-100"
+            className="inline-flex items-center gap-1 rounded-full border border-[rgb(var(--accent-rgb)/0.3)] bg-[rgb(var(--accent-rgb)/0.1)] px-2 py-0.5 text-[rgb(var(--accent-rgb))]"
           >
             <Sparkles className="size-3" />
             {a}
@@ -1261,11 +1323,10 @@ function BadgeBeneficio({
   label: string
   valor: number
 }) {
+  void tone // identidade agora vem do label; cor sempre do accent do tema
   const cls = aplicado
-    ? tone === "emerald"
-      ? "border-emerald-300/35 bg-emerald-300/12 text-emerald-700 dark:text-emerald-100"
-      : "border-sky-300/35 bg-sky-300/12 text-sky-700 dark:text-sky-100"
-    : "border-[rgb(var(--ink)/0.08)] bg-[rgb(var(--ink)/0.03)] text-foreground/32 line-through decoration-white/20"
+    ? "border-[rgb(var(--accent-rgb)/0.35)] bg-[rgb(var(--accent-rgb)/0.12)] text-[rgb(var(--accent-rgb))]"
+    : "border-[rgb(var(--ink)/0.08)] bg-[rgb(var(--ink)/0.03)] text-foreground/32 line-through decoration-[rgb(var(--ink)/0.2)]"
   return (
     <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 ${cls}`}>
       <span className="font-semibold">{label}</span>
@@ -1313,24 +1374,17 @@ function CardTotal({
   const styles =
     tone === "total"
       ? {
-          wrap: "border-emerald-200/30 bg-gradient-to-br from-emerald-300/12 via-emerald-200/[0.04] to-transparent shadow-[0_8px_28px_-12px_rgba(110,231,183,0.45)]",
-          label: "text-emerald-700/75 dark:text-emerald-100/75",
-          valor: "text-emerald-700 dark:text-emerald-50",
-          iconBg: "bg-emerald-300/14 ring-emerald-300/35 text-emerald-700 dark:text-emerald-200",
+          wrap: "border-[rgb(var(--accent-rgb)/0.3)] bg-gradient-to-br from-[rgb(var(--accent-rgb)/0.12)] via-[rgb(var(--accent-rgb)/0.04)] to-transparent shadow-[0_8px_28px_-12px_rgb(var(--accent-rgb)/0.45)]",
+          label: "text-[rgb(var(--accent-rgb)/0.75)]",
+          valor: "text-[rgb(var(--accent-rgb))]",
+          iconBg: "bg-[rgb(var(--accent-rgb)/0.14)] ring-[rgb(var(--accent-rgb)/0.35)] text-[rgb(var(--accent-rgb))]",
         }
-      : tone === "emerald"
-        ? {
-            wrap: "border-[rgb(var(--ink)/0.1)] bg-[rgb(var(--ink)/0.035)]",
-            label: "text-foreground/45",
-            valor: "text-foreground",
-            iconBg: "bg-emerald-300/10 ring-emerald-300/25 text-emerald-700/85 dark:text-emerald-200/85",
-          }
-        : {
-            wrap: "border-[rgb(var(--ink)/0.1)] bg-[rgb(var(--ink)/0.035)]",
-            label: "text-foreground/45",
-            valor: "text-foreground",
-            iconBg: "bg-sky-300/10 ring-sky-300/25 text-sky-700/85 dark:text-sky-200/85",
-          }
+      : {
+          wrap: "border-[rgb(var(--ink)/0.1)] bg-[rgb(var(--ink)/0.035)]",
+          label: "text-foreground/45",
+          valor: "text-foreground",
+          iconBg: "bg-[rgb(var(--accent-rgb)/0.1)] ring-[rgb(var(--accent-rgb)/0.25)] text-[rgb(var(--accent-rgb)/0.85)]",
+        }
   return (
     <div
       className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${styles.wrap}`}
@@ -1361,7 +1415,7 @@ function EtapaSucesso({
 }) {
   return (
     <section className="text-center">
-      <div className="mx-auto flex size-16 items-center justify-center rounded-full border border-emerald-200/30 bg-emerald-200/12 text-emerald-700 dark:text-emerald-100">
+      <div className="mx-auto flex size-16 items-center justify-center rounded-full border border-[rgb(var(--accent-rgb)/0.35)] bg-[rgb(var(--accent-rgb)/0.12)] text-[rgb(var(--accent-rgb))] shadow-[0_10px_30px_-10px_rgb(var(--accent-rgb)/0.6)]">
         <CheckCircle2 className="size-7" />
       </div>
       <h2 className="text-display mt-5 text-4xl text-foreground">Aplicado</h2>

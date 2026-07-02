@@ -3096,12 +3096,9 @@ html {
     box-shadow 280ms ease;
 }
 
-/* --tile-glow tonal por contrato (usado no halo ::before) */
-.tile-contrato[data-tone="emerald"] { --tile-glow: rgba(110, 231, 183, 0.22); --tile-border-hover: rgba(110, 231, 183, 0.45); }
-.tile-contrato[data-tone="amber"]   { --tile-glow: rgb(var(--accent-rgb) / 0.22); --tile-border-hover: rgb(var(--accent-rgb) / 0.45); }
-.tile-contrato[data-tone="sky"]     { --tile-glow: rgba(125, 211, 252, 0.22); --tile-border-hover: rgba(125, 211, 252, 0.45); }
-.tile-contrato[data-tone="rose"]    { --tile-glow: rgba(252, 165, 165, 0.22); --tile-border-hover: rgba(252, 165, 165, 0.45); }
-.tile-contrato[data-tone="violet"]  { --tile-glow: rgba(196, 181, 253, 0.22); --tile-border-hover: rgba(196, 181, 253, 0.45); }
+/* Halo/borda de hover dos tiles — sempre o accent do esquema escolhido.
+   [data-tone] segue existindo só pra escolher o keyframe do ícone. */
+.tile-contrato { --tile-glow: rgb(var(--accent-rgb) / 0.22); --tile-border-hover: rgb(var(--accent-rgb) / 0.45); }
 
 /* Halo radial — invisível idle, expande tonalmente no hover */
 .tile-contrato::before {
@@ -3344,17 +3341,19 @@ html {
     rgb(var(--ink) / 0.04) 100%);
 }
 
-/* Variante tonal emerald (pra chip com qtd convocações) */
+/* Variante tonal no accent do tema (pra chip com qtd convocações).
+   .tone-emerald mantido como alias legado. */
+.chip-context-glass.tone-accent,
 .chip-context-glass.tone-emerald {
-  border-color: rgba(110, 231, 183, 0.30);
+  border-color: rgb(var(--accent-rgb) / 0.30);
   background: linear-gradient(135deg,
-    rgba(110, 231, 183, 0.10) 0%,
-    rgba(110, 231, 183, 0.03) 100%);
-  color: rgba(167, 243, 208, 0.95);
+    rgb(var(--accent-rgb) / 0.10) 0%,
+    rgb(var(--accent-rgb) / 0.03) 100%);
+  color: rgb(var(--accent-rgb));
   box-shadow:
-    inset 0 1px 0 0 rgba(167, 243, 208, 0.22),
-    inset 0 -1px 0 0 rgba(110, 231, 183, 0.04),
-    0 0 12px -4px rgba(110, 231, 183, 0.32);
+    inset 0 1px 0 0 rgb(var(--accent-rgb) / 0.22),
+    inset 0 -1px 0 0 rgb(var(--accent-rgb) / 0.04),
+    0 0 12px -4px rgb(var(--accent-rgb) / 0.32);
 }
 
 /* Eyebrow letter-spacing fade-in.
@@ -3368,13 +3367,16 @@ html {
   100% { opacity: 1; letter-spacing: 0.28em; }
 }
 
-/* Tile ripple emerald — pulse radial saindo do centro no click.
-   Usa pseudo ::after com radial-gradient e animação 600ms. */
+/* Tile ripple — pulse radial no accent do tema saindo do click.
+   Usa pseudo ::after com radial-gradient e animação 600ms.
+   (nome -emerald mantido como alias legado) */
+.tile-ripple,
 .tile-ripple-emerald {
   position: relative;
   overflow: hidden;
   isolation: isolate;
 }
+.tile-ripple:active::after,
 .tile-ripple-emerald:active::after {
   content: "";
   position: absolute;
@@ -3383,7 +3385,7 @@ html {
   width: 12px;
   height: 12px;
   border-radius: 9999px;
-  background: radial-gradient(circle, rgba(167, 243, 208, 0.65), transparent 70%);
+  background: radial-gradient(circle, rgb(var(--accent-rgb) / 0.65), transparent 70%);
   transform: translate(-50%, -50%) scale(0);
   animation: tile-ripple 600ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
   pointer-events: none;
@@ -3421,7 +3423,7 @@ html {
     100deg,
     transparent 0%,
     transparent 38%,
-    rgba(167, 243, 208, 0.10) 50%,
+    rgb(var(--accent-rgb) / 0.10) 50%,
     transparent 62%,
     transparent 100%
   );
@@ -3436,6 +3438,7 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .card-shimmer::before,
   .eyebrow-fade-in,
+  .tile-ripple:active::after,
   .tile-ripple-emerald:active::after,
   .skeleton-glass::after {
     animation: none !important;

@@ -132,69 +132,25 @@ export const SEDUC_SUBGRUPOS: Array<{
   },
 ]
 
-/** Classes Tailwind por tone — pre-computadas pra evitar template strings
- *  dinâmicas que o Tailwind JIT não consegue tree-shake. */
-export const TONE_CLASSES: Record<
-  ContratoMeta["tone"],
-  {
-    border: string
-    bg: string
-    bgHover: string
-    text: string
-    iconBg: string
-    iconRing: string
-    iconColor: string
-    glow: string
-  }
-> = {
-  emerald: {
-    border: "border-emerald-300/25",
-    bg: "bg-emerald-300/[0.04]",
-    bgHover: "hover:bg-emerald-300/[0.09]",
-    text: "text-emerald-100",
-    iconBg: "bg-emerald-300/12",
-    iconRing: "ring-emerald-300/35",
-    iconColor: "text-emerald-300",
-    glow: "hover:shadow-[0_8px_28px_-8px_rgba(110,231,183,0.45)]",
-  },
-  amber: {
-    border: "border-amber-300/25",
-    bg: "bg-amber-300/[0.04]",
-    bgHover: "hover:bg-amber-300/[0.09]",
-    text: "text-amber-100",
-    iconBg: "bg-amber-300/12",
-    iconRing: "ring-amber-300/35",
-    iconColor: "text-amber-300",
-    glow: "hover:shadow-[0_8px_28px_-8px_rgba(232,194,117,0.45)]",
-  },
-  sky: {
-    border: "border-sky-300/25",
-    bg: "bg-sky-300/[0.04]",
-    bgHover: "hover:bg-sky-300/[0.09]",
-    text: "text-sky-100",
-    iconBg: "bg-sky-300/12",
-    iconRing: "ring-sky-300/35",
-    iconColor: "text-sky-300",
-    glow: "hover:shadow-[0_8px_28px_-8px_rgba(125,211,252,0.45)]",
-  },
-  rose: {
-    border: "border-rose-300/25",
-    bg: "bg-rose-300/[0.04]",
-    bgHover: "hover:bg-rose-300/[0.09]",
-    text: "text-rose-100",
-    iconBg: "bg-rose-300/12",
-    iconRing: "ring-rose-300/35",
-    iconColor: "text-rose-300",
-    glow: "hover:shadow-[0_8px_28px_-8px_rgba(252,165,165,0.45)]",
-  },
-  violet: {
-    border: "border-violet-300/25",
-    bg: "bg-violet-300/[0.04]",
-    bgHover: "hover:bg-violet-300/[0.09]",
-    text: "text-violet-100",
-    iconBg: "bg-violet-300/12",
-    iconRing: "ring-violet-300/35",
-    iconColor: "text-violet-300",
-    glow: "hover:shadow-[0_8px_28px_-8px_rgba(196,181,253,0.45)]",
-  },
+/** Classes visuais dos tiles — TODAS derivam do accent do esquema escolhido
+ *  pelo usuário (tokens --accent-rgb). O `tone` continua existindo só pra
+ *  selecionar o keyframe de animação do ícone no CSS ([data-tone]); a
+ *  identidade de cada contrato vem do ícone + animação, não de cor própria. */
+const ACCENT_TONE = {
+  border: "border-[rgb(var(--accent-rgb)/0.25)]",
+  bg: "bg-[rgb(var(--accent-rgb)/0.04)]",
+  bgHover: "hover:bg-[rgb(var(--accent-rgb)/0.09)]",
+  text: "text-[rgb(var(--accent-rgb))]",
+  iconBg: "bg-[rgb(var(--accent-rgb)/0.12)]",
+  iconRing: "ring-[rgb(var(--accent-rgb)/0.38)]",
+  iconColor: "text-[rgb(var(--accent-rgb))]",
+  glow: "hover:shadow-[0_8px_28px_-8px_rgb(var(--accent-rgb)/0.45)]",
+} as const
+
+export const TONE_CLASSES: Record<ContratoMeta["tone"], typeof ACCENT_TONE> = {
+  emerald: ACCENT_TONE,
+  amber: ACCENT_TONE,
+  sky: ACCENT_TONE,
+  rose: ACCENT_TONE,
+  violet: ACCENT_TONE,
 }
