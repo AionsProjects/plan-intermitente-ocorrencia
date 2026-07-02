@@ -1,12 +1,17 @@
 import { CheckCircle2, ExternalLink, RotateCcw } from "lucide-react"
 
+import { CartaoConvocacao } from "./CartaoConvocacao"
+import type { ConvocacaoPayload } from "./types"
+
 type Props = {
   itemId: string
   itemUrl: string
+  payload?: ConvocacaoPayload
+  competencia?: string | null
   onNovaConvocacao: () => void
 }
 
-export function TelaSucesso({ itemId, itemUrl, onNovaConvocacao }: Props) {
+export function TelaSucesso({ itemId, itemUrl, payload, competencia, onNovaConvocacao }: Props) {
   const ehMock = itemId.startsWith("mock-")
   return (
     <div className="text-center">
@@ -22,11 +27,18 @@ export function TelaSucesso({ itemId, itemUrl, onNovaConvocacao }: Props) {
         link de preenchimento.
       </p>
 
-      <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.05)] px-4 py-2 text-xs text-foreground/70 backdrop-blur">
+      {/* O cartão da convocação criada — a visualização do que foi convocado */}
+      {payload && (
+        <div className="mx-auto mt-6 max-w-md text-left">
+          <CartaoConvocacao payload={payload} competencia={competencia} />
+        </div>
+      )}
+
+      <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.05)] px-4 py-2 text-xs text-foreground/70 backdrop-blur">
         Código da convocação:{" "}
         <code className="text-[rgb(var(--accent-rgb))]">{itemId}</code>
         {ehMock && (
-          <span className="ml-2 rounded-full border border-amber-300/40 bg-amber-300/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-200">
+          <span className="ml-2 rounded-full border border-[rgb(var(--accent-rgb)/0.4)] bg-[rgb(var(--accent-rgb)/0.1)] px-2 py-0.5 text-[10px] uppercase tracking-wider text-[rgb(var(--accent-rgb))]">
             teste
           </span>
         )}
@@ -51,7 +63,7 @@ export function TelaSucesso({ itemId, itemUrl, onNovaConvocacao }: Props) {
           style={{
             background:
               "linear-gradient(135deg, rgb(var(--accent-rgb)) 0%, rgb(var(--accent-rgb)) 55%, rgb(var(--surface-rgb)) 130%)",
-            border: "1px solid rgba(255,236,194,0.5)",
+            border: "1px solid color-mix(in srgb, rgb(var(--accent-rgb)) 45%, rgb(255 255 255 / 0.55))",
           }}
         >
           <RotateCcw className="size-4" />

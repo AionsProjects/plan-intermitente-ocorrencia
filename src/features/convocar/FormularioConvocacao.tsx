@@ -15,6 +15,16 @@ import { ptBR } from "date-fns/locale"
 import { GlassDatePicker } from "./GlassDatePicker"
 import { GlassSelect } from "./GlassSelect"
 import { ComboboxFiltravel } from "@/components/ui/combobox-filtravel"
+import { ChoiceButton } from "@/features/atestados/ChoiceButton"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { CartaoConvocacao } from "./CartaoConvocacao"
 import { ConvocacaoApiError } from "./api"
 import {
   OPCOES_CONVOCACAO_FALLBACK,
@@ -36,7 +46,7 @@ type Props = {
   competencia: string // YYYY-MM do mês escolhido (trava o calendário)
   onTrocarEmpregado: () => void
   onVoltarMes: () => void
-  onSucesso: (itemId: string, itemUrl: string) => void
+  onSucesso: (itemId: string, itemUrl: string, payload: ConvocacaoPayload) => void
 }
 
 type FormState = {
@@ -92,6 +102,8 @@ export function FormularioConvocacao({
   const [erroGeral, setErroGeral] = useState<string | null>(null)
   const [alertaConflito, setAlertaConflito] =
     useState<AlertaConflito | null>(null)
+  // Revisão: o payload validado fica aqui até o operador CONFIRMAR no modal (cartão).
+  const [payloadRevisao, setPayloadRevisao] = useState<ConvocacaoPayload | null>(null)
   const opcoesQuery = useOpcoesConvocacao()
   const mutation = useCriarConvocacao()
 
@@ -191,10 +203,19 @@ export function FormularioConvocacao({
       termoInsalubridade: form.termoInsalubridade,
       papel,
     }
+    // Abre a REVISÃO (cartão da convocação) — a criação acontece no confirmar.
+    setPayloadRevisao(payload)
+  }
+
+  async function confirmarCriacao() {
+    if (!payloadRevisao) return
+    const payload = payloadRevisao
     try {
       const res = await mutation.mutateAsync(payload)
-      onSucesso(res.itemId, res.itemUrl)
+      setPayloadRevisao(null)
+      onSucesso(res.itemId, res.itemUrl, payload)
     } catch (err) {
+      setPayloadRevisao(null)
       if (
         err instanceof ConvocacaoApiError &&
         err.status === 409 &&
@@ -435,6 +456,53 @@ export function FormularioConvocacao({
         )}
         Convocar
       </button>
+
+      {/* REVISÃO — o cartão da convocação antes de criar (padrão glass-modal) */}
+      <Dialog
+        open={!!payloadRevisao}
+        onOpenChange={(o) => !o && !mutation.isPending && setPayloadRevisao(null)}
+      >
+        <DialogContent
+          className="glass-modal border-0 bg-transparent p-7 text-foreground sm:max-w-md"
+          overlayClassName="bg-[rgb(var(--shadow)/0.5)] backdrop-blur-[3px]"
+          style={{ backdropFilter: "blur(10px) saturate(130%)" }}
+        >
+          <DialogHeader>
+            <p className="text-[10px] uppercase tracking-[0.3em] text-[rgb(var(--accent-rgb)/0.8)]">
+              Revisar convocação
+            </p>
+            <DialogTitle className="text-display text-2xl text-foreground">
+              Confira antes de convocar
+            </DialogTitle>
+            <DialogDescription className="text-foreground/60">
+              A convocação será criada no board e seguirá para o preenchimento.
+            </DialogDescription>
+          </DialogHeader>
+
+          {payloadRevisao && (
+            <div className="mt-1">
+              <CartaoConvocacao payload={payloadRevisao} competencia={competencia} />
+            </div>
+          )}
+
+          <DialogFooter className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-2">
+            <ChoiceButton
+              onClick={() => !mutation.isPending && setPayloadRevisao(null)}
+            >
+              Ajustar
+            </ChoiceButton>
+            <ChoiceButton variant="primary" onClick={() => void confirmarCriacao()}>
+              {mutation.isPending ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="size-4 animate-spin" /> Criando…
+                </span>
+              ) : (
+                "Confirmar e convocar"
+              )}
+            </ChoiceButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </form>
   )
 }
