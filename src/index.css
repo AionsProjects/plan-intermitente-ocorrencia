@@ -3441,3 +3441,22 @@ html {
     animation: none !important;
   }
 }
+
+/* ─── Hub: orbe de luz do tema respirando atrás do console ─── */
+.hub-orb {
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgb(var(--accent-rgb) / 0.13) 0%,
+    rgb(var(--accent-rgb) / 0.05) 38%,
+    transparent 68%
+  );
+  filter: blur(48px);
+  animation: hub-breathe 11s ease-in-out infinite;
+}
+@keyframes hub-breathe {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.85; }
+  50% { transform: translate(-50%, -50%) scale(1.12); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hub-orb { animation: none; }
+}
