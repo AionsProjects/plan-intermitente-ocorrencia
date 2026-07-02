@@ -112,10 +112,11 @@ export function TelaObrigado({ dados, ehCorrecao, ehTeste }: Props) {
         )}
 
         <div
-          className="mx-auto flex size-16 items-center justify-center rounded-full text-[#06180e] shadow-[0_15px_40px_-10px_rgba(74,222,128,0.55)] ring-1 ring-emerald-200/50"
+          className="mx-auto flex size-16 items-center justify-center rounded-full shadow-[0_15px_40px_-10px_rgb(var(--accent-rgb)/0.55)] ring-1 ring-[rgb(var(--accent-rgb)/0.5)]"
           style={{
             background:
-              "linear-gradient(135deg, #86efac 0%, #4ade80 55%, #22c55e 100%)",
+              "linear-gradient(135deg, color-mix(in srgb, rgb(var(--accent-rgb)) 62%, white) 0%, rgb(var(--accent-rgb)) 55%, color-mix(in srgb, rgb(var(--accent-rgb)) 62%, black) 100%)",
+            color: "color-mix(in srgb, rgb(var(--accent-rgb)) 18%, #06080f)",
           }}
         >
           <Check className="size-7" strokeWidth={2.4} />

@@ -15,6 +15,7 @@ import { ptBR } from "date-fns/locale"
 import { Link } from "react-router-dom"
 import {
   ArrowLeft,
+  Building2,
   CalendarDays,
   ChevronDown,
   ChevronUp,
@@ -512,6 +513,29 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
     return desconsiderados + comOcorrencia
   }, [diasInfo, diasAtivos, respostas])
 
+  // Resumo por tipo pro strip acima do Finalizar — o operador confere o
+  // que vai ser enviado sem varrer a grade de dias.
+  const resumoEnvio = useMemo(() => {
+    const ativosNaoCancelados = diasAtivos.filter(
+      (d) => !diasCancelados.has(d.data) && d.tipo !== "atestado",
+    )
+    const faltas = ativosNaoCancelados.filter(
+      (d) => respostas[d.data]?.tipo === "falta",
+    ).length
+    const atrasos = ativosNaoCancelados.filter(
+      (d) => respostas[d.data]?.tipo === "atraso",
+    ).length
+    const desconsiderados = diasInfo.filter((d) => !d.ativo).length
+    const documentos = diasInfo.filter((d) => d.tipo === "atestado").length
+    return {
+      faltas,
+      atrasos,
+      desconsiderados,
+      cancelados: diasCancelados.size,
+      documentos,
+    }
+  }, [diasAtivos, diasInfo, respostas, diasCancelados])
+
   async function enviar() {
     // Usa `||` (não `??`) porque o backend pode devolver "" em vez de null
     // quando a coluna Protocolo do monday está vazia.
@@ -826,8 +850,8 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
       <main className="mx-auto max-w-2xl px-4 pb-16">
         <section className="glass-strong p-8 sm:p-10 fade-up" style={{ animationDelay: "120ms" }}>
           <div className="flex items-start gap-3">
-            <div className="mt-1 flex size-9 items-center justify-center rounded-full bg-[rgb(var(--ink)/0.1)] ring-1 ring-[rgb(var(--ink)/0.25)] backdrop-blur">
-              <Sparkles className="size-4 text-foreground" />
+            <div className="mt-1 flex size-9 items-center justify-center rounded-full bg-[rgb(var(--accent-rgb)/0.12)] ring-1 ring-[rgb(var(--accent-rgb)/0.35)] backdrop-blur">
+              <Sparkles className="size-4 text-[rgb(var(--accent-rgb))]" />
             </div>
             <div className="flex-1">
               <div className="flex items-start justify-between gap-2">
@@ -844,8 +868,8 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
                 </div>
               </div>
 
-              {/* Action button: Desconsiderar */}
-              <div className="mt-4 flex items-center gap-2">
+              {/* Ações da convocação (expandem no hover; wrap no mobile) */}
+              <div className="mt-4 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   className={`btn-action-expand btn-delete ${modoApagar ? "btn-delete-active" : ""}`}
@@ -976,16 +1000,54 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
             </p>
           ) : null}
 
+          {/* Strip de conferência — só aparece o que tem contagem */}
+          {totalOcorrencias + resumoEnvio.documentos + resumoEnvio.cancelados > 0 && (
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-2 fade-up">
+              {resumoEnvio.faltas > 0 && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-red-300/30 bg-red-300/10 px-3 py-1 text-xs text-red-700 dark:text-red-200">
+                  <span className="lamp lamp-off" />
+                  {resumoEnvio.faltas} {resumoEnvio.faltas === 1 ? "falta" : "faltas"}
+                </span>
+              )}
+              {resumoEnvio.atrasos > 0 && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-yellow-300/30 bg-yellow-300/10 px-3 py-1 text-xs text-yellow-700 dark:text-yellow-200">
+                  <span className="lamp lamp-flicker-yellow" />
+                  {resumoEnvio.atrasos} {resumoEnvio.atrasos === 1 ? "atraso" : "atrasos"}
+                </span>
+              )}
+              {resumoEnvio.desconsiderados > 0 && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-300/30 bg-violet-300/10 px-3 py-1 text-xs text-violet-700 dark:text-violet-200">
+                  {resumoEnvio.desconsiderados}{" "}
+                  {resumoEnvio.desconsiderados === 1 ? "desconsiderado" : "desconsiderados"}
+                </span>
+              )}
+              {resumoEnvio.cancelados > 0 && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-orange-300/30 bg-orange-300/10 px-3 py-1 text-xs text-orange-700 dark:text-orange-200">
+                  {resumoEnvio.cancelados}{" "}
+                  {resumoEnvio.cancelados === 1 ? "dia cancelado" : "dias cancelados"}
+                </span>
+              )}
+              {resumoEnvio.documentos > 0 && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-xs text-amber-700 dark:text-amber-200">
+                  <FileText className="size-3" />
+                  {resumoEnvio.documentos}{" "}
+                  {resumoEnvio.documentos === 1 ? "dia com documento" : "dias com documento"}
+                </span>
+              )}
+            </div>
+          )}
+
           <div className="mt-8 flex flex-col items-center gap-3">
             <button
               type="button"
               onClick={enviar}
               disabled={finalizar.isPending || modoApagar}
-              className="glass-strong glow-gold group relative inline-flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-full px-8 text-base font-medium tracking-wide text-[#0a1224] transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-70"
+              className="glass-strong glow-gold group relative inline-flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-full px-8 text-base font-medium tracking-wide transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-70"
               style={{
                 background:
                   "linear-gradient(135deg, rgb(var(--accent-rgb)) 0%, rgb(var(--accent-rgb)) 55%, rgb(var(--surface-rgb)) 130%)",
-                border: "1px solid rgba(255,236,194,0.5)",
+                border: "1px solid color-mix(in srgb, rgb(var(--accent-rgb)) 45%, rgb(255 255 255 / 0.55))",
+                color: "color-mix(in srgb, rgb(var(--accent-rgb)) 18%, #06080f)",
               }}
             >
               {finalizar.isPending ? (
@@ -1426,14 +1488,18 @@ function Header({ dados }: { dados: ProcessamentoDados }) {
       </h1>
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {dados.contrato ? (
-          <span className="rounded-full border border-[rgb(var(--ink)/0.15)] bg-[rgb(var(--ink)/0.05)] px-3 py-1 text-xs text-foreground/75 backdrop-blur">
-            Contrato {dados.contrato}
+          <span className="chip-context-glass">
+            <Building2 className="size-3.5 text-[rgb(var(--accent-rgb)/0.85)]" />
+            {dados.contrato}
           </span>
         ) : null}
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-[rgb(var(--ink)/0.15)] bg-[rgb(var(--ink)/0.05)] px-3 py-1 text-xs text-foreground/75 backdrop-blur">
-          <CalendarDays className="size-3.5" />
+        <span className="chip-context-glass">
+          <CalendarDays className="size-3.5 text-[rgb(var(--accent-rgb)/0.85)]" />
           {format(parseISO(dados.dataInicio), "dd/MM/yyyy")} —{" "}
           {format(parseISO(dados.dataFim), "dd/MM/yyyy")}
+        </span>
+        <span className="chip-context-glass tone-accent">
+          {dados.dias.length} {dados.dias.length === 1 ? "dia convocado" : "dias convocados"}
         </span>
       </div>
     </header>
@@ -1504,7 +1570,8 @@ function DialogDia({
 
   return (
     <Dialog open={!!dia} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="glass-modal border-0 bg-transparent p-8 text-foreground sm:max-w-md" style={{ backdropFilter: 'blur(10px) saturate(140%) brightness(1.05)' }}>
+      <DialogContent className="glass-modal border-0 bg-transparent p-8 text-foreground sm:max-w-md"
+        overlayClassName="bg-[rgb(var(--shadow)/0.5)] backdrop-blur-[3px]" style={{ backdropFilter: 'blur(10px) saturate(130%)' }}>
         <DialogHeader>
           <p className="text-[10px] uppercase tracking-[0.3em] text-foreground/55">
             Registrar dia
@@ -1688,7 +1755,8 @@ function DialogCancelamento({
     <Dialog open={aberto} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         className="glass-modal border-0 bg-transparent p-8 text-foreground sm:max-w-lg"
-        style={{ backdropFilter: "blur(10px) saturate(140%) brightness(1.05)" }}
+        overlayClassName="bg-[rgb(var(--shadow)/0.5)] backdrop-blur-[3px]"
+        style={{ backdropFilter: "blur(10px) saturate(130%)" }}
       >
         <DialogHeader>
           <p className="text-[10px] uppercase tracking-[0.3em] text-foreground/55">
@@ -2533,8 +2601,9 @@ function DialogSelecionarSabados({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent
         className="glass-modal border-0 bg-transparent p-8 text-foreground sm:max-w-md"
+        overlayClassName="bg-[rgb(var(--shadow)/0.5)] backdrop-blur-[3px]"
         style={{
-          backdropFilter: "blur(10px) saturate(140%) brightness(1.05)",
+          backdropFilter: "blur(10px) saturate(130%)",
         }}
       >
         <DialogHeader>
@@ -2670,8 +2739,9 @@ function DialogConfirmarRemoverSabado({
     <Dialog open={open} onOpenChange={(o) => !o && onCancelar()}>
       <DialogContent
         className="glass-modal border-0 bg-transparent p-8 text-foreground sm:max-w-sm"
+        overlayClassName="bg-[rgb(var(--shadow)/0.5)] backdrop-blur-[3px]"
         style={{
-          backdropFilter: "blur(10px) saturate(140%) brightness(1.05)",
+          backdropFilter: "blur(10px) saturate(130%)",
         }}
       >
         <DialogHeader>
@@ -2731,8 +2801,9 @@ function DialogReverterCancelamento({
     <Dialog open={open} onOpenChange={(o) => !o && onCancelar()}>
       <DialogContent
         className="glass-modal border-0 bg-transparent p-8 text-foreground sm:max-w-sm"
+        overlayClassName="bg-[rgb(var(--shadow)/0.5)] backdrop-blur-[3px]"
         style={{
-          backdropFilter: "blur(10px) saturate(140%) brightness(1.05)",
+          backdropFilter: "blur(10px) saturate(130%)",
         }}
       >
         <DialogHeader>
@@ -2797,7 +2868,8 @@ function DialogDiaComDocumento({
     <Dialog open={!!data} onOpenChange={(o) => !o && onClose()}>
       <DialogContent
         className="glass-modal border-0 bg-transparent p-8 text-foreground sm:max-w-md"
-        style={{ backdropFilter: "blur(10px) saturate(140%) brightness(1.05)" }}
+        overlayClassName="bg-[rgb(var(--shadow)/0.5)] backdrop-blur-[3px]"
+        style={{ backdropFilter: "blur(10px) saturate(130%)" }}
       >
         <DialogHeader>
           <p className="text-[10px] uppercase tracking-[0.3em] text-amber-700/80 dark:text-amber-200/80">
@@ -2888,7 +2960,8 @@ function DialogDiaComPontoFacultativo({
     <Dialog open={!!data} onOpenChange={(o) => !o && onClose()}>
       <DialogContent
         className="glass-modal border-0 bg-transparent p-8 text-foreground sm:max-w-md"
-        style={{ backdropFilter: "blur(10px) saturate(140%) brightness(1.05)" }}
+        overlayClassName="bg-[rgb(var(--shadow)/0.5)] backdrop-blur-[3px]"
+        style={{ backdropFilter: "blur(10px) saturate(130%)" }}
       >
         <DialogHeader>
           <p className="text-[10px] uppercase tracking-[0.3em] text-emerald-700/80 dark:text-emerald-200/80">
@@ -3213,8 +3286,9 @@ function DialogSplit({
     <Dialog open={aberto} onOpenChange={(o) => !o && onCancelar()}>
       <DialogContent
         className="glass-modal border-0 bg-transparent p-8 text-foreground sm:max-w-lg"
+        overlayClassName="bg-[rgb(var(--shadow)/0.5)] backdrop-blur-[3px]"
         style={{
-          backdropFilter: "blur(10px) saturate(140%) brightness(1.05)",
+          backdropFilter: "blur(10px) saturate(130%)",
         }}
       >
         <DialogHeader>
