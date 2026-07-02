@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { ArrowLeft, CalendarDays, Loader2 } from "lucide-react"
+import { ArrowLeft, CalendarCheck, CalendarPlus, History, Loader2 } from "lucide-react"
 import { format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
@@ -90,7 +90,7 @@ export function EscolherMes({ empregado, onTrocarEmpregado, onEscolher }: Props)
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
-          {opcoes.map((o) => (
+          {opcoes.map((o, i) => (
             <button
               key={o.papel}
               type="button"
@@ -101,20 +101,23 @@ export function EscolherMes({ empregado, onTrocarEmpregado, onEscolher }: Props)
                   ? setConfirmandoPassado(o)
                   : onEscolher(o.papel, o.competencia ?? "")
               }
-              className="glass-tile glass-tile-3d group relative flex items-center gap-4 overflow-hidden rounded-2xl px-5 py-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--ink)/0.7)]"
+              style={{ animationDelay: `${i * 90}ms` }}
+              className="fade-up glass-tile glass-tile-3d group relative flex items-center gap-4 overflow-hidden rounded-2xl px-5 py-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--ink)/0.7)]"
             >
               <div
-                className={`icon-3d-host flex size-11 shrink-0 items-center justify-center rounded-full ring-1 ${
+                className={`icon-3d-host flex size-11 shrink-0 items-center justify-center rounded-full ring-1 transition-transform duration-300 group-hover:scale-110 ${
                   o.papel === "passado"
                     ? "bg-amber-400/12 ring-amber-400/40"
                     : "bg-[rgb(var(--accent-rgb)/0.12)] ring-[rgb(var(--accent-rgb)/0.38)]"
                 }`}
               >
-                <CalendarDays
-                  className={`icon-3d-only size-5 ${
-                    o.papel === "passado" ? "text-amber-500 dark:text-amber-300" : "text-[rgb(var(--accent-rgb))]"
-                  }`}
-                />
+                {o.papel === "passado" ? (
+                  <History className="icon-3d-only size-5 text-amber-500 dark:text-amber-300 transition-transform duration-500 group-hover:-rotate-[25deg]" />
+                ) : o.papel === "atual" ? (
+                  <CalendarCheck className="icon-3d-only size-5 text-[rgb(var(--accent-rgb))]" />
+                ) : (
+                  <CalendarPlus className="icon-3d-only size-5 text-[rgb(var(--accent-rgb))]" />
+                )}
               </div>
               <div className="min-w-0">
                 <p className="text-[11px] uppercase tracking-[0.2em] text-foreground/45">
@@ -144,7 +147,8 @@ export function EscolherMes({ empregado, onTrocarEmpregado, onEscolher }: Props)
       <Dialog open={!!confirmandoPassado} onOpenChange={(o) => !o && setConfirmandoPassado(null)}>
         <DialogContent
           className="glass-modal border-0 bg-transparent p-8 text-foreground sm:max-w-md"
-          style={{ backdropFilter: "blur(10px) saturate(140%) brightness(1.05)" }}
+          overlayClassName="bg-[rgb(var(--shadow)/0.55)] backdrop-blur-[3px]"
+          style={{ backdropFilter: "blur(10px) saturate(130%)" }}
         >
           <DialogHeader>
             <p className="text-[10px] uppercase tracking-[0.3em] text-amber-700/80 dark:text-amber-200/80">
