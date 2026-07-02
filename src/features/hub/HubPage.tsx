@@ -1,12 +1,11 @@
-import type { MouseEvent } from "react"
+﻿import type { MouseEvent } from "react"
 import { Link } from "react-router-dom"
-import { format } from "date-fns"
-import { ptBR } from "date-fns/locale"
 
 import {
   ArrowUpRight,
   Banknote,
   CalendarDays,
+  ClipboardCheck,
   FileText,
   KeyRound,
   UserPlus,
@@ -20,203 +19,132 @@ const actions: {
   title: string
   description: string
   icon: typeof UserPlus
+  tone: string
   nivelMinimo?: Papel
 }[] = [
   {
     to: "/convocar",
     title: "Nova convocação",
-    description: "Cadastrar uma nova convocação pontual de intermitente.",
+    description: "Cadastrar uma nova convocação pontual.",
     icon: UserPlus,
+    tone: "blue",
   },
   {
     to: "/atestados",
-    title: "Atestados",
-    description: "Atestado médico ou declaração de comparecimento.",
+    title: "Atestados e declarações",
+    description: "Lançar atestado médico ou declaração de comparecimento.",
     icon: FileText,
-  },
-  {
-    to: "/corrigir",
-    title: "Atualizar ocorrência",
-    description: "Reabrir um registro pelo protocolo.",
-    icon: KeyRound,
+    tone: "amber",
   },
   {
     to: "/ponto-facultativo",
     title: "Ponto facultativo",
-    description: "VR/VT para um contrato em um dia específico.",
+    description: "Aplicar vale-refeição e vale-transporte para um contrato em um dia específico.",
     icon: CalendarDays,
-    nivelMinimo: "dp",
+    tone: "emerald",
+    nivelMinimo: "dp", // só DP + Admin
   },
   {
     to: "/mensal",
-    title: "Pagamento mensal",
-    description: "Fechamento do grupo MENSAL (Caju + RM).",
+    title: "Pagamento mensal intermitente",
+    description: "Rodar o fechamento/pagamento do mês para o grupo MENSAL (Caju + RM).",
     icon: Banknote,
-    nivelMinimo: "dp",
+    tone: "gold",
+    nivelMinimo: "dp", // só DP + Admin
+  },
+  {
+    to: "/corrigir",
+    title: "Atualizar ocorrência",
+    description: "Reabrir um registro pelo código de protocolo.",
+    icon: KeyRound,
+    tone: "gold",
   },
 ]
 
-const PAPEL_LABEL: Record<string, string> = {
-  admin: "Administração",
-  dp: "Departamento pessoal",
-  rh: "Recursos humanos",
-  operacional: "Operacional",
-}
-
-function saudacao(): string {
-  const h = new Date().getHours()
-  if (h < 5) return "Boa madrugada"
-  if (h < 12) return "Bom dia"
-  if (h < 18) return "Boa tarde"
-  return "Boa noite"
-}
-
-function tiltMove(e: MouseEvent<HTMLAnchorElement>) {
-  const r = e.currentTarget.getBoundingClientRect()
-  e.currentTarget.style.setProperty("--mx", String(((e.clientX - r.left) / r.width) * 100))
-  e.currentTarget.style.setProperty("--my", String(((e.clientY - r.top) / r.height) * 100))
-}
-function tiltLeave(e: MouseEvent<HTMLAnchorElement>) {
-  e.currentTarget.style.setProperty("--mx", "50")
-  e.currentTarget.style.setProperty("--my", "50")
-}
-
 export function HubPage() {
-  const { usuario, podeVer } = useAuth()
-  const acoesVisiveis = actions.filter((a) => !a.nivelMinimo || podeVer(a.nivelMinimo))
-  const [hero, ...resto] = acoesVisiveis
-  const HeroIcon = hero?.icon ?? UserPlus
+  const { podeVer } = useAuth()
+  const acoesVisiveis = actions.filter(
+    (a) => !a.nivelMinimo || podeVer(a.nivelMinimo),
+  )
 
-  const primeiroNome = (usuario?.nome ?? "").split(" ")[0]
-  const hoje = format(new Date(), "EEEE, d 'de' MMMM", { locale: ptBR })
+  function handleTiltMove(e: MouseEvent<HTMLAnchorElement>) {
+    const r = e.currentTarget.getBoundingClientRect()
+    const mx = ((e.clientX - r.left) / r.width) * 100
+    const my = ((e.clientY - r.top) / r.height) * 100
+    e.currentTarget.style.setProperty("--mx", String(mx))
+    e.currentTarget.style.setProperty("--my", String(my))
+  }
+
+  function handleTiltLeave(e: MouseEvent<HTMLAnchorElement>) {
+    e.currentTarget.style.setProperty("--mx", "50")
+    e.currentTarget.style.setProperty("--my", "50")
+  }
 
   return (
     <main className="relative z-10 flex min-h-svh items-center justify-center px-4 py-8 sm:px-6 sm:py-12">
-      {/* Orbe de luz do tema respirando atrás do console (profundidade) */}
-      <div
-        aria-hidden
-        className="hub-orb pointer-events-none absolute left-1/2 top-1/2 -z-10 size-[42rem] -translate-x-1/2 -translate-y-1/2 rounded-full"
-      />
+      <section className="glass-strong relative w-full max-w-2xl overflow-hidden px-5 py-6 sm:px-8 sm:py-8 lg:px-10 lg:py-10">
+        <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
 
-      <section className="glass-strong relative w-full max-w-3xl overflow-hidden rounded-3xl px-5 py-6 sm:px-8 sm:py-8 lg:px-10 lg:py-10">
-        <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[rgb(var(--ink)/0.3)] to-transparent" />
-        {/* reflexo diagonal sutil */}
-        <div className="pointer-events-none absolute -left-24 -top-40 h-80 w-[36rem] rotate-[18deg] bg-gradient-to-b from-[rgb(var(--ink)/0.05)] to-transparent" />
-
-        <header className="fade-up flex flex-wrap items-start justify-between gap-4">
+        <header>
           <div className="min-w-0">
-            <p className="text-[11px] uppercase tracking-[0.32em] text-foreground/40">
-              Aionscorp · Plano de intermitentes
+            <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/50 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.22em] text-foreground/55">
+              <ClipboardCheck className="size-3 text-[rgb(var(--accent-rgb))]" />
+              Plano de intermitentes
+            </div>
+            <p className="mt-5 text-[11px] uppercase tracking-[0.28em] text-foreground/40">
+              Aionscorp
             </p>
-            <h1 className="text-display mt-3 text-4xl leading-[1.04] text-foreground sm:text-5xl">
-              {saudacao()}
-              {primeiroNome ? (
-                <>
-                  ,{" "}
-                  <span className="capitalize text-[rgb(var(--accent-rgb))]">
-                    {primeiroNome.toLowerCase()}
-                  </span>
-                </>
-              ) : null}
-              .
+            <h1 className="text-display mt-2 text-4xl leading-[1.02] text-foreground sm:text-5xl">
+              Escolha o próximo passo
             </h1>
-            <p className="mt-2 text-sm capitalize text-foreground/50">{hoje}</p>
           </div>
-          {usuario && (
-            <span className="mt-1 shrink-0 rounded-full border border-[rgb(var(--accent-rgb)/0.3)] bg-[rgb(var(--accent-rgb)/0.08)] px-3 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-[rgb(var(--accent-rgb))]">
-              {PAPEL_LABEL[usuario.papel] ?? usuario.papel}
-            </span>
-          )}
         </header>
 
-        <div className="mt-8 grid gap-3 sm:grid-cols-5 sm:gap-3.5">
-          {/* HERO — ação principal, dobro de presença */}
-          {hero && (
-            <div className="fade-up sm:col-span-2" style={{ animationDelay: "120ms" }}>
-              <Link
-                to={hero.to}
-                onMouseMove={tiltMove}
-                onMouseLeave={tiltLeave}
-                className="glass-tile glass-tile-3d group relative flex h-full min-h-[13rem] flex-col justify-between overflow-hidden rounded-2xl border-[rgb(var(--accent-rgb)/0.28)] px-5 py-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--ink)/0.7)]"
-              >
-                {/* brilho accent interno do hero */}
-                <div className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-[rgb(var(--accent-rgb)/0.14)] blur-3xl" />
-                <span
-                  aria-hidden
-                  className="text-display pointer-events-none absolute -bottom-5 right-2 text-[6.5rem] leading-none text-[rgb(var(--ink)/0.05)]"
-                >
-                  01
-                </span>
-                <div className="icon-3d-host flex size-14 items-center justify-center rounded-2xl bg-[rgb(var(--accent-rgb)/0.14)] ring-1 ring-[rgb(var(--accent-rgb)/0.42)]">
-                  <HeroIcon className="icon-3d-only size-6 text-[rgb(var(--accent-rgb))]" />
-                </div>
-                <div className="relative">
-                  <p className="text-display text-2xl leading-tight text-foreground">
-                    {hero.title}
-                  </p>
-                  <p className="mt-1.5 text-sm leading-snug text-foreground/55">
-                    {hero.description}
-                  </p>
-                  <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.16em] text-[rgb(var(--accent-rgb))]">
-                    Começar
-                    <ArrowUpRight className="size-3.5 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-                  </span>
-                </div>
-              </Link>
-            </div>
-          )}
+        <p className="mt-4 max-w-lg text-sm leading-relaxed text-foreground/58 sm:text-[15px]">
+          Acesse o fluxo de convocação ou ajuste uma ocorrência já registrada.
+        </p>
 
-          {/* Demais ações — compactas, 2 por linha */}
-          <div className="grid gap-3 sm:col-span-3 sm:grid-cols-2 sm:gap-3.5">
-            {resto.map((action, index) => {
-              const Icon = action.icon
-              return (
-                <div
-                  key={action.to}
-                  className="fade-up"
-                  style={{ animationDelay: `${200 + index * 80}ms` }}
+        <div className="mt-8 grid gap-3 sm:gap-3.5">
+          {acoesVisiveis.map((action, index) => {
+            const Icon = action.icon
+            // Ícones seguem o esquema de cores (accent).
+            const ringClass =
+              "bg-[rgb(var(--accent-rgb)/0.12)] ring-[rgb(var(--accent-rgb)/0.38)]"
+            const iconClass = "text-[rgb(var(--accent-rgb))]"
+
+            return (
+              <div
+                key={action.to}
+                className="fade-up"
+                style={{ animationDelay: `${120 + index * 80}ms` }}
+              >
+                <Link
+                  to={action.to}
+                  onMouseMove={handleTiltMove}
+                  onMouseLeave={handleTiltLeave}
+                  className="glass-tile glass-tile-3d group flex min-h-[5.25rem] items-center justify-between gap-4 rounded-2xl px-4 py-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--ink)/0.7)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent sm:px-5"
                 >
-                  <Link
-                    to={action.to}
-                    onMouseMove={tiltMove}
-                    onMouseLeave={tiltLeave}
-                    className="glass-tile glass-tile-3d group relative flex h-full min-h-[6.1rem] flex-col justify-between overflow-hidden rounded-2xl px-4 py-3.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--ink)/0.7)]"
-                  >
-                    <span
-                      aria-hidden
-                      className="text-display pointer-events-none absolute -bottom-3.5 right-1.5 text-[3.4rem] leading-none text-[rgb(var(--ink)/0.045)]"
+                  <div className="flex min-w-0 items-center gap-3.5">
+                    <div
+                      className={`icon-3d-host flex size-11 shrink-0 items-center justify-center rounded-full ring-1 ${ringClass}`}
                     >
-                      {String(index + 2).padStart(2, "0")}
-                    </span>
-                    <div className="flex items-center justify-between">
-                      <div className="icon-3d-host flex size-9 items-center justify-center rounded-xl bg-[rgb(var(--accent-rgb)/0.1)] ring-1 ring-[rgb(var(--accent-rgb)/0.32)]">
-                        <Icon className="icon-3d-only size-4 text-[rgb(var(--accent-rgb))]" />
-                      </div>
-                      <ArrowUpRight className="size-3.5 text-foreground/30 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-foreground/80" />
+                      <Icon className={`icon-3d-only size-4.5 ${iconClass}`} />
                     </div>
-                    <div className="relative mt-2 min-w-0">
-                      <p className="truncate text-[15px] font-medium leading-tight text-foreground/95">
+                    <div className="min-w-0">
+                      <p className="text-base font-medium leading-tight text-foreground/95">
                         {action.title}
                       </p>
-                      <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-foreground/48">
+                      <p className="mt-1 text-sm leading-snug text-foreground/50">
                         {action.description}
                       </p>
                     </div>
-                  </Link>
-                </div>
-              )
-            })}
-          </div>
+                  </div>
+                  <ArrowUpRight className="size-4 shrink-0 text-foreground/38 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-foreground" />
+                </Link>
+              </div>
+            )
+          })}
         </div>
-
-        <footer
-          className="fade-up mt-7 flex items-center gap-3 text-[10px] uppercase tracking-[0.24em] text-foreground/30"
-          style={{ animationDelay: "520ms" }}
-        >
-          <span className="h-px flex-1 bg-gradient-to-r from-transparent via-[rgb(var(--ink)/0.14)] to-transparent" />
-          Console de operação
-          <span className="h-px flex-1 bg-gradient-to-r from-transparent via-[rgb(var(--ink)/0.14)] to-transparent" />
-        </footer>
       </section>
     </main>
   )
