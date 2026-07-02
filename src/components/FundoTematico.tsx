@@ -11,7 +11,7 @@ import { useThemeState } from "@/lib/theme"
  *   seco     → neve fina caindo                                  ("Grafite")
  *   rubi     → brasas subindo com fade                           ("Brasa")
  *   roxo     → estrelas cintilando + estrela cadente rara        ("Nebulosa")
- *   campo    → grama balançando no rodapé + rajadas de vento     ("Campo")
+ *   brasil   → gramado + confete verde-amarelo + bola rolando    ("Brasil")
  * Respeita a preferência "reduzir animações" e prefers-reduced-motion (CSS).
  */
 
@@ -134,10 +134,10 @@ export function FundoTematico() {
         />
       )}
 
-      {scheme === "campo" && (
+      {scheme === "brasil" && (
         <>
           <div className="ft-campo-solo" />
-          {/* lâminas de grama: alturas/fases variadas, balanço dessincronizado */}
+          {/* gramado: alturas/fases variadas, balanço dessincronizado */}
           <Particulas
             n={26}
             className="ft-grama"
@@ -150,17 +150,21 @@ export function FundoTematico() {
               opacity: 0.45 + rnd(i + 21) * 0.3,
             })}
           />
-          {/* rajadas de vento atravessando a tela */}
+          {/* confete da torcida: verde bandeira, amarelo canarinho, azul */}
           <Particulas
-            n={4}
-            className="ft-vento-linha"
+            n={15}
+            className="ft-confete"
             estilo={(i) => ({
-              top: `${16 + rnd(i + 5) * 58}%`,
-              width: `${90 + rnd(i + 35) * 130}px`,
-              animationDuration: `${7 + rnd(i + 65) * 6}s`,
-              animationDelay: `${rnd(i + 95) * -12}s`,
+              left: `${rnd(i) * 100}%`,
+              background: ["rgb(34 197 94 / 0.6)", "rgb(250 204 21 / 0.6)", "rgb(59 130 246 / 0.55)"][i % 3],
+              animationDuration: `${11 + rnd(i + 40) * 10}s, ${2.6 + rnd(i + 80) * 2}s`,
+              animationDelay: `${rnd(i + 20) * -20}s, 0s`,
+              width: `${4 + rnd(i + 60) * 4}px`,
+              height: `${7 + rnd(i + 60) * 5}px`,
             })}
           />
+          {/* bola rolando pelo gramado, rara */}
+          <span className="ft-bola" />
         </>
       )}
 
