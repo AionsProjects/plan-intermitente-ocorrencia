@@ -49,14 +49,14 @@ function PreferenceControls() {
           role="switch"
           aria-checked={reduzirAnim}
           onClick={() => setReduzirAnim(!reduzirAnim)}
-          className={`relative h-6 w-11 shrink-0 rounded-full transition ${
+          className={`relative h-6 w-11 shrink-0 rounded-full ring-1 transition-all duration-300 ${
             reduzirAnim
-              ? "bg-[rgb(var(--accent-rgb)/0.7)]"
-              : "bg-[rgb(var(--ink)/0.15)]"
+              ? "bg-[rgb(var(--accent-rgb)/0.65)] ring-[rgb(var(--accent-rgb)/0.6)] shadow-[0_4px_14px_-4px_rgb(var(--accent-rgb)/0.7)]"
+              : "bg-[rgb(var(--ink)/0.12)] ring-[rgb(var(--ink)/0.15)]"
           }`}
         >
           <span
-            className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-all ${
+            className={`absolute top-0.5 size-5 rounded-full bg-white shadow-md transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
               reduzirAnim ? "left-[1.375rem]" : "left-0.5"
             }`}
           />
@@ -68,7 +68,7 @@ function PreferenceControls() {
         <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
           Tamanho da fonte
         </p>
-        <div className="grid grid-cols-3 gap-1.5 rounded-2xl border border-border bg-secondary/40 p-1.5">
+        <div className="grid grid-cols-3 gap-2">
           {FONTES.map((f) => {
             const ativo = fonte === f.id
             return (
@@ -77,13 +77,15 @@ function PreferenceControls() {
                 type="button"
                 onClick={() => setFonte(f.id)}
                 aria-pressed={ativo}
-                className={`rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                className={`text-display rounded-2xl border px-3 py-2.5 transition-all duration-300 ${
+                  f.id === "sm" ? "text-sm" : f.id === "md" ? "text-lg" : "text-2xl"
+                } ${
                   ativo
-                    ? "bg-[rgb(var(--accent-rgb)/0.16)] text-foreground ring-1 ring-[rgb(var(--accent-rgb)/0.5)]"
-                    : "text-muted-foreground hover:bg-[rgb(var(--ink)/0.05)] hover:text-foreground"
+                    ? "border-[rgb(var(--accent-rgb)/0.5)] bg-[rgb(var(--accent-rgb)/0.1)] text-foreground shadow-[0_10px_26px_-12px_rgb(var(--accent-rgb)/0.55)]"
+                    : "border-border text-muted-foreground hover:border-[rgb(var(--accent-rgb)/0.35)] hover:text-foreground"
                 }`}
               >
-                {f.label}
+                Aa
               </button>
             )
           })}
@@ -94,9 +96,9 @@ function PreferenceControls() {
       <button
         type="button"
         onClick={resetPrefs}
-        className="flex w-full items-center justify-center gap-2 rounded-xl border border-border px-3 py-2.5 text-sm font-medium text-muted-foreground transition hover:border-[rgb(var(--accent-rgb)/0.4)] hover:text-foreground"
+        className="group flex w-full items-center justify-center gap-2 rounded-2xl border border-border px-3 py-2.5 text-sm font-medium text-muted-foreground transition-all duration-300 hover:border-[rgb(var(--accent-rgb)/0.4)] hover:text-foreground"
       >
-        <RotateCcw className="size-4" />
+        <RotateCcw className="size-4 transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-rotate-[300deg]" />
         Resetar preferências
       </button>
     </div>
@@ -131,9 +133,10 @@ export function ConfigOverlay() {
     <Dialog open={configAberto} onOpenChange={(o) => !o && fecharConfig()}>
       <DialogContent
         className="glass-modal border-0 bg-transparent p-6 text-foreground sm:max-w-lg sm:p-7"
+        overlayClassName="bg-[rgb(var(--shadow)/0.5)] backdrop-blur-[3px]"
         style={{
-          backdropFilter: "blur(10px) saturate(140%) brightness(1.05)",
-          WebkitBackdropFilter: "blur(10px) saturate(140%) brightness(1.05)",
+          backdropFilter: "blur(10px) saturate(130%)",
+          WebkitBackdropFilter: "blur(10px) saturate(130%)",
         }}
       >
         <DialogHeader>
@@ -150,7 +153,7 @@ export function ConfigOverlay() {
 
         {/* Abas */}
         <div
-          className="mt-1 grid gap-1 rounded-xl border border-border bg-secondary/40 p-1"
+          className="mt-1 grid gap-1.5 rounded-2xl border border-border bg-[rgb(var(--ink)/0.04)] p-1.5"
           style={{ gridTemplateColumns: `repeat(${abas.length}, minmax(0, 1fr))` }}
         >
           {abas.map((a) => {
@@ -161,13 +164,17 @@ export function ConfigOverlay() {
                 key={a.id}
                 type="button"
                 onClick={() => setAba(a.id)}
-                className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-sm font-medium transition ${
+                className={`group flex items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-sm font-medium transition-all duration-300 ${
                   ativo
-                    ? "bg-[rgb(var(--accent-rgb)/0.16)] text-foreground ring-1 ring-[rgb(var(--accent-rgb)/0.5)]"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "bg-[rgb(var(--accent-rgb)/0.14)] text-foreground ring-1 ring-[rgb(var(--accent-rgb)/0.5)] shadow-[0_8px_22px_-10px_rgb(var(--accent-rgb)/0.6)]"
+                    : "text-muted-foreground hover:bg-[rgb(var(--ink)/0.05)] hover:text-foreground"
                 }`}
               >
-                <Icone className="size-4" />
+                <Icone
+                  className={`size-4 transition-transform duration-300 group-hover:scale-110 ${
+                    ativo ? "text-[rgb(var(--accent-rgb))]" : ""
+                  }`}
+                />
                 {a.label}
               </button>
             )
