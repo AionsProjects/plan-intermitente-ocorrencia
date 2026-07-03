@@ -93,6 +93,30 @@ test("calcularDesconto: DETRAN/TRE PB nunca descontam", () => {
   assert.equal(r.descontoVT, 0)
 })
 
+test("calcularDesconto: SEDUC (3 subgrupos) não desconta por falta/atraso (03/07/2026)", () => {
+  assert.equal(naoDesconta("SEDUC ESCOLA"), true)
+  assert.equal(naoDesconta("SEDUC SEDE"), true)
+  assert.equal(naoDesconta("SEDUC INTERIOR"), true)
+  assert.equal(naoDesconta("seduc escola"), true) // normalização
+  assert.equal(naoDesconta("SEMSA"), false)
+  const r = calcularDesconto({
+    vrDia: 20, vtDia: 8, optanteVT: true, contrato: "SEDUC SEDE",
+    descontosPorDia: [{ vr: true, vt: true, vr_percentual: 100 }],
+  })
+  assert.equal(r.descontoVR, 0)
+  assert.equal(r.descontoVT, 0)
+})
+
+test("calcularDesconto: cancelamento desconta SEDUC (aplicarRegraNaoDesconta=false)", () => {
+  const r = calcularDesconto({
+    vrDia: 20, vtDia: 8, optanteVT: true, contrato: "SEDUC ESCOLA",
+    descontosPorDia: [{ vr: true, vt: true, vr_percentual: 100 }],
+    aplicarRegraNaoDesconta: false, // cancelamento total/parcial
+  })
+  assert.equal(r.descontoVR, 20)
+  assert.equal(r.descontoVT, 8)
+})
+
 test("calcularDesconto: cancelamento desconta DETRAN/TRE (aplicarRegraNaoDesconta=false)", () => {
   const r = calcularDesconto({
     vrDia: 20, vtDia: 8, optanteVT: true, contrato: "DETRAN",

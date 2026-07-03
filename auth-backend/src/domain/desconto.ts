@@ -19,10 +19,13 @@ export function norm(v: unknown): string {
     .trim()
 }
 
-/** Contratos que declaram a falta mas NÃO geram desconto VR/VT. */
+/** Contratos que declaram a falta mas NÃO geram desconto VR/VT.
+ *  SEDUC (3 subgrupos, por prefixo) entrou em 03/07/2026 — só cancelamento
+ *  desconta pra eles (cancelar chama com aplicarRegraNaoDesconta: false). */
 export const CONTRATOS_NAO_DESCONTAM = ["DETRAN", "TRE PB"]
 export function naoDesconta(contrato: string): boolean {
-  return CONTRATOS_NAO_DESCONTAM.includes(norm(contrato))
+  const c = norm(contrato)
+  return CONTRATOS_NAO_DESCONTAM.includes(c) || c.startsWith("SEDUC")
 }
 
 // ---- Resolução de valores no board Valores ----

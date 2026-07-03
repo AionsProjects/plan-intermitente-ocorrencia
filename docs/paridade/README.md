@@ -11,15 +11,22 @@ faz failover automático — só flip manual (`modo='api'`).
 | ler | WHtIQDf8oOWinGyx (2. LER) | `intermitente-ler` | espelhoIntermitente.ts (PG) + fallback automático em `/api/intermitente/ler` | 2026-07-01 |
 | protocolo | m5GIJMo0ghgSGbh2 (4. BUSCAR) | `intermitente-buscar-protocolo` | idem | 2026-07-01 |
 | convocacoes-empregado | 8l69E6Z9ouZAL027 | `intermitente-convocacoes-empregado` | idem | 2026-07-01 |
-| registro (finalizar) | rlxTk4VZLM2gTzx7 (WF3) | `intermitente-finalizar` | espelhoIntermitente.ts — PG (status/respostas/ledger/dias_descontados/agregados) + pi.descontos. Regras: Forma-1-ajustada (residual=total−pago), dias só-cancelamento excluídos | 2026-07-01 |
+| registro (finalizar) | rlxTk4VZLM2gTzx7 (WF3) | `intermitente-finalizar` | espelhoIntermitente.ts — PG (status/respostas/ledger/dias_descontados/agregados) + pi.descontos. Regras: Forma-1-ajustada (residual=total−pago), dias só-cancelamento excluídos | 2026-07-03 |
 | cancelar | sbKoeewbkS7LNORH | `intermitente-cancelar-convocacao` | espelhoIntermitente.ts — só CANCELADA total bloqueia; total-sobre-parcial = só dias faltantes (testado 7/7) | 2026-07-01 |
 | split | ZagUa2yuP6BsAE9i | `intermitente-aplicar-split` | espelhoIntermitente.ts — split jsonb (reverter=NULL) | 2026-07-01 |
 | descontos | descontos-registrar | `descontos-registrar-manual` | **SEM espelho ainda** (front já usa chamarProcesso; flip indisponível) | — |
-| pontofac | 7gHm/Xybr | `ponto-facultativo-*` | pontofac.ts (preview+aplicar, PG) | 2026-07-01 |
+| pontofac | 7gHm/Xybr | `ponto-facultativo-*` | pontofac.ts (preview+aplicar, PG) | 2026-07-03 |
 | pagamentos (pontual/mensal) | E1XAdr/krRj3 | — | SEM espelho (decisão: runbook manual + consulta; nunca flip automático) | — |
 
 Front: escritas do preencher (registro/cancelar/split) e descontos usam `chamarProcesso`
 (lib/http.ts). Leituras nem passam pelo n8n (backend→Monday com fallback PG automático).
+
+Regra de não-desconto (03/07/2026, confirmada pelo Isaac): **DETRAN, TRE PB e
+SEDUC*** (prefixo — cobre ESCOLA/SEDE/INTERIOR) declaram falta/atraso/atestado/PF
+mas desconto VR/VT = 0. **Cancelamento total/parcial desconta SEMPRE**, inclusive
+pra esses contratos (WF Cancelar não passa pela regra; backend usa
+`aplicarRegraNaoDesconta: false`). Fonte: `domain/desconto.ts::naoDesconta` ↔
+WF3 "Decidir Desconto1" + PF "Calcular Preview" (script `seduc_nao_desconta.cjs`).
 
 Gaps conhecidos do espelho (aceitos p/ contingência):
 - Espelhos de escrita gravam PG (fonte da contingência); board Monday NÃO é atualizado
