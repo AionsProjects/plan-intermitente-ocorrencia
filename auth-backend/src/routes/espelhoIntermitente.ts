@@ -1,12 +1,37 @@
 import type { FastifyInstance, FastifyRequest } from "fastify"
 import { query } from "../db.js"
 import { diasUteis } from "../domain/diasUteis.js"
-import { calcularDesconto, jaConsumido, type DiaDesconto } from "../domain/desconto.js"
+import { calcularDesconto, jaConsumido, norm as normTxt, type DiaDesconto } from "../domain/desconto.js"
 import { resolverValores } from "../domain/desconto.js"
 import { derivarDescontosPorDia, agregados, type RespostaDia } from "../domain/descontoDia.js"
+import {
+  reconstruirLedger,
+  rangeCancelamento,
+  aplicarCancelamento,
+  type Ledger,
+} from "../domain/ledgerBeneficios.js"
 import { lerValores } from "../repo/valores.js"
 import { lerFeriados } from "../repo/feriados.js"
 import { upsertDesconto, removerDescontoConvocacao, descontoExistente } from "../repo/descontos.js"
+import {
+  BOARD_HISTORICO,
+  buscarHistoricoPorUuid,
+  parseItemOrigem,
+  textoCol,
+  jsonCol,
+  atualizarHistorico,
+  mudarColunaSimples,
+  COL_HIST,
+} from "../repo/historico.js"
+import {
+  buscarDescontoPorPeriodo,
+  gravarDescontoBoard,
+} from "../repo/boardDescontos.js"
+import { lerItem, mudarColunas, moverParaGrupo } from "../clients/monday.js"
+
+// Colunas do board ENTRADA (ids preservados na duplicação mensal — WF Cancelar).
+const COL_ENTRADA_STATUS = "color_mm3a8ana"
+const COL_ENTRADA_DATA_CANCEL = "date_mm3b88ta"
 
 // Rotas de leitura do fluxo intermitente — substituem os webhooks n8n
 // (WF2 Ler, WF4 Buscar Protocolo, Buscar Convocações). Servidas sob /api/*
@@ -285,7 +310,9 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
   )
 
   // Aplicar Split — POST /api/intermitente-aplicar-split?uuid= (WF ZagUa).
-  // tipo: aplicar | reverter. Grava split JSON na convocação (Histórico).
+  // CÓDIGO-PRINCIPAL (03/07): grava o split JSON no Histórico do Monday
+  // (long_text, formato snake_case do WF — o WF3 lê de lá pra criar os
+  // subitems no finalizar) + espelho PG (camelCase, shape do front).
   app.post(
     "/api/intermitente-aplicar-split",
     async (
@@ -299,11 +326,16 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
       const uuid = (req.query.uuid || b.uuid || "").trim()
       const tipo = String(b.tipo || "aplicar")
       if (!uuid) return reply.code(400).send({ ok: false, erro: "uuid_ausente" })
-      const { rows } = await query<{ uuid: string }>(`SELECT uuid FROM convocacoes WHERE uuid=$1`, [uuid])
-      if (!rows[0]) return reply.code(404).send({ ok: false, erro: "nao_encontrado" })
+      if (!["aplicar", "reverter"].includes(tipo))
+        return reply.code(400).send({ ok: false, erro: "tipo_invalido" })
+
+      const item = await buscarHistoricoPorUuid(uuid)
+      if (!item) return reply.code(404).send({ ok: false, erro: "nao_encontrado" })
 
       if (tipo === "reverter") {
+        await mudarColunaSimples(BOARD_HISTORICO, item.id, COL_HIST.split, "")
         await query(`UPDATE convocacoes SET split=NULL, atualizado_em=now() WHERE uuid=$1`, [uuid])
+          .catch((e) => req.log.warn(e, "split: espelho PG falhou"))
         return { ok: true, split: null }
       }
       const data = String(b.data_inicio_parte2 || "").trim()
@@ -311,15 +343,23 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
       const c2 = String(b.contrato_parte2 || "").trim()
       if (!/^\d{4}-\d{2}-\d{2}$/.test(data) || !c1 || !c2)
         return reply.code(400).send({ ok: false, erro: "split_invalido" })
+      if (c1 === c2) return reply.code(400).send({ ok: false, erro: "contratos_iguais" })
+
+      // Board: snake_case (contrato do WF; o WF3 finalizar parseia esse formato).
+      const splitBoard = { data_inicio_parte2: data, contrato_parte1: c1, contrato_parte2: c2 }
+      await mudarColunaSimples(BOARD_HISTORICO, item.id, COL_HIST.split, JSON.stringify(splitBoard))
+
       const split = { dataInicioParte2: data, contratoParte1: c1, contratoParte2: c2 }
       await query(`UPDATE convocacoes SET split=$2::jsonb, atualizado_em=now() WHERE uuid=$1`, [uuid, JSON.stringify(split)])
+        .catch((e) => req.log.warn(e, "split: espelho PG falhou"))
       return { ok: true, split }
     },
   )
 
   // Cancelar Convocação — POST /api/intermitente-cancelar-convocacao?uuid=
-  // tipo: total | parcial | reverter. Cancelamento DESCONTA SEMPRE (inclusive DETRAN/TRE).
-  // Escreve PG (convocacoes + ledger). Sync Monday (mover grupo/board) fica gated/deferred.
+  // CÓDIGO-PRINCIPAL (03/07): porta fiel do WF sbKoeewb. Fonte = board Monday
+  // (Histórico por uuid); escreve Histórico + Entrada + board Descontos + move
+  // grupo, e espelha no PG. Cancelamento DESCONTA SEMPRE (inclusive DETRAN/TRE/SEDUC).
   app.post(
     "/api/intermitente-cancelar-convocacao",
     async (
@@ -337,22 +377,37 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
       if (!["total", "parcial", "reverter"].includes(tipo))
         return reply.code(400).send({ ok: false, erro: "tipo_invalido" })
 
-      const { rows } = await query<LinhaConvocacao>(`SELECT * FROM convocacoes WHERE uuid = $1`, [uuid])
-      const c = rows[0]
-      if (!c) return reply.code(404).send({ ok: false, erro: "nao_encontrado" })
+      const item = await buscarHistoricoPorUuid(uuid)
+      if (!item) return reply.code(404).send({ ok: false, erro: "nao_encontrado" })
 
-      // Reverter: limpa cancelamento + remove desconto.
+      // Reverter: limpa status no board + PG e apaga desconto PENDENTE.
+      // (o WF nunca implementou reverter persistido; regra: só limpa o que o
+      // cancelamento criou — entradas do ledger só-cancelamento saem; mistas
+      // mantêm percentuais [conservador: nunca desconta duas vezes].)
       if (tipo === "reverter") {
+        const ledger = jsonCol<Ledger>(item, COL_HIST.ledgerBeneficios, {})
+        const limpo: Ledger = {}
+        for (const [d, e] of Object.entries(ledger)) {
+          const origens = Array.isArray(e?.origens) ? e.origens : []
+          const soCancel = origens.length > 0 && origens.every((o) => String(o).startsWith("cancelamento"))
+          if (soCancel) continue
+          limpo[d] = { ...e, origens: origens.filter((o) => !String(o).startsWith("cancelamento")) }
+        }
+        await atualizarHistorico(item.id, {
+          [COL_HIST.statusCancel]: { label: "" },
+          [COL_HIST.ledgerBeneficios]: { text: JSON.stringify(limpo) },
+        })
         await query(
-          `UPDATE convocacoes SET status_cancelamento = NULL, data_inicio_cancelamento = NULL, atualizado_em = now() WHERE uuid = $1`,
-          [uuid],
+          `UPDATE convocacoes SET status_cancelamento = NULL, data_inicio_cancelamento = NULL,
+             ledger_beneficios = $2::jsonb, atualizado_em = now() WHERE uuid = $1`,
+          [uuid, JSON.stringify(limpo)],
         )
         await removerDescontoConvocacao(uuid)
         return { ok: true, tipo, data_inicio_cancelamento: null, desconto: { acao: "reverter", descontoVR: 0, descontoVT: 0 } }
       }
 
-      const di = soData(c.data_inicio)
-      const df = soData(c.data_fim)
+      const di = textoCol(item, COL_HIST.dataInicio)
+      const df = textoCol(item, COL_HIST.dataFim)
       if (!di || !df) return reply.code(400).send({ ok: false, erro: "periodo_invalido" })
       if (tipo === "parcial") {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dataCancel || "")))
@@ -360,69 +415,159 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
         if (dataCancel! < di || dataCancel! > df)
           return reply.code(400).send({ ok: false, erro: "data_fora_periodo" })
       }
-      // Paridade com o WF (fix parcial→total de 30/06): só CANCELADA TOTAL bloqueia.
-      // Parcial sobre parcial bloqueia; TOTAL sobre parcial PERMITE e cancela só os
-      // dias FALTANTES [di .. dataCancelAnterior-1] (não re-desconta o já cancelado).
-      const jaCancel = String(c.status_cancelamento ?? "").toLowerCase()
-      const eraParcial = jaCancel.includes("parcial")
-      if (jaCancel.includes("cancelad") && !eraParcial)
+
+      // Bloqueios (paridade com o WF pós-fix 30/06): CANCELADA total bloqueia
+      // tudo; parcial-sobre-parcial bloqueia; TOTAL sobre parcial permite e
+      // cancela só os dias que faltavam (via ledger origem cancelamento:*).
+      const statusCancelAtual = normTxt(textoCol(item, COL_HIST.statusCancel))
+      const eraParcial = statusCancelAtual === "CANCELADA PARCIALMENTE"
+      if (statusCancelAtual === "CANCELADA")
         return reply.code(409).send({ ok: false, erro: "convocacao_ja_cancelada" })
       if (eraParcial && tipo === "parcial")
         return reply.code(409).send({ ok: false, erro: "convocacao_ja_cancelada" })
 
-      let inicioDesc = tipo === "total" ? di : dataCancel!
-      let fimDesc = df
-      if (eraParcial && tipo === "total") {
-        // total sobre parcial: só o trecho que faltava (antes do início do parcial anterior).
-        const anterior = soData(c.data_inicio_cancelamento)
-        if (anterior) {
-          const d = new Date(anterior + "T00:00:00Z")
-          d.setUTCDate(d.getUTCDate() - 1)
-          fimDesc = d.toISOString().slice(0, 10)
-          if (fimDesc < di) {
-            // parcial já cobria desde o início — nada a descontar; só promove o status.
-            await query(
-              `UPDATE convocacoes SET status_cancelamento = 'Cancelada', data_inicio_cancelamento = NULL, atualizado_em = now() WHERE uuid = $1`,
-              [uuid],
-            )
-            return { ok: true, tipo, promovido: true, desconto: { descontoVR: 0, descontoVT: 0 } }
-          }
-        }
-      }
-      const dias = diasUteis(inicioDesc, fimDesc, c.trabalha_sabado === true, c.sabados_extras ?? [])
+      const origem = parseItemOrigem(item)
+      if (!origem.itemId)
+        return reply.code(400).send({ ok: false, erro: "item_origem_ausente" })
 
-      // Valores -> desconto (cancelamento desconta sempre).
+      const trabalhaSabado = normTxt(textoCol(item, COL_HIST.trabalhaSabado)) === "SIM"
+      const sabadosExtras = (textoCol(item, COL_HIST.sabadosExtras) || "")
+        .split(/[,;\n]/)
+        .map((s) => s.trim())
+        .filter((s) => /^\d{4}-\d{2}-\d{2}$/.test(s))
+      const contrato = textoCol(item, COL_HIST.contrato) || ""
+      const chapa = (textoCol(item, COL_HIST.chapa) || "").trim()
+
+      // Ledger vigente (ou reconstruído das respostas/desativados/atestados).
+      let ledger = jsonCol<Ledger>(item, COL_HIST.ledgerBeneficios, {})
+      if (!ledger || Object.keys(ledger).length === 0) {
+        ledger = reconstruirLedger({
+          respostas: jsonCol(item, COL_HIST.respostas, []),
+          diasDesativados: jsonCol(item, COL_HIST.diasDesativados, []),
+          atestados: jsonCol(item, COL_HIST.atestados, []),
+          trabalhaSabado,
+          sabadosExtras,
+        })
+      }
+
+      const range = rangeCancelamento({
+        tipo: tipo as "total" | "parcial",
+        eraParcial,
+        ledger,
+        dataInicio: di,
+        dataFim: df,
+        dataCancel,
+        trabalhaSabado,
+        sabadosExtras,
+      })
+
+      // Item origem (Entrada): cpf/função/optante — mais atual que o Histórico.
+      const origemItem = await lerItem(Number(origem.itemId))
+      const cpf = (origemItem?.cv["dup__of_matr_cula"]?.text || "").trim()
+      const funcao = normTxt(origemItem?.cv["texto0"]?.text || "")
+      const optanteRaw = normTxt(origemItem?.cv["optante___vt"]?.text || textoCol(item, COL_HIST.optanteVt) || "NAO")
+      const optanteVT = optanteRaw === "SIM" || optanteRaw === "SIM*"
+      const vtSoVolta = optanteRaw === "SIM*"
+
+      // Valores do board (por contrato+função) — mesma resolução do WF.
       const linhas = await lerValores()
-      const v = resolverValores(linhas, { contrato: c.contrato ?? "", funcao: "" })
-      const vrDia = "vrDia" in v ? v.vrDia : 0
-      const vtDia = "vtDia" in v ? v.vtDia : 0
-      const porDia: DiaDesconto[] = dias.map(() => ({ vr: true, vt: true, vr_percentual: 100 }))
-      const desc = calcularDesconto({
-        vrDia, vtDia, optanteVT: c.optante_vt === true, contrato: c.contrato ?? "",
-        descontosPorDia: porDia, aplicarRegraNaoDesconta: false,
+      const v = resolverValores(linhas, { contrato, funcao })
+      if ("erro" in v) return reply.code(502).send({ ok: false, erro: v.erro, mensagem: v.mensagem })
+      const vrDia = v.vrDia
+      let vtDia = optanteVT ? v.vtDia : 0
+      if (vtSoVolta && vtDia > 0) vtDia = Math.round((vtDia / 2) * 100) / 100
+
+      // Antifraude: desconto do MESMO período já em consumo bloqueia (board + PG).
+      const existenteBoard = await buscarDescontoPorPeriodo(chapa, range.inicio, range.fim)
+      if (existenteBoard && ["PARCIAL", "FINALIZADO"].includes(existenteBoard.status))
+        return reply.code(409).send({ ok: false, erro: "desconto_em_consumo" })
+      const existPg = await descontoExistente(uuid)
+      if (existPg && jaConsumido(existPg))
+        return reply.code(409).send({ ok: false, erro: "desconto_em_consumo" })
+
+      const calc = aplicarCancelamento({
+        ledger,
+        diasCancelados: range.dias,
+        tipo: tipo as "total" | "parcial",
+        vrDia,
+        vtDia,
+        optanteVT,
+        trabalhaSabado,
+        sabadosExtras,
       })
 
       const label = tipo === "total" ? "Cancelada" : "Cancelada parcialmente"
-      await query(
-        `UPDATE convocacoes SET status_cancelamento = $2, data_inicio_cancelamento = $3, atualizado_em = now() WHERE uuid = $1`,
-        [uuid, label, tipo === "parcial" ? dataCancel : null],
-      )
-      // Período do desconto = o trecho efetivamente cancelado AGORA (paridade com o WF:
-      // total-sobre-parcial usa range diferente do parcial → não sobrescreve nem duplica).
-      await upsertDesconto({
-        uuid_convocacao: uuid, protocolo: c.protocolo, nome: c.nome, chapa: c.chapa,
-        contrato: c.contrato, data_inicio: inicioDesc, data_fim: fimDesc,
-        dias_perde_vr: dias.length, dias_perde_vt: dias.length,
-        desconto_vr: desc.descontoVR, desconto_vt: desc.descontoVT, status: "PENDENTE",
+
+      // ── Escritas Monday (na ordem do WF) ──
+      await atualizarHistorico(item.id, {
+        [COL_HIST.statusCancel]: { label },
+        [COL_HIST.ledgerBeneficios]: { text: JSON.stringify(calc.ledger) },
       })
+      const updateEntrada: Record<string, unknown> = { [COL_ENTRADA_STATUS]: { label } }
+      if (tipo === "parcial") updateEntrada[COL_ENTRADA_DATA_CANCEL] = { date: dataCancel }
+      const boardOrigem = Number(origem.boardId || 0)
+      if (boardOrigem) {
+        await mudarColunas(boardOrigem, Number(origem.itemId), updateEntrada).catch((e) =>
+          req.log.warn(e, "cancelar: update entrada falhou"),
+        )
+        // Move o item da Entrada pro grupo CANCELADOS / CANCELADOS PARCIAL do board de origem.
+        const { rows: grps } = await query<{ titulo: string; group_id: string }>(
+          `SELECT titulo, group_id FROM board_grupos WHERE monday_board_id = $1`,
+          [String(boardOrigem)],
+        )
+        const alvo = tipo === "total" ? "CANCELADOS" : "CANCELADOS PARCIAL"
+        const grupo = grps.find((g) => normTxt(g.titulo) === alvo)?.group_id
+        if (grupo)
+          await moverParaGrupo(Number(origem.itemId), grupo).catch((e) =>
+            req.log.warn(e, "cancelar: mover grupo falhou"),
+          )
+      }
+      if (calc.descontoVR > 0 || calc.descontoVT > 0) {
+        await gravarDescontoBoard(
+          {
+            nome: item.name,
+            chapa,
+            cpf,
+            dataInicio: range.inicio,
+            dataFim: range.fim,
+            diasPerdeVT: calc.diasPerdeVT,
+            diasPerdeVR: calc.diasPerdeVR,
+            qtdAtrasos: 0,
+            descontoVR: calc.descontoVR,
+            descontoVT: calc.descontoVT,
+          },
+          existenteBoard,
+        )
+      }
+
+      // ── Espelho PG ──
+      await query(
+        `UPDATE convocacoes SET status_cancelamento = $2, data_inicio_cancelamento = $3,
+           ledger_beneficios = $4::jsonb, atualizado_em = now() WHERE uuid = $1`,
+        [uuid, label, tipo === "parcial" ? dataCancel : null, JSON.stringify(calc.ledger)],
+      ).catch((e) => req.log.warn(e, "cancelar: espelho PG falhou"))
+      if (calc.descontoVR > 0 || calc.descontoVT > 0) {
+        await upsertDesconto({
+          uuid_convocacao: uuid, protocolo: null, nome: item.name, chapa,
+          contrato, data_inicio: range.inicio, data_fim: range.fim,
+          dias_perde_vr: calc.diasPerdeVR, dias_perde_vt: calc.diasPerdeVT,
+          desconto_vr: calc.descontoVR, desconto_vt: calc.descontoVT, status: "PENDENTE",
+        }).catch((e) => req.log.warn(e, "cancelar: desconto PG falhou"))
+      }
 
       return {
         ok: true,
         tipo,
         data_inicio_cancelamento: tipo === "parcial" ? dataCancel : null,
-        dias_cancelados: dias,
-        desconto: { acao: "create", descontoVR: desc.descontoVR, descontoVT: desc.descontoVT, vrDia, vtDia },
-        _sync_monday: "pendente", // mover grupo CANCELADOS + atualizar board = deferido (job sync)
+        dias_cancelados: range.dias,
+        dias_ignorados_duplicidade: calc.diasIgnoradosDuplicidade,
+        desconto: {
+          acao: calc.descontoVR === 0 && calc.descontoVT === 0 ? "skip" : existenteBoard ? "update" : "create",
+          descontoVR: calc.descontoVR,
+          descontoVT: calc.descontoVT,
+          vrDia,
+          vtDia,
+        },
       }
     },
   )

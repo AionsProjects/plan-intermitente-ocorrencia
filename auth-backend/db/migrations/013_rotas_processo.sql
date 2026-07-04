@@ -9,5 +9,13 @@ CREATE TABLE IF NOT EXISTS pi.rotas_processo (
   atualizado_em timestamptz NOT NULL DEFAULT now()
 );
 
-INSERT INTO pi.rotas_processo (processo, modo) VALUES ('*', 'n8n')
+INSERT INTO pi.rotas_processo (processo, modo) VALUES
+  ('*', 'n8n'),
+  ('registro', 'n8n'),
+  ('cancelar', 'n8n'),
+  ('split', 'n8n'),
+  ('convocar', 'n8n'),
+  ('descontos', 'n8n'),
+  ('atestados', 'n8n'),
+  ('pontofac', 'n8n')
 ON CONFLICT (processo) DO NOTHING;

@@ -1,5 +1,4 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
-import { config } from "../config.js"
 import { query } from "../db.js"
 import {
   acharItensPorColuna,
@@ -8,6 +7,8 @@ import {
   uploadFileToColumn,
 } from "../monday.js"
 import { usuarioDaSessao } from "../session.js"
+import { unidadesRm } from "./rmLookups.js"
+import { arquivarDrive } from "../services/driveArquivar.js"
 
 // Opções do form de convocação: labels das colunas status do board Entrada ATUAL
 // (resolvido pelo registry, por nome — robusto à virada). unidadesPorContrato vem do RM
@@ -156,11 +157,7 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
         // Best-effort: se falhar, front usa fallback local.
         let unidadesPorContrato: Record<string, string[]> = {}
         try {
-          const r = await fetch(`${config.n8nWebhookBase}/intermitente-unidades-rm`)
-          if (r.ok) {
-            const j = (await r.json()) as { unidades_por_contrato?: Record<string, string[]> }
-            unidadesPorContrato = j.unidades_por_contrato ?? {}
-          }
+          unidadesPorContrato = (await unidadesRm()).unidades_por_contrato
         } catch (e) {
           req.log.warn(e, "unidades RM falhou (usa fallback)")
         }
@@ -352,6 +349,23 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
           }
         }
       }
+
+      await arquivarDrive({
+        tipo: "convocacao",
+        nome: campos.empregado_nome,
+        chapa: campos.empregado_chapa,
+        cpf: campos.empregado_cpf,
+        contrato: campos.contrato,
+        data_inicio: dataInicio,
+        data_fim: dataFim,
+        item_entrada_id: item.id,
+        board_entrada_id: b.boardId,
+        atualizar_monday: true,
+        gerar_planilha_conferencia: true,
+        arquivos: uploads
+          .map(([campo]) => arquivos[campo])
+          .filter((a): a is { buffer: Buffer; filename: string; mime: string } => !!a),
+      }).catch((e) => req.log.warn(e, "drive convocacao falhou"))
 
       return { ok: true, item_id: item.id, item_url: item.url }
     } catch (e) {

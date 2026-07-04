@@ -8,7 +8,7 @@ import type {
   PontoFacultativoPreview,
   UnidadeComCount,
 } from "./types"
-import { comOperador } from "@/lib/http"
+import { chamarProcesso, comOperador } from "@/lib/http"
 import { CONTRATOS_PONTO_FACULTATIVO as CONTRATOS } from "./types"
 
 const BASE_URL = import.meta.env.VITE_N8N_BASE_URL ?? ""
@@ -300,7 +300,12 @@ export async function buscarOpcoesPontoFacultativo(): Promise<PontoFacultativoOp
     }
   }
 
-  const res = await fetch(`${BASE_URL}/ponto-facultativo-opcoes`)
+  const res = await chamarProcesso(
+    "pontofac",
+    "ponto-facultativo-opcoes",
+    {},
+    { tipo: "leitura" },
+  )
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     throw new Error(data.mensagem || `Erro ${res.status}`)
@@ -316,11 +321,16 @@ export async function previewPontoFacultativo(
     return mockPreview(payload)
   }
 
-  const res = await fetch(`${BASE_URL}/ponto-facultativo-preview`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  })
+  const res = await chamarProcesso(
+    "pontofac",
+    "ponto-facultativo-preview",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+    { tipo: "leitura" },
+  )
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     throw new Error(data.mensagem || `Erro ${res.status}`)
@@ -337,11 +347,16 @@ export async function aplicarPontoFacultativo(
     return { ...preview, processados: preview.itens.length, ignorados: 0 }
   }
 
-  const res = await fetch(`${BASE_URL}/ponto-facultativo-aplicar`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(comOperador(payload)),
-  })
+  const res = await chamarProcesso(
+    "pontofac",
+    "ponto-facultativo-aplicar",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(comOperador(payload)),
+    },
+    { tipo: "escrita" },
+  )
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     throw new Error(data.mensagem || `Erro ${res.status}`)

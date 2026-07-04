@@ -7,7 +7,7 @@ import type {
   PeriodoTurno,
   TipoDocumento,
 } from "./types"
-import { comOperador } from "@/lib/http"
+import { chamarProcesso, comOperador } from "@/lib/http"
 
 // Celetista migrado pro n8n novo (AIONS) — atestados CLT usa o host novo.
 const BASE_URL = import.meta.env.VITE_N8N_BASE_URL ?? ""
@@ -66,8 +66,11 @@ export async function buscarCeletista(
     const q = normaliza(query)
     return MOCK_CELETISTAS.filter((e) => normaliza(e.nome).includes(q))
   }
-  const res = await fetch(
-    `${BASE_URL}/celetista-buscar-empregado?nome=${encodeURIComponent(query)}`,
+  const res = await chamarProcesso(
+    "atestados",
+    `celetista-buscar-empregado?nome=${encodeURIComponent(query)}`,
+    {},
+    { tipo: "leitura" },
   )
   if (!res.ok) {
     const err = new Error(`Erro ${res.status}`) as Error & { status?: number }
@@ -326,10 +329,15 @@ export async function lancarDocumentos(
     fd.append(`doc_${d.id}`, d.arquivo, d.arquivo.name)
   }
 
-  const res = await fetch(`${BASE_URL}/intermitente-lancar-documentos`, {
-    method: "POST",
-    body: fd,
-  })
+  const res = await chamarProcesso(
+    "atestados",
+    "intermitente-lancar-documentos",
+    {
+      method: "POST",
+      body: fd,
+    },
+    { tipo: "escrita" },
+  )
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     throw new LancarDocumentosApiError(

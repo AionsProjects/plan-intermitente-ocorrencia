@@ -61,6 +61,14 @@ export const config = {
   rmBridgeUrl: opt("RM_BRIDGE_URL", ""),
   rmAionsAuth: opt("RM_AIONS_AUTH", ""),
   rmDataServer: opt("RM_DATA_SERVER", ""),
+  // Nexti (validação de atestado — OAuth client_credentials, Basic base64).
+  nextiBasicAuth: opt("NEXTI_BASIC_AUTH", ""),
+  // Google Drive (arquivamento). Use service account compartilhada na pasta raiz.
+  googleDrive: {
+    serviceAccountJson: opt("GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON", ""),
+    serviceAccountJsonBase64: opt("GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON_BASE64", ""),
+    rootFolderId: opt("GOOGLE_DRIVE_ROOT_FOLDER_ID", ""),
+  },
   // Caju (OAuth password grant + headers de sponsor/integration). Extraido dos nos n8n.
   caju: {
     authUrl: opt("CAJU_AUTH_URL", ""),

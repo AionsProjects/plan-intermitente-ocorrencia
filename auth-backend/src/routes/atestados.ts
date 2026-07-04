@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
 import { createItem, uploadFileToColumn } from "../monday.js"
 import { usuarioDaSessao } from "../session.js"
+import { arquivarDrive } from "../services/driveArquivar.js"
 
 // Lançar documentos (atestados/declarações) — substitui WF n8n. Documental puro:
 // cria item no Controle de Atestados + anexa arquivo. Sem impacto financeiro (Nexti é
@@ -26,9 +27,12 @@ interface DocEntrada {
   id: string
   modalidade_contrato?: string
   empregado_nome?: string
+  empregado_cpf?: string | null
+  chapa?: string | null
   tipo_documentacao_label?: string
   dias_atestado?: number
   data_inicio?: string
+  data_fim?: string
   emissao_atestado?: string
   saida_retorno_texto?: string
   horario_almoco_label?: string
@@ -40,7 +44,7 @@ interface DocEntrada {
 }
 
 export async function rotasAtestados(app: FastifyInstance): Promise<void> {
-  app.post("/api/atestados/lancar", async (req: FastifyRequest, reply: FastifyReply) => {
+  const lancarDocumentosHandler = async (req: FastifyRequest, reply: FastifyReply) => {
     if (!(await usuarioDaSessao(req))) return reply.code(401).send({ ok: false, erro: "nao_autenticado" })
 
     // Lê multipart: campo "payload" (JSON) + arquivos doc_<id>.
@@ -103,6 +107,18 @@ export async function rotasAtestados(app: FastifyInstance): Promise<void> {
             req.log.warn(e, `upload atestado ${d.id} falhou`)
           }
         }
+        await arquivarDrive({
+          tipo: "atestado",
+          nome: d.empregado_nome || "ATESTADO",
+          chapa: d.chapa ?? undefined,
+          cpf: d.empregado_cpf ?? undefined,
+          contrato: d.contrato_colaborador || "ATESTADOS",
+          data_inicio: d.data_inicio || d.emissao_atestado || new Date().toISOString().slice(0, 10),
+          data_fim: d.data_fim || d.data_inicio || d.emissao_atestado,
+          item_controle_id: item.id,
+          atualizar_monday: true,
+          arquivos: arq ? [arq] : [],
+        }).catch((e) => req.log.warn(e, `drive atestado ${d.id} falhou`))
         resultados.push({ id: d.id, monday_item_id_controle: item.id })
       } catch (e) {
         req.log.error(e, `erro lancar atestado ${d.id}`)
@@ -110,5 +126,8 @@ export async function rotasAtestados(app: FastifyInstance): Promise<void> {
       }
     }
     return { ok: true, resultados }
-  })
+  }
+
+  app.post("/api/atestados/lancar", lancarDocumentosHandler)
+  app.post("/api/intermitente-lancar-documentos", lancarDocumentosHandler)
 }

@@ -1,36 +1,46 @@
-# Paridade n8n ↔ backend (Plano de Fuga — contingência)
+# Código-principal ↔ n8n (reserva)
 
-n8n é PRIMÁRIO. As rotas `/api/<nome-do-webhook>` são espelhos prontos pra assumir
-(flip em `pi.rotas_processo` via `PATCH /api/rotas/:processo`, admin). Escrita NUNCA
-faz failover automático — só flip manual (`modo='api'`).
+PREMISSA (invertida em 03/07/2026, Isaac): **o código é o PRINCIPAL** — roda
+sozinho, escreve board Monday + PG. **n8n é a reserva/escape** (congelado; volta
+só por flip manual `modo='n8n'` em `pi.rotas_processo` via `PATCH /api/rotas/:processo`).
 
-**Regra de ouro: mudou regra num WF (via script .cjs) → atualize a rota espelho + esta tabela.**
+**Regra de ouro: regra de negócio muda no CÓDIGO (commit + testes). Se o n8n
+precisar acompanhar (reserva quente), replicar via script .cjs + atualizar esta tabela.**
 
-| Processo | WF n8n | Webhook | Rota espelho | Último check |
+| Processo | Rota código (principal) | WF n8n (reserva) | Estado | Último check |
 |---|---|---|---|---|
-| ler | WHtIQDf8oOWinGyx (2. LER) | `intermitente-ler` | espelhoIntermitente.ts (PG) + fallback automático em `/api/intermitente/ler` | 2026-07-01 |
-| protocolo | m5GIJMo0ghgSGbh2 (4. BUSCAR) | `intermitente-buscar-protocolo` | idem | 2026-07-01 |
-| convocacoes-empregado | 8l69E6Z9ouZAL027 | `intermitente-convocacoes-empregado` | idem | 2026-07-01 |
-| registro (finalizar) | rlxTk4VZLM2gTzx7 (WF3) | `intermitente-finalizar` | espelhoIntermitente.ts — PG (status/respostas/ledger/dias_descontados/agregados) + pi.descontos. Regras: Forma-1-ajustada (residual=total−pago), dias só-cancelamento excluídos | 2026-07-03 |
-| cancelar | sbKoeewbkS7LNORH | `intermitente-cancelar-convocacao` | espelhoIntermitente.ts — só CANCELADA total bloqueia; total-sobre-parcial = só dias faltantes (testado 7/7) | 2026-07-01 |
-| split | ZagUa2yuP6BsAE9i | `intermitente-aplicar-split` | espelhoIntermitente.ts — split jsonb (reverter=NULL) | 2026-07-01 |
-| descontos | descontos-registrar | `descontos-registrar-manual` | **SEM espelho ainda** (front já usa chamarProcesso; flip indisponível) | — |
-| pontofac | 7gHm/Xybr | `ponto-facultativo-*` | pontofac.ts (preview+aplicar, PG) | 2026-07-03 |
-| pagamentos (pontual/mensal) | E1XAdr/krRj3 | — | SEM espelho (decisão: runbook manual + consulta; nunca flip automático) | — |
+| ler / protocolo / convocacoes-empregado | espelhoIntermitente.ts + intermitente.ts (Monday→PG fallback) | WHtIQDf8 / m5GIJMo0 / 8l69E6Z9 | código ✓ | 2026-07-04 |
+| convocar | convocar.ts (`/api/intermitente-convocar`) — cria item Monday + PG + link + termo + Drive | dX8OZzxr (WF7) | código ✓ (Drive aguarda credencial) | 2026-07-04 |
+| ativar/link (WF1) | gatilhos.ts (`/api/convocar/ativar`, idempotente) + webhook Monday | rkIBahkH | código ✓ (webhook do board ainda aponta pro n8n) | 2026-07-04 |
+| cancelar | espelhoIntermitente.ts — Monday (Histórico+Entrada+Descontos+grupo) + PG; ledger engine fiel (total-sobre-parcial, dedupe percentuais) | sbKoeewb | código ✓ | 2026-07-04 |
+| split | espelhoIntermitente.ts — split no Histórico (snake, WF3 lê) + PG | ZagUa2yu | código ✓ | 2026-07-04 |
+| descontos manual (ler/registrar/gerar-link) | descontos.ts — residual/descontado/status financeiro completos | sr4xxXLx / EXuqosXX / BCgD9f1b | código ✓ | 2026-07-04 |
+| pontofac (opcoes/preview/aplicar) | pontofac.ts — dedupe via LEDGER do Histórico + board Descontos (origem PF) + PG | JXpJ / 7gHm / Xybr | código ✓ | 2026-07-04 |
+| lançar documentos (atestados) | atestados.ts (`/api/intermitente-lancar-documentos`) + Drive async | kVpn69JF | código ✓ | 2026-07-04 |
+| validar atestado (Nexti) | nextiAtestado.ts + services/validarAtestado.ts — Nexti OAuth/persons/absences, dedupe PROCESSADOS, celetista acumulador, ledger+desconto intermitente | 6efSZQYz | código ✓ (repontar automação Monday) | 2026-07-04 |
+| unidades RM / buscar empregado / celetista | rmLookups.ts + convocar.ts (ponte AIONS read-only) | OggzTr5x / Dt0p1T6O / 0ljExfCN | código ✓ | 2026-07-04 |
+| feriados | espelhoIntermitente.ts + repo/feriados (board 18415442661) | QzZ02GG | código ✓ | 2026-07-04 |
+| drive arquivar / planilha | drive.ts + services/driveArquivar.ts + clients/xlsx.ts | XRdAYO9d / aBXCqYHP | código pronto — **aguarda GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON(+_BASE64) e GOOGLE_DRIVE_ROOT_FOLDER_ID** | 2026-07-04 |
+| **registro (finalizar/WF3)** | espelho PG only (`intermitente-finalizar`) | rlxTk4VZ | **FICA no n8n** (decisão Isaac 03/07 — webhook Registrar dias) | 2026-07-04 |
+| **pagamento pontual FIFO** | — | E1XAdr + subworkflows | **FICA no n8n** (decisão Isaac) | 2026-07-04 |
+| **pagamento mensal** | consultas/mensal_run em mensal.ts/mensalRun.ts | krRj3 + subworkflows (Caju/RM/Integrar) | **FICA no n8n** (decisão Isaac) | 2026-07-04 |
 
-Front: escritas do preencher (registro/cancelar/split) e descontos usam `chamarProcesso`
-(lib/http.ts). Leituras nem passam pelo n8n (backend→Monday com fallback PG automático).
+## Flip (pós-deploy)
 
-Regra de não-desconto (03/07/2026, confirmada pelo Isaac): **DETRAN, TRE PB e
-SEDUC*** (prefixo — cobre ESCOLA/SEDE/INTERIOR) declaram falta/atraso/atestado/PF
-mas desconto VR/VT = 0. **Cancelamento total/parcial desconta SEMPRE**, inclusive
-pra esses contratos (WF Cancelar não passa pela regra; backend usa
-`aplicarRegraNaoDesconta: false`). Fonte: `domain/desconto.ts::naoDesconta` ↔
-WF3 "Decidir Desconto1" + PF "Calcular Preview" (script `seduc_nao_desconta.cjs`).
+`pi.rotas_processo`: migration 013 semeia os 7 processos em `n8n`. Depois do
+deploy + teste real, flipar pra `api` (código principal): `convocar`, `cancelar`,
+`split`, `descontos`, `atestados`, `pontofac`. `registro` PERMANECE `n8n`.
+Ações manuais no flip: repontar automação Monday do Controle de Atestados
+(nexti-validar-atestado) e o webhook create_item/ativar dos boards pro backend.
 
-Gaps conhecidos do espelho (aceitos p/ contingência):
-- Espelhos de escrita gravam PG (fonte da contingência); board Monday NÃO é atualizado
-  pelo fallback (sync PG→Monday = fase futura). Ao religar o n8n, reconciliar com
-  `npm run importar:convocacoes` (direção board→PG) — atenção: writes feitos SÓ no PG
-  durante a janela de contingência precisam de replay manual no board.
-- `descontos-registrar-manual` sem espelho.
+## Credenciais no backend (.env / Vercel)
+
+- `MONDAY_TOKEN`, `RM_BRIDGE_URL`, `RM_AIONS_AUTH` — ok em prod.
+- `NEXTI_BASIC_AUTH` — extraída do WF 6efSZ pro .env local (04/07). **Falta subir no Vercel.**
+- `GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON` (ou `_BASE64`) + `GOOGLE_DRIVE_ROOT_FOLDER_ID` — **pendente (Isaac cria a service account e compartilha a pasta raiz).**
+
+Regra de não-desconto (03/07/2026, Isaac): **DETRAN, TRE PB e SEDUC*** (prefixo)
+declaram falta/atraso/atestado/PF mas desconto VR/VT = 0. **Cancelamento
+total/parcial desconta SEMPRE** (`aplicarRegraNaoDesconta: false`). Fonte:
+`domain/desconto.ts::naoDesconta`. Os WFs (reserva) ainda precisam do patch
+`seduc_nao_desconta.cjs` (bloqueado por key n8n expirada — renovar).
