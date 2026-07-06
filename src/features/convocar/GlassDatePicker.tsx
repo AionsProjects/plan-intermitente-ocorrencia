@@ -107,8 +107,8 @@ export function GlassDatePicker({
       <button
         type="button"
         onClick={abrir}
-        className={`flex w-full items-center gap-2 rounded-xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] px-4 py-3 text-left text-sm backdrop-blur transition hover:border-[rgb(var(--ink)/0.2)] hover:bg-[rgb(var(--ink)/0.06)] ${
-          aberto ? "border-[rgb(var(--accent-rgb)/0.55)] bg-[rgb(var(--ink)/0.08)]" : ""
+        className={`liquid-field liquid-field-trigger flex w-full items-center gap-2 px-4 py-3 text-left text-sm transition ${
+          aberto ? "border-[rgb(var(--accent-rgb)/0.55)]" : ""
         }`}
       >
         <CalendarDays className="size-4 shrink-0 text-foreground/50" />
@@ -148,7 +148,7 @@ export function GlassDatePicker({
               type="button"
               disabled={!podeVoltar}
               onClick={() => podeVoltar && setMesVisivel((m) => subMonths(m, 1))}
-              className="inline-flex size-9 items-center justify-center rounded-xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] text-foreground/75 transition hover:border-[rgb(var(--ink)/0.25)] hover:bg-[rgb(var(--ink)/0.08)] hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-[rgb(var(--ink)/0.04)]"
+              className="liquid-control inline-flex size-9 items-center justify-center rounded-xl text-foreground/75 transition hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
             >
               <ChevronLeft className="size-4" />
             </button>
@@ -159,7 +159,7 @@ export function GlassDatePicker({
               type="button"
               disabled={!podeAvancar}
               onClick={() => podeAvancar && setMesVisivel((m) => addMonths(m, 1))}
-              className="inline-flex size-9 items-center justify-center rounded-xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] text-foreground/75 transition hover:border-[rgb(var(--ink)/0.25)] hover:bg-[rgb(var(--ink)/0.08)] hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-[rgb(var(--ink)/0.04)]"
+              className="liquid-control inline-flex size-9 items-center justify-center rounded-xl text-foreground/75 transition hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
             >
               <ChevronRight className="size-4" />
             </button>

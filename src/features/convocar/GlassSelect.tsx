@@ -44,9 +44,9 @@ export function GlassSelect({
           if (!disabled) setAberto(true)
         }}
         disabled={disabled}
-        className={`flex w-full items-center justify-between rounded-xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] px-4 py-3 text-left text-sm backdrop-blur transition hover:border-[rgb(var(--ink)/0.2)] hover:bg-[rgb(var(--ink)/0.06)] ${
-          aberto ? "border-[rgb(var(--accent-rgb)/0.55)] bg-[rgb(var(--ink)/0.08)]" : ""
-        } ${disabled ? "cursor-not-allowed opacity-55 hover:border-[rgb(var(--ink)/0.12)] hover:bg-[rgb(var(--ink)/0.04)]" : ""}`}
+        className={`liquid-field liquid-field-trigger flex w-full items-center justify-between px-4 py-3 text-left text-sm transition ${
+          aberto ? "border-[rgb(var(--accent-rgb)/0.55)]" : ""
+        } ${disabled ? "cursor-not-allowed opacity-55" : ""}`}
       >
         <span className={value ? "text-foreground" : "text-foreground/40"}>
           {value || placeholder}
@@ -92,10 +92,10 @@ export function GlassSelect({
                   key={opt}
                   type="button"
                   onClick={() => escolher(opt)}
-                  className={`flex w-full items-center justify-between rounded-2xl border px-5 py-3.5 text-left text-sm font-medium transition ${
+                  className={`liquid-control flex w-full items-center justify-between rounded-2xl px-5 py-3.5 text-left text-sm font-medium transition ${
                     sel
                       ? "border-[rgb(var(--accent-rgb)/0.45)] bg-[rgb(var(--accent-rgb)/0.12)] text-[rgb(var(--accent-rgb))]"
-                      : "border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] text-foreground/90 hover:border-[rgb(var(--ink)/0.25)] hover:bg-[rgb(var(--ink)/0.08)]"
+                      : "text-foreground/90"
                   }`}
                 >
                   <span>{opt}</span>

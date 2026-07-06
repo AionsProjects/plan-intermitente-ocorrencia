@@ -111,9 +111,9 @@ export function ComboboxFiltravel({
           if (!disabled) setAberto((v) => !v)
         }}
         disabled={disabled}
-        className={`flex w-full items-center justify-between gap-3 rounded-2xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] px-4 py-3 text-left text-sm transition hover:border-[rgb(var(--ink)/0.22)] hover:bg-[rgb(var(--ink)/0.06)] ${
-          aberto ? "border-[rgb(var(--ink)/0.3)] bg-[rgb(var(--ink)/0.08)]" : ""
-        } ${disabled ? "cursor-not-allowed opacity-55 hover:border-[rgb(var(--ink)/0.12)] hover:bg-[rgb(var(--ink)/0.04)]" : ""}`}
+        className={`liquid-field liquid-field-trigger flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm transition ${
+          aberto ? "border-[rgb(var(--ink)/0.3)]" : ""
+        } ${disabled ? "cursor-not-allowed opacity-55" : ""}`}
         style={
           aberto && valor
             ? { borderColor: accentBorder }
@@ -129,7 +129,7 @@ export function ComboboxFiltravel({
       </button>
 
       {aberto && (
-        <div className="absolute left-0 right-0 z-40 mt-2 overflow-hidden rounded-2xl border border-[rgb(var(--ink)/0.12)] bg-card/96 shadow-[0_22px_46px_-16px_rgba(0,0,0,0.7)] backdrop-blur-xl">
+        <div className="liquid-popover absolute left-0 right-0 z-40 mt-2 overflow-hidden rounded-2xl">
           {!semOpcoes && (
             <div className="flex items-center gap-2 border-b border-[rgb(var(--ink)/0.1)] px-3 py-2.5">
               <Search className="size-3.5 shrink-0 text-foreground/55" />
@@ -139,7 +139,7 @@ export function ComboboxFiltravel({
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
                 placeholder={buscaPlaceholder}
-                className="flex-1 bg-transparent text-sm text-foreground placeholder:text-foreground/30 focus:outline-none"
+                className="liquid-field-input flex-1 text-sm"
               />
               {busca && (
                 <button
@@ -180,7 +180,7 @@ export function ComboboxFiltravel({
                     <button
                       type="button"
                       onClick={() => escolher(o)}
-                      className={`flex w-full items-center gap-2 px-4 py-2 text-left text-sm transition hover:bg-[rgb(var(--ink)/0.06)] ${sel ? "" : "text-foreground/90"}`}
+                      className={`flex w-full items-center gap-2 px-4 py-2 text-left text-sm transition hover:bg-[rgb(var(--ink)/0.06)] hover:text-[rgb(var(--accent-rgb))] ${sel ? "" : "text-foreground/90"}`}
                       style={
                         sel
                           ? {

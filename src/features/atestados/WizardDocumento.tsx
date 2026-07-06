@@ -1129,7 +1129,7 @@ function DialogQuantidadeDias({
             onKeyDown={(e) => {
               if (e.key === "Enter" && valido) onConfirmar()
             }}
-            className="w-28 rounded-2xl border border-amber-300/40 bg-amber-300/8 px-3 py-4 text-center text-4xl font-semibold text-amber-700 dark:text-amber-100 focus:border-amber-300/80 focus:outline-none focus:ring-2 focus:ring-amber-300/30"
+            className="liquid-input w-28 border-amber-300/40 px-3 py-4 text-center text-4xl font-semibold text-amber-700 dark:text-amber-100"
           />
           <button
             type="button"
@@ -1248,7 +1248,7 @@ function EtapaDadosTrabalho({
               onChange((p) => ({ ...p, saidaRetornoTexto: e.target.value }))
             }
             placeholder="Ex: Saída às 07:30 – Retorno às 15:00"
-            className="mt-3 w-full rounded-2xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] px-4 py-3 text-foreground placeholder:text-foreground/30 focus:border-amber-300/50 focus:outline-none"
+            className="liquid-input mt-3 w-full px-4 py-3"
           />
           <div className="mt-2 flex flex-wrap gap-1.5">
             {EXEMPLOS_SAIDA_RETORNO.map((ex) => (
@@ -1379,7 +1379,7 @@ function EtapaUnidade({
               value={unidadeNaoEncontradaTexto}
               onChange={(e) => onChange(unidadeLabel, e.target.value)}
               placeholder="Nome da unidade"
-              className="mt-3 w-full rounded-2xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] px-4 py-3 text-foreground placeholder:text-foreground/30 focus:border-amber-300/50 focus:outline-none"
+              className="liquid-input mt-3 w-full px-4 py-3"
             />
           </div>
         )}
@@ -1521,7 +1521,7 @@ function EtapaObservacao({
         rows={4}
         maxLength={1000}
         placeholder="Ex: Atestado emitido após avaliação no pronto-socorro."
-        className="mt-6 w-full rounded-2xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] px-4 py-3 text-sm text-foreground placeholder:text-foreground/30 focus:border-amber-300/50 focus:outline-none"
+        className="liquid-input mt-6 w-full px-4 py-3 text-sm"
       />
 
       <div className="mt-6 flex items-center justify-between">
@@ -1665,7 +1665,7 @@ function SelectGlass({
       <button
         type="button"
         onClick={() => setAberto((v) => !v)}
-        className="flex w-full items-center justify-between rounded-2xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] px-4 py-3 text-left text-foreground transition hover:border-amber-300/40 hover:bg-[rgb(var(--ink)/0.06)]"
+        className="liquid-field liquid-field-trigger flex w-full items-center justify-between px-4 py-3 text-left text-foreground transition"
       >
         <span className={valor ? "text-foreground" : "text-foreground/40"}>
           {valor || placeholder}
@@ -1676,7 +1676,7 @@ function SelectGlass({
       </button>
 
       {aberto && (
-        <div className="absolute z-30 mt-2 max-h-72 w-full overflow-hidden rounded-2xl border border-[rgb(var(--ink)/0.12)] bg-card/95 shadow-[0_18px_36px_-12px_rgba(0,0,0,0.6)] backdrop-blur-xl">
+        <div className="liquid-popover absolute z-30 mt-2 max-h-72 w-full overflow-hidden rounded-2xl">
           {searchable && (
             <div className="flex items-center gap-2 border-b border-[rgb(var(--ink)/0.1)] px-3 py-2">
               <Search className="size-3.5 text-foreground/55" />
@@ -1686,7 +1686,7 @@ function SelectGlass({
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
                 placeholder="Buscar..."
-                className="flex-1 bg-transparent text-sm text-foreground placeholder:text-foreground/30 focus:outline-none"
+                className="liquid-field-input flex-1 text-sm"
               />
             </div>
           )}

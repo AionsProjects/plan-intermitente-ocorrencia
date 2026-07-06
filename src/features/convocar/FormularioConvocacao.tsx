@@ -560,7 +560,7 @@ function FieldText({
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] px-4 py-3 text-sm text-foreground placeholder:text-foreground/30 backdrop-blur transition focus:border-[rgb(var(--accent-rgb)/0.5)] focus:bg-[rgb(var(--ink)/0.07)] focus:outline-none"
+        className="liquid-input w-full px-4 py-3 text-sm"
       />
     </div>
   )
@@ -593,7 +593,7 @@ function FieldFile({
           </button>
         </div>
       ) : (
-        <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[rgb(var(--ink)/0.15)] bg-[rgb(var(--ink)/0.02)] px-4 py-8 text-center transition hover:border-[rgb(var(--accent-rgb)/0.4)] hover:bg-[rgb(var(--ink)/0.05)]">
+        <label className="liquid-field flex cursor-pointer flex-col items-center justify-center gap-2 border-dashed px-4 py-8 text-center transition hover:border-[rgb(var(--accent-rgb)/0.4)]">
           <FileUp className="size-5 text-foreground/55" />
           <span className="text-xs text-foreground/65">
             <span className="text-[rgb(var(--accent-rgb))] underline-offset-2 hover:underline">

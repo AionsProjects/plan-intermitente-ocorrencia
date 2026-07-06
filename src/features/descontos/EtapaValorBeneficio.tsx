@@ -90,10 +90,10 @@ export function EtapaValorBeneficio({
           Valor retirado
         </span>
         <div
-          className={`mt-2 flex items-center gap-3 rounded-2xl border bg-[rgb(var(--ink)/0.04)] px-5 py-4 backdrop-blur transition ${
+          className={`liquid-field mt-2 flex items-center gap-3 px-5 py-4 transition ${
             acimaDoDevido
               ? "border-rose-300/50"
-              : "border-[rgb(var(--ink)/0.15)] focus-within:border-sky-300/50"
+              : "focus-within:border-sky-300/50"
           }`}
         >
           <span className="text-display text-3xl text-foreground/55">R$</span>
@@ -109,7 +109,7 @@ export function EtapaValorBeneficio({
               const digitos = e.target.value.replace(/\D/g, "")
               onChange(digitos)
             }}
-            className="text-display flex-1 bg-transparent text-3xl font-medium tracking-wider text-foreground placeholder:text-foreground/25 focus:outline-none"
+            className="liquid-field-input text-display flex-1 text-3xl font-medium tracking-wider"
           />
         </div>
       </label>
