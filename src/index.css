@@ -3847,3 +3847,245 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .ft-raiz { display: none; }
 }
+
+/* ─── Mobile Safari / iPhone polish ─────────────────────────────────
+   Mantém a linguagem liquid-glass, mas evita zoom automático em inputs,
+   respeita notch/home indicator e reduz filtros caros no WebKit touch. */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+@supports (min-height: 100dvh) {
+  html,
+  body,
+  #root {
+    min-height: 100dvh;
+  }
+}
+
+@media (max-width: 640px) {
+  html,
+  body,
+  #root {
+    width: 100%;
+    overflow-x: hidden;
+  }
+
+  body {
+    background-attachment: scroll;
+    touch-action: manipulation;
+  }
+
+  .min-h-svh {
+    min-height: 100dvh;
+  }
+
+  main.min-h-svh,
+  main.relative.z-10,
+  div.relative.z-10.min-h-svh {
+    padding-top: max(4.75rem, calc(env(safe-area-inset-top) + 3.5rem));
+    padding-bottom: max(1.25rem, calc(env(safe-area-inset-bottom) + 1rem));
+  }
+
+  main.items-center,
+  div.min-h-svh > .flex.justify-center {
+    align-items: flex-start;
+  }
+
+  .glass,
+  .glass-strong,
+  .glass-modal,
+  .liquid-card {
+    border-radius: 1.35rem;
+  }
+
+  .glass-strong {
+    box-shadow:
+      0 22px 54px -28px rgb(var(--shadow) / 0.86),
+      inset 0 1px 0 0 rgb(var(--ink) / 0.2),
+      inset 0 -1px 0 0 rgb(var(--shadow) / 0.18);
+  }
+
+  .card-shimmer::before {
+    opacity: 0.34;
+  }
+
+  .text-display {
+    letter-spacing: 0;
+  }
+
+  h1.text-display,
+  h2.text-display {
+    overflow-wrap: anywhere;
+  }
+
+  input,
+  textarea,
+  select,
+  .liquid-input,
+  .liquid-field-input,
+  .retroativo-unlock-input {
+    font-size: 16px !important;
+  }
+
+  button,
+  [role="button"],
+  .choice-btn,
+  .liquid-control,
+  .liquid-field-trigger {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .choice-btn,
+  .liquid-field-trigger,
+  .liquid-control:not(.nav-btn),
+  .glass-tile,
+  .tile-contrato {
+    min-height: 44px;
+  }
+
+  .nav-cluster-fixed {
+    top: max(0.75rem, calc(env(safe-area-inset-top) + 0.55rem));
+    right: max(0.75rem, calc(env(safe-area-inset-right) + 0.55rem));
+  }
+
+  .nav-cluster {
+    height: 3.25rem;
+    padding: 0.25rem;
+  }
+
+  .nav-btn {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .header-dock {
+    padding-top: max(0.55rem, calc(env(safe-area-inset-top) + 0.45rem));
+    padding-inline: max(0.75rem, env(safe-area-inset-left)) max(0.75rem, env(safe-area-inset-right));
+  }
+
+  .glass-modal {
+    width: calc(100vw - 1.25rem) !important;
+    max-width: calc(100vw - 1.25rem) !important;
+    max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 1.25rem);
+    overflow-y: auto;
+    padding: 1.25rem !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .liquid-popover {
+    max-width: calc(100vw - 1rem);
+  }
+
+  .resumo-dock {
+    right: max(1rem, calc(env(safe-area-inset-right) + 0.85rem)) !important;
+    bottom: max(1rem, calc(env(safe-area-inset-bottom) + 0.85rem)) !important;
+  }
+
+  .resumo-dock-preview {
+    display: none;
+  }
+
+  .floating-resumo {
+    min-height: 44px;
+  }
+
+  .rdp-root {
+    --rdp-day_button-height: 2.25rem;
+    --rdp-day_button-width: 2.25rem;
+  }
+}
+
+@media (max-width: 390px) {
+  main.relative.z-10,
+  div.relative.z-10.min-h-svh {
+    padding-inline: 0.75rem;
+  }
+
+  .glass-strong,
+  .glass-modal {
+    border-radius: 1.1rem;
+  }
+
+  .choice-btn {
+    width: 100%;
+  }
+
+  .chip-context-glass {
+    max-width: 100%;
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .glass-tile-3d,
+  .glass-tile-3d:hover,
+  .glass-tile-3d:active,
+  .choice-btn,
+  .choice-btn:hover,
+  .choice-btn:active,
+  .tile-contrato,
+  .tile-contrato:hover,
+  .tile-contrato:active,
+  .liquid-control,
+  .liquid-control:hover,
+  .liquid-control:active {
+    transform: none !important;
+  }
+
+  .glass-tile-3d::before,
+  .tile-contrato::before {
+    opacity: 0 !important;
+  }
+
+  .icon-3d-only,
+  .tile-contrato:hover .icon-3d-host,
+  .glass-tile-3d:hover .icon-3d-soft {
+    transform: none !important;
+  }
+
+  .hub-shine::after {
+    display: none;
+  }
+}
+
+@supports (-webkit-touch-callout: none) {
+  body {
+    background-attachment: scroll;
+  }
+
+  .aurora-orb {
+    filter: blur(44px);
+  }
+
+  @media (max-width: 640px) {
+    .glass {
+      backdrop-filter: blur(18px) saturate(145%);
+      -webkit-backdrop-filter: blur(18px) saturate(145%);
+    }
+
+    .glass-strong {
+      backdrop-filter: blur(22px) saturate(145%);
+      -webkit-backdrop-filter: blur(22px) saturate(145%);
+    }
+
+    .glass-modal,
+    .liquid-popover {
+      backdrop-filter: blur(18px) saturate(145%) brightness(1.03);
+      -webkit-backdrop-filter: blur(18px) saturate(145%) brightness(1.03);
+    }
+
+    .glass-tile,
+    .liquid-card,
+    .liquid-control,
+    .liquid-field,
+    .liquid-input,
+    .liquid-badge,
+    .choice-btn,
+    .num-stepper,
+    .tile-contrato {
+      backdrop-filter: blur(10px) saturate(135%);
+      -webkit-backdrop-filter: blur(10px) saturate(135%);
+    }
+  }
+}
