@@ -21,7 +21,6 @@ import { rotasPontoFacultativo } from "./routes/pontofac.js"
 import { rotasEspelhoIntermitente } from "./routes/espelhoIntermitente.js"
 import { rotasRmLookups } from "./routes/rmLookups.js"
 import { rotasDrive } from "./routes/drive.js"
-import { rotasNextiAtestado } from "./routes/nextiAtestado.js"
 import { rotasRotas } from "./routes/rotas.js"
 import { rotasContingencia } from "./routes/contingencia.js"
 
@@ -52,7 +51,6 @@ export async function construirApp(): Promise<FastifyInstance> {
   await app.register(rotasEspelhoIntermitente)
   await app.register(rotasRmLookups)
   await app.register(rotasDrive)
-  await app.register(rotasNextiAtestado)
   await app.register(rotasRotas)
   await app.register(rotasContingencia)
 

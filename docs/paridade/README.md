@@ -17,7 +17,7 @@ precisar acompanhar (reserva quente), replicar via script .cjs + atualizar esta 
 | descontos manual (ler/registrar/gerar-link) | descontos.ts — residual/descontado/status financeiro completos | sr4xxXLx / EXuqosXX / BCgD9f1b | código ✓ | 2026-07-04 |
 | pontofac (opcoes/preview/aplicar) | pontofac.ts — dedupe via LEDGER do Histórico + board Descontos (origem PF) + PG | JXpJ / 7gHm / Xybr | código ✓ | 2026-07-04 |
 | lançar documentos (atestados) | atestados.ts (`/api/intermitente-lancar-documentos`) + Drive async | kVpn69JF | código ✓ | 2026-07-04 |
-| validar atestado (Nexti) | nextiAtestado.ts + services/validarAtestado.ts — Nexti OAuth/persons/absences, dedupe PROCESSADOS, celetista acumulador, ledger+desconto intermitente | 6efSZQYz | código ✓ (repontar automação Monday) | 2026-07-04 |
+| **validar atestado (Nexti)** | — | 6efSZQYz | **FICA no n8n** (decisão Isaac 06/07 — automação Nexti só no n8n) | 2026-07-06 |
 | unidades RM / buscar empregado / celetista | rmLookups.ts + convocar.ts (ponte AIONS read-only) | OggzTr5x / Dt0p1T6O / 0ljExfCN | código ✓ | 2026-07-04 |
 | feriados | espelhoIntermitente.ts + repo/feriados (board 18415442661) | QzZ02GG | código ✓ | 2026-07-04 |
 | drive arquivar / planilha | drive.ts + services/driveArquivar.ts + clients/xlsx.ts | XRdAYO9d / aBXCqYHP | código pronto — **aguarda GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON(+_BASE64) e GOOGLE_DRIVE_ROOT_FOLDER_ID** | 2026-07-04 |
@@ -29,14 +29,13 @@ precisar acompanhar (reserva quente), replicar via script .cjs + atualizar esta 
 
 `pi.rotas_processo`: migration 013 semeia os 7 processos em `n8n`. Depois do
 deploy + teste real, flipar pra `api` (código principal): `convocar`, `cancelar`,
-`split`, `descontos`, `atestados`, `pontofac`. `registro` PERMANECE `n8n`.
-Ações manuais no flip: repontar automação Monday do Controle de Atestados
-(nexti-validar-atestado) e o webhook create_item/ativar dos boards pro backend.
+`split`, `descontos`, `atestados` (lançar documentos), `pontofac`. `registro`
+PERMANECE `n8n`, e a automação Nexti do Controle de Atestados também.
+Ação manual no flip: webhook create_item/ativar dos boards pro backend.
 
 ## Credenciais no backend (.env / Vercel)
 
 - `MONDAY_TOKEN`, `RM_BRIDGE_URL`, `RM_AIONS_AUTH` — ok em prod.
-- `NEXTI_BASIC_AUTH` — extraída do WF 6efSZ pro .env local (04/07). **Falta subir no Vercel.**
 - `GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON` (ou `_BASE64`) + `GOOGLE_DRIVE_ROOT_FOLDER_ID` — **pendente (Isaac cria a service account e compartilha a pasta raiz).**
 
 Regra de não-desconto (03/07/2026, Isaac): **DETRAN, TRE PB e SEDUC*** (prefixo)
