@@ -19,6 +19,7 @@ import {
   registrarDebitoControleCaju,
   setarStatusAutomacaoOk,
 } from "../auth-backend/src/mensal/mondayEfeitos.js"
+import { arquivarDriveMensal } from "../auth-backend/src/mensal/driveEfeitos.js"
 import {
   atualizarContrato,
   finalizarRun,
@@ -463,35 +464,50 @@ async function etapaMondayStatusOk(
 }
 etapaMondayStatusOk.maxRetries = 5
 
-// --- Efeito genérico (RM/Drive): simula em homologação, bloqueia em produção. ---
-async function executarEfeitoGenerico(
+// --- Drive: arquiva boleto/comprovante/QR nas pastas CAJU e linka na Solicitação. ---
+async function etapaDrive(
   runId: string,
   modo: "homologacao" | "producao",
   competencia: string,
-  contrato: string,
-  etapa: string,
-): Promise<{ pulado: boolean }> {
+  contrato: ContratoPreviaMensal,
+  refs: {
+    pedidoCreditoId: string | null
+    pedidoPixId: string | null
+    qrBoletoBase64: string
+    idVR: string | null
+    idVT: string | null
+    solicitacaoId: string | null
+  },
+): Promise<void> {
   "use step"
+  const etapa = "drive"
   const metadata = getStepMetadata()
-  await registrarEvento({ runId, contrato, etapa, estado: "rodando", tentativa: metadata.attempt })
-
-  if (modo === "producao") {
-    // Adaptadores reais RM/Monday/Drive ainda não portados -> produção continua bloqueada.
-    throw new FatalError(`efeito_real_nao_implementado:${etapa}`)
-  }
-
-  const chave = `mensal:${competencia}:${normContrato(contrato)}:${etapa}`
-  const reserva = await reservarEfeito(chave, `mensal_${etapa}`, { runId, competencia, contrato, modo })
-  if (reserva === "confirmado") {
-    await registrarEvento({ runId, contrato, etapa, estado: "pulado_idempotencia", tentativa: metadata.attempt })
-    return { pulado: true }
-  }
-  if (reserva === "pendente") throw new FatalError(`efeito_pendente_requer_conciliacao:${etapa}`)
-  await confirmarEfeito(chave, `homologacao:${runId}:${contrato}:${etapa}`)
-  await registrarEvento({ runId, contrato, etapa, estado: "concluido", tentativa: metadata.attempt, metadados: { simulado: true } })
-  return { pulado: false }
+  await registrarEvento({ runId, contrato: contrato.contrato, etapa, estado: "rodando", tentativa: metadata.attempt })
+  const r = await reservarOuPular(runId, modo, competencia, contrato.contrato, etapa, metadata.attempt)
+  if (r.acao === "pular") return
+  if (r.acao === "simular") return simularEfeito(runId, contrato.contrato, etapa, r.chave, metadata.attempt)
+  const { mes } = competenciaPartes(competencia)
+  const resultados = await arquivarDriveMensal(contrato, competencia, MESES_LABEL[mes - 1]!, {
+    pedidoCreditoId: refs.pedidoCreditoId,
+    pedidoPixId: refs.pedidoPixId,
+    summaryCredito: refs.pedidoCreditoId ? `https://empresa.caju.com.br/classic/#/order/${refs.pedidoCreditoId}/summary` : "",
+    summaryPix: refs.pedidoPixId ? `https://empresa.caju.com.br/classic/#/order/${refs.pedidoPixId}/summary` : "",
+    idVR: refs.idVR,
+    idVT: refs.idVT,
+    qrBoletoBase64: refs.qrBoletoBase64,
+    solicitacaoId: refs.solicitacaoId,
+  })
+  const uploads = resultados.flatMap((x) => x.resultado.uploads.map((u) => u.id))
+  await confirmarEfeito(r.chave, `drive:${uploads.join(",") || "sem_upload"}`)
+  await registrarEvento({
+    runId, contrato: contrato.contrato, etapa, estado: "concluido", tentativa: metadata.attempt,
+    metadados: {
+      uploads: uploads.length,
+      pastaConvocacao: resultados[0]?.resultado.pasta_convocacao_drive_url,
+    },
+  })
 }
-executarEfeitoGenerico.maxRetries = 5
+etapaDrive.maxRetries = 3
 
 async function marcarContratoRodando(runId: string, contrato: string): Promise<void> {
   "use step"
@@ -565,8 +581,15 @@ async function processarContrato(
       { idVR: rmIds.idVR, idVT: rmIds.idVT, pedidoCreditoId: credito.orderId, pedidoPixId: pix.orderId },
     )
 
-    // Drive (ainda não portado).
-    await executarEfeitoGenerico(runId, modo, competencia, contrato.contrato, "drive")
+    // Drive (adaptador real, gated).
+    await etapaDrive(runId, modo, competencia, contrato, {
+      pedidoCreditoId: credito.orderId,
+      pedidoPixId: pix.orderId,
+      qrBoletoBase64: pix.qr,
+      idVR: rmIds.idVR,
+      idVT: rmIds.idVT,
+      solicitacaoId,
+    })
 
     // AUTOMAÇÃO - OK só depois de TODAS as etapas do contrato confirmadas.
     await etapaMondayStatusOk(runId, modo, competencia, contrato.contrato, solicitacaoId)
