@@ -99,6 +99,23 @@ export async function executarProcesso(payload: Record<string, unknown>): Promis
   return post("/executar-processo-rm", payload)
 }
 
+/** Consulta SQL com parâmetros EXATOS (sem injeção de $CODCOLIGADA) — paridade com nós n8n
+ *  que passam chaves sem prefixo (ex: IDFNAN usa CODCOLIGADA/CODSECAO/DATAEMISSAO). */
+export async function consultarSqlBruto<T = Record<string, unknown>>(p: ConsultaParams): Promise<T[]> {
+  const body = {
+    ambiente: p.ambiente ?? "producao",
+    solicitante: p.solicitante ?? "backend-pi",
+    codigo_sql: p.codigoSql,
+    codigo_sistema: p.codigoSistema ?? "P",
+    codigo_coligada: p.codigoColigada ?? 3,
+    parametros: p.parametros ?? {},
+  }
+  const r = await post<unknown>("/consultar-rm", body)
+  if (Array.isArray(r)) return r as T[]
+  const obj = r as { dados?: T[]; result?: T[]; rows?: T[] } | null
+  return (obj?.dados ?? obj?.result ?? obj?.rows ?? []) as T[]
+}
+
 /** Deleta registro RM (escrita — GATED no caller). */
 export async function deletarRm(payload: Record<string, unknown>): Promise<unknown> {
   return post("/deletar-rm", payload)

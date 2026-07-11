@@ -24,6 +24,19 @@ import {
   finalizarRun,
   registrarEvento,
 } from "../auth-backend/src/mensal/repo.js"
+import {
+  RM_COLIGADA,
+  chapasEventosPix,
+  codSecaoBase,
+  consultarIdfinanc,
+  enviarHistoricoRm,
+  executarFopRotinas,
+  integrarIdfinanc,
+  lotesHistorico,
+  montarRegistrosHistorico,
+  type RegistroHistoricoRm,
+} from "../auth-backend/src/mensal/rmEfeitos.js"
+import { codigoSecaoContrato } from "../auth-backend/src/mensal/calculo.js"
 import type { ContratoPreviaMensal, SnapshotPreviaMensal } from "../auth-backend/src/mensal/types.js"
 
 const MESES_LABEL = ["JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO",
@@ -36,13 +49,8 @@ export interface MensalWorkflowInput {
   somenteContratos?: string[]
 }
 
-// Efeitos ainda NÃO portados (RM/Drive) -> em "producao" lançam not_implemented;
-// em "homologacao" simulam atrás do ledger. Monday agora tem adaptador real (steps próprios).
-const EFEITOS_GENERICOS = [
-  "rm_gerar",
-  "rm_aguardar",
-  "rm_integrar",
-] as const
+// Único efeito ainda NÃO portado (Drive) -> em "producao" lança not_implemented;
+// em "homologacao" simula atrás do ledger. Caju/Monday/RM têm adaptadores reais.
 
 // Trava de produção financeira. Só libera com modo=producao E env=1. Hoje 0 em todo ambiente.
 const PRODUCAO_LIBERADA = process.env.MENSAL_PRODUCTION_ENABLED === "1"
@@ -150,6 +158,145 @@ async function executarPedidoCaju(
   return { orderId: orderId ?? null, qr, pulado: false, simulado: false }
 }
 executarPedidoCaju.maxRetries = 5
+
+// --- RM (ponte AIONS): histórico ZMDHSTBENFUNC + FopRotinas + IDFNAN + Integrar. ---
+// Serial SEMPRE (AIONS não aguenta volume): lotes de 50 no histórico, waits entre passos.
+
+/** rm_gerar (parte 1): grava 1 LOTE de histórico ZMDHSTBENFUNC. Ledger por lote. */
+async function etapaRmHistoricoLote(
+  runId: string,
+  modo: "homologacao" | "producao",
+  competencia: string,
+  contrato: ContratoPreviaMensal,
+  tipo: "pix" | "credito",
+  loteIdx: number,
+): Promise<void> {
+  "use step"
+  const etapa = "rm_gerar"
+  const metadata = getStepMetadata()
+  await registrarEvento({
+    runId, contrato: contrato.contrato, etapa, estado: "rodando", tentativa: metadata.attempt,
+    metadados: { sub: `hist_${tipo}_lote${loteIdx}` },
+  })
+  const chaveSub = `${etapa}_hist_${tipo}_l${loteIdx}`
+  const r = await reservarOuPular(runId, modo, competencia, contrato.contrato, chaveSub, metadata.attempt)
+  if (r.acao === "pular") return
+  if (r.acao === "simular") return simularEfeito(runId, contrato.contrato, etapa, r.chave, metadata.attempt)
+  const { mes, ano } = competenciaPartes(competencia)
+  const codSecao = codSecaoBase(codigoSecaoContrato(contrato.contrato))
+  const registros: RegistroHistoricoRm[] = lotesHistorico(montarRegistrosHistorico(contrato.pessoas, tipo, {
+    anoComp: ano, mesComp: mes, codSecao, dataImport: new Date().toISOString().slice(0, 10),
+  }))[loteIdx] ?? []
+  for (const registro of registros) {
+    await enviarHistoricoRm(registro) // serial por design
+  }
+  await confirmarEfeito(r.chave, `rm:hist:${tipo}:l${loteIdx}:${registros.length}`)
+  await registrarEvento({
+    runId, contrato: contrato.contrato, etapa, estado: "concluido", tentativa: metadata.attempt,
+    metadados: { sub: `hist_${tipo}_lote${loteIdx}`, registros: registros.length },
+  })
+}
+etapaRmHistoricoLote.maxRetries = 3
+
+/** rm_gerar (parte 2): FopRotinas — gera lançamentos financeiros das chapas com PIX. */
+async function etapaRmFopRotinas(
+  runId: string,
+  modo: "homologacao" | "producao",
+  competencia: string,
+  contrato: ContratoPreviaMensal,
+): Promise<{ temFinanceiro: boolean }> {
+  "use step"
+  const etapa = "rm_gerar"
+  const metadata = getStepMetadata()
+  await registrarEvento({ runId, contrato: contrato.contrato, etapa, estado: "rodando", tentativa: metadata.attempt, metadados: { sub: "foprotinas" } })
+  const { chapas, eventos } = chapasEventosPix(contrato.pessoas)
+  const r = await reservarOuPular(runId, modo, competencia, contrato.contrato, etapa, metadata.attempt)
+  if (r.acao === "pular") return { temFinanceiro: chapas.length > 0 }
+  if (r.acao === "simular") {
+    await simularEfeito(runId, contrato.contrato, etapa, r.chave, metadata.attempt)
+    return { temFinanceiro: false }
+  }
+  if (!chapas.length) {
+    // contrato 100% crédito: sem lançamento financeiro (igual ao IF "Tem Boleto p/ Financeiro?" do n8n)
+    await confirmarEfeito(r.chave, "rm:foprotinas:sem_boleto")
+    await registrarEvento({ runId, contrato: contrato.contrato, etapa, estado: "concluido", tentativa: metadata.attempt, metadados: { pulado: "sem_boleto" } })
+    return { temFinanceiro: false }
+  }
+  const hoje = new Date().toISOString().slice(0, 10)
+  const { mes, ano } = competenciaPartes(competencia)
+  await executarFopRotinas({
+    coligada: RM_COLIGADA,
+    codSecao: codSecaoBase(codigoSecaoContrato(contrato.contrato)),
+    chapas, eventos, anoComp: ano, mesComp: mes,
+    dataEmissao: `${hoje}T00:00:00`, dataVencimento: `${hoje}T00:00:00`,
+  })
+  await confirmarEfeito(r.chave, `rm:foprotinas:${chapas.length}chapas:${eventos.join("+")}`)
+  await registrarEvento({
+    runId, contrato: contrato.contrato, etapa, estado: "concluido", tentativa: metadata.attempt,
+    metadados: { chapas: chapas.length, eventos },
+  })
+  return { temFinanceiro: true }
+}
+etapaRmFopRotinas.maxRetries = 3
+
+async function etapaRmAguardar(runId: string, contrato: string): Promise<void> {
+  "use step"
+  const metadata = getStepMetadata()
+  await registrarEvento({ runId, contrato, etapa: "rm_aguardar", estado: "concluido", tentativa: metadata.attempt })
+}
+
+/** rm_integrar: consulta IDFNAN, integra cada IDFINANC em série (dedup por IDFINANC no ledger). */
+async function etapaRmIntegrar(
+  runId: string,
+  modo: "homologacao" | "producao",
+  competencia: string,
+  contrato: ContratoPreviaMensal,
+  temFinanceiro: boolean,
+): Promise<{ idVR: string | null; idVT: string | null }> {
+  "use step"
+  const etapa = "rm_integrar"
+  const metadata = getStepMetadata()
+  await registrarEvento({ runId, contrato: contrato.contrato, etapa, estado: "rodando", tentativa: metadata.attempt })
+  const r = await reservarOuPular(runId, modo, competencia, contrato.contrato, etapa, metadata.attempt)
+  if (r.acao === "pular") return { idVR: null, idVT: null }
+  if (r.acao === "simular") {
+    await simularEfeito(runId, contrato.contrato, etapa, r.chave, metadata.attempt)
+    return { idVR: null, idVT: null }
+  }
+  if (!temFinanceiro) {
+    await confirmarEfeito(r.chave, "rm:integrar:sem_financeiro")
+    await registrarEvento({ runId, contrato: contrato.contrato, etapa, estado: "concluido", tentativa: metadata.attempt, metadados: { pulado: "sem_financeiro" } })
+    return { idVR: null, idVT: null }
+  }
+  const hoje = new Date().toISOString().slice(0, 10)
+  const rotulados = await consultarIdfinanc({
+    coligada: RM_COLIGADA,
+    codSecao: codSecaoBase(codigoSecaoContrato(contrato.contrato)),
+    dataEmissao: `${hoje}T00:00:00`,
+  })
+  let idVR: string | null = null
+  let idVT: string | null = null
+  let integrados = 0
+  for (const row of rotulados) {
+    // Dedup FORTE por IDFINANC (entre runs — substitui o staticData frágil do n8n).
+    const chaveId = `mensal:rm_idfinanc:${RM_COLIGADA}:${row.IDFINANC}`
+    const reservaId = await reservarEfeito(chaveId, "mensal_rm_idfinanc", { runId, contrato: contrato.contrato, historico: row.tipoEvento })
+    if (reservaId === "confirmado") continue
+    if (reservaId === "pendente") throw new FatalError(`efeito_pendente_requer_conciliacao:rm_idfinanc:${row.IDFINANC}`)
+    await integrarIdfinanc(row.IDFINANC, RM_COLIGADA)
+    await confirmarEfeito(chaveId, `rm:idfinanc:${row.IDFINANC}:${row.tipoEvento}`)
+    integrados++
+    if (row.tipoEvento === "VR" && !idVR) idVR = String(row.IDFINANC)
+    if (row.tipoEvento === "VT" && !idVT) idVT = String(row.IDFINANC)
+  }
+  await confirmarEfeito(r.chave, `rm:integrar:${integrados}:vr=${idVR ?? "-"}:vt=${idVT ?? "-"}`)
+  await registrarEvento({
+    runId, contrato: contrato.contrato, etapa, estado: "concluido", tentativa: metadata.attempt,
+    metadados: { encontrados: rotulados.length, integrados, idVR, idVT },
+  })
+  return { idVR, idVT }
+}
+etapaRmIntegrar.maxRetries = 3
 
 // --- Monday: helpers de reserva/confirm no ledger + steps reais (gated). -----
 async function reservarOuPular(
@@ -394,18 +541,28 @@ async function processarContrato(
     const credito = await executarPedidoCaju(runId, modo, competencia, contrato.contrato, "credito", pessoasComId)
     const pix = await executarPedidoCaju(runId, modo, competencia, contrato.contrato, "boleto", pessoasComId)
 
-    // RM (ainda não portado — produção bloqueia aqui; homologação simula).
-    for (const etapa of EFEITOS_GENERICOS) {
-      await executarEfeitoGenerico(runId, modo, competencia, contrato.contrato, etapa)
-      if (etapa === "rm_gerar") await sleep("2s") // AIONS não aguenta volume -> serial + espera
+    // RM via ponte AIONS — SERIAL com esperas (a ponte não aguenta volume).
+    // Histórico ZMDHSTBENFUNC em lotes de 50 (contagem determinística a partir do snapshot).
+    const { mes, ano } = competenciaPartes(competencia)
+    const ctxContagem = { anoComp: ano, mesComp: mes, codSecao: "", dataImport: "1970-01-01" }
+    for (const tipo of ["pix", "credito"] as const) {
+      const nLotes = lotesHistorico(montarRegistrosHistorico(contrato.pessoas, tipo, ctxContagem)).length
+      for (let i = 0; i < nLotes; i++) {
+        await etapaRmHistoricoLote(runId, modo, competencia, contrato, tipo, i)
+        if (i < nLotes - 1) await sleep("60s") // espera entre lotes (igual ao Wait Hist do n8n)
+      }
     }
+    const { temFinanceiro } = await etapaRmFopRotinas(runId, modo, competencia, contrato)
+    await sleep("7s") // Wait RM Processar (n8n)
+    await etapaRmAguardar(runId, contrato.contrato)
+    const rmIds = await etapaRmIntegrar(runId, modo, competencia, contrato, temFinanceiro)
 
     // Monday (adaptador real, gated por producao+ledger).
     await etapaMondayPlano(runId, modo, competencia, contrato, snapshot.boardId, snapshot.apoio.colunasPlano)
     await etapaMondayControleCaju(runId, modo, competencia, contrato, snapshot.apoio.grupoControleCaju, credito.orderId)
     const solicitacaoId = await etapaMondaySolicitacao(
       runId, modo, competencia, contrato, snapshot.boardId, snapshot.apoio.grupoSolicitacao ?? null,
-      { idVR: null, idVT: null, pedidoCreditoId: credito.orderId, pedidoPixId: pix.orderId },
+      { idVR: rmIds.idVR, idVT: rmIds.idVT, pedidoCreditoId: credito.orderId, pedidoPixId: pix.orderId },
     )
 
     // Drive (ainda não portado).
