@@ -67,8 +67,10 @@ export async function rotasMensalOrquestracao(app: FastifyInstance): Promise<voi
       const u = await exigirDP(req, reply)
       if (!u) return
       const papel: PapelMensal = req.body?.papel === "proximo" ? "proximo" : "atual"
-      // Bypass da antifraude é TESTE — só honrado em homologação (que simula tudo). Nunca em produção.
-      const bypassAntifraude = req.body?.bypassAntifraude === true && config.mensalModo === "homologacao"
+      // Bypass da antifraude é TESTE — homologação sempre; producao SÓ na janela de ensaio
+      // (MENSAL_TEST_BYPASS_ANTIFRAUDE=1). Fora disso, produção mantém a proteção anti-duplicidade.
+      const bypassAntifraude = req.body?.bypassAntifraude === true &&
+        (config.mensalModo === "homologacao" || config.mensalTestBypassAntifraude)
       try {
         const snapshot = await calcularPreviaMensal(papel, { bypassAntifraude })
         const runId = await criarRunPrevia(snapshot, u.email, config.mensalModo)
@@ -150,13 +152,15 @@ export async function rotasMensalOrquestracao(app: FastifyInstance): Promise<voi
     },
   )
 
-  // Config do mensal p/ o front decidir se mostra os controles de teste (homologação).
+  // Config do mensal p/ o front decidir se mostra os controles de teste.
+  // controlesTeste: homologação sempre; producao SÓ com a flag de ensaio ligada.
   app.get("/api/mensal/config", async (req, reply) => {
     if (!(await exigirDP(req, reply))) return
     return {
       modo: config.mensalModo,
       workflowEnabled: config.mensalWorkflowEnabled,
       productionEnabled: config.mensalProductionEnabled,
+      controlesTeste: config.mensalModo === "homologacao" || config.mensalTestBypassAntifraude,
     }
   })
 

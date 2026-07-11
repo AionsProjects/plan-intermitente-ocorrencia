@@ -86,6 +86,9 @@ export const config = {
   mensalWorkflowEnabled: process.env.MENSAL_WORKFLOW_ENABLED === "1",
   mensalModo: opt("MENSAL_MODO", "homologacao") === "producao" ? "producao" : "homologacao",
   mensalProductionEnabled: process.env.MENSAL_PRODUCTION_ENABLED === "1",
+  // ENSAIO CONTROLADO: permite bypassAntifraude também em producao. Remove a proteção
+  // contra pagamento duplicado — NUNCA deixar ligada fora de uma janela de teste.
+  mensalTestBypassAntifraude: process.env.MENSAL_TEST_BYPASS_ANTIFRAUDE === "1",
   cronSecret: opt("CRON_SECRET", ""),
 } as const
 

@@ -89,7 +89,7 @@ export function MensalPage() {
   const [contratosSelecionados, setContratosSelecionados] = useState<string[]>([])
 
   const config = useQuery({ queryKey: ["mensal-config"], queryFn: buscarConfigMensal })
-  const ehHomologacao = config.data?.modo === "homologacao"
+  const ehHomologacao = config.data?.controlesTeste ?? (config.data?.modo === "homologacao")
   const meses = useQuery({ queryKey: ["mensal-meses"], queryFn: buscarMeses })
   const pessoas = useQuery<PessoasResp>({
     queryKey: ["mensal-pessoas", papel],

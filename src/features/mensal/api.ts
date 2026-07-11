@@ -139,6 +139,8 @@ export interface MensalConfig {
   modo: "homologacao" | "producao"
   workflowEnabled: boolean
   productionEnabled: boolean
+  /** true em homologação ou na janela de ensaio (MENSAL_TEST_BYPASS_ANTIFRAUDE). */
+  controlesTeste?: boolean
 }
 export function buscarConfigMensal(): Promise<MensalConfig> {
   return requestJson("/api/mensal/config")
