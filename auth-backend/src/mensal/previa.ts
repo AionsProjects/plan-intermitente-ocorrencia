@@ -1,0 +1,233 @@
+import { query } from "../db.js"
+import { mondayGraphql } from "../monday.js"
+import type {
+  ContratoPreviaMensal,
+  PapelMensal,
+  PessoaPreviaMensal,
+  SnapshotPreviaMensal,
+} from "./types.js"
+import { calcularMensal, normMensal, type ConvocacaoMensal, type DescontoMensal,
+  type FeriadoMensal, type RegraBeneficioMensal } from "./calculo.js"
+
+const BOARD_SOLICITACOES = "18393673859"
+const BOARD_PARAMETROS = "18413870370"
+const BOARD_FERIADOS = "18415442661"
+const BOARD_DESCONTOS = "18400981023"
+const BOARD_CONTROLE_CAJU = "7833600425"
+
+interface BoardRegistry { monday_board_id: string; competencia: string | null }
+interface RawItem {
+  id: string
+  name: string
+  column_values: Array<{ id: string; text: string | null; column?: { title: string } }>
+}
+
+function norm(v: unknown): string {
+  return String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim()
+}
+
+function valor(item: RawItem, titulo: string): string {
+  const alvo = norm(titulo)
+  return item.column_values.find((c) => norm(c.column?.title ?? c.id) === alvo)?.text?.trim() ?? ""
+}
+
+function dataIso(v: string): string {
+  return v.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? ""
+}
+
+async function resolverBoard(papel: PapelMensal): Promise<BoardRegistry> {
+  const { rows } = await query<BoardRegistry>(
+    `SELECT monday_board_id,competencia FROM boards
+      WHERE papel=$1 AND ativo=true ORDER BY atualizado_em DESC LIMIT 1`, [papel],
+  )
+  const board = rows[0]
+  if (!board?.competencia) throw new Error("board_mensal_nao_encontrado")
+  return board
+}
+
+async function resolverGrupoMensal(boardId: string): Promise<string> {
+  const { rows } = await query<{ group_id: string }>(
+    `SELECT group_id FROM board_grupos
+      WHERE monday_board_id=$1 AND upper(titulo)='MENSAL' LIMIT 1`, [boardId],
+  )
+  if (!rows[0]?.group_id) throw new Error("grupo_mensal_nao_encontrado")
+  return rows[0].group_id
+}
+
+async function lerPlano(boardId: string, groupId: string): Promise<RawItem[]> {
+  const d = await mondayGraphql<{ boards: Array<{ groups: Array<{ items_page: { items: RawItem[] } }> }> }>(
+    `query($b:[ID!],$g:[String!]){
+      boards(ids:$b){ groups(ids:$g){ items_page(limit:500){
+        items{ id name column_values{ id text column{ title } } }
+      } } }
+    }`, { b: [boardId], g: [groupId] },
+  )
+  return d.boards?.[0]?.groups?.[0]?.items_page?.items ?? []
+}
+
+async function lerApoio(competencia: string): Promise<{
+  solicitacoesProcessadas: string[]
+  parametros: number
+  feriados: number
+  descontos: number
+  grupoControle: string | null
+  valoresItems: RawItem[]
+  feriadosItems: RawItem[]
+  descontosItems: RawItem[]
+}> {
+  const [ano, mes] = competencia.split("-").map(Number)
+  const meses = ["JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO", "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"]
+  const label = meses[(mes || 1) - 1]!
+  const solicit = await mondayGraphql<{
+    solicit: Array<{ groups: Array<{ title: string; items_page: { items: RawItem[] } }> }>
+    parametros: Array<{ items_page: { items: RawItem[] } }>
+    feriados: Array<{ items_page: { items: RawItem[] } }>
+    descontos: Array<{ groups: Array<{ items_page: { items: RawItem[] } }> }>
+    controle: Array<{ groups: Array<{ id: string; title: string }> }>
+  }>(
+    `query ApoioMensal {
+      solicit: boards(ids:[${BOARD_SOLICITACOES}]) { groups { title items_page(limit:500) {
+        items { id name column_values { id text column { title } } }
+      } } }
+      parametros: boards(ids:[${BOARD_PARAMETROS}]) { items_page(limit:500) { items { id name column_values { id text column { title } } } } }
+      feriados: boards(ids:[${BOARD_FERIADOS}]) { items_page(limit:200) { items { id name column_values { id text column { title } } } } }
+      descontos: boards(ids:[${BOARD_DESCONTOS}]) { groups(ids:["group_mm0rmjs3"]) {
+        items_page(limit:500) { items { id name column_values { id text column { title } } } }
+      } }
+      controle: boards(ids:[${BOARD_CONTROLE_CAJU}]) { groups { id title } }
+    }`,
+  )
+  const grupoSolic = solicit.solicit?.[0]?.groups?.find((g) => norm(g.title) === norm(`${label}/${String(ano).slice(-2)}`))
+  const processadas = new Set<string>()
+  for (const item of grupoSolic?.items_page.items ?? []) {
+    if (norm(valor(item, "REFERÊNCIA PGTO")) !== "MENSAL") continue
+    const status = norm(valor(item, "STATUS PROCESSO"))
+    const pendente = !status || status.includes("NAO INICIADO") || status.includes("CANCELAD") || status.includes("REPROVAD") || status.includes("PARADO")
+    if (!pendente) processadas.add(norm(valor(item, "CONTRATO")))
+  }
+  const descontos = (solicit.descontos?.[0]?.groups?.[0]?.items_page.items ?? []).filter((it) => {
+    const status = norm(valor(it, "Status do Desconto"))
+    return status === "PENDENTE" || status === "PARCIAL"
+  }).length
+  const grupoControle = solicit.controle?.[0]?.groups?.find((g) => {
+    const t = norm(g.title)
+    return t.includes(norm(label)) && (t.includes(String(ano)) || t.includes(String(ano).slice(-2)))
+  })?.id ?? null
+  return {
+    solicitacoesProcessadas: [...processadas],
+    parametros: solicit.parametros?.[0]?.items_page.items.length ?? 0,
+    feriados: solicit.feriados?.[0]?.items_page.items.length ?? 0,
+    descontos,
+    grupoControle,
+    valoresItems: solicit.parametros?.[0]?.items_page.items ?? [],
+    feriadosItems: solicit.feriados?.[0]?.items_page.items ?? [],
+    descontosItems: solicit.descontos?.[0]?.groups?.[0]?.items_page.items ?? [],
+  }
+}
+
+const numero = (v: string): number => {
+  const s = v.replace(/[R$\s]/g, "")
+  return Number(s.includes(",") ? s.replace(/\./g, "").replace(",", ".") : s) || 0
+}
+const sim = (v: string): boolean => ["SIM", "SIM*"].includes(norm(v))
+function regraBeneficio(item: RawItem): RegraBeneficioMensal {
+  const nome = norm(item.name)
+  return { id: item.id, contrato: valor(item, "Contrato"), regra: valor(item, "Regra/Função") || valor(item, "Regra"),
+    vrDia: numero(valor(item, "VR")), vtDia: numero(valor(item, "VT")), vrMensal: numero(valor(item, "VR Mensal")),
+    vtMensal: numero(valor(item, "VT Mensal")), prioridade: numero(valor(item, "Prioridade")),
+    escala12x36: nome.includes("12X36") || nome.includes("12 X 36") }
+}
+function feriado(item: RawItem): FeriadoMensal | null {
+  const data = dataIso(valor(item, "Data") || valor(item, "date_mm3t5bgd"))
+  if (!data) return null
+  return { data, tipo: valor(item, "Tipo") || valor(item, "color_mm3t72h3"),
+    contratos: (valor(item, "Contratos") || valor(item, "dropdown_mm3t4wjp")).split(",").map((x) => x.trim()).filter(Boolean) }
+}
+function desconto(item: RawItem): DescontoMensal | null {
+  const cpf = valor(item, "CPF").replace(/\D/g, ""), chapa = valor(item, "Matrícula") || valor(item, "Matricula")
+  if (!cpf && !chapa) return null
+  return { id: item.id, pessoaKey: cpf || chapa.trim(), inicio: dataIso(valor(item, "Data Início") || valor(item, "Dt Inicio")) || "9999-12-31",
+    residualVR: numero(valor(item, "VR - Valor Residual")), residualVT: numero(valor(item, "VT - Valor Residual")),
+    descontadoVR: numero(valor(item, "VR - Valor Descontado")), descontadoVT: numero(valor(item, "VT - Valor Descontado")) }
+}
+
+function mapearPessoas(items: RawItem[]): PessoaPreviaMensal[] {
+  return items.map((item) => ({
+    itemId: item.id,
+    nome: valor(item, "Nome do Empregado") || item.name,
+    chapa: valor(item, "Funcionário"),
+    cpf: valor(item, "CPF").replace(/\D/g, ""),
+    contrato: valor(item, "Op - Contrato"),
+    funcao: valor(item, "Função"),
+    unidade: valor(item, "OP - Local/Unidade") || valor(item, "Local/Unidade"),
+    interior: valor(item, "OP - Interior?"),
+    dataInicio: dataIso(valor(item, "OP - Data/Inicio")),
+    dataFim: dataIso(valor(item, "OP - Data/Fim")),
+  })).filter((p) => p.nome && p.contrato && p.dataInicio && p.dataFim && (p.cpf || p.chapa))
+}
+
+export async function calcularPreviaMensal(
+  papel: PapelMensal,
+  opts: { bypassAntifraude?: boolean } = {},
+): Promise<SnapshotPreviaMensal> {
+  const board = await resolverBoard(papel)
+  const grupo = await resolverGrupoMensal(board.monday_board_id)
+  const [planItems, apoio] = await Promise.all([
+    lerPlano(board.monday_board_id, grupo),
+    lerApoio(board.competencia!),
+  ])
+  const pessoas = mapearPessoas(planItems)
+  const rawPorId = new Map(planItems.map((item) => [item.id, item]))
+  const convocacoes: ConvocacaoMensal[] = pessoas.map((p) => {
+    const raw = rawPorId.get(p.itemId)!
+    const escala = norm(valor(raw, "12x36 par/impar?"))
+    return { itemId: p.itemId, nome: p.nome, chapa: p.chapa, cpf: p.cpf, contrato: p.contrato, funcao: p.funcao,
+      interior: p.interior, inicio: p.dataInicio, fim: p.dataFim, trabalhaSabado: sim(valor(raw, "OP - Sábado?")),
+      optanteVT: sim(valor(raw, "Vale Transporte")) || sim(valor(raw, "OP - VT só volta?")),
+      vtSoVolta: norm(valor(raw, "Vale Transporte")) === "SIM*" || sim(valor(raw, "OP - VT só volta?")),
+      escala12x36: escala.startsWith("IMPAR") ? "IMPAR" : escala.startsWith("PAR") ? "PAR" : null }
+  })
+  const calculo = calcularMensal(convocacoes, apoio.valoresItems.map(regraBeneficio),
+    apoio.feriadosItems.map(feriado).filter((x): x is FeriadoMensal => !!x),
+    apoio.descontosItems.map(desconto).filter((x): x is DescontoMensal => !!x))
+  const contratos: ContratoPreviaMensal[] = calculo.contratos.map((calc, index) => {
+    const chave = normMensal(calc.contrato)
+    const bloqueado = !opts.bypassAntifraude && apoio.solicitacoesProcessadas.includes(chave)
+    return {
+      contrato: calc.contrato,
+      ordem: index + 1,
+      pessoas: calc.pessoas.map((p) => ({ itemId: p.itemId, nome: p.nome, chapa: p.chapa, cpf: p.cpf,
+        contrato: p.contrato, funcao: p.funcao, unidade: pessoas.find((x) => x.itemId === p.itemId)?.unidade ?? "",
+        interior: p.interior, dataInicio: p.inicio, dataFim: p.fim, diasVR: p.diasVR, diasVT: p.diasVT,
+        vrDia: p.vrDia, vtDia: p.vtDia, brutoVR: p.brutoVR, brutoVT: p.brutoVT, descontoVR: p.descontoVR,
+        descontoVT: p.descontoVT, liquidoVR: p.liquidoVR, liquidoVT: p.liquidoVT, creditoVR: p.creditoVR,
+        creditoVT: p.creditoVT, pixVR: p.pixVR, pixVT: p.pixVT, regraAplicada: p.regraAplicada })),
+      bloqueado,
+      motivoBloqueio: bloqueado ? "contrato_ja_processado_na_competencia" : null,
+      totais: calc.totais,
+      efeitosPrevistos: bloqueado ? [] : ["caju_credito", "caju_pix", "rm", "monday", "drive"],
+    }
+  })
+  const alertas: string[] = []
+  if (!apoio.grupoControle) alertas.push("grupo_controle_caju_nao_encontrado_para_competencia")
+  if (!apoio.parametros) alertas.push("parametros_beneficios_vazio")
+  if (!contratos.length) alertas.push("nenhum_contrato_elegivel")
+  if (opts.bypassAntifraude) alertas.push("antifraude_desabilitada_teste_homologacao")
+  alertas.push("totais_financeiros_calculados_em_codigo_aguardando_paridade_aprovada")
+  return {
+    versao: 1,
+    papel,
+    competencia: board.competencia!,
+    boardId: board.monday_board_id,
+    criadoEm: new Date().toISOString(),
+    contratos,
+    alertas,
+    apoio: {
+      solicitacoesProcessadas: apoio.solicitacoesProcessadas,
+      parametrosBeneficios: apoio.parametros,
+      feriados: apoio.feriados,
+      descontosPendentes: apoio.descontos,
+      grupoControleCaju: apoio.grupoControle,
+    },
+  }
+}

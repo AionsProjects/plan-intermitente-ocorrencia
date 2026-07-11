@@ -2,10 +2,19 @@ import path from "node:path"
 import { defineConfig } from "vite"
 import react from "@vitejs/plugin-react"
 import tailwindcss from "@tailwindcss/vite"
+import { nitro } from "nitro/vite"
+import { workflow } from "workflow/vite"
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [nitro(), workflow(), react(), tailwindcss()],
+  nitro: {
+    serverDir: ".",
+    routes: {
+      "/api/**": { handler: "./api/index.ts", format: "node" },
+      "/auth/**": { handler: "./api/index.ts", format: "node" },
+    },
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

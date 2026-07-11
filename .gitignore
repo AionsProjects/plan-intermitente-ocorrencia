@@ -8,6 +8,10 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+.well-known/
+.output/
+workflows/*.js
+workflows/*.js.map
 dist
 dist-ssr
 *.local
@@ -76,3 +80,4 @@ pf-*.json
 pf_*.json
 ben_*.json
 boards-compare.json
+/.swc

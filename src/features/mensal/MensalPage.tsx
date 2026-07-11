@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { format, parseISO } from "date-fns"
@@ -7,16 +7,61 @@ import { ArrowLeft, Banknote, CalendarDays, Check, Loader2, TriangleAlert } from
 
 import { ChoiceButton } from "@/features/atestados/ChoiceButton"
 import {
+  aprovarRunMensal,
+  buscarAoVivo,
   buscarMeses,
   buscarPessoas,
-  buscarRunStatus,
-  dispararPagamentoMensal,
+  buscarRunAtivo,
+  cancelarRunMensal,
+  criarPreviaMensal,
+  retomarRunMensal,
+  type AoVivoResp,
   type Papel,
+  type EventoMensal,
   type PessoasResp,
+  type PreviaResp,
   type RunStatus,
 } from "./api"
 
 type Etapa = "mes" | "tabela" | "confirma" | "acompanhando" | "ok"
+
+const STATUS_FINAIS = ["concluido", "concluido_com_erro", "falhou", "cancelado", "cancelado_com_pendencia"]
+
+// Ordem e rótulos amigáveis das etapas emitidas pelo workflow (11 passos).
+const ETAPAS_ORDEM = [
+  "validacao", "caju_pessoas", "caju_credito", "caju_pix",
+  "rm_gerar", "rm_aguardar", "rm_integrar",
+  "monday_plano", "monday_controle_caju", "monday_solicitacao", "drive",
+] as const
+const ETAPA_LABEL: Record<string, string> = {
+  validacao: "Validando dados",
+  caju_pessoas: "Buscando pessoas no Caju",
+  caju_credito: "Pedido de crédito Caju",
+  caju_pix: "Pedido PIX Caju",
+  caju_polling_boleto: "Gerando boleto / QR",
+  rm_gerar: "Gerando lançamento RM",
+  rm_aguardar: "Aguardando RM processar",
+  rm_integrar: "Integrando no RM",
+  monday_plano: "Atualizando Plano",
+  monday_controle_caju: "Registrando Controle Caju",
+  monday_solicitacao: "Criando Solicitação de Pagamento",
+  drive: "Arquivando no Drive",
+  contrato: "Contrato",
+  finalizado: "Finalizado",
+}
+const rotuloEtapa = (e: string | null | undefined): string =>
+  (e && ETAPA_LABEL[e]) || (e ?? "").replaceAll("_", " ")
+const passoDaEtapa = (e: string | null | undefined): number => {
+  const i = ETAPAS_ORDEM.indexOf((e ?? "") as (typeof ETAPAS_ORDEM)[number])
+  return i < 0 ? 0 : i + 1
+}
+function haQuanto(iso: string | null | undefined, agora: number): string {
+  if (!iso) return "—"
+  const s = Math.max(0, Math.round((agora - new Date(iso).getTime()) / 1000))
+  if (s < 60) return `há ${s}s`
+  const m = Math.floor(s / 60)
+  return `há ${m}min ${s % 60}s`
+}
 
 function rotuloMes(comp: string | null | undefined): string {
   if (!comp) return "—"
@@ -33,6 +78,10 @@ export function MensalPage() {
   const [papel, setPapel] = useState<Papel>("atual")
   const [erroDisparo, setErroDisparo] = useState<string | null>(null)
   const [runId, setRunId] = useState<string | null>(null)
+  const [previa, setPrevia] = useState<PreviaResp | null>(null)
+  const [ocupado, setOcupado] = useState(false)
+  const [eventosAcumulados, setEventosAcumulados] = useState<EventoMensal[]>([])
+  const cursorEventos = useRef(0)
 
   const meses = useQuery({ queryKey: ["mensal-meses"], queryFn: buscarMeses })
   const pessoas = useQuery<PessoasResp>({
@@ -41,42 +90,110 @@ export function MensalPage() {
     enabled: etapa === "tabela" || etapa === "confirma",
   })
 
-  // Polling do progresso ao vivo enquanto acompanha. Para quando o run finaliza.
-  const run = useQuery<RunStatus>({
-    queryKey: ["mensal-run", runId],
-    queryFn: () => buscarRunStatus(runId!),
+  // Reatar acompanhamento após reload: hint local + run global em andamento (fonte de verdade).
+  useEffect(() => {
+    const salvo = localStorage.getItem("mensal-run-ativo")
+    if (salvo && !runId) {
+      setRunId(salvo)
+      setEtapa("acompanhando")
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const ativo = useQuery({
+    queryKey: ["mensal-ativo"],
+    queryFn: buscarRunAtivo,
+    enabled: etapa === "mes",
+    refetchInterval: 5000,
+  })
+  useEffect(() => {
+    if (etapa === "mes" && ativo.data?.run) {
+      setRunId(ativo.data.run.run_id)
+      setEtapa("acompanhando")
+    }
+  }, [ativo.data, etapa])
+
+  // Polling consolidado (run + itens + eventos delta) numa só chamada atômica.
+  const aoVivo = useQuery<AoVivoResp>({
+    queryKey: ["mensal-aovivo", runId],
+    queryFn: () => buscarAoVivo(runId!, cursorEventos.current),
     enabled: etapa === "acompanhando" && !!runId,
     refetchInterval: (q) => {
       const s = q.state.data?.run?.status
-      return s === "concluido" || s === "concluido_com_erro" || s === "falhou" ? false : 2000
+      return s && STATUS_FINAIS.includes(s) ? false : 2000
     },
   })
-  const runData = run.data?.run ?? null
-  const finalizado =
-    runData?.status === "concluido" ||
-    runData?.status === "concluido_com_erro" ||
-    runData?.status === "falhou"
-  // Guarda contra run travado: rodando mas sem atualizar há >4min (n8n pode ter caído).
+  const runData = aoVivo.data?.run ?? null
+  const itensAoVivo = aoVivo.data?.itens ?? []
+  const finalizado = !!runData && STATUS_FINAIS.includes(runData.status)
+
+  useEffect(() => {
+    if (!aoVivo.data?.eventos.length) return
+    cursorEventos.current = aoVivo.data.proximo_after
+    setEventosAcumulados((atuais) => {
+      const ids = new Set(atuais.map((evento) => evento.id))
+      return [...atuais, ...aoVivo.data!.eventos.filter((evento) => !ids.has(evento.id))]
+    })
+  }, [aoVivo.data])
+  useEffect(() => {
+    cursorEventos.current = 0
+    setEventosAcumulados([])
+  }, [runId])
+
+  // Persiste/limpa o runId ativo pra reatar depois do reload.
+  useEffect(() => {
+    if (etapa === "acompanhando" && runId && !finalizado) localStorage.setItem("mensal-run-ativo", runId)
+    if (finalizado) localStorage.removeItem("mensal-run-ativo")
+  }, [etapa, runId, finalizado])
+  // Run inexistente (404) -> descarta hint local.
+  useEffect(() => {
+    if (aoVivo.isError) localStorage.removeItem("mensal-run-ativo")
+  }, [aoVivo.isError])
+
+  // Relógio p/ "atualizado há Xs".
+  const [agora, setAgora] = useState(() => Date.now())
+  useEffect(() => {
+    if (etapa !== "acompanhando" || finalizado) return
+    const t = setInterval(() => setAgora(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [etapa, finalizado])
+
+  // Guarda contra run travado: rodando mas sem atualizar há >4min.
   const travado =
     !!runData &&
-    (runData.status === "rodando" || runData.status === "preparando") &&
-    Date.now() - new Date(runData.atualizado_em).getTime() > 4 * 60 * 1000
+    (runData.status === "rodando" || runData.status === "fila" || runData.status === "recuperando") &&
+    aoVivo.dataUpdatedAt - new Date(runData.atualizado_em).getTime() > 4 * 60 * 1000
 
   function escolher(p: Papel) {
     setPapel(p)
     setEtapa("tabela")
   }
 
-  async function pagar() {
-    const id = crypto.randomUUID()
-    setRunId(id)
-    setEtapa("acompanhando")
+  async function prepararPrevia() {
+    setOcupado(true)
     setErroDisparo(null)
     try {
-      await dispararPagamentoMensal(papel, pessoas.data?.competencia ?? null, id)
-    } catch (e) {
-      setErroDisparo(e instanceof Error ? e.message : "Falha ao disparar")
+      const p = await criarPreviaMensal(papel)
+      setPrevia(p)
+      setRunId(p.run_id)
       setEtapa("confirma")
+    } catch (e) {
+      setErroDisparo(e instanceof Error ? e.message : "Falha ao calcular prévia")
+    } finally {
+      setOcupado(false)
+    }
+  }
+
+  async function aprovar() {
+    if (!runId) return
+    setOcupado(true)
+    setErroDisparo(null)
+    try {
+      await aprovarRunMensal(runId)
+      setEtapa("acompanhando")
+    } catch (e) {
+      setErroDisparo(e instanceof Error ? e.message : "Falha ao iniciar workflow")
+    } finally {
+      setOcupado(false)
     }
   }
 
@@ -159,6 +276,9 @@ export function MensalPage() {
               Erro ao carregar pessoas: {(pessoas.error as Error)?.message}
             </p>
           )}
+          {erroDisparo && (
+            <p className="mt-4 text-sm text-[rgb(var(--status-red))]">{erroDisparo}</p>
+          )}
 
           {pessoas.data && (
             <>
@@ -229,8 +349,12 @@ export function MensalPage() {
                 <ChoiceButton onClick={() => setEtapa("mes")}>
                   Cancelar
                 </ChoiceButton>
-                <ChoiceButton variant="primary" disabled={pessoas.data.total === 0} onClick={() => setEtapa("confirma")}>
-                  Tudo certo, prosseguir →
+                <ChoiceButton
+                  variant="primary"
+                  disabled={pessoas.data.total === 0 || ocupado}
+                  onClick={previa ? () => setEtapa("confirma") : prepararPrevia}
+                >
+                  {ocupado ? "Calculando prévia…" : previa ? "Reabrir prévia →" : "Calcular prévia →"}
                 </ChoiceButton>
               </div>
             </>
@@ -239,32 +363,42 @@ export function MensalPage() {
       )}
 
       {/* ETAPA: CONFIRMAÇÃO */}
-      {etapa === "confirma" && pessoas.data && (
+      {etapa === "confirma" && previa && (
         <section className="fade-up mx-auto mt-6 max-w-xl">
           <div className="glass-strong rounded-3xl px-8 py-9 text-center">
-            <p className="text-[11px] uppercase tracking-[0.2em] text-foreground/45">Confirmar pagamento</p>
+            <p className="text-[11px] uppercase tracking-[0.2em] text-foreground/45">Aprovar snapshot imutável</p>
             <h2 className="text-display mt-2 text-3xl text-foreground">
-              Pagar{" "}
-              <span className="text-[rgb(var(--accent-rgb))]">{pessoas.data.total} pessoas</span>
+              Processar{" "}
+              <span className="text-[rgb(var(--accent-rgb))]">
+                {previa.snapshot.contratos.reduce((n, c) => n + c.pessoas.length, 0)} pessoas
+              </span>
               <br />
-              do mês <span className="capitalize">{rotuloMes(pessoas.data.competencia)}</span>?
+              do mês <span className="capitalize">{rotuloMes(previa.snapshot.competencia)}</span>?
             </h2>
             <div className="mt-5 flex items-start gap-2 rounded-xl border border-[rgb(var(--accent-rgb)/0.34)] bg-[rgb(var(--accent-rgb)/0.1)] px-4 py-3 text-left text-[13px] text-[rgb(var(--accent-rgb))]">
               <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-              Inicia o pagamento real (Caju + lançamento no RM) das {pessoas.data.total} pessoas do grupo
-              MENSAL. Não dá pra desfazer pelo app.
+              {previa.modo === "homologacao"
+                ? "Homologação isolada: os efeitos externos serão simulados e registrados no ledger."
+                : "Produção: a aprovação inicia o workflow durável. Efeitos confirmados não são desfeitos automaticamente."}
             </div>
-            <div className="mt-5 grid grid-cols-2 gap-3">
-              <Stat box k="Pessoas" v={String(pessoas.data.total)} />
-              <Stat box k="Contratos" v={String(pessoas.data.porContrato.length)} />
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Stat box k="Pessoas" v={String(previa.snapshot.contratos.reduce((n, c) => n + c.pessoas.length, 0))} />
+              <Stat box k="Contratos" v={String(previa.snapshot.contratos.length)} />
+              <Stat box k="Bloqueados" v={String(previa.snapshot.contratos.filter((c) => c.bloqueado).length)} />
+              <Stat box k="Descontos" v={String(previa.snapshot.apoio.descontosPendentes)} />
             </div>
+            {previa.snapshot.alertas.length > 0 && (
+              <div className="mt-4 rounded-xl border border-border bg-card/40 px-4 py-3 text-left text-xs text-foreground/60">
+                {previa.snapshot.alertas.map((alerta) => <p key={alerta}>• {alerta.replaceAll("_", " ")}</p>)}
+              </div>
+            )}
             {erroDisparo && (
               <p className="mt-4 text-sm text-[rgb(var(--status-red))]">{erroDisparo}</p>
             )}
             <div className="mt-7 flex justify-center gap-3">
               <ChoiceButton onClick={() => setEtapa("tabela")}>← Revisar</ChoiceButton>
-              <ChoiceButton variant="primary" onClick={pagar}>
-                Confirmar e pagar
+              <ChoiceButton variant="primary" disabled={ocupado} onClick={aprovar}>
+                {ocupado ? "Iniciando…" : "Aprovar e iniciar"}
               </ChoiceButton>
             </div>
           </div>
@@ -274,12 +408,27 @@ export function MensalPage() {
       {/* ETAPA: ACOMPANHAMENTO AO VIVO */}
       {etapa === "acompanhando" && (
         <Acompanhamento
-          run={run.data ?? null}
+          run={runData ? { run: runData, itens: itensAoVivo } : null}
           fallbackContratos={pessoas.data?.porContrato ?? []}
           competencia={pessoas.data?.competencia ?? runData?.competencia ?? null}
           finalizado={finalizado}
           travado={travado}
-          onConcluir={() => nav("/")}
+          eventos={eventosAcumulados}
+          agora={agora}
+          onRetomar={async () => {
+            if (!runId) return
+            await retomarRunMensal(runId)
+            await aoVivo.refetch()
+          }}
+          onCancelar={async () => {
+            if (!runId) return
+            await cancelarRunMensal(runId, "Encerrado pelo operador na tela de acompanhamento")
+            await aoVivo.refetch()
+          }}
+          onConcluir={() => {
+            localStorage.removeItem("mensal-run-ativo")
+            nav("/")
+          }}
           rotuloMes={rotuloMes}
         />
       )}
@@ -293,6 +442,10 @@ function Acompanhamento({
   competencia,
   finalizado,
   travado,
+  eventos,
+  agora,
+  onRetomar,
+  onCancelar,
   onConcluir,
   rotuloMes,
 }: {
@@ -301,6 +454,10 @@ function Acompanhamento({
   competencia: string | null
   finalizado: boolean
   travado: boolean
+  eventos: EventoMensal[]
+  agora: number
+  onRetomar: () => Promise<void>
+  onCancelar: () => Promise<void>
   onConcluir: () => void
   rotuloMes: (c: string | null | undefined) => string
 }) {
@@ -316,14 +473,14 @@ function Acompanhamento({
           erro_msg: null,
         }))
   const total = header?.total_contratos ?? itens.length
-  const okN = header?.ok_contratos ?? 0
-  const erroN = header?.erro_contratos ?? 0
-  const feitos = okN + erroN
+  const okN = itens.filter((i) => i.status === "ok").length
+  const erroN = itens.filter((i) => i.status === "erro").length
+  const feitos = itens.filter((i) => ["ok", "erro", "bloqueado", "cancelado"].includes(i.status)).length
   const pct = total > 0 ? Math.round((feitos / total) * 100) : 0
 
   // Revela contrato-a-contrato: só o atual (rodando) e os já concluídos aparecem; o resto vira contador.
   const atual = itens.find((i) => i.status === "rodando") ?? null
-  const concluidos = itens.filter((i) => i.status === "ok" || i.status === "erro")
+  const concluidos = itens.filter((i) => ["ok", "erro", "bloqueado", "cancelado"].includes(i.status))
   const pendentesN = itens.filter((i) => i.status === "pendente").length
   const comErro = itens.filter((i) => i.status === "erro")
 
@@ -388,17 +545,44 @@ function Acompanhamento({
 
         {/* Contrato atual em destaque */}
         {atual && !finalizado && (
-          <div className="fade-up mt-5 flex items-center gap-3 rounded-2xl border border-[rgb(var(--accent-rgb)/0.4)] bg-[rgb(var(--accent-rgb)/0.08)] px-5 py-4">
-            <Loader2 className="size-5 shrink-0 animate-spin text-[rgb(var(--accent-rgb))]" />
-            <div className="min-w-0 flex-1">
-              <p className="text-[10px] uppercase tracking-[0.16em] text-[rgb(var(--accent-rgb))]">
-                Pagando agora
-              </p>
-              <p className="truncate text-lg font-semibold text-foreground">{atual.contrato}</p>
+          <div className="fade-up mt-5 rounded-2xl border border-[rgb(var(--accent-rgb)/0.4)] bg-[rgb(var(--accent-rgb)/0.08)] px-5 py-4">
+            <div className="flex items-center gap-3">
+              <Loader2 className="size-5 shrink-0 animate-spin text-[rgb(var(--accent-rgb))]" />
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-[rgb(var(--accent-rgb))]">
+                  Pagando agora
+                </p>
+                <p className="truncate text-lg font-semibold text-foreground">{atual.contrato}</p>
+                {"etapa_atual" in atual && (
+                  <p className="truncate text-xs text-foreground/70">
+                    {rotuloEtapa(atual.etapa_atual)}
+                    <span className="text-foreground/40">
+                      {" "}· passo {passoDaEtapa(atual.etapa_atual)} de {ETAPAS_ORDEM.length}
+                    </span>
+                  </p>
+                )}
+              </div>
+              <span className="shrink-0 font-mono text-sm text-foreground/55">
+                {atual.qtd} <span className="text-[10px]">pessoas</span>
+              </span>
             </div>
-            <span className="shrink-0 font-mono text-sm text-foreground/55">
-              {atual.qtd} <span className="text-[10px]">pessoas</span>
-            </span>
+            {"etapa_atual" in atual && (
+              <>
+                <div className="mt-3 flex gap-1">
+                  {ETAPAS_ORDEM.map((etapa, i) => (
+                    <span
+                      key={etapa}
+                      className={`h-1 flex-1 rounded-full transition-colors ${
+                        i < passoDaEtapa(atual.etapa_atual) ? "bg-[rgb(var(--accent-rgb))]" : "bg-foreground/[0.12]"
+                      }`}
+                    />
+                  ))}
+                </div>
+                <p className="mt-1.5 text-right text-[10px] text-foreground/40">
+                  atualizado {haQuanto(atual.atualizado_em, agora)}
+                </p>
+              </>
+            )}
           </div>
         )}
 
@@ -419,9 +603,10 @@ function Acompanhamento({
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-foreground/90">{it.contrato}</p>
-                  {it.status === "erro" && it.erro_msg && (
+                  {(it.status === "erro" || it.status === "bloqueado") && it.erro_msg && (
                     <p className="truncate text-xs text-[rgb(var(--status-red))]">{it.erro_msg}</p>
                   )}
+                  {"etapa_atual" in it && <p className="truncate text-[11px] text-foreground/40">{rotuloEtapa(it.etapa_atual)}</p>}
                 </div>
                 <span className="shrink-0 font-mono text-xs text-foreground/40">{it.qtd}</span>
               </div>
@@ -436,29 +621,54 @@ function Acompanhamento({
           </p>
         )}
 
-        {/* Guarda: run travado (n8n pode ter caído) */}
+        {eventos.length > 0 && (
+          <div className="mt-5 border-t border-border pt-4">
+            <p className="mb-3 text-[10px] uppercase tracking-[0.16em] text-foreground/45">Timeline persistida</p>
+            <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+              {eventos.slice(-12).reverse().map((evento) => (
+                <div key={evento.id} className="rounded-xl border border-border bg-card/35 px-3 py-2 text-xs">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-medium text-foreground/85">{rotuloEtapa(evento.etapa)}</span>
+                    <span className="font-mono text-[10px] text-foreground/40">
+                      {haQuanto(evento.criado_em, agora)}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-foreground/55">
+                    {evento.contrato ? `${evento.contrato} · ` : ""}{evento.estado}
+                    {evento.mensagem ? ` · ${evento.mensagem}` : ""}
+                    {evento.tentativa > 1 ? ` · tentativa ${evento.tentativa}` : ""}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Guarda: run sem atualização recente */}
         {!finalizado && travado && (
           <div className="mt-5 rounded-xl border border-[rgb(var(--accent-rgb)/0.34)] bg-[rgb(var(--accent-rgb)/0.08)] px-4 py-3 text-center text-xs text-[rgb(var(--accent-rgb))]">
             <TriangleAlert className="mx-auto mb-1 size-4" />
-            Sem atualização há alguns minutos — o processo pode ter travado. Verifique o board/n8n
-            antes de re-disparar.
+            Sem atualização há quatro minutos. Consulte a timeline e retome somente os contratos
+            interrompidos; o ledger será verificado antes de qualquer efeito.
           </div>
         )}
         {!finalizado && travado && (
-          <div className="mt-4 flex justify-center">
-            <ChoiceButton onClick={onConcluir}>Sair</ChoiceButton>
+          <div className="mt-4 flex justify-center gap-3">
+            <ChoiceButton onClick={onCancelar}>Encerrar</ChoiceButton>
+            <ChoiceButton variant="primary" onClick={onRetomar}>Retomar</ChoiceButton>
           </div>
         )}
 
         {finalizado && comErro.length > 0 && (
           <p className="mt-5 rounded-xl border border-[rgb(var(--status-red)/0.3)] bg-[rgb(var(--status-red)/0.08)] px-4 py-3 text-xs text-[rgb(var(--status-red))]">
-            {comErro.length} contrato(s) com erro. Verifique no board/Caju e re-dispare esses
-            contratos manualmente.
+            {comErro.length} contrato(s) com erro. A retomada reconsulta o ledger e processa apenas
+            contratos falhos ou interrompidos.
           </p>
         )}
 
         {finalizado && (
-          <div className="mt-6 flex justify-center">
+          <div className="mt-6 flex justify-center gap-3">
+            {comErro.length > 0 && <ChoiceButton onClick={onRetomar}>Retomar falhos</ChoiceButton>}
             <ChoiceButton variant="primary" onClick={onConcluir}>
               Concluir
             </ChoiceButton>

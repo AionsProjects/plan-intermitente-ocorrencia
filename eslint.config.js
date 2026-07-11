@@ -11,6 +11,8 @@ export default defineConfig([
     'node_modules',
     '.claude',
     '.n8n_backup',
+    '.well-known',
+    '.output',
     'src.bak-fase3',
     '*.json',
     'docs/n8n/*.json',

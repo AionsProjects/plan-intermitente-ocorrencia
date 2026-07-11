@@ -14,6 +14,7 @@ import { rotasAtestados } from "./routes/atestados.js"
 import { rotasFinalizar } from "./routes/finalizar.js"
 import { rotasMensal } from "./routes/mensal.js"
 import { rotasMensalRun } from "./routes/mensalRun.js"
+import { rotasMensalOrquestracao } from "./routes/mensalOrquestracao.js"
 import { rotasConvocacoes } from "./routes/convocacoes.js"
 import { rotasRm } from "./routes/rm.js"
 import { rotasJobs } from "./routes/jobs.js"
@@ -44,6 +45,7 @@ export async function construirApp(): Promise<FastifyInstance> {
   await app.register(rotasFinalizar)
   await app.register(rotasMensal)
   await app.register(rotasMensalRun)
+  await app.register(rotasMensalOrquestracao)
   await app.register(rotasConvocacoes)
   await app.register(rotasRm)
   await app.register(rotasJobs)

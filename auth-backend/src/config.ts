@@ -81,6 +81,12 @@ export const config = {
     sponsorId: opt("CAJU_SPONSOR_ID", ""),
     integrationId: opt("CAJU_INTEGRATION_ID", ""),
   },
+  // Orquestração mensal nova. O default é deliberadamente seguro: homologação
+  // e workflow desligado até migration/env/deploy serem validados.
+  mensalWorkflowEnabled: process.env.MENSAL_WORKFLOW_ENABLED === "1",
+  mensalModo: opt("MENSAL_MODO", "homologacao") === "producao" ? "producao" : "homologacao",
+  mensalProductionEnabled: process.env.MENSAL_PRODUCTION_ENABLED === "1",
+  cronSecret: opt("CRON_SECRET", ""),
 } as const
 
 export type AppConfig = typeof config

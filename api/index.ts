@@ -1,4 +1,4 @@
-import type { IncomingMessage, ServerResponse } from "node:http"
+import type { VercelRequest, VercelResponse } from "@vercel/node"
 // Importa a app Fastify JA COMPILADA do backend (auth-backend/dist). O `vercel-build`
 // compila o auth-backend antes do frontend. As deps (fastify/pg/...) vêm do package.json
 // raiz (Vercel instala na raiz; esbuild da funcao resolve).
@@ -13,7 +13,7 @@ async function prepararApp() {
   return app
 }
 
-export default async function handler(req: IncomingMessage, res: ServerResponse) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!appPromise) appPromise = prepararApp()
   const app = await appPromise
   app.server.emit("request", req, res)
