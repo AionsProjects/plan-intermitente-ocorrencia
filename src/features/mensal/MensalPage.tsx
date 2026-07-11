@@ -9,6 +9,7 @@ import { ChoiceButton } from "@/features/atestados/ChoiceButton"
 import {
   aprovarRunMensal,
   buscarAoVivo,
+  buscarConfigMensal,
   buscarMeses,
   buscarPessoas,
   buscarRunAtivo,
@@ -82,7 +83,12 @@ export function MensalPage() {
   const [ocupado, setOcupado] = useState(false)
   const [eventosAcumulados, setEventosAcumulados] = useState<EventoMensal[]>([])
   const cursorEventos = useRef(0)
+  // Controles de teste (só homologação): desligar antifraude + escolher contratos.
+  const [bypassAntifraude, setBypassAntifraude] = useState(false)
+  const [contratosSelecionados, setContratosSelecionados] = useState<string[]>([])
 
+  const config = useQuery({ queryKey: ["mensal-config"], queryFn: buscarConfigMensal })
+  const ehHomologacao = config.data?.modo === "homologacao"
   const meses = useQuery({ queryKey: ["mensal-meses"], queryFn: buscarMeses })
   const pessoas = useQuery<PessoasResp>({
     queryKey: ["mensal-pessoas", papel],
@@ -168,13 +174,29 @@ export function MensalPage() {
     setEtapa("tabela")
   }
 
+  // Alternar antifraude: se já existe prévia, cancela pra poder recalcular sem colidir (1 run global).
+  async function alternarBypass(v: boolean) {
+    setBypassAntifraude(v)
+    if (previa && runId) {
+      try {
+        await cancelarRunMensal(runId, "Recalcular prévia (toggle antifraude de teste)")
+      } catch {
+        // ignora — o importante é liberar o estado local pra recalcular
+      }
+      setPrevia(null)
+      setRunId(null)
+    }
+  }
+
   async function prepararPrevia() {
     setOcupado(true)
     setErroDisparo(null)
     try {
-      const p = await criarPreviaMensal(papel)
+      const p = await criarPreviaMensal(papel, ehHomologacao && bypassAntifraude)
       setPrevia(p)
       setRunId(p.run_id)
+      // Seleção padrão: todos os contratos rodáveis (não bloqueados).
+      setContratosSelecionados(p.snapshot.contratos.filter((c) => !c.bloqueado).map((c) => c.contrato))
       setEtapa("confirma")
     } catch (e) {
       setErroDisparo(e instanceof Error ? e.message : "Falha ao calcular prévia")
@@ -188,7 +210,8 @@ export function MensalPage() {
     setOcupado(true)
     setErroDisparo(null)
     try {
-      await aprovarRunMensal(runId)
+      const somente = ehHomologacao && contratosSelecionados.length ? contratosSelecionados : undefined
+      await aprovarRunMensal(runId, somente)
       setEtapa("acompanhando")
     } catch (e) {
       setErroDisparo(e instanceof Error ? e.message : "Falha ao iniciar workflow")
@@ -345,6 +368,26 @@ export function MensalPage() {
                 </div>
               </div>
 
+              {ehHomologacao && (
+                <div className="mt-4 rounded-2xl border border-dashed border-[rgb(var(--accent-rgb)/0.5)] bg-[rgb(var(--accent-rgb)/0.06)] px-5 py-4">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-[rgb(var(--accent-rgb))]">
+                    Modo teste · homologação
+                  </p>
+                  <label className="mt-2 flex cursor-pointer items-center gap-2.5 text-sm text-foreground/85">
+                    <input
+                      type="checkbox"
+                      checked={bypassAntifraude}
+                      onChange={(e) => alternarBypass(e.target.checked)}
+                      className="size-4 accent-[rgb(var(--accent-rgb))]"
+                    />
+                    Desligar antifraude (processa contratos já pagos)
+                  </label>
+                  <p className="mt-1 text-[11px] text-foreground/45">
+                    Efeitos sempre simulados nesta homologação. Os contratos você escolhe na próxima etapa.
+                  </p>
+                </div>
+              )}
+
               <div className="mt-5 flex justify-end gap-3">
                 <ChoiceButton onClick={() => setEtapa("mes")}>
                   Cancelar
@@ -395,9 +438,43 @@ export function MensalPage() {
             {erroDisparo && (
               <p className="mt-4 text-sm text-[rgb(var(--status-red))]">{erroDisparo}</p>
             )}
+            {ehHomologacao && (
+              <div className="mt-4 rounded-xl border border-dashed border-[rgb(var(--accent-rgb)/0.4)] bg-[rgb(var(--accent-rgb)/0.05)] px-4 py-3 text-left">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-[rgb(var(--accent-rgb))]">
+                  Contratos a processar · teste
+                </p>
+                <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5">
+                  {previa.snapshot.contratos.map((c) => (
+                    <label
+                      key={c.contrato}
+                      className={`flex items-center gap-2 text-[13px] ${c.bloqueado ? "opacity-40" : "cursor-pointer text-foreground/85"}`}
+                    >
+                      <input
+                        type="checkbox"
+                        disabled={c.bloqueado}
+                        checked={contratosSelecionados.includes(c.contrato)}
+                        onChange={(e) =>
+                          setContratosSelecionados((s) =>
+                            e.target.checked ? [...s, c.contrato] : s.filter((x) => x !== c.contrato),
+                          )
+                        }
+                        className="size-3.5 accent-[rgb(var(--accent-rgb))]"
+                      />
+                      <span className="truncate">{c.contrato}</span>
+                      <span className="text-foreground/40">({c.pessoas.length})</span>
+                      {c.bloqueado && <span className="text-[10px] text-foreground/40">bloq.</span>}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="mt-7 flex justify-center gap-3">
               <ChoiceButton onClick={() => setEtapa("tabela")}>← Revisar</ChoiceButton>
-              <ChoiceButton variant="primary" disabled={ocupado} onClick={aprovar}>
+              <ChoiceButton
+                variant="primary"
+                disabled={ocupado || (ehHomologacao && contratosSelecionados.length === 0)}
+                onClick={aprovar}
+              >
                 {ocupado ? "Iniciando…" : "Aprovar e iniciar"}
               </ChoiceButton>
             </div>

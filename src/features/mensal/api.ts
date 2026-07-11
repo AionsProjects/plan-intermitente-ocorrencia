@@ -135,6 +135,14 @@ const jsonPost = (body?: unknown): RequestInit => ({
   body: JSON.stringify(body ?? {}),
 })
 
+export interface MensalConfig {
+  modo: "homologacao" | "producao"
+  workflowEnabled: boolean
+  productionEnabled: boolean
+}
+export function buscarConfigMensal(): Promise<MensalConfig> {
+  return requestJson("/api/mensal/config")
+}
 export function buscarMeses(): Promise<MesesResp> {
   return requestJson("/api/mensal/meses")
 }

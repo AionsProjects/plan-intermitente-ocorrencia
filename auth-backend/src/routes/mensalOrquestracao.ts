@@ -150,6 +150,16 @@ export async function rotasMensalOrquestracao(app: FastifyInstance): Promise<voi
     },
   )
 
+  // Config do mensal p/ o front decidir se mostra os controles de teste (homologação).
+  app.get("/api/mensal/config", async (req, reply) => {
+    if (!(await exigirDP(req, reply))) return
+    return {
+      modo: config.mensalModo,
+      workflowEnabled: config.mensalWorkflowEnabled,
+      productionEnabled: config.mensalProductionEnabled,
+    }
+  })
+
   const SELECT_RUN =
     `SELECT run_id,papel,competencia,status,modo,etapa_atual,total_contratos,ok_contratos,erro_contratos,
             alertas,workflow_run_id,efeito_irreversivel,criado_em,atualizado_em,finalizado_em
