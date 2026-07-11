@@ -54,15 +54,26 @@ async function resolverGrupoMensal(boardId: string): Promise<string> {
   return rows[0].group_id
 }
 
-async function lerPlano(boardId: string, groupId: string): Promise<RawItem[]> {
-  const d = await mondayGraphql<{ boards: Array<{ groups: Array<{ items_page: { items: RawItem[] } }> }> }>(
+async function lerPlano(boardId: string, groupId: string): Promise<{
+  items: RawItem[]
+  colunas: Record<string, string>
+}> {
+  const d = await mondayGraphql<{ boards: Array<{
+    columns: Array<{ id: string; title: string }>
+    groups: Array<{ items_page: { items: RawItem[] } }>
+  }> }>(
     `query($b:[ID!],$g:[String!]){
-      boards(ids:$b){ groups(ids:$g){ items_page(limit:500){
-        items{ id name column_values{ id text column{ title } } }
-      } } }
+      boards(ids:$b){
+        columns{ id title }
+        groups(ids:$g){ items_page(limit:500){
+          items{ id name column_values{ id text column{ title } } }
+        } }
+      }
     }`, { b: [boardId], g: [groupId] },
   )
-  return d.boards?.[0]?.groups?.[0]?.items_page?.items ?? []
+  const colunas: Record<string, string> = {}
+  for (const c of d.boards?.[0]?.columns ?? []) colunas[norm(c.title)] = c.id
+  return { items: d.boards?.[0]?.groups?.[0]?.items_page?.items ?? [], colunas }
 }
 
 async function lerApoio(competencia: string): Promise<{
@@ -71,6 +82,7 @@ async function lerApoio(competencia: string): Promise<{
   feriados: number
   descontos: number
   grupoControle: string | null
+  grupoSolicitacao: string | null
   valoresItems: RawItem[]
   feriadosItems: RawItem[]
   descontosItems: RawItem[]
@@ -79,14 +91,14 @@ async function lerApoio(competencia: string): Promise<{
   const meses = ["JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO", "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"]
   const label = meses[(mes || 1) - 1]!
   const solicit = await mondayGraphql<{
-    solicit: Array<{ groups: Array<{ title: string; items_page: { items: RawItem[] } }> }>
+    solicit: Array<{ groups: Array<{ id: string; title: string; items_page: { items: RawItem[] } }> }>
     parametros: Array<{ items_page: { items: RawItem[] } }>
     feriados: Array<{ items_page: { items: RawItem[] } }>
     descontos: Array<{ groups: Array<{ items_page: { items: RawItem[] } }> }>
     controle: Array<{ groups: Array<{ id: string; title: string }> }>
   }>(
     `query ApoioMensal {
-      solicit: boards(ids:[${BOARD_SOLICITACOES}]) { groups { title items_page(limit:500) {
+      solicit: boards(ids:[${BOARD_SOLICITACOES}]) { groups { id title items_page(limit:500) {
         items { id name column_values { id text column { title } } }
       } } }
       parametros: boards(ids:[${BOARD_PARAMETROS}]) { items_page(limit:500) { items { id name column_values { id text column { title } } } } }
@@ -119,6 +131,7 @@ async function lerApoio(competencia: string): Promise<{
     feriados: solicit.feriados?.[0]?.items_page.items.length ?? 0,
     descontos,
     grupoControle,
+    grupoSolicitacao: grupoSolic?.id ?? null,
     valoresItems: solicit.parametros?.[0]?.items_page.items ?? [],
     feriadosItems: solicit.feriados?.[0]?.items_page.items ?? [],
     descontosItems: solicit.descontos?.[0]?.groups?.[0]?.items_page.items ?? [],
@@ -172,10 +185,11 @@ export async function calcularPreviaMensal(
 ): Promise<SnapshotPreviaMensal> {
   const board = await resolverBoard(papel)
   const grupo = await resolverGrupoMensal(board.monday_board_id)
-  const [planItems, apoio] = await Promise.all([
+  const [plano, apoio] = await Promise.all([
     lerPlano(board.monday_board_id, grupo),
     lerApoio(board.competencia!),
   ])
+  const planItems = plano.items
   const pessoas = mapearPessoas(planItems)
   const rawPorId = new Map(planItems.map((item) => [item.id, item]))
   const convocacoes: ConvocacaoMensal[] = pessoas.map((p) => {
@@ -196,7 +210,7 @@ export async function calcularPreviaMensal(
     return {
       contrato: calc.contrato,
       ordem: index + 1,
-      pessoas: calc.pessoas.map((p) => ({ itemId: p.itemId, nome: p.nome, chapa: p.chapa, cpf: p.cpf,
+      pessoas: calc.pessoas.map((p) => ({ itemId: p.itemId, itemIds: p.itemIds, nome: p.nome, chapa: p.chapa, cpf: p.cpf,
         contrato: p.contrato, funcao: p.funcao, unidade: pessoas.find((x) => x.itemId === p.itemId)?.unidade ?? "",
         interior: p.interior, dataInicio: p.inicio, dataFim: p.fim, diasVR: p.diasVR, diasVT: p.diasVT,
         vrDia: p.vrDia, vtDia: p.vtDia, brutoVR: p.brutoVR, brutoVT: p.brutoVT, descontoVR: p.descontoVR,
@@ -206,10 +220,13 @@ export async function calcularPreviaMensal(
       motivoBloqueio: bloqueado ? "contrato_ja_processado_na_competencia" : null,
       totais: calc.totais,
       efeitosPrevistos: bloqueado ? [] : ["caju_credito", "caju_pix", "rm", "monday", "drive"],
+      planUpdates: calc.planUpdates,
+      descontoUpdates: calc.descontoUpdates,
     }
   })
   const alertas: string[] = []
   if (!apoio.grupoControle) alertas.push("grupo_controle_caju_nao_encontrado_para_competencia")
+  if (!apoio.grupoSolicitacao) alertas.push("grupo_solicitacao_nao_encontrado_para_competencia")
   if (!apoio.parametros) alertas.push("parametros_beneficios_vazio")
   if (!contratos.length) alertas.push("nenhum_contrato_elegivel")
   if (opts.bypassAntifraude) alertas.push("antifraude_desabilitada_teste_homologacao")
@@ -228,6 +245,8 @@ export async function calcularPreviaMensal(
       feriados: apoio.feriados,
       descontosPendentes: apoio.descontos,
       grupoControleCaju: apoio.grupoControle,
+      grupoSolicitacao: apoio.grupoSolicitacao,
+      colunasPlano: plano.colunas,
     },
   }
 }

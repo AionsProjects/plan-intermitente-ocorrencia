@@ -16,6 +16,7 @@ export type StatusContratoMensal = "pendente" | "rodando" | "ok" | "erro" | "blo
 
 export interface PessoaPreviaMensal {
   itemId: string
+  itemIds?: string[]
   nome: string
   chapa: string
   cpf: string
@@ -42,6 +43,26 @@ export interface PessoaPreviaMensal {
   regraAplicada?: string
 }
 
+export interface PlanUpdatePrevia {
+  itemId: string
+  vtDia: number
+  vrDia: number
+  vrMensal: number
+  diasVR: number
+  diasVT: number
+  creditoVR: number
+  creditoVT: number
+}
+
+export interface DescontoUpdatePrevia {
+  id: string
+  residualVR: number
+  residualVT: number
+  descontadoVR: number
+  descontadoVT: number
+  status: "PARCIAL" | "FINALIZADO"
+}
+
 export interface ContratoPreviaMensal {
   contrato: string
   ordem: number
@@ -50,6 +71,8 @@ export interface ContratoPreviaMensal {
   motivoBloqueio: string | null
   totais: { vr: number | null; vt: number | null; credito: number | null; pix: number | null }
   efeitosPrevistos: string[]
+  planUpdates?: PlanUpdatePrevia[]
+  descontoUpdates?: DescontoUpdatePrevia[]
 }
 
 export interface SnapshotPreviaMensal {
@@ -66,6 +89,10 @@ export interface SnapshotPreviaMensal {
     feriados: number
     descontosPendentes: number
     grupoControleCaju: string | null
+    /** Grupo do board Solicitação (18393673859) da competência (ex: JULHO/26). */
+    grupoSolicitacao?: string | null
+    /** Colunas do board Plano resolvidas por título -> id (pros updates de escrita). */
+    colunasPlano?: Record<string, string>
   }
 }
 

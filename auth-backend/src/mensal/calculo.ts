@@ -53,10 +53,34 @@ export interface PessoaCalculadaMensal extends ConvocacaoMensal {
   regraAplicada: string
 }
 
+/** Update de 1 item (linha) do board Plano — espelha o alocarCreditoPorLinha do n8n. */
+export interface PlanUpdateMensal {
+  itemId: string
+  vtDia: number
+  vrDia: number // 0 quando VR é mensal (DETRAN/TRE PB)
+  vrMensal: number // 0 quando VR é diário
+  diasVR: number
+  diasVT: number
+  creditoVR: number
+  creditoVT: number
+}
+
+/** Update de 1 item do board Desconto FIFO (18400981023) — valores finais pós-consumo. */
+export interface DescontoUpdateMensal {
+  id: string
+  residualVR: number
+  residualVT: number
+  descontadoVR: number
+  descontadoVT: number
+  status: "PARCIAL" | "FINALIZADO"
+}
+
 export interface ContratoCalculadoMensal {
   contrato: string
   codSecao: string
   pessoas: PessoaCalculadaMensal[]
+  planUpdates: PlanUpdateMensal[]
+  descontoUpdates: DescontoUpdateMensal[]
   totais: { vr: number; vt: number; credito: number; pix: number }
 }
 
@@ -126,43 +150,77 @@ export function calcularMensal(
       porPessoa.set(key, [...(porPessoa.get(key) ?? []), p])
     }
     const pessoas: PessoaCalculadaMensal[] = []
+    const planUpdates: PlanUpdateMensal[] = []
+    const descontosTocados = new Set<DescontoMensal>()
     for (const [key, linhas] of porPessoa) {
       const base = linhas[0]!, regra = resolverRegra(regras, base)
       const escala = !!base.escala12x36
       const tipoVRMensal = !escala && regra.vrMensal > 0
       const tipoVTMensal = !escala && regra.vtMensal > 0
-      let vrDia = tipoVRMensal ? r2(regra.vrMensal / 30) : r2(regra.vrDia)
+      const vrDia = tipoVRMensal ? r2(regra.vrMensal / 30) : r2(regra.vrDia)
       let vtDia = tipoVTMensal ? r2(regra.vtMensal / 30) : r2(regra.vtDia)
       if (!base.optanteVT) vtDia = 0
       else if (base.vtSoVolta) vtDia = r2(vtDia / 2)
-      const diasVR = linhas.flatMap((p) => diasElegiveis(p, feriados, true, tipoVRMensal))
-      const diasVT = linhas.flatMap((p) => diasElegiveis(p, feriados, false, tipoVTMensal))
+      // Dias por LINHA (convocação) — necessário pros updates por item do Plano.
+      const linhasDias = linhas.map((l) => ({
+        itemId: l.itemId,
+        inicio: l.inicio,
+        nVR: diasElegiveis(l, feriados, true, tipoVRMensal).length,
+        nVT: diasElegiveis(l, feriados, false, tipoVTMensal).length,
+      }))
+      const totalDiasVR = linhasDias.reduce((n, l) => n + l.nVR, 0)
+      const totalDiasVT = linhasDias.reduce((n, l) => n + l.nVT, 0)
       const diasMes30 = Math.min(30, linhas.reduce((n, p) => {
         const de = Math.min(30, Math.max(1, Number(p.inicio.slice(-2)) || 1))
         const ate = Math.min(30, Number(p.fim.slice(-2)) || 30)
         return n + Math.max(0, ate - de + 1)
       }, 0))
-      let brutoVR = tipoVRMensal ? r2(regra.vrMensal - (regra.vrMensal / 30) * (30 - diasMes30)) : r2(vrDia * diasVR.length)
-      let brutoVT = tipoVTMensal ? r2(regra.vtMensal - (regra.vtMensal / 30) * (30 - diasMes30)) : r2(vtDia * diasVT.length)
+      let brutoVR = tipoVRMensal ? r2(regra.vrMensal - (regra.vrMensal / 30) * (30 - diasMes30)) : r2(vrDia * totalDiasVR)
+      let brutoVT = tipoVTMensal ? r2(regra.vtMensal - (regra.vtMensal / 30) * (30 - diasMes30)) : r2(vtDia * totalDiasVT)
       let descontoVR = 0, descontoVT = 0
       for (const d of descontos.filter((x) => x.pessoaKey === key).sort((a, b) => a.inicio.localeCompare(b.inicio))) {
         const tiraVR = Math.min(brutoVR, d.residualVR), tiraVT = Math.min(brutoVT, d.residualVT)
+        if (tiraVR <= 0 && tiraVT <= 0) continue
         brutoVR = r2(brutoVR - tiraVR); brutoVT = r2(brutoVT - tiraVT)
         descontoVR = r2(descontoVR + tiraVR); descontoVT = r2(descontoVT + tiraVT)
         d.residualVR = r2(d.residualVR - tiraVR); d.residualVT = r2(d.residualVT - tiraVT)
         d.descontadoVR = r2(d.descontadoVR + tiraVR); d.descontadoVT = r2(d.descontadoVT + tiraVT)
+        descontosTocados.add(d)
       }
       const creditoVTContrato = ["TRE PB", "CETAM", "SEDUC INTERIOR"].includes(normMensal(base.contrato))
-      const tetoVR = tipoVRMensal ? r2((brutoVR + descontoVR) * 3 / 30) : r2(vrDia * Math.min(3, diasVR.length))
-      const tetoVT = !creditoVTContrato ? 0 : tipoVTMensal ? r2((brutoVT + descontoVT) * 3 / 30) : r2(vtDia * Math.min(3, diasVT.length))
+      const tetoVR = tipoVRMensal ? r2((brutoVR + descontoVR) * 3 / 30) : r2(vrDia * Math.min(3, totalDiasVR))
+      const tetoVT = !creditoVTContrato ? 0 : tipoVTMensal ? r2((brutoVT + descontoVT) * 3 / 30) : r2(vtDia * Math.min(3, totalDiasVT))
       const creditoVR = r2(Math.min(brutoVR, tetoVR)), creditoVT = r2(Math.min(brutoVT, tetoVT))
-      pessoas.push({ ...base, key, itemIds: linhas.map((p) => p.itemId), diasVR: diasVR.length, diasVT: diasVT.length,
+      // Alocação do crédito por linha (ordem: inicio, itemId) — espelha o n8n.
+      let remVR = creditoVR, remVT = creditoVT
+      for (const l of [...linhasDias].sort((a, b) => a.inicio.localeCompare(b.inicio) || a.itemId.localeCompare(b.itemId))) {
+        const maxVR = r2(vrDia * l.nVR), maxVT = r2(vtDia * l.nVT)
+        const credVR = r2(Math.min(remVR, maxVR)), credVT = r2(Math.min(remVT, maxVT))
+        remVR = r2(remVR - credVR); remVT = r2(remVT - credVT)
+        planUpdates.push({
+          itemId: l.itemId,
+          vtDia,
+          vrDia: tipoVRMensal ? 0 : vrDia,
+          vrMensal: tipoVRMensal ? r2(regra.vrMensal) : 0,
+          diasVR: l.nVR,
+          diasVT: l.nVT,
+          creditoVR: credVR,
+          creditoVT: credVT,
+        })
+      }
+      pessoas.push({ ...base, key, itemIds: linhas.map((p) => p.itemId), diasVR: totalDiasVR, diasVT: totalDiasVT,
         vrDia, vtDia, vrMensal: regra.vrMensal, brutoVR: r2(brutoVR + descontoVR), brutoVT: r2(brutoVT + descontoVT),
         descontoVR, descontoVT, liquidoVR: brutoVR, liquidoVT: brutoVT, creditoVR, creditoVT,
         pixVR: r2(brutoVR - creditoVR), pixVT: r2(brutoVT - creditoVT), regraAplicada: regra.id })
     }
     const ativas = pessoas.filter((p) => p.liquidoVR + p.liquidoVT > 0)
+    const descontoUpdates: DescontoUpdateMensal[] = [...descontosTocados].map((d) => ({
+      id: d.id, residualVR: d.residualVR, residualVT: d.residualVT,
+      descontadoVR: d.descontadoVR, descontadoVT: d.descontadoVT,
+      status: d.residualVR <= 0 && d.residualVT <= 0 ? "FINALIZADO" : "PARCIAL",
+    }))
     contratos.push({ contrato: convocacoesContrato[0]!.contrato, codSecao: codigoSecaoContrato(convocacoesContrato[0]!.contrato), pessoas: ativas,
+      planUpdates, descontoUpdates,
       totais: ativas.reduce((t, p) => ({ vr: r2(t.vr + p.liquidoVR), vt: r2(t.vt + p.liquidoVT),
         credito: r2(t.credito + p.creditoVR + p.creditoVT), pix: r2(t.pix + p.pixVR + p.pixVT) }), { vr: 0, vt: 0, credito: 0, pix: 0 }) })
   }

@@ -13,11 +13,21 @@ import {
   type TipoPedidoCaju,
 } from "../auth-backend/src/clients/caju.js"
 import {
+  criarSolicitacaoMensal,
+  executarUpdatesDescontos,
+  executarUpdatesPlano,
+  registrarDebitoControleCaju,
+  setarStatusAutomacaoOk,
+} from "../auth-backend/src/mensal/mondayEfeitos.js"
+import {
   atualizarContrato,
   finalizarRun,
   registrarEvento,
 } from "../auth-backend/src/mensal/repo.js"
 import type { ContratoPreviaMensal, SnapshotPreviaMensal } from "../auth-backend/src/mensal/types.js"
+
+const MESES_LABEL = ["JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO",
+  "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"] as const
 
 export interface MensalWorkflowInput {
   runId: string
@@ -26,16 +36,12 @@ export interface MensalWorkflowInput {
   somenteContratos?: string[]
 }
 
-// Efeitos que NÃO passam por Caju (RM/Monday/Drive). Adaptadores reais ainda não portados
-// -> em "producao" lançam not_implemented; em "homologacao" simulam atrás do ledger.
+// Efeitos ainda NÃO portados (RM/Drive) -> em "producao" lançam not_implemented;
+// em "homologacao" simulam atrás do ledger. Monday agora tem adaptador real (steps próprios).
 const EFEITOS_GENERICOS = [
   "rm_gerar",
   "rm_aguardar",
   "rm_integrar",
-  "monday_plano",
-  "monday_controle_caju",
-  "monday_solicitacao",
-  "drive",
 ] as const
 
 // Trava de produção financeira. Só libera com modo=producao E env=1. Hoje 0 em todo ambiente.
@@ -145,7 +151,172 @@ async function executarPedidoCaju(
 }
 executarPedidoCaju.maxRetries = 5
 
-// --- Efeito genérico (RM/Monday/Drive): simula em homologação, bloqueia em produção. ---
+// --- Monday: helpers de reserva/confirm no ledger + steps reais (gated). -----
+async function reservarOuPular(
+  runId: string,
+  modo: "homologacao" | "producao",
+  competencia: string,
+  contrato: string,
+  etapa: string,
+  tentativa: number,
+): Promise<{ chave: string; acao: "executar" | "pular" | "simular" }> {
+  const chave = `mensal:${competencia}:${normContrato(contrato)}:${etapa}`
+  const reserva = await reservarEfeito(chave, `mensal_${etapa}`, { runId, competencia, contrato, modo })
+  if (reserva === "confirmado") {
+    await registrarEvento({ runId, contrato, etapa, estado: "pulado_idempotencia", tentativa })
+    return { chave, acao: "pular" }
+  }
+  if (reserva === "pendente") throw new FatalError(`efeito_pendente_requer_conciliacao:${etapa}`)
+  if (modo !== "producao") return { chave, acao: "simular" }
+  if (!PRODUCAO_LIBERADA) throw new FatalError("execucao_mensal_producao_bloqueada_ate_cutover")
+  return { chave, acao: "executar" }
+}
+
+async function simularEfeito(
+  runId: string,
+  contrato: string,
+  etapa: string,
+  chave: string,
+  tentativa: number,
+): Promise<void> {
+  await confirmarEfeito(chave, `homologacao:${runId}:${contrato}:${etapa}`)
+  await registrarEvento({ runId, contrato, etapa, estado: "concluido", tentativa, metadados: { simulado: true } })
+}
+
+/** monday_plano: updates por item do Plano + updates do board Desconto FIFO. */
+async function etapaMondayPlano(
+  runId: string,
+  modo: "homologacao" | "producao",
+  competencia: string,
+  contrato: ContratoPreviaMensal,
+  boardId: string,
+  colunasPlano: Record<string, string> | undefined,
+): Promise<void> {
+  "use step"
+  const etapa = "monday_plano"
+  const metadata = getStepMetadata()
+  await registrarEvento({ runId, contrato: contrato.contrato, etapa, estado: "rodando", tentativa: metadata.attempt })
+  const r = await reservarOuPular(runId, modo, competencia, contrato.contrato, etapa, metadata.attempt)
+  if (r.acao === "pular") return
+  if (r.acao === "simular") return simularEfeito(runId, contrato.contrato, etapa, r.chave, metadata.attempt)
+  const nPlan = await executarUpdatesPlano(boardId, contrato.planUpdates ?? [], colunasPlano)
+  const nDesc = await executarUpdatesDescontos(contrato.descontoUpdates ?? [])
+  await confirmarEfeito(r.chave, `monday:plan:${nPlan}:desc:${nDesc}`)
+  await registrarEvento({
+    runId, contrato: contrato.contrato, etapa, estado: "concluido", tentativa: metadata.attempt,
+    metadados: { planItens: nPlan, descontoItens: nDesc },
+  })
+}
+etapaMondayPlano.maxRetries = 5
+
+/** monday_controle_caju: debita o crédito do contrato no grupo da COMPETÊNCIA (fix do bug new Date). */
+async function etapaMondayControleCaju(
+  runId: string,
+  modo: "homologacao" | "producao",
+  competencia: string,
+  contrato: ContratoPreviaMensal,
+  grupoControleCaju: string | null,
+  pedidoCreditoId: string | null,
+): Promise<void> {
+  "use step"
+  const etapa = "monday_controle_caju"
+  const metadata = getStepMetadata()
+  await registrarEvento({ runId, contrato: contrato.contrato, etapa, estado: "rodando", tentativa: metadata.attempt })
+  const r = await reservarOuPular(runId, modo, competencia, contrato.contrato, etapa, metadata.attempt)
+  if (r.acao === "pular") return
+  if (r.acao === "simular") return simularEfeito(runId, contrato.contrato, etapa, r.chave, metadata.attempt)
+  const { mes, ano } = competenciaPartes(competencia)
+  const totalCredito = contrato.totais.credito ?? 0
+  if (totalCredito > 0 && !grupoControleCaju) {
+    throw new FatalError("grupo_controle_caju_ausente_no_snapshot")
+  }
+  const res = totalCredito > 0
+    ? await registrarDebitoControleCaju({
+        grupoControleCaju: grupoControleCaju!,
+        contrato: contrato.contrato,
+        competenciaLabel: MESES_LABEL[mes - 1]!,
+        anoComp: ano,
+        totalCredito,
+        pedidoCreditoId,
+        dataIso: new Date().toISOString().slice(0, 10),
+      })
+    : ({ pulado: true, motivo: "sem_credito_contrato" } as const)
+  const ref = "id" in res ? `monday:controle_caju:${res.id}` : `monday:controle_caju:${res.motivo}`
+  await confirmarEfeito(r.chave, ref)
+  await registrarEvento({
+    runId, contrato: contrato.contrato, etapa, estado: "concluido", tentativa: metadata.attempt,
+    metadados: "id" in res ? { itemId: res.id, saldoAnterior: res.saldoAnterior, debito: totalCredito } : { pulado: res.motivo },
+  })
+}
+etapaMondayControleCaju.maxRetries = 5
+
+/** monday_solicitacao: cria a Solicitação de Pagamento. Retorna o itemId (p/ status OK). */
+async function etapaMondaySolicitacao(
+  runId: string,
+  modo: "homologacao" | "producao",
+  competencia: string,
+  contrato: ContratoPreviaMensal,
+  boardId: string,
+  grupoSolicitacao: string | null,
+  refs: { idVR?: string | null; idVT?: string | null; pedidoCreditoId?: string | null; pedidoPixId?: string | null },
+): Promise<string | null> {
+  "use step"
+  const etapa = "monday_solicitacao"
+  const metadata = getStepMetadata()
+  await registrarEvento({ runId, contrato: contrato.contrato, etapa, estado: "rodando", tentativa: metadata.attempt })
+  const r = await reservarOuPular(runId, modo, competencia, contrato.contrato, etapa, metadata.attempt)
+  if (r.acao === "pular") return null
+  if (r.acao === "simular") { await simularEfeito(runId, contrato.contrato, etapa, r.chave, metadata.attempt); return null }
+  if (!grupoSolicitacao) throw new FatalError("grupo_solicitacao_ausente_no_snapshot")
+  const { mes, ano } = competenciaPartes(competencia)
+  const criado = await criarSolicitacaoMensal({
+    contrato: contrato.contrato,
+    competenciaLabel: MESES_LABEL[mes - 1]!,
+    anoComp: ano,
+    totais: {
+      vr: contrato.totais.vr ?? 0, vt: contrato.totais.vt ?? 0,
+      credito: contrato.totais.credito ?? 0, pix: contrato.totais.pix ?? 0,
+    },
+    pessoas: contrato.pessoas,
+    idVR: refs.idVR, idVT: refs.idVT,
+    pedidoCreditoId: refs.pedidoCreditoId, pedidoPixId: refs.pedidoPixId,
+    summaryCredito: refs.pedidoCreditoId ? `https://empresa.caju.com.br/classic/#/order/${refs.pedidoCreditoId}/summary` : "",
+    summaryPix: refs.pedidoPixId ? `https://empresa.caju.com.br/classic/#/order/${refs.pedidoPixId}/summary` : "",
+    planBoardId: boardId,
+    dataIso: new Date().toISOString().slice(0, 10),
+  }, grupoSolicitacao)
+  await confirmarEfeito(r.chave, `monday:solicitacao:${criado.id}`)
+  await registrarEvento({
+    runId, contrato: contrato.contrato, etapa, estado: "concluido", tentativa: metadata.attempt,
+    metadados: { itemId: criado.id, url: criado.url },
+  })
+  return criado.id
+}
+etapaMondaySolicitacao.maxRetries = 5
+
+/** monday_status_ok: marca AUTOMAÇÃO - OK na Solicitação — SÓ depois de todas as etapas do contrato. */
+async function etapaMondayStatusOk(
+  runId: string,
+  modo: "homologacao" | "producao",
+  competencia: string,
+  contrato: string,
+  solicitacaoId: string | null,
+): Promise<void> {
+  "use step"
+  const etapa = "monday_status_ok"
+  const metadata = getStepMetadata()
+  await registrarEvento({ runId, contrato, etapa, estado: "rodando", tentativa: metadata.attempt })
+  const r = await reservarOuPular(runId, modo, competencia, contrato, etapa, metadata.attempt)
+  if (r.acao === "pular") return
+  if (r.acao === "simular") return simularEfeito(runId, contrato, etapa, r.chave, metadata.attempt)
+  if (!solicitacaoId) throw new FatalError("solicitacao_id_ausente_para_status_ok")
+  await setarStatusAutomacaoOk(solicitacaoId)
+  await confirmarEfeito(r.chave, `monday:status_ok:${solicitacaoId}`)
+  await registrarEvento({ runId, contrato, etapa, estado: "concluido", tentativa: metadata.attempt, metadados: { solicitacaoId } })
+}
+etapaMondayStatusOk.maxRetries = 5
+
+// --- Efeito genérico (RM/Drive): simula em homologação, bloqueia em produção. ---
 async function executarEfeitoGenerico(
   runId: string,
   modo: "homologacao" | "producao",
@@ -201,9 +372,10 @@ async function encerrarRun(runId: string): Promise<void> {
 async function processarContrato(
   runId: string,
   modo: "homologacao" | "producao",
-  competencia: string,
+  snapshot: SnapshotPreviaMensal,
   contrato: ContratoPreviaMensal,
 ): Promise<void> {
+  const competencia = snapshot.competencia
   await marcarContratoRodando(runId, contrato.contrato)
   try {
     await etapaValidacao(runId, contrato.contrato)
@@ -219,15 +391,34 @@ async function processarContrato(
       pixVT: p.pixVT,
     }))
 
-    await executarPedidoCaju(runId, modo, competencia, contrato.contrato, "credito", pessoasComId)
+    const credito = await executarPedidoCaju(runId, modo, competencia, contrato.contrato, "credito", pessoasComId)
     const pix = await executarPedidoCaju(runId, modo, competencia, contrato.contrato, "boleto", pessoasComId)
 
+    // RM (ainda não portado — produção bloqueia aqui; homologação simula).
     for (const etapa of EFEITOS_GENERICOS) {
       await executarEfeitoGenerico(runId, modo, competencia, contrato.contrato, etapa)
       if (etapa === "rm_gerar") await sleep("2s") // AIONS não aguenta volume -> serial + espera
     }
 
-    await marcarContratoFinal(runId, contrato.contrato, "ok", undefined, pix.orderId ? { pedidoPixId: pix.orderId } : undefined)
+    // Monday (adaptador real, gated por producao+ledger).
+    await etapaMondayPlano(runId, modo, competencia, contrato, snapshot.boardId, snapshot.apoio.colunasPlano)
+    await etapaMondayControleCaju(runId, modo, competencia, contrato, snapshot.apoio.grupoControleCaju, credito.orderId)
+    const solicitacaoId = await etapaMondaySolicitacao(
+      runId, modo, competencia, contrato, snapshot.boardId, snapshot.apoio.grupoSolicitacao ?? null,
+      { idVR: null, idVT: null, pedidoCreditoId: credito.orderId, pedidoPixId: pix.orderId },
+    )
+
+    // Drive (ainda não portado).
+    await executarEfeitoGenerico(runId, modo, competencia, contrato.contrato, "drive")
+
+    // AUTOMAÇÃO - OK só depois de TODAS as etapas do contrato confirmadas.
+    await etapaMondayStatusOk(runId, modo, competencia, contrato.contrato, solicitacaoId)
+
+    const referencias: Record<string, unknown> = {}
+    if (credito.orderId) referencias.pedidoCreditoId = credito.orderId
+    if (pix.orderId) referencias.pedidoPixId = pix.orderId
+    if (solicitacaoId) referencias.solicitacaoId = solicitacaoId
+    await marcarContratoFinal(runId, contrato.contrato, "ok", undefined, Object.keys(referencias).length ? referencias : undefined)
   } catch (e) {
     const mensagem = e instanceof Error ? e.message : "erro_desconhecido"
     await marcarContratoFinal(runId, contrato.contrato, "erro", mensagem)
@@ -245,7 +436,7 @@ export async function executarMensalWorkflow(input: MensalWorkflowInput): Promis
       await marcarContratoFinal(input.runId, contrato.contrato, "bloqueado", contrato.motivoBloqueio ?? undefined)
       continue
     }
-    await processarContrato(input.runId, input.modo, input.snapshot.competencia, contrato)
+    await processarContrato(input.runId, input.modo, input.snapshot, contrato)
     await sleep("1s") // espaçamento entre contratos (serial, sem paralelismo)
   }
   await encerrarRun(input.runId)

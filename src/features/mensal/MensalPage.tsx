@@ -32,7 +32,7 @@ const STATUS_FINAIS = ["concluido", "concluido_com_erro", "falhou", "cancelado",
 const ETAPAS_ORDEM = [
   "validacao", "caju_pessoas", "caju_credito", "caju_pix",
   "rm_gerar", "rm_aguardar", "rm_integrar",
-  "monday_plano", "monday_controle_caju", "monday_solicitacao", "drive",
+  "monday_plano", "monday_controle_caju", "monday_solicitacao", "drive", "monday_status_ok",
 ] as const
 const ETAPA_LABEL: Record<string, string> = {
   validacao: "Validando dados",
@@ -47,6 +47,7 @@ const ETAPA_LABEL: Record<string, string> = {
   monday_controle_caju: "Registrando Controle Caju",
   monday_solicitacao: "Criando Solicitação de Pagamento",
   drive: "Arquivando no Drive",
+  monday_status_ok: "Marcando AUTOMAÇÃO - OK",
   contrato: "Contrato",
   finalizado: "Finalizado",
 }

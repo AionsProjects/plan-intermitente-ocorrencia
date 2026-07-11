@@ -81,3 +81,6 @@ pf_*.json
 ben_*.json
 boards-compare.json
 /.swc
+
+# runtime local do Workflow DevKit (dev)
+.workflow-data/
