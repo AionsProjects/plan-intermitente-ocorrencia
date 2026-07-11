@@ -162,11 +162,12 @@ export function calcularMensal(
       if (!base.optanteVT) vtDia = 0
       else if (base.vtSoVolta) vtDia = r2(vtDia / 2)
       // Dias por LINHA (convocação) — necessário pros updates por item do Plano.
+      // Paridade n8n: dias VT só contam quando vtDia > 0 (não-optante grava 0 dias).
       const linhasDias = linhas.map((l) => ({
         itemId: l.itemId,
         inicio: l.inicio,
         nVR: diasElegiveis(l, feriados, true, tipoVRMensal).length,
-        nVT: diasElegiveis(l, feriados, false, tipoVTMensal).length,
+        nVT: vtDia > 0 ? diasElegiveis(l, feriados, false, tipoVTMensal).length : 0,
       }))
       const totalDiasVR = linhasDias.reduce((n, l) => n + l.nVR, 0)
       const totalDiasVT = linhasDias.reduce((n, l) => n + l.nVT, 0)
