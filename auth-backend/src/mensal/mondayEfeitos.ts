@@ -6,48 +6,29 @@
 // Fix deliberado vs n8n: grupo do Controle Caju vem da COMPETÊNCIA do snapshot (apoio.grupoControleCaju),
 // não do mês do servidor (new Date()) — bug conhecido do legado.
 import { mondayGraphql } from "../monday.js"
+import type { DescontoUpdatePrevia, PessoaPreviaMensal, PlanUpdatePrevia } from "./types.js"
 
 /**
- * Cria item em 2 passos: create_item SEM column_values + change_multiple_column_values.
- * Motivo: boards com restrição de coluna (ex: Controle Saldo Caju) retornam 403
- * UserUnauthorized quando column_values vai junto no create — mas aceitam o set em
- * seguida (visto em 11/07/2026). Se o set falhar, o item recém-criado é deletado.
+ * Cria item com column_values num ÚNICO create_item (mesmo padrão dos WFs n8n
+ * do pontual). O token precisa ter acesso de ESCRITA ao board — boards privados
+ * (ex: Controle Saldo Caju) exigem que o usuário do MONDAY_TOKEN seja membro/owner;
+ * caso contrário a API retorna 403 UserUnauthorized (visto em 11/07/2026 com token
+ * de usuário não-membro). O pontual contorna usando o token de um owner do board.
  */
-async function criarItemDoisPassos(
+async function criarItemComValores(
   boardId: string,
   groupId: string,
   itemName: string,
   values: Record<string, unknown>,
 ): Promise<{ id: string }> {
   const criado = await mondayGraphql<{ create_item: { id: string } }>(
-    `mutation($board:ID!,$group:String,$name:String!){
-       create_item(board_id:$board, group_id:$group, item_name:$name){ id }
+    `mutation($board:ID!,$group:String,$name:String!,$cols:JSON!){
+       create_item(board_id:$board, group_id:$group, item_name:$name, column_values:$cols, create_labels_if_missing:true){ id }
      }`,
-    { board: boardId, group: groupId, name: itemName },
+    { board: boardId, group: groupId, name: itemName, cols: JSON.stringify(values) },
   )
-  const id = criado.create_item.id
-  const setar = () => mondayGraphql(
-    `mutation($board:ID!,$item:ID!,$cols:JSON!){
-       change_multiple_column_values(board_id:$board, item_id:$item, column_values:$cols, create_labels_if_missing:true){ id }
-     }`,
-    { board: boardId, item: id, cols: JSON.stringify(values) },
-  )
-  try {
-    try {
-      await setar()
-    } catch {
-      // Monday às vezes nega o set logo após o create (consistência eventual do item novo).
-      // 1 retry com espera antes de desistir.
-      await new Promise((r) => setTimeout(r, 3000))
-      await setar()
-    }
-  } catch (e) {
-    await mondayGraphql(`mutation($id:ID!){ delete_item(item_id:$id){ id } }`, { id }).catch(() => undefined)
-    throw e
-  }
-  return { id }
+  return { id: criado.create_item.id }
 }
-import type { DescontoUpdatePrevia, PessoaPreviaMensal, PlanUpdatePrevia } from "./types.js"
 
 export const BOARD_SOLICITACAO = "18393673859"
 export const BOARD_DESCONTO = "18400981023"
@@ -271,7 +252,7 @@ export async function criarSolicitacaoMensal(
   inp: SolicitacaoMensalInput,
   grupoSolicitacao: string,
 ): Promise<{ id: string; url: string }> {
-  const { id } = await criarItemDoisPassos(
+  const { id } = await criarItemComValores(
     BOARD_SOLICITACAO, grupoSolicitacao, inp.contrato, montarValuesSolicitacao(inp),
   )
   return { id, url: `https://contato-serv.monday.com/boards/${BOARD_SOLICITACAO}/pulses/${id}` }
@@ -304,7 +285,7 @@ export async function registrarDebitoControleCaju(inp: {
   )
   const items = d.boards?.[0]?.groups?.[0]?.items_page?.items ?? []
   const saldoAnterior = saldoAnteriorControleCaju(items)
-  const cr = await criarItemDoisPassos(
+  const cr = await criarItemComValores(
     BOARD_CONTROLE_CAJU,
     inp.grupoControleCaju,
     montarNomeDebitoControle(inp.contrato, inp.competenciaLabel, inp.anoComp, inp.pedidoCreditoId),

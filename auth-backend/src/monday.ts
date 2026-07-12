@@ -22,9 +22,7 @@ export async function mondayGraphql<T = unknown>(
     headers: {
       "Content-Type": "application/json",
       Authorization: config.mondayToken,
-      // 2024-01 (deprecada) retorna 403 UserUnauthorized em create_item de board privado
-      // mesmo com acesso — bug visto no Controle Saldo Caju (11/07/2026).
-      "API-Version": "2025-04",
+      "API-Version": config.mondayApiVersion,
     },
     body: JSON.stringify({ query, variables: variables ?? {} }),
   })
