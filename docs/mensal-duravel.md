@@ -35,6 +35,35 @@ Todos os efeitos externos têm adaptador real, GATED por `modo=producao` + `MENS
 O workflow (`workflows/mensal.ts`) tem 12 etapas por contrato e ~19 steps duráveis. `idVR`/`idVT` do RM
 fluem para a Solicitação; `orderId`/QR do Caju fluem para Controle Caju, Solicitação e Drive.
 
+## PENDÊNCIA BLOQUEANTE — token Monday sem escrita nos boards privados (11/07/2026)
+
+Descoberta no ensaio de produção controlado (2 contratos reais de 07/2026). O `MONDAY_TOKEN`
+do backend é de um usuário **subscriber** (não membro/owner) do board privado **Controle Saldo Caju**
+(`7833600425`). Efeito:
+
+- `create_item` COM `column_values` → **403 `UserUnauthorizedException`** (em qualquer API-Version).
+- `create_item` vazio passa, mas `change_multiple_column_values` também dá 403.
+- Resultado no ensaio: itens de débito criados só com o nome, colunas vazias.
+
+Não é bug de código: as colunas do débito estão corretas e idênticas às do WF do **pontual**
+(`E1XAdrEbPy5lZhNS`, nó "Preparar Debito Controle Caju"): `color_mkpef3mp` (Contrato), `n_meros__1`
+(Saldo Inicial), `n_meros9__1` (Débito), `dup__of_data_do_cr_dito__1` (Data), `status3__1`
+(Obs Débito = INTERMITENTE), num único `create_item`. O pontual funciona porque escreve com o token
+de um **owner** do board (hardcoded, usuário Mike).
+
+**Fix obrigatório antes do corte (infra, não código):** o usuário do `MONDAY_TOKEN` do backend precisa
+de acesso de **escrita** aos boards privados que o mensal grava — principalmente Controle Saldo Caju e
+Solicitação de Pagamento. Duas opções: (a) adicionar esse usuário como **membro/owner** dos boards;
+(b) apontar `MONDAY_TOKEN` para uma conta owner (padrão do pontual). Solicitação de Pagamento
+(`18393673859`) já aceitou escrita no ensaio — o gap confirmado é o Controle Saldo Caju.
+
+Boards a verificar acesso de escrita: Plano (por competência), Solicitação `18393673859`,
+Desconto FIFO `18400981023`, Controle Saldo Caju `7833600425`.
+
+Correlato: a **service account do Drive** (`drive-intermintente@...`) tinha só leitura no Drive
+Compartilhado "BENEFÍCIOS 01" (`0AOEP8qUZ2bdAUk9PVA`) — precisa entrar como **Colaborador de conteúdo**
+para o efeito Drive funcionar (`canAddChildren=false` até lá).
+
 ## Paridade com o legado (evidência de 11/07/2026)
 
 Harness versionado: `auth-backend/src/scripts/paridade-mensal.ts`. Ele executa o código REAL dos Code
@@ -80,13 +109,34 @@ npx tsx --env-file=.env src/scripts/paridade-mensal.ts <caminho do JSON>
    homologação concluídos (Preview e local), idempotência entre runs comprovada.**
 5. ~~Implementar cada adaptador externo~~ **feito — 4/4 (tabela acima).**
 6. Pendências restantes antes de produção financeira:
-   - `GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON_BASE64` e `CRON_SECRET` no Vercel;
-     `RM_BRIDGE_URL`/`RM_AIONS_AUTH` também em Preview se for ensaiar lá.
+   - **BLOQUEANTE: acesso de escrita do token Monday** nos boards privados (ver seção própria acima) —
+     confirmado no ensaio de 11/07. Sem isso, Controle Saldo Caju não é gravável.
+   - **Acesso de escrita da service account do Drive** no Shared Drive "BENEFÍCIOS 01" (ver acima).
+   - `CRON_SECRET` no Vercel. (`GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON_BASE64` já em Preview+Production;
+     `RM_BRIDGE_URL`/`RM_AIONS_AUTH` já em Production, faltam em Preview se for ensaiar lá.)
    - Ensaio de restart/retomada em cada etapa (o ledger já provou dedup entre runs;
      falta o teste sistemático etapa a etapa).
    - Plano de rollback e conciliação documentado.
    - Re-rodar o harness de paridade na competência do corte.
    - Só então virar, em sequência controlada: `MENSAL_PRODUCTION_ENABLED=1` e `MENSAL_MODO=producao`.
    - Reconfirmar que o nó `Mensal Confirmar Pedido CREDITO Caju` segue desligado no n8n.
+
+## Ensaio de produção controlado — 11/07/2026 (registro)
+
+Rodado com 2 contratos reais de 07/2026 (TRE PB + SEDUC INTERIOR = 3 pessoas), via janela de ensaio
+(`MENSAL_TEST_BYPASS_ANTIFRAUDE=1`, já REMOVIDA; Preview de volta a homologação). Duplicidade sobre
+julho foi aceita como custo do teste, com limpeza combinada.
+
+Executou de verdade (não dependem do Monday): Caju (2 pedidos crédito NÃO confirmados + 2 PIX
+confirmados) e RM produção (histórico ZMDHSTBENFUNC + FopRotinas + IntegrarBackOffices,
+IDFINANC 22769–22772). Confirmação de crédito Caju permaneceu desligada, como exigido.
+
+Bloqueou em `monday_controle_caju` pelo 403 de permissão (seção acima). A idempotência funcionou:
+tudo que já tinha sido confirmado no ledger foi pulado nas retomadas.
+
+Limpeza feita pelo lado do backend/agente: itens-lixo do Controle Caju deletados (grupo de volta ao
+baseline), Solicitação do ensaio deletada, 3 itens do Plano restaurados ao baseline, Drive nada criou.
+Limpeza pendente pelo DP (sem acesso do agente): cancelar os 4 pedidos Caju e estornar os lançamentos
+RM 22769–22772 + histórico da competência.
 
 O documento `docs/n8n/wf-mensal-fifo.md` descreve o legado e não é a fonte de verdade do fluxo novo.
