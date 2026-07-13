@@ -30,7 +30,36 @@ function serviceAccount(): ServiceAccount {
 }
 
 let jwt: JWT | null = null
+let oauthAccess: { token: string; exp: number } | null = null
+
+/** OAuth de usuário (refresh token) — age como a conta real; funciona em Shared Drive
+ *  sem a SA precisar ser membro. Cacheia o access_token por ~55min. */
+async function oauthToken(): Promise<string | null> {
+  const g = config.googleDrive
+  if (!g.oauthRefreshToken || !g.oauthClientId || !g.oauthClientSecret) return null
+  const agora = Date.now()
+  if (oauthAccess && oauthAccess.exp > agora + 60_000) return oauthAccess.token
+  const form = new URLSearchParams({
+    client_id: g.oauthClientId,
+    client_secret: g.oauthClientSecret,
+    refresh_token: g.oauthRefreshToken,
+    grant_type: "refresh_token",
+  })
+  const r = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: form.toString(),
+  })
+  const j = (await r.json().catch(() => null)) as { access_token?: string; expires_in?: number } | null
+  if (!r.ok || !j?.access_token) throw new ErroDrive("Falha ao renovar token OAuth Drive", r.status, j)
+  oauthAccess = { token: j.access_token, exp: agora + (j.expires_in ?? 3600) * 1000 }
+  return j.access_token
+}
+
 async function token(): Promise<string> {
+  // Prioriza OAuth de usuário; cai na service account se não configurado.
+  const oauth = await oauthToken()
+  if (oauth) return oauth
   if (!jwt) {
     const sa = serviceAccount()
     jwt = new JWT({
@@ -107,6 +136,7 @@ export async function ensurePath(rootId: string, parts: string[]): Promise<Drive
 
 export function sanitizeName(s: unknown): string {
   return String(s ?? "")
+    // eslint-disable-next-line no-control-regex -- chars de controle ilegais em nome de arquivo
     .replace(/[<>:"/\\|?*\u0000-\u001f]/g, " ")
     .replace(/\s+/g, " ")
     .trim()

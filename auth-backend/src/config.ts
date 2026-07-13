@@ -68,6 +68,12 @@ export const config = {
     serviceAccountJson: opt("GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON", ""),
     serviceAccountJsonBase64: opt("GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON_BASE64", ""),
     rootFolderId: opt("GOOGLE_DRIVE_ROOT_FOLDER_ID", ""),
+    // OAuth de usuário (age como a conta real — necessário em Shared Drive quando a
+    // service account não pode ser membro). Reusa o client de login (GOOGLE_CLIENT_*).
+    // Tem prioridade sobre a service account quando presente.
+    oauthClientId: opt("GOOGLE_DRIVE_OAUTH_CLIENT_ID", "") || opt("GOOGLE_CLIENT_ID", ""),
+    oauthClientSecret: opt("GOOGLE_DRIVE_OAUTH_CLIENT_SECRET", "") || opt("GOOGLE_CLIENT_SECRET", ""),
+    oauthRefreshToken: opt("GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN", ""),
   },
   // Caju (OAuth password grant + headers de sponsor/integration). Extraido dos nos n8n.
   caju: {
