@@ -569,19 +569,25 @@ async function processarContrato(
 
     // RM via ponte AIONS — SERIAL com esperas (a ponte não aguenta volume).
     // Histórico ZMDHSTBENFUNC em lotes de 50 (contagem determinística a partir do snapshot).
+    // ORDEM (regra do DP): histórico PIX -> lançamento do boleto (FopRotinas+integrar)
+    // -> só DEPOIS o histórico de CRÉDITO. O crédito não pode existir no ZMD quando o
+    // FopRotinas roda, senão corre risco de ser somado no boleto.
     const { mes, ano } = competenciaPartes(competencia)
     const ctxContagem = { anoComp: ano, mesComp: mes, codSecao: "", dataImport: "1970-01-01" }
-    for (const tipo of ["pix", "credito"] as const) {
-      const nLotes = lotesHistorico(montarRegistrosHistorico(contrato.pessoas, tipo, ctxContagem)).length
-      for (let i = 0; i < nLotes; i++) {
-        await etapaRmHistoricoLote(runId, modo, competencia, contrato, tipo, i)
-        if (i < nLotes - 1) await sleep("60s") // espera entre lotes (igual ao Wait Hist do n8n)
-      }
+    const lotesPorTipo = (tipo: "pix" | "credito") =>
+      lotesHistorico(montarRegistrosHistorico(contrato.pessoas, tipo, ctxContagem)).length
+    for (let i = 0; i < lotesPorTipo("pix"); i++) {
+      await etapaRmHistoricoLote(runId, modo, competencia, contrato, "pix", i)
+      if (i < lotesPorTipo("pix") - 1) await sleep("60s") // espera entre lotes (igual ao Wait Hist do n8n)
     }
     const { temFinanceiro } = await etapaRmFopRotinas(runId, modo, competencia, contrato)
     await sleep("7s") // Wait RM Processar (n8n)
     await etapaRmAguardar(runId, contrato.contrato)
     const rmIds = await etapaRmIntegrar(runId, modo, competencia, contrato, temFinanceiro)
+    for (let i = 0; i < lotesPorTipo("credito"); i++) {
+      await etapaRmHistoricoLote(runId, modo, competencia, contrato, "credito", i)
+      if (i < lotesPorTipo("credito") - 1) await sleep("60s")
+    }
 
     // Monday (adaptador real, gated por producao+ledger).
     await etapaMondayPlano(runId, modo, competencia, contrato, snapshot.boardId, snapshot.apoio.colunasPlano)
