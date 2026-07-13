@@ -128,7 +128,8 @@ async function executarPedidoCaju(
     await registrarEvento({ runId, contrato, etapa, estado: "pulado_idempotencia", tentativa: metadata.attempt })
     return { orderId: null, qr: "", pulado: true, simulado: false }
   }
-  if (reserva === "pendente") throw new FatalError(`efeito_pendente_requer_conciliacao:${etapa}`)
+  // "pendente" no teste re-executa direto (retomada nunca trava em conciliação).
+  if (reserva === "pendente" && modo !== "teste") throw new FatalError(`efeito_pendente_requer_conciliacao:${etapa}`)
 
   const { mes, ano } = competenciaPartes(competencia)
 
@@ -340,10 +341,11 @@ async function reservarOuPular(
     await registrarEvento({ runId, contrato, etapa, estado: "pulado_idempotencia", tentativa })
     return { chave, acao: "pular" }
   }
-  if (reserva === "pendente") throw new FatalError(`efeito_pendente_requer_conciliacao:${etapa}`)
   // "teste" executa TUDO real (Plano no board sandbox; Solicitação/Controle marcados TESTE),
   // sem exigir a trava de produção — o isolamento vem do board sandbox + chave por run.
+  // "pendente" no teste não exige conciliação: re-executa direto (retomada nunca trava).
   if (modo === "teste") return { chave, acao: "executar" }
+  if (reserva === "pendente") throw new FatalError(`efeito_pendente_requer_conciliacao:${etapa}`)
   if (modo !== "producao") return { chave, acao: "simular" }
   if (!PRODUCAO_LIBERADA) throw new FatalError("execucao_mensal_producao_bloqueada_ate_cutover")
   return { chave, acao: "executar" }
