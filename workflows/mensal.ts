@@ -275,8 +275,10 @@ async function etapaRmIntegrar(
   // fora da base (ex: 0007 ADMINISTRATIVO, 0010 SEDE) são pagos JUNTO com outro
   // processo (folha ADM) e o DP integra por lá — o mensal NÃO deve tocá-los.
   // Dedup por IDFINANC continua (0011 é base de SEDUC ESCOLA e INTERIOR).
-  let idVR: string | null = null
-  let idVT: string | null = null
+  // O RM pode dividir o mesmo evento em N lançamentos (regra interna por pessoa) —
+  // comportamento esperado. TODOS os ids vão pra Solicitação, separados por vírgula.
+  const idsVR: string[] = []
+  const idsVT: string[] = []
   let encontrados = 0
   let integrados = 0
   for (const secao of [secaoBase]) {
@@ -295,11 +297,12 @@ async function etapaRmIntegrar(
       await integrarIdfinanc(row.IDFINANC, RM_COLIGADA)
       await confirmarEfeito(chaveId, `rm:idfinanc:${row.IDFINANC}:${row.tipoEvento}`)
       integrados++
-      // idVR/idVT do contrato: primeiro VR/VT achado na SEÇÃO-BASE (paridade com o n8n).
-      if (secao === secaoBase && row.tipoEvento === "VR" && !idVR) idVR = String(row.IDFINANC)
-      if (secao === secaoBase && row.tipoEvento === "VT" && !idVT) idVT = String(row.IDFINANC)
+      if (row.tipoEvento === "VR") idsVR.push(String(row.IDFINANC))
+      if (row.tipoEvento === "VT") idsVT.push(String(row.IDFINANC))
     }
   }
+  const idVR = idsVR.length ? idsVR.join(", ") : null
+  const idVT = idsVT.length ? idsVT.join(", ") : null
   await confirmarEfeito(r.chave, `rm:integrar:${integrados}:vr=${idVR ?? "-"}:vt=${idVT ?? "-"}`)
   await registrarEvento({
     runId, contrato: contrato.contrato, etapa, estado: "concluido", tentativa: metadata.attempt,
