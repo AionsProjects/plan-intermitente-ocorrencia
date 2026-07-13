@@ -14,6 +14,22 @@ export const RM_COD_USUARIO = "003080"
 export const RM_DATA_SERVER_HISTORICO = "RMSPRJ3230976Server"
 const LOTE_HISTORICO = 50
 
+// Divergências DELIBERADAS vs n8n (decisão do DP em 13/07/2026):
+// 1. IntegrarBackOffices roda SÍNCRONO (SyncExecution=true) — o legado usava job
+//    assíncrono e o lançamento ficava "Pendente" na tela até o job processar.
+// 2. A integração varre TODAS as seções de intermitentes (lista abaixo) — o RM agrupa
+//    lançamentos pela seção REAL da pessoa (ex: lotados em ADMINISTRATIVO), então um
+//    contrato pode gerar lançamentos fora da sua seção-base; o legado só integrava a base.
+export const SECOES_INTERMITENTES = [
+  "01.01.0004", // DETRAN
+  "01.01.0007", // ADMINISTRATIVO (pessoas de vários contratos lotadas aqui)
+  "01.01.0010", // SEDUC SEDE
+  "01.01.0011", // SEDUC ESCOLA/INTERIOR
+  "01.01.0074", // CETAM
+  "01.01.0079", // TRE PB
+  "01.01.0085", // SEMSA
+] as const
+
 const fmtVirgula = (v: number): string => Number(v || 0).toFixed(2).replace(".", ",")
 const escapeXml = (s: string): string =>
   String(s || "").replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" })[c]!)
@@ -417,8 +433,8 @@ export function montarXmlIntegrarBackOffices(d: {
   <ShowReExecuteButton xmlns="http://www.totvs.com/">true</ShowReExecuteButton>
   <StatusMessage i:nil="true" xmlns="http://www.totvs.com/" />
   <SuccessMessage xmlns="http://www.totvs.com/">Processo executado com sucesso</SuccessMessage>
-  <SyncExecution xmlns="http://www.totvs.com/">false</SyncExecution>
-  <UseJobMonitor xmlns="http://www.totvs.com/">true</UseJobMonitor>
+  <SyncExecution xmlns="http://www.totvs.com/">true</SyncExecution>
+  <UseJobMonitor xmlns="http://www.totvs.com/">false</UseJobMonitor>
   <UserName xmlns="http://www.totvs.com/">${RM_COD_USUARIO}</UserName>
   <WaitSchedule xmlns="http://www.totvs.com/">false</WaitSchedule>
 </FopLancIntegraTerceiroParms>`

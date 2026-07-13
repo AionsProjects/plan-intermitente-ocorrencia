@@ -27,6 +27,7 @@ import {
 } from "../auth-backend/src/mensal/repo.js"
 import {
   RM_COLIGADA,
+  SECOES_INTERMITENTES,
   chapasEventosPix,
   codSecaoBase,
   consultarIdfinanc,
@@ -50,8 +51,7 @@ export interface MensalWorkflowInput {
   somenteContratos?: string[]
 }
 
-// Único efeito ainda NÃO portado (Drive) -> em "producao" lança not_implemented;
-// em "homologacao" simula atrás do ledger. Caju/Monday/RM têm adaptadores reais.
+// Todos os efeitos têm adaptador real (Caju/RM/Monday/Drive), gated por producao+ledger.
 
 // Trava de produção financeira. Só libera com modo=producao E env=1. Hoje 0 em todo ambiente.
 const PRODUCAO_LIBERADA = process.env.MENSAL_PRODUCTION_ENABLED === "1"
@@ -270,30 +270,39 @@ async function etapaRmIntegrar(
     return { idVR: null, idVT: null }
   }
   const hoje = new Date().toISOString().slice(0, 10)
-  const rotulados = await consultarIdfinanc({
-    coligada: RM_COLIGADA,
-    codSecao: codSecaoBase(codigoSecaoContrato(contrato.contrato)),
-    dataEmissao: `${hoje}T00:00:00`,
-  })
+  const secaoBase = codSecaoBase(codigoSecaoContrato(contrato.contrato))
+  // Varre TODAS as seções de intermitentes: o RM agrupa por seção REAL da pessoa
+  // (ex: lotados em ADMINISTRATIVO), então lançamentos do contrato podem cair fora
+  // da seção-base. Dedup por IDFINANC garante que nada integra 2x entre contratos.
   let idVR: string | null = null
   let idVT: string | null = null
+  let encontrados = 0
   let integrados = 0
-  for (const row of rotulados) {
-    // Dedup FORTE por IDFINANC (entre runs — substitui o staticData frágil do n8n).
-    const chaveId = `mensal:rm_idfinanc:${RM_COLIGADA}:${row.IDFINANC}`
-    const reservaId = await reservarEfeito(chaveId, "mensal_rm_idfinanc", { runId, contrato: contrato.contrato, historico: row.tipoEvento })
-    if (reservaId === "confirmado") continue
-    if (reservaId === "pendente") throw new FatalError(`efeito_pendente_requer_conciliacao:rm_idfinanc:${row.IDFINANC}`)
-    await integrarIdfinanc(row.IDFINANC, RM_COLIGADA)
-    await confirmarEfeito(chaveId, `rm:idfinanc:${row.IDFINANC}:${row.tipoEvento}`)
-    integrados++
-    if (row.tipoEvento === "VR" && !idVR) idVR = String(row.IDFINANC)
-    if (row.tipoEvento === "VT" && !idVT) idVT = String(row.IDFINANC)
+  for (const secao of SECOES_INTERMITENTES) {
+    const rotulados = await consultarIdfinanc({
+      coligada: RM_COLIGADA,
+      codSecao: secao,
+      dataEmissao: `${hoje}T00:00:00`,
+    })
+    encontrados += rotulados.length
+    for (const row of rotulados) {
+      // Dedup FORTE por IDFINANC (entre runs e entre contratos).
+      const chaveId = `mensal:rm_idfinanc:${RM_COLIGADA}:${row.IDFINANC}`
+      const reservaId = await reservarEfeito(chaveId, "mensal_rm_idfinanc", { runId, contrato: contrato.contrato, historico: row.tipoEvento })
+      if (reservaId === "confirmado") continue
+      if (reservaId === "pendente") throw new FatalError(`efeito_pendente_requer_conciliacao:rm_idfinanc:${row.IDFINANC}`)
+      await integrarIdfinanc(row.IDFINANC, RM_COLIGADA)
+      await confirmarEfeito(chaveId, `rm:idfinanc:${row.IDFINANC}:${row.tipoEvento}`)
+      integrados++
+      // idVR/idVT do contrato: primeiro VR/VT achado na SEÇÃO-BASE (paridade com o n8n).
+      if (secao === secaoBase && row.tipoEvento === "VR" && !idVR) idVR = String(row.IDFINANC)
+      if (secao === secaoBase && row.tipoEvento === "VT" && !idVT) idVT = String(row.IDFINANC)
+    }
   }
   await confirmarEfeito(r.chave, `rm:integrar:${integrados}:vr=${idVR ?? "-"}:vt=${idVT ?? "-"}`)
   await registrarEvento({
     runId, contrato: contrato.contrato, etapa, estado: "concluido", tentativa: metadata.attempt,
-    metadados: { encontrados: rotulados.length, integrados, idVR, idVT },
+    metadados: { encontrados, integrados, idVR, idVT },
   })
   return { idVR, idVT }
 }
