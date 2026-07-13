@@ -53,12 +53,12 @@ export interface PessoaCalculadaMensal extends ConvocacaoMensal {
   regraAplicada: string
 }
 
-/** Update de 1 item (linha) do board Plano — espelha o alocarCreditoPorLinha do n8n. */
+/** Update de 1 item (linha) do board Plano — alocação de crédito por linha. */
 export interface PlanUpdateMensal {
   itemId: string
   vtDia: number
-  vrDia: number // 0 quando VR é mensal (DETRAN/TRE PB)
-  vrMensal: number // 0 quando VR é diário
+  vrDia: number // valor-dia efetivo (regra mensal vira mensal/30) — estilo pontual
+  vrMensal: number // referência da regra quando mensal; 0 quando VR é diário
   diasVR: number
   diasVT: number
   creditoVR: number
@@ -108,12 +108,18 @@ export function codigoSecaoContrato(contrato: string): string {
   return codigos[normMensal(contrato)] ?? ""
 }
 
+// Matching de função tolerante a preposições: "TECNICO EM NIVEL MEDIO" casa com
+// "TECNICO DE NIVEL MEDIO" (bug real do DETRAN — a função do Plano usa EM, a regra
+// do board usa DE, e a pessoa caía na regra Padrão).
+const semPreposicao = (v: string): string =>
+  v.replace(/\b(DE|DA|DO|DAS|DOS|EM|NA|NO)\b/g, " ").replace(/\s+/g, " ").trim()
+
 function resolverRegra(regras: RegraBeneficioMensal[], pessoa: ConvocacaoMensal): RegraBeneficioMensal {
-  const contrato = normMensal(pessoa.contrato), funcao = normMensal(pessoa.funcao)
+  const contrato = normMensal(pessoa.contrato), funcao = semPreposicao(normMensal(pessoa.funcao))
   const escala = !!pessoa.escala12x36
   const candidatas = regras.filter((r) => {
     if (r.escala12x36 !== escala) return false
-    const c = normMensal(r.contrato), regra = normMensal(r.regra)
+    const c = normMensal(r.contrato), regra = semPreposicao(normMensal(r.regra))
     if (c && !["PADRAO", "PADRÃO", "GLOBAL", "*"].includes(c) && c !== contrato) return false
     return !regra || ["PADRAO", "PADRÃO", "GERAL", "*"].includes(regra) || funcao.includes(regra) || regra.includes(funcao)
   }).sort((a, b) => {
@@ -125,8 +131,12 @@ function resolverRegra(regras: RegraBeneficioMensal[], pessoa: ConvocacaoMensal)
   return candidatas[0]
 }
 
-function diasElegiveis(p: ConvocacaoMensal, feriados: FeriadoMensal[], vr: boolean, mensal: boolean): string[] {
-  if (mensal && vr && !p.escala12x36) return intervalo(p.inicio, p.fim)
+// Dias elegíveis — ESTILO PONTUAL (regra unificada, decisão DP 13/07/2026):
+// VR: seg-sex (sábado/domingo nunca contam). VT: seg-sex + sábado se trabalha sábado.
+// Regra "VR Mensal" NÃO muda a contagem — vira valor-dia (mensal/30) × dias trabalhados.
+// Feriado: mantém a regra do board FERIADOS (SEDUC*/DETRAN recebem; demais não) —
+// única divergência consciente do pontual, que não filtra feriado.
+function diasElegiveis(p: ConvocacaoMensal, feriados: FeriadoMensal[], vr: boolean): string[] {
   return intervalo(p.inicio, p.fim).filter((data) => {
     const dia = Number(data.slice(-2)), dow = new Date(`${data}T00:00:00Z`).getUTCDay()
     if (p.escala12x36) return p.escala12x36 === "PAR" ? dia % 2 === 0 : dia % 2 === 1
@@ -157,27 +167,23 @@ export function calcularMensal(
       const escala = !!base.escala12x36
       const tipoVRMensal = !escala && regra.vrMensal > 0
       const tipoVTMensal = !escala && regra.vtMensal > 0
+      // ESTILO PONTUAL: regra "mensal" vira valor-dia (mensal/30); paga-se por dia trabalhado.
       const vrDia = tipoVRMensal ? r2(regra.vrMensal / 30) : r2(regra.vrDia)
       let vtDia = tipoVTMensal ? r2(regra.vtMensal / 30) : r2(regra.vtDia)
       if (!base.optanteVT) vtDia = 0
       else if (base.vtSoVolta) vtDia = r2(vtDia / 2)
       // Dias por LINHA (convocação) — necessário pros updates por item do Plano.
-      // Paridade n8n: dias VT só contam quando vtDia > 0 (não-optante grava 0 dias).
+      // Paridade pontual: dias VT só contam quando vtDia > 0 (não-optante grava 0 dias).
       const linhasDias = linhas.map((l) => ({
         itemId: l.itemId,
         inicio: l.inicio,
-        nVR: diasElegiveis(l, feriados, true, tipoVRMensal).length,
-        nVT: vtDia > 0 ? diasElegiveis(l, feriados, false, tipoVTMensal).length : 0,
+        nVR: diasElegiveis(l, feriados, true).length,
+        nVT: vtDia > 0 ? diasElegiveis(l, feriados, false).length : 0,
       }))
       const totalDiasVR = linhasDias.reduce((n, l) => n + l.nVR, 0)
       const totalDiasVT = linhasDias.reduce((n, l) => n + l.nVT, 0)
-      const diasMes30 = Math.min(30, linhas.reduce((n, p) => {
-        const de = Math.min(30, Math.max(1, Number(p.inicio.slice(-2)) || 1))
-        const ate = Math.min(30, Number(p.fim.slice(-2)) || 30)
-        return n + Math.max(0, ate - de + 1)
-      }, 0))
-      let brutoVR = tipoVRMensal ? r2(regra.vrMensal - (regra.vrMensal / 30) * (30 - diasMes30)) : r2(vrDia * totalDiasVR)
-      let brutoVT = tipoVTMensal ? r2(regra.vtMensal - (regra.vtMensal / 30) * (30 - diasMes30)) : r2(vtDia * totalDiasVT)
+      let brutoVR = r2(vrDia * totalDiasVR)
+      let brutoVT = r2(vtDia * totalDiasVT)
       let descontoVR = 0, descontoVT = 0
       for (const d of descontos.filter((x) => x.pessoaKey === key).sort((a, b) => a.inicio.localeCompare(b.inicio))) {
         const tiraVR = Math.min(brutoVR, d.residualVR), tiraVT = Math.min(brutoVT, d.residualVT)
@@ -188,9 +194,10 @@ export function calcularMensal(
         d.descontadoVR = r2(d.descontadoVR + tiraVR); d.descontadoVT = r2(d.descontadoVT + tiraVT)
         descontosTocados.add(d)
       }
-      const creditoVTContrato = ["TRE PB", "CETAM", "SEDUC INTERIOR"].includes(normMensal(base.contrato))
-      const tetoVR = tipoVRMensal ? r2((brutoVR + descontoVR) * 3 / 30) : r2(vrDia * Math.min(3, totalDiasVR))
-      const tetoVT = !creditoVTContrato ? 0 : tipoVTMensal ? r2((brutoVT + descontoVT) * 3 / 30) : r2(vtDia * Math.min(3, totalDiasVT))
+      // Crédito em conta Caju — ESTILO PONTUAL: até 2 dias de VR e 2 dias de VT,
+      // pra TODOS os contratos (o resto do líquido vai por PIX no boleto).
+      const tetoVR = r2(vrDia * 2)
+      const tetoVT = r2(vtDia * 2)
       const creditoVR = r2(Math.min(brutoVR, tetoVR)), creditoVT = r2(Math.min(brutoVT, tetoVT))
       // Alocação do crédito por linha (ordem: inicio, itemId) — espelha o n8n.
       let remVR = creditoVR, remVT = creditoVT
@@ -201,7 +208,9 @@ export function calcularMensal(
         planUpdates.push({
           itemId: l.itemId,
           vtDia,
-          vrDia: tipoVRMensal ? 0 : vrDia,
+          // Estilo pontual: VR-Unitário sempre recebe o valor-dia efetivo (mesmo
+          // quando a regra é mensal — mensal/30). VR-MENSAL fica como referência da regra.
+          vrDia,
           vrMensal: tipoVRMensal ? r2(regra.vrMensal) : 0,
           diasVR: l.nVR,
           diasVT: l.nVT,
