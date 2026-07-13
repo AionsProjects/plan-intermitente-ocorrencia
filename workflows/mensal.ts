@@ -52,6 +52,11 @@ export interface MensalWorkflowInput {
 
 // Todos os efeitos têm adaptador real (Caju/RM/Monday/Drive), gated por producao+ledger.
 
+// Modo de execução dos steps. "teste" (derivado de snapshot.papel==="teste") = sandbox:
+// escreve REAL só o Plano (no board de teste), simula todo o resto, e a chave de
+// idempotência é por RUN — reenvio ilimitado sem conflito.
+type ModoExec = "homologacao" | "producao" | "teste"
+
 // Trava de produção financeira. Só libera com modo=producao E env=1. Hoje 0 em todo ambiente.
 const PRODUCAO_LIBERADA = process.env.MENSAL_PRODUCTION_ENABLED === "1"
 
@@ -75,7 +80,7 @@ async function etapaValidacao(runId: string, contrato: string): Promise<void> {
 // --- Caju: resolver employeeIds do contrato (GET, READ-ONLY). ---------------
 async function resolverEmployeesCaju(
   runId: string,
-  modo: "homologacao" | "producao",
+  modo: ModoExec,
   contrato: string,
   pessoas: Array<{ cpf: string }>,
 ): Promise<Record<string, string>> {
@@ -102,7 +107,7 @@ resolverEmployeesCaju.maxRetries = 3
 // --- Caju: criar (e confirmar, no PIX) pedido. DINHEIRO REAL — GATED. -------
 async function executarPedidoCaju(
   runId: string,
-  modo: "homologacao" | "producao",
+  modo: ModoExec,
   competencia: string,
   contrato: string,
   tipo: TipoPedidoCaju,
@@ -165,7 +170,7 @@ executarPedidoCaju.maxRetries = 5
 /** rm_gerar (parte 1): grava 1 LOTE de histórico ZMDHSTBENFUNC. Ledger por lote. */
 async function etapaRmHistoricoLote(
   runId: string,
-  modo: "homologacao" | "producao",
+  modo: ModoExec,
   competencia: string,
   contrato: ContratoPreviaMensal,
   tipo: "pix" | "credito",
@@ -201,7 +206,7 @@ etapaRmHistoricoLote.maxRetries = 3
 /** rm_gerar (parte 2): FopRotinas — gera lançamentos financeiros das chapas com PIX. */
 async function etapaRmFopRotinas(
   runId: string,
-  modo: "homologacao" | "producao",
+  modo: ModoExec,
   competencia: string,
   contrato: ContratoPreviaMensal,
 ): Promise<{ temFinanceiro: boolean }> {
@@ -248,7 +253,7 @@ async function etapaRmAguardar(runId: string, contrato: string): Promise<void> {
 /** rm_integrar: consulta IDFNAN, integra cada IDFINANC em série (dedup por IDFINANC no ledger). */
 async function etapaRmIntegrar(
   runId: string,
-  modo: "homologacao" | "producao",
+  modo: ModoExec,
   competencia: string,
   contrato: ContratoPreviaMensal,
   temFinanceiro: boolean,
@@ -315,19 +320,27 @@ etapaRmIntegrar.maxRetries = 3
 // --- Monday: helpers de reserva/confirm no ledger + steps reais (gated). -----
 async function reservarOuPular(
   runId: string,
-  modo: "homologacao" | "producao",
+  modo: ModoExec,
   competencia: string,
   contrato: string,
   etapa: string,
   tentativa: number,
 ): Promise<{ chave: string; acao: "executar" | "pular" | "simular" }> {
-  const chave = `mensal:${competencia}:${normContrato(contrato)}:${etapa}`
+  // Sandbox (board de teste): chave por RUN — cada reenvio é um run novo, nunca conflita
+  // com execuções anteriores. Retry do MESMO run continua idempotente.
+  const chave = modo === "teste"
+    ? `mensal-teste:${runId}:${normContrato(contrato)}:${etapa}`
+    : `mensal:${competencia}:${normContrato(contrato)}:${etapa}`
   const reserva = await reservarEfeito(chave, `mensal_${etapa}`, { runId, competencia, contrato, modo })
   if (reserva === "confirmado") {
     await registrarEvento({ runId, contrato, etapa, estado: "pulado_idempotencia", tentativa })
     return { chave, acao: "pular" }
   }
   if (reserva === "pendente") throw new FatalError(`efeito_pendente_requer_conciliacao:${etapa}`)
+  if (modo === "teste") {
+    // Só o Plano escreve de verdade (no board sandbox); todo o resto simula.
+    return { chave, acao: etapa === "monday_plano" ? "executar" : "simular" }
+  }
   if (modo !== "producao") return { chave, acao: "simular" }
   if (!PRODUCAO_LIBERADA) throw new FatalError("execucao_mensal_producao_bloqueada_ate_cutover")
   return { chave, acao: "executar" }
@@ -347,7 +360,7 @@ async function simularEfeito(
 /** monday_plano: updates por item do Plano + updates do board Desconto FIFO. */
 async function etapaMondayPlano(
   runId: string,
-  modo: "homologacao" | "producao",
+  modo: ModoExec,
   competencia: string,
   contrato: ContratoPreviaMensal,
   boardId: string,
@@ -373,7 +386,7 @@ etapaMondayPlano.maxRetries = 5
 /** monday_controle_caju: debita o crédito do contrato no grupo da COMPETÊNCIA (fix do bug new Date). */
 async function etapaMondayControleCaju(
   runId: string,
-  modo: "homologacao" | "producao",
+  modo: ModoExec,
   competencia: string,
   contrato: ContratoPreviaMensal,
   grupoControleCaju: string | null,
@@ -414,7 +427,7 @@ etapaMondayControleCaju.maxRetries = 5
 /** monday_solicitacao: cria a Solicitação de Pagamento. Retorna o itemId (p/ status OK). */
 async function etapaMondaySolicitacao(
   runId: string,
-  modo: "homologacao" | "producao",
+  modo: ModoExec,
   competencia: string,
   contrato: ContratoPreviaMensal,
   boardId: string,
@@ -458,7 +471,7 @@ etapaMondaySolicitacao.maxRetries = 5
 /** monday_status_ok: marca AUTOMAÇÃO - OK na Solicitação — SÓ depois de todas as etapas do contrato. */
 async function etapaMondayStatusOk(
   runId: string,
-  modo: "homologacao" | "producao",
+  modo: ModoExec,
   competencia: string,
   contrato: string,
   solicitacaoId: string | null,
@@ -480,7 +493,7 @@ etapaMondayStatusOk.maxRetries = 5
 // --- Drive: arquiva boleto/comprovante/QR nas pastas CAJU e linka na Solicitação. ---
 async function etapaDrive(
   runId: string,
-  modo: "homologacao" | "producao",
+  modo: ModoExec,
   competencia: string,
   contrato: ContratoPreviaMensal,
   refs: {
@@ -547,7 +560,7 @@ async function encerrarRun(runId: string): Promise<void> {
 
 async function processarContrato(
   runId: string,
-  modo: "homologacao" | "producao",
+  modo: ModoExec,
   snapshot: SnapshotPreviaMensal,
   contrato: ContratoPreviaMensal,
 ): Promise<void> {
@@ -627,7 +640,9 @@ async function processarContrato(
 export async function executarMensalWorkflow(input: MensalWorkflowInput): Promise<{ runId: string }> {
   "use workflow"
 
-  console.info("mensal workflow iniciado", { runId: input.runId, modo: input.modo })
+  // papel "teste" (board sandbox) sobrepõe o modo: Plano real no board de teste, resto simulado.
+  const modoExec: ModoExec = input.snapshot.papel === "teste" ? "teste" : input.modo
+  console.info("mensal workflow iniciado", { runId: input.runId, modo: modoExec })
   const filtro = new Set(input.somenteContratos ?? [])
   for (const contrato of input.snapshot.contratos) {
     if (filtro.size && !filtro.has(contrato.contrato)) continue
@@ -635,7 +650,7 @@ export async function executarMensalWorkflow(input: MensalWorkflowInput): Promis
       await marcarContratoFinal(input.runId, contrato.contrato, "bloqueado", contrato.motivoBloqueio ?? undefined)
       continue
     }
-    await processarContrato(input.runId, input.modo, input.snapshot, contrato)
+    await processarContrato(input.runId, modoExec, input.snapshot, contrato)
     await sleep("1s") // espaçamento entre contratos (serial, sem paralelismo)
   }
   await encerrarRun(input.runId)

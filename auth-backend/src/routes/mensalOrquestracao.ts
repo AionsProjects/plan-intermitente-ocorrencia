@@ -69,8 +69,9 @@ export async function rotasMensalOrquestracao(app: FastifyInstance): Promise<voi
       const papel: PapelMensal = req.body?.papel === "proximo" ? "proximo" : req.body?.papel === "teste" ? "teste" : "atual"
       // Bypass da antifraude é TESTE — homologação sempre; producao SÓ na janela de ensaio
       // (MENSAL_TEST_BYPASS_ANTIFRAUDE=1). Fora disso, produção mantém a proteção anti-duplicidade.
-      const bypassAntifraude = req.body?.bypassAntifraude === true &&
-        (config.mensalModo === "homologacao" || config.mensalTestBypassAntifraude)
+      // Board sandbox (papel teste): antifraude sempre ignorada — reenvio livre é o objetivo.
+      const bypassAntifraude = papel === "teste" || (req.body?.bypassAntifraude === true &&
+        (config.mensalModo === "homologacao" || config.mensalTestBypassAntifraude))
       try {
         const snapshot = await calcularPreviaMensal(papel, { bypassAntifraude })
         const runId = await criarRunPrevia(snapshot, u.email, config.mensalModo)
