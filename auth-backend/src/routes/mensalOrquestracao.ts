@@ -66,7 +66,7 @@ export async function rotasMensalOrquestracao(app: FastifyInstance): Promise<voi
     async (req: FastifyRequest<{ Body: { papel?: string; bypassAntifraude?: boolean } }>, reply) => {
       const u = await exigirDP(req, reply)
       if (!u) return
-      const papel: PapelMensal = req.body?.papel === "proximo" ? "proximo" : "atual"
+      const papel: PapelMensal = req.body?.papel === "proximo" ? "proximo" : req.body?.papel === "teste" ? "teste" : "atual"
       // Bypass da antifraude é TESTE — homologação sempre; producao SÓ na janela de ensaio
       // (MENSAL_TEST_BYPASS_ANTIFRAUDE=1). Fora disso, produção mantém a proteção anti-duplicidade.
       const bypassAntifraude = req.body?.bypassAntifraude === true &&

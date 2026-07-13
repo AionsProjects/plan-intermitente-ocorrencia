@@ -1,4 +1,5 @@
-export type PapelMensal = "atual" | "proximo"
+// "teste": board sandbox (cópia do mês sem valores) registrado no registry — só aparece com controles de teste ativos
+export type PapelMensal = "atual" | "proximo" | "teste"
 export type ModoMensal = "homologacao" | "producao"
 
 export type StatusRunMensal =

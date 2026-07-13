@@ -35,14 +35,16 @@ async function grupoMensal(boardId: string): Promise<string> {
 
 
 export async function rotasMensal(app: FastifyInstance): Promise<void> {
-  // meses disponíveis (atual / proximo) — pra tela de escolha
+  // meses disponíveis (atual / proximo / teste) — pra tela de escolha
   app.get("/api/mensal/meses", async (req, reply) => {
     if (!(await exigirDP(req, reply))) return
     const atual = await resolverBoard("atual")
     const proximo = await resolverBoard("proximo")
+    const teste = await resolverBoard("teste")
     return {
       atual: atual ? { existe: true, board_id: atual.monday_board_id, competencia: atual.competencia } : { existe: false },
       proximo: proximo ? { existe: true, board_id: proximo.monday_board_id, competencia: proximo.competencia } : { existe: false },
+      teste: teste ? { existe: true, board_id: teste.monday_board_id, competencia: teste.competencia } : { existe: false },
     }
   })
 
@@ -51,7 +53,7 @@ export async function rotasMensal(app: FastifyInstance): Promise<void> {
     "/api/mensal/pessoas",
     async (req: FastifyRequest<{ Querystring: { papel?: string } }>, reply) => {
       if (!(await exigirDP(req, reply))) return
-      const papel = req.query.papel === "proximo" ? "proximo" : "atual"
+      const papel = req.query.papel === "proximo" ? "proximo" : req.query.papel === "teste" ? "teste" : "atual"
       const board = await resolverBoard(papel)
       if (!board) return reply.code(404).send({ erro: "board_nao_encontrado" })
       const group = await grupoMensal(board.monday_board_id)

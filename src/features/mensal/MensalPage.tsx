@@ -268,6 +268,14 @@ export function MensalPage() {
                 onClick={() => escolher("proximo")}
               />
             )}
+            {ehHomologacao && meses.data?.teste?.existe && (
+              <MesCard
+                titulo="Board de teste"
+                competencia={meses.data.teste.competencia}
+                onClick={() => escolher("teste")}
+                teste
+              />
+            )}
             {meses.data && !meses.data.atual.existe && !meses.data.proximo.existe && (
               <p className="text-sm text-foreground/55">
                 Nenhum mês disponível. Verifique o registro de boards.
@@ -763,10 +771,12 @@ function MesCard({
   titulo,
   competencia,
   onClick,
+  teste,
 }: {
   titulo: string
   competencia: string | null | undefined
   onClick: () => void
+  teste?: boolean
 }) {
   function tilt(e: React.MouseEvent<HTMLButtonElement>) {
     const r = e.currentTarget.getBoundingClientRect()
@@ -782,10 +792,15 @@ function MesCard({
       onClick={onClick}
       onMouseMove={tilt}
       onMouseLeave={untilt}
-      className="glass-tile glass-tile-3d group flex items-center gap-4 rounded-2xl px-5 py-5 text-left"
+      className={`glass-tile glass-tile-3d group relative flex items-center gap-4 rounded-2xl px-5 py-5 text-left ${teste ? "border border-dashed border-amber-400/45" : ""}`}
     >
-      <div className="icon-3d-host flex size-11 shrink-0 items-center justify-center rounded-full bg-[rgb(var(--accent-rgb)/0.12)] ring-1 ring-[rgb(var(--accent-rgb)/0.38)]">
-        <CalendarDays className="icon-3d-only size-5 text-[rgb(var(--accent-rgb))]" />
+      {teste && (
+        <span className="absolute right-3 top-3 rounded-full bg-amber-400/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-300 ring-1 ring-amber-400/40">
+          Teste
+        </span>
+      )}
+      <div className={`icon-3d-host flex size-11 shrink-0 items-center justify-center rounded-full ${teste ? "bg-amber-400/12 ring-1 ring-amber-400/40" : "bg-[rgb(var(--accent-rgb)/0.12)] ring-1 ring-[rgb(var(--accent-rgb)/0.38)]"}`}>
+        <CalendarDays className={`icon-3d-only size-5 ${teste ? "text-amber-300" : "text-[rgb(var(--accent-rgb))]"}`} />
       </div>
       <div>
         <p className="text-[11px] uppercase tracking-[0.2em] text-foreground/45">{titulo}</p>

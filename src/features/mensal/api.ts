@@ -1,11 +1,11 @@
-export type Papel = "atual" | "proximo"
+export type Papel = "atual" | "proximo" | "teste"
 
 export interface MesInfo {
   existe: boolean
   board_id?: string
   competencia?: string | null
 }
-export interface MesesResp { atual: MesInfo; proximo: MesInfo }
+export interface MesesResp { atual: MesInfo; proximo: MesInfo; teste?: MesInfo }
 
 export interface PessoaMensal {
   nome: string
