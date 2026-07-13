@@ -437,6 +437,7 @@ export function montarXmlIntegrarBackOffices(d: {
   <UseJobMonitor xmlns="http://www.totvs.com/">false</UseJobMonitor>
   <UserName xmlns="http://www.totvs.com/">${RM_COD_USUARIO}</UserName>
   <WaitSchedule xmlns="http://www.totvs.com/">false</WaitSchedule>
+  <Coligada>${d.coligada}</Coligada>
 </FopLancIntegraTerceiroParms>`
 }
 
