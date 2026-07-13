@@ -128,6 +128,8 @@ export function MensalPage() {
       const s = q.state.data?.run?.status
       return s && STATUS_FINAIS.includes(s) ? false : 2000
     },
+    // tela de monitoramento: continua atualizando mesmo com a aba em segundo plano
+    refetchIntervalInBackground: true,
   })
   const runData = aoVivo.data?.run ?? null
   const itensAoVivo = aoVivo.data?.itens ?? []
