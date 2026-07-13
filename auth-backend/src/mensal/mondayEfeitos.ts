@@ -116,6 +116,7 @@ export function montarMutationDescontos(updates: DescontoUpdatePrevia[]): string
 
 export interface SolicitacaoMensalInput {
   contrato: string
+  nomePrefixo?: string // ex "TESTE - " (runs sandbox) — só afeta o NOME do item, não as colunas
   competenciaLabel: string // ex "JULHO"
   anoComp: number
   totais: { vr: number; vt: number; credito: number; pix: number }
@@ -253,7 +254,7 @@ export async function criarSolicitacaoMensal(
   grupoSolicitacao: string,
 ): Promise<{ id: string; url: string }> {
   const { id } = await criarItemComValores(
-    BOARD_SOLICITACAO, grupoSolicitacao, inp.contrato, montarValuesSolicitacao(inp),
+    BOARD_SOLICITACAO, grupoSolicitacao, `${inp.nomePrefixo ?? ""}${inp.contrato}`, montarValuesSolicitacao(inp),
   )
   return { id, url: `https://contato-serv.monday.com/boards/${BOARD_SOLICITACAO}/pulses/${id}` }
 }
@@ -270,6 +271,7 @@ export async function setarStatusAutomacaoOk(solicitacaoId: string): Promise<voi
 export async function registrarDebitoControleCaju(inp: {
   grupoControleCaju: string
   contrato: string
+  nomePrefixo?: string // "TESTE - " nos runs sandbox — só o nome do item
   competenciaLabel: string
   anoComp: number
   totalCredito: number
@@ -288,7 +290,7 @@ export async function registrarDebitoControleCaju(inp: {
   const cr = await criarItemComValores(
     BOARD_CONTROLE_CAJU,
     inp.grupoControleCaju,
-    montarNomeDebitoControle(inp.contrato, inp.competenciaLabel, inp.anoComp, inp.pedidoCreditoId),
+    `${inp.nomePrefixo ?? ""}${montarNomeDebitoControle(inp.contrato, inp.competenciaLabel, inp.anoComp, inp.pedidoCreditoId)}`,
     montarValuesDebitoControle(inp.contrato, saldoAnterior, inp.totalCredito, inp.dataIso),
   )
   return { id: cr.id, saldoAnterior }

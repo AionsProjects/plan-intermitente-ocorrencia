@@ -113,7 +113,7 @@ export async function arquivarDriveMensal(
   contrato: ContratoPreviaMensal,
   competencia: string,
   competenciaLabel: string,
-  refs: RefsDriveMensal & { solicitacaoId?: string | null },
+  refs: RefsDriveMensal & { solicitacaoId?: string | null; nomePrefixo?: string },
 ): Promise<Array<{ tipo: string; resultado: ArquivarResultado }>> {
   const { dataInicio, dataFim, arquivos } = montarArquivosDriveMensal(contrato, competencia, competenciaLabel, refs)
   const porTipo = new Map<"caju_boleto" | "caju_comprovante", ArquivoDriveMensal[]>()
@@ -122,7 +122,7 @@ export async function arquivarDriveMensal(
   for (const [tipo, grupo] of porTipo) {
     const resultado = await arquivarDrive({
       tipo,
-      nome: `MENSAL - ${contrato.contrato}`,
+      nome: `${refs.nomePrefixo ?? ""}MENSAL - ${contrato.contrato}`,
       contrato: contrato.contrato,
       data_inicio: dataInicio,
       data_fim: dataFim,

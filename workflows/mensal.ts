@@ -87,11 +87,12 @@ async function resolverEmployeesCaju(
   "use step"
   const metadata = getStepMetadata()
   await registrarEvento({ runId, contrato, etapa: "caju_pessoas", estado: "rodando", tentativa: metadata.attempt })
-  if (modo !== "producao") {
+  if (modo === "homologacao") {
     await registrarEvento({ runId, contrato, etapa: "caju_pessoas", estado: "concluido", tentativa: metadata.attempt, metadados: { simulado: true } })
     return {}
   }
-  if (!PRODUCAO_LIBERADA) throw new FatalError("execucao_mensal_producao_bloqueada_ate_cutover")
+  // "teste" executa real (sandbox só troca o board do Plano e marca os itens como TESTE).
+  if (modo === "producao" && !PRODUCAO_LIBERADA) throw new FatalError("execucao_mensal_producao_bloqueada_ate_cutover")
   resetTokenCaju() // token Caju expira rápido -> um por contrato
   const mapa: Record<string, string> = {}
   let achados = 0
@@ -118,7 +119,10 @@ async function executarPedidoCaju(
   const metadata = getStepMetadata()
   await registrarEvento({ runId, contrato, etapa, estado: "rodando", tentativa: metadata.attempt })
 
-  const chave = `mensal:${competencia}:${normContrato(contrato)}:${etapa}`
+  // Sandbox (teste): chave por RUN — reenvio livre, cada run é um pedido novo.
+  const chave = modo === "teste"
+    ? `mensal-teste:${runId}:${normContrato(contrato)}:${etapa}`
+    : `mensal:${competencia}:${normContrato(contrato)}:${etapa}`
   const reserva = await reservarEfeito(chave, `mensal_${etapa}`, { runId, competencia, contrato, modo, tipo })
   if (reserva === "confirmado") {
     await registrarEvento({ runId, contrato, etapa, estado: "pulado_idempotencia", tentativa: metadata.attempt })
@@ -129,16 +133,16 @@ async function executarPedidoCaju(
   const { mes, ano } = competenciaPartes(competencia)
 
   // Homologação: simula, nenhum efeito externo.
-  if (modo !== "producao") {
+  if (modo === "homologacao") {
     await confirmarEfeito(chave, `homologacao:${runId}:${contrato}:${etapa}`)
     await registrarEvento({ runId, contrato, etapa, estado: "concluido", tentativa: metadata.attempt, metadados: { simulado: true } })
     return { orderId: null, qr: "", pulado: false, simulado: true }
   }
 
-  // Produção: gate duplo.
-  if (!PRODUCAO_LIBERADA) throw new FatalError("execucao_mensal_producao_bloqueada_ate_cutover")
+  // Produção: gate duplo. "teste" executa real, com nome do pedido marcado TESTE.
+  if (modo === "producao" && !PRODUCAO_LIBERADA) throw new FatalError("execucao_mensal_producao_bloqueada_ate_cutover")
 
-  const pedido = montarPedidoCaju(pessoas, tipo, contrato, mes, ano)
+  const pedido = montarPedidoCaju(pessoas, tipo, modo === "teste" ? `TESTE ${contrato}` : contrato, mes, ano)
   if (!pedido.tem || !pedido.payload) {
     await confirmarEfeito(chave, `caju:${etapa}:vazio`)
     await registrarEvento({ runId, contrato, etapa, estado: "concluido", tentativa: metadata.attempt, metadados: { vazio: true } })
@@ -337,10 +341,9 @@ async function reservarOuPular(
     return { chave, acao: "pular" }
   }
   if (reserva === "pendente") throw new FatalError(`efeito_pendente_requer_conciliacao:${etapa}`)
-  if (modo === "teste") {
-    // Só o Plano escreve de verdade (no board sandbox); todo o resto simula.
-    return { chave, acao: etapa === "monday_plano" ? "executar" : "simular" }
-  }
+  // "teste" executa TUDO real (Plano no board sandbox; Solicitação/Controle marcados TESTE),
+  // sem exigir a trava de produção — o isolamento vem do board sandbox + chave por run.
+  if (modo === "teste") return { chave, acao: "executar" }
   if (modo !== "producao") return { chave, acao: "simular" }
   if (!PRODUCAO_LIBERADA) throw new FatalError("execucao_mensal_producao_bloqueada_ate_cutover")
   return { chave, acao: "executar" }
@@ -408,6 +411,7 @@ async function etapaMondayControleCaju(
     ? await registrarDebitoControleCaju({
         grupoControleCaju: grupoControleCaju!,
         contrato: contrato.contrato,
+        nomePrefixo: modo === "teste" ? "TESTE - " : undefined,
         competenciaLabel: MESES_LABEL[mes - 1]!,
         anoComp: ano,
         totalCredito,
@@ -445,6 +449,7 @@ async function etapaMondaySolicitacao(
   const { mes, ano } = competenciaPartes(competencia)
   const criado = await criarSolicitacaoMensal({
     contrato: contrato.contrato,
+    nomePrefixo: modo === "teste" ? "TESTE - " : undefined,
     competenciaLabel: MESES_LABEL[mes - 1]!,
     anoComp: ano,
     totais: {
@@ -522,6 +527,7 @@ async function etapaDrive(
     idVT: refs.idVT,
     qrBoletoBase64: refs.qrBoletoBase64,
     solicitacaoId: refs.solicitacaoId,
+    nomePrefixo: modo === "teste" ? "TESTE - " : undefined,
   })
   const uploads = resultados.flatMap((x) => x.resultado.uploads.map((u) => u.id))
   await confirmarEfeito(r.chave, `drive:${uploads.join(",") || "sem_upload"}`)
