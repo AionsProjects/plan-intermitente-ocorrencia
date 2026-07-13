@@ -1,7 +1,8 @@
 import { ArrowLeft, Home, Settings2 } from "lucide-react"
-import { Link } from "react-router-dom"
+import { useLocation } from "react-router-dom"
 
 import { useNav } from "./NavContext"
+import { useZoom } from "./ZoomTransition"
 
 /**
  * Balão de navegação GLOBAL — fixo no topo-direito, flutua sobre o conteúdo
@@ -14,6 +15,8 @@ import { useNav } from "./NavContext"
  */
 export function NavCluster() {
   const { voltar, podeVoltar, homeTo, abrirConfig } = useNav()
+  const { zoomBack } = useZoom()
+  const { pathname } = useLocation()
   return (
     <div className="nav-cluster nav-cluster-fixed">
       <button
@@ -27,14 +30,17 @@ export function NavCluster() {
         <ArrowLeft className="size-4" />
       </button>
       <span className="nav-divider" aria-hidden />
-      <Link
-        to={homeTo}
+      <button
+        type="button"
+        onClick={() => {
+          if (pathname !== homeTo) zoomBack(homeTo)
+        }}
         className="nav-btn nav-btn-home"
         aria-label="Ir para a página inicial"
         title="Voltar ao Hub"
       >
         <Home className="size-4" />
-      </Link>
+      </button>
       <span className="nav-divider" aria-hidden />
       <button
         type="button"

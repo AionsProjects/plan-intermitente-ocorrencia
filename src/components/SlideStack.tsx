@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 
-export type SlideDirection = "forward" | "backward"
+export type SlideDirection = "forward" | "backward" | "none"
 
 type Props = {
   /** Identidade do conteúdo atual. Quando muda, dispara slide. */
@@ -44,6 +44,14 @@ export function SlideStack({ slideKey, direction, children }: Props) {
 
   useLayoutEffect(() => {
     if (slideKey === renderedKey) return
+
+    // "none" = troca instantânea (ZoomTransition cobre a tela por cima)
+    if (direction === "none") {
+      setRenderedKey(slideKey)
+      setOutgoing(null)
+      setPos("inicio")
+      return
+    }
 
     setOutgoing({ children: ultimoChildrenRef.current, direction })
     setRenderedKey(slideKey)

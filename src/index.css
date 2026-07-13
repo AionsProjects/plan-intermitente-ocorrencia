@@ -5,6 +5,7 @@
 
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "./liquid-glass-v2.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -3045,9 +3046,12 @@ html {
       precedido por translateZ — efeito visual idêntico via espelhamento dos sinais
       compensado pela ordem invertida do compose.) */
 .icon-3d-host {
-  /* Bolinha estática — só repassa contexto 3D pro SVG sem se transformar.
-     Precisa de perspective própria caso o pai seja flattened em algum browser. */
-  transform-style: preserve-3d;
+  /* Bolinha estática — dá perspective própria pro pop do SVG.
+     SEM preserve-3d de propósito: com ele o ícone entrava também no
+     contexto 3D do tile (perspective com origem no CENTRO do tile), e o
+     translateZ projetava o símbolo pro lado em orbs fora do centro —
+     ícone visivelmente desalinhado dentro do círculo. Flatten aqui faz a
+     projeção usar o centro do próprio orb: pop reto, símbolo centrado. */
   perspective: 700px;
   perspective-origin: 50% 50%;
 }

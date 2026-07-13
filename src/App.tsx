@@ -5,6 +5,7 @@ import { FundoTematico } from "@/components/FundoTematico"
 import { NavCluster } from "@/components/NavCluster"
 import { NavProvider } from "@/components/NavContext"
 import { PageTransition } from "@/components/PageTransition"
+import { ZoomProvider } from "@/components/ZoomTransition"
 import { RequireAuth } from "@/components/RequireAuth"
 import { RequireRole } from "@/components/RequireRole"
 import { LoginPage } from "@/features/auth/LoginPage"
@@ -23,6 +24,7 @@ import { MensalPage } from "@/features/mensal/MensalPage"
 
 function App() {
   return (
+    <ZoomProvider>
     <NavProvider>
       <AuroraBackground />
       <FundoTematico />
@@ -55,6 +57,7 @@ function App() {
       <NavCluster />
       <ConfigOverlay />
     </NavProvider>
+    </ZoomProvider>
   )
 }
 

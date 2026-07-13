@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react"
 import type { MouseEvent } from "react"
-import { Link } from "react-router-dom"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
@@ -14,6 +13,7 @@ import {
 } from "lucide-react"
 
 import { useAuth } from "@/components/AuthContext"
+import { useZoom } from "@/components/ZoomTransition"
 import type { Papel } from "@/features/auth/types"
 
 const actions: {
@@ -72,18 +72,19 @@ function saudacao(): string {
   return "Boa noite"
 }
 
-function tiltMove(e: MouseEvent<HTMLAnchorElement>) {
+function tiltMove(e: MouseEvent<HTMLButtonElement>) {
   const r = e.currentTarget.getBoundingClientRect()
   e.currentTarget.style.setProperty("--mx", String(((e.clientX - r.left) / r.width) * 100))
   e.currentTarget.style.setProperty("--my", String(((e.clientY - r.top) / r.height) * 100))
 }
-function tiltLeave(e: MouseEvent<HTMLAnchorElement>) {
+function tiltLeave(e: MouseEvent<HTMLButtonElement>) {
   e.currentTarget.style.setProperty("--mx", "50")
   e.currentTarget.style.setProperty("--my", "50")
 }
 
 export function HubPage() {
   const { usuario, podeVer } = useAuth()
+  const { zoomTo } = useZoom()
   const acoesVisiveis = actions.filter((a) => !a.nivelMinimo || podeVer(a.nivelMinimo))
   const [hero, ...resto] = acoesVisiveis
   const HeroIcon = hero?.icon ?? UserPlus
@@ -100,81 +101,69 @@ export function HubPage() {
   return (
     <main className="relative z-10 flex min-h-svh items-center justify-center px-4 py-8 sm:px-6 sm:py-12">
 
-      <section className="glass-strong relative w-full max-w-3xl overflow-hidden rounded-3xl px-5 py-6 sm:px-8 sm:py-8 lg:px-10 lg:py-10">
-        <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[rgb(var(--ink)/0.3)] to-transparent" />
-        {/* reflexo diagonal sutil */}
-        <div className="pointer-events-none absolute -left-24 -top-40 h-80 w-[36rem] rotate-[18deg] bg-gradient-to-b from-[rgb(var(--ink)/0.05)] to-transparent" />
-
+      <section className="glass-panel w-full max-w-[780px] px-5 py-6 sm:px-8 sm:py-8 lg:p-10">
         <header className="fade-up flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-[11px] uppercase tracking-[0.32em] text-foreground/40">
-              Aionscorp · Plano de intermitentes
-            </p>
-            <h1 className="text-display mt-3 text-4xl leading-[1.04] text-foreground sm:text-5xl">
+            <p className="eyebrow">Aionscorp · Plano de intermitentes</p>
+            <h1 className="text-display mt-3 text-4xl leading-[1.03] text-foreground sm:text-[42px]">
               {saudacao()}
               {primeiroNome ? (
                 <>
                   ,{" "}
-                  <span className="capitalize text-[rgb(var(--accent-rgb))]">
+                  <em className="capitalize text-[rgb(var(--accent-rgb))]">
                     {primeiroNome.toLowerCase()}
-                  </span>
+                  </em>
                 </>
               ) : null}
               .
             </h1>
-            <p className="mt-2 text-sm text-foreground/50">
+            <p className="mt-2 text-[13px] text-foreground/48">
               <span className="capitalize">{hoje}</span>
-              <span className="mx-2 text-foreground/25">·</span>
-              <span className="font-mono tabular-nums text-[rgb(var(--accent-rgb)/0.85)]">{agora}</span>
+              <span className="mx-1.5 text-foreground/24">·</span>
+              <span className="font-mono tabular-nums text-[rgb(var(--accent-rgb)/0.9)]">{agora}</span>
             </p>
           </div>
           {usuario && (
-            <span className="mt-1 shrink-0 rounded-full border border-[rgb(var(--accent-rgb)/0.3)] bg-[rgb(var(--accent-rgb)/0.08)] px-3 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-[rgb(var(--accent-rgb))]">
+            <span className="mt-1 shrink-0 whitespace-nowrap rounded-full bg-[rgb(var(--ink)/0.09)] px-3.5 py-1.5 text-[9px] font-medium uppercase tracking-[0.18em] text-foreground/82 shadow-[inset_0_1px_0_0_rgb(var(--ink)/0.22)]">
               {PAPEL_LABEL[usuario.papel] ?? usuario.papel}
             </span>
           )}
         </header>
 
-        <div className="mt-8 grid gap-3 sm:grid-cols-5 sm:gap-3.5">
-          {/* HERO — ação principal, dobro de presença */}
+        <div className="mt-7 grid gap-3 sm:grid-cols-5 sm:gap-[13px]">
+          {/* HERO — ação principal com halo do acento */}
           {hero && (
             <div className="fade-up sm:col-span-2" style={{ animationDelay: "120ms" }}>
-              <Link
-                to={hero.to}
+              <button
+                type="button"
+                onClick={(e) => zoomTo(e, hero.title, hero.to)}
                 onMouseMove={tiltMove}
                 onMouseLeave={tiltLeave}
-                className="glass-tile glass-tile-3d group relative flex h-full min-h-[13rem] flex-col justify-between overflow-hidden rounded-2xl border-[rgb(var(--accent-rgb)/0.28)] px-5 py-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--ink)/0.7)]"
+                className="glass-hero tilt-3d group relative flex h-full min-h-[13.2rem] w-full cursor-pointer flex-col justify-between overflow-hidden p-6 text-left transition-transform duration-100 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--ink)/0.7)]"
               >
-                <span aria-hidden className="hub-shine pointer-events-none absolute inset-0" />
-                {/* brilho accent interno do hero */}
-                <div className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-[rgb(var(--accent-rgb)/0.14)] blur-3xl" />
-                <span
-                  aria-hidden
-                  className="text-display pointer-events-none absolute -bottom-5 right-2 text-[6.5rem] leading-none text-[rgb(var(--ink)/0.05)]"
-                >
-                  01
-                </span>
-                <div className="icon-3d-host flex size-14 items-center justify-center rounded-2xl bg-[rgb(var(--accent-rgb)/0.14)] ring-1 ring-[rgb(var(--accent-rgb)/0.42)]">
-                  <HeroIcon className="icon-3d-only size-6 text-[rgb(var(--accent-rgb))]" />
+                {/* halo interno do acento */}
+                <div className="pointer-events-none absolute -right-10 -top-10 size-[170px] rounded-full bg-[rgb(var(--accent-rgb)/0.16)] blur-[44px]" />
+                <div className="icon-orb size-[52px]">
+                  <HeroIcon className="size-[21px]" />
                 </div>
                 <div className="relative">
-                  <p className="text-display text-2xl leading-tight text-foreground">
+                  <p className="text-display text-[23px] leading-tight text-foreground">
                     {hero.title}
                   </p>
-                  <p className="mt-1.5 text-sm leading-snug text-foreground/55">
+                  <p className="mt-1.5 text-xs leading-[1.45] text-foreground/58">
                     {hero.description}
                   </p>
-                  <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.16em] text-[rgb(var(--accent-rgb))]">
+                  <span className="glass-cta glass-cta--mini mt-3.5">
                     Começar
-                    <ArrowUpRight className="size-3.5 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                    <ArrowUpRight className="size-3 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
                   </span>
                 </div>
-              </Link>
+              </button>
             </div>
           )}
 
-          {/* Demais ações — compactas, 2 por linha */}
-          <div className="grid gap-3 sm:col-span-3 sm:grid-cols-2 sm:gap-3.5">
+          {/* Demais ações — tiles compactos, 2 por linha */}
+          <div className="grid gap-3 sm:col-span-3 sm:grid-cols-2 sm:gap-[13px]">
             {resto.map((action, index) => {
               const Icon = action.icon
               return (
@@ -183,33 +172,28 @@ export function HubPage() {
                   className="fade-up"
                   style={{ animationDelay: `${200 + index * 80}ms` }}
                 >
-                  <Link
-                    to={action.to}
+                  <button
+                    type="button"
+                    onClick={(e) => zoomTo(e, action.title, action.to)}
                     onMouseMove={tiltMove}
                     onMouseLeave={tiltLeave}
-                    className="glass-tile glass-tile-3d group relative flex h-full min-h-[6.1rem] flex-col justify-between overflow-hidden rounded-2xl px-4 py-3.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--ink)/0.7)]"
+                    className="glass-tile-v2 tilt-3d group relative flex h-full min-h-[6.4rem] w-full cursor-pointer flex-col gap-2.5 p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--ink)/0.7)]"
                   >
-                    <span
-                      aria-hidden
-                      className="text-display pointer-events-none absolute -bottom-3.5 right-1.5 text-[3.4rem] leading-none text-[rgb(var(--ink)/0.045)]"
-                    >
-                      {String(index + 2).padStart(2, "0")}
-                    </span>
-                    <div className="flex items-center justify-between">
-                      <div className="icon-3d-host flex size-9 items-center justify-center rounded-xl bg-[rgb(var(--accent-rgb)/0.1)] ring-1 ring-[rgb(var(--accent-rgb)/0.32)]">
-                        <Icon className="icon-3d-only size-4 text-[rgb(var(--accent-rgb))]" />
+                    <div className="flex w-full items-center justify-between">
+                      <div className="icon-orb icon-orb--neutral size-[34px]">
+                        <Icon className="size-[15px] text-[rgb(var(--accent-rgb))]" />
                       </div>
                       <ArrowUpRight className="size-3.5 text-foreground/30 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-foreground/80" />
                     </div>
-                    <div className="relative mt-2 min-w-0">
-                      <p className="truncate text-[15px] font-medium leading-tight text-foreground/95">
+                    <div className="min-w-0">
+                      <p className="truncate text-[13px] font-medium leading-tight text-foreground/93">
                         {action.title}
                       </p>
-                      <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-foreground/48">
+                      <p className="mt-0.5 line-clamp-2 text-[11px] leading-[1.4] text-foreground/48">
                         {action.description}
                       </p>
                     </div>
-                  </Link>
+                  </button>
                 </div>
               )
             })}
@@ -217,12 +201,12 @@ export function HubPage() {
         </div>
 
         <footer
-          className="fade-up mt-7 flex items-center gap-3 text-[10px] uppercase tracking-[0.24em] text-foreground/30"
+          className="fade-up mt-[26px] flex items-center gap-3 text-[9px] uppercase tracking-[0.24em] text-foreground/30"
           style={{ animationDelay: "520ms" }}
         >
-          <span className="h-px flex-1 bg-gradient-to-r from-transparent via-[rgb(var(--ink)/0.14)] to-transparent" />
+          <span className="h-px flex-1 bg-gradient-to-r from-transparent via-[rgb(var(--ink)/0.18)] to-transparent" />
           Console de operação
-          <span className="h-px flex-1 bg-gradient-to-r from-transparent via-[rgb(var(--ink)/0.14)] to-transparent" />
+          <span className="h-px flex-1 bg-gradient-to-r from-transparent via-[rgb(var(--ink)/0.18)] to-transparent" />
         </footer>
       </section>
     </main>

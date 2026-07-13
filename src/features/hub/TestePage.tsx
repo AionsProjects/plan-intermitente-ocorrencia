@@ -61,7 +61,7 @@ export function TestePage() {
 
   return (
     <div className="relative z-10 flex min-h-svh items-center justify-center px-4 py-12">
-      <div className="glass-strong card-shimmer relative w-full max-w-xl p-10">
+      <div className="glass-panel relative w-full max-w-xl p-10">
         <div className="mb-6 flex items-start justify-between gap-3">
           <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-amber-700 dark:text-amber-200">
             <FlaskConical className="size-3" />

@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react"
+import type { MouseEvent } from "react"
 import { useNavigate } from "react-router-dom"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 
 import { useAuth } from "@/components/AuthContext"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { formatarCpf } from "@/lib/cpf"
 import { GoogleIcon } from "@/features/auth/GoogleIcon"
 
@@ -39,6 +38,16 @@ const MENSAGEM_ERRO_GOOGLE: Record<string, string> = {
   conta_desativada: "Conta desativada. Fale com um administrador.",
   state_invalido: "Sessão de login expirou. Tente de novo.",
   erro_interno: "Erro no login com Google. Tente de novo.",
+}
+
+function tiltMove(e: MouseEvent<HTMLButtonElement>) {
+  const r = e.currentTarget.getBoundingClientRect()
+  e.currentTarget.style.setProperty("--mx", String(((e.clientX - r.left) / r.width) * 100))
+  e.currentTarget.style.setProperty("--my", String(((e.clientY - r.top) / r.height) * 100))
+}
+function tiltLeave(e: MouseEvent<HTMLButtonElement>) {
+  e.currentTarget.style.setProperty("--mx", "50")
+  e.currentTarget.style.setProperty("--my", "50")
 }
 
 export function LoginPage() {
@@ -83,30 +92,25 @@ export function LoginPage() {
 
   return (
     <main className="relative z-10 flex min-h-svh items-center justify-center px-4 py-8 sm:px-6 sm:py-12">
-      <section className="glass-strong relative w-full max-w-md overflow-hidden px-6 py-9 text-center sm:px-9 sm:py-11">
-        <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-
-        <h1 className="text-display text-3xl leading-[1.05] text-foreground sm:text-4xl">
+      <section className="glass-panel fade-up w-full max-w-[400px] px-6 py-9 text-center sm:px-9 sm:py-10">
+        <p className="eyebrow">Aionscorp</p>
+        <h1 className="text-display mt-2.5 text-[34px] leading-[1.05] text-foreground">
           Entrar
         </h1>
-        <p className="mx-auto mt-3 max-w-xs text-sm leading-relaxed text-foreground/58">
+        <p className="mx-auto mt-3 max-w-[280px] text-[13px] leading-[1.55] text-foreground/55">
           Use seu email ou CPF e senha. No primeiro acesso, entre com o Google para criar
           a conta.
         </p>
 
-        <form onSubmit={enviar} className="mt-7 flex flex-col gap-4 text-left">
-          {/* Toggle Email | CPF */}
-          <div className="grid grid-cols-2 gap-1 rounded-xl border border-border bg-card/40 p-1">
+        <form onSubmit={enviar} className="mt-[22px] flex flex-col gap-3.5 text-left">
+          {/* Toggle Email | CPF — segmented pill afundado */}
+          <div className="seg-pill">
             {(["email", "cpf"] as const).map((m) => (
               <button
                 type="button"
                 key={m}
+                data-on={modo === m}
                 onClick={() => trocarModo(m)}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-                  modo === m
-                    ? "bg-[rgb(var(--accent-rgb)/0.16)] text-foreground"
-                    : "text-foreground/55 hover:text-foreground/80"
-                }`}
               >
                 {m === "email" ? "Email" : "CPF"}
               </button>
@@ -114,31 +118,42 @@ export function LoginPage() {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="ident">{modo === "email" ? "Email" : "CPF"}</Label>
-            <Input
-              id="ident"
-              type={modo === "email" ? "email" : "text"}
-              inputMode={modo === "cpf" ? "numeric" : "email"}
-              placeholder={modo === "email" ? "voce@contatoserv.com.br" : "000.000.000-00"}
-              value={modo === "cpf" ? formatarCpf(identificador) : identificador}
-              onChange={(e) => setIdentificador(e.target.value)}
-              autoComplete={modo === "email" ? "username" : "off"}
-            />
+            <label htmlFor="ident" className="text-[11px] font-medium text-foreground/68">
+              {modo === "email" ? "Email" : "CPF"}
+            </label>
+            <div className="glass-field">
+              <input
+                id="ident"
+                type={modo === "email" ? "email" : "text"}
+                inputMode={modo === "cpf" ? "numeric" : "email"}
+                placeholder={modo === "email" ? "voce@contatoserv.com.br" : "000.000.000-00"}
+                value={modo === "cpf" ? formatarCpf(identificador) : identificador}
+                onChange={(e) => setIdentificador(e.target.value)}
+                autoComplete={modo === "email" ? "username" : "off"}
+                className="text-sm"
+              />
+            </div>
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="senha">Senha</Label>
-            <Input
-              id="senha"
-              type="password"
-              value={senha}
-              onChange={(e) => setSenha(e.target.value)}
-              autoComplete="current-password"
-            />
+            <label htmlFor="senha" className="text-[11px] font-medium text-foreground/68">
+              Senha
+            </label>
+            <div className="glass-field">
+              <input
+                id="senha"
+                type="password"
+                placeholder="••••••••"
+                value={senha}
+                onChange={(e) => setSenha(e.target.value)}
+                autoComplete="current-password"
+                className="text-sm"
+              />
+            </div>
           </div>
 
           {erroMsg && (
-            <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <p className="rounded-2xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {erroMsg}
             </p>
           )}
@@ -146,30 +161,32 @@ export function LoginPage() {
           <button
             type="submit"
             disabled={mut.isPending}
-            className="glass-tile glass-tile-3d group mt-1 flex w-full items-center justify-center gap-3 rounded-2xl px-5 py-3.5 text-base font-medium text-foreground/95 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--ink)/0.7)]"
+            onMouseMove={tiltMove}
+            onMouseLeave={tiltLeave}
+            className="glass-cta tilt-3d--suave tilt-3d mt-2 w-full py-3.5 text-[15px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--ink)/0.7)]"
           >
             {mut.isPending ? "Entrando…" : "Entrar"}
           </button>
         </form>
 
         {erroGoogle && (
-          <p className="mt-4 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <p className="mt-4 rounded-2xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-left text-sm text-destructive">
             {MENSAGEM_ERRO_GOOGLE[erroGoogle] ?? "Não foi possível entrar com o Google."}
           </p>
         )}
 
-        <div className="my-5 flex items-center gap-3 text-[11px] uppercase tracking-[0.2em] text-foreground/35">
-          <span className="h-px flex-1 bg-border" />
+        <div className="my-5 flex items-center gap-2.5 text-[10px] uppercase tracking-[0.2em] text-foreground/38">
+          <span className="h-px flex-1 bg-[rgb(var(--ink)/0.12)]" />
           ou
-          <span className="h-px flex-1 bg-border" />
+          <span className="h-px flex-1 bg-[rgb(var(--ink)/0.12)]" />
         </div>
 
         <button
           type="button"
           onClick={login}
-          className="flex w-full items-center justify-center gap-3 rounded-2xl border border-border bg-card/40 px-5 py-3.5 text-base font-medium text-foreground/90 transition hover:bg-card/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--ink)/0.7)]"
+          className="pill-soft w-full px-5 py-[13px] text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--ink)/0.7)]"
         >
-          <GoogleIcon className="size-5" />
+          <GoogleIcon className="size-4" />
           Entrar com Google
         </button>
       </section>

@@ -97,7 +97,7 @@ export function CompletarCadastroPage() {
 
   return (
     <main className="relative z-10 flex min-h-svh items-center justify-center px-4 py-8 sm:px-6 sm:py-12">
-      <section className="glass-strong relative w-full max-w-md overflow-hidden px-6 py-8 sm:px-9 sm:py-10">
+      <section className="glass-panel relative w-full max-w-md overflow-hidden px-6 py-8 sm:px-9 sm:py-10">
         <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
 
         <h1 className="text-display text-3xl leading-[1.05] text-foreground sm:text-4xl">

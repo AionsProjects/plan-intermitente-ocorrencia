@@ -68,7 +68,7 @@ export function CorrecaoPage() {
 
   return (
     <div className="relative z-10 flex min-h-svh items-center justify-center px-4 py-8 sm:px-6 sm:py-12">
-      <div className="glass-strong card-shimmer relative w-full max-w-xl p-6 sm:p-8 lg:p-10">
+      <div className="glass-panel fade-up w-full max-w-[620px] p-6 sm:p-8 lg:p-10">
         {/* Header: flask de teste + nav cluster top-right */}
         <div className="mb-6 flex items-start justify-between gap-3">
           <button
@@ -82,9 +82,7 @@ export function CorrecaoPage() {
           </button>
         </div>
 
-        <p className="text-[11px] uppercase tracking-[0.32em] text-foreground/55">
-          Aionscorp · Plano de intermitentes
-        </p>
+        <p className="eyebrow">Aionscorp · Plano de intermitentes</p>
         <h1 className="text-display mt-3 text-balance text-4xl leading-[1.05] text-foreground sm:text-5xl">
           Corrigir <em className="italic text-[rgb(var(--accent-rgb))]">registro</em>
         </h1>
@@ -103,15 +101,15 @@ export function CorrecaoPage() {
           <label className="text-[10px] uppercase tracking-[0.3em] text-foreground/55">
             Código do protocolo
           </label>
-          <div className="flex items-stretch gap-2">
-            <div className="glass-tile flex flex-1 items-center gap-3 rounded-2xl px-4">
+          <div className="flex items-stretch gap-2.5">
+            <div className="glass-field glass-field--display flex-1">
               <KeyRound className="size-4 shrink-0 text-[rgb(var(--accent-rgb))]" />
               <input
                 type="text"
                 value={valor}
                 onChange={(e) => setValor(e.target.value.toUpperCase())}
                 placeholder="PROT-XXXX-XXXX"
-                className="text-display flex-1 bg-transparent py-3 text-xl tracking-wider text-foreground placeholder:text-foreground/30 focus:outline-none"
+                className="uppercase tracking-[0.06em]"
                 autoFocus
                 spellCheck={false}
                 autoCapitalize="characters"
@@ -120,19 +118,14 @@ export function CorrecaoPage() {
             <button
               type="submit"
               disabled={carregando || valor.trim().length === 0}
-              className="glow-gold inline-flex items-center justify-center gap-2 rounded-2xl px-6 text-sm font-medium text-[#0a1224] transition-all hover:scale-[1.02] active:scale-[0.99] disabled:opacity-60"
-              style={{
-                background:
-                  "linear-gradient(135deg, rgb(var(--accent-rgb)) 0%, rgb(var(--accent-rgb)) 55%, rgb(var(--surface-rgb)) 130%)",
-                border: "1px solid rgba(255,236,194,0.5)",
-              }}
+              className="glass-cta px-[26px]"
             >
-              {carregando ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <ArrowRight className="size-4" />
-              )}
               Abrir
+              {carregando ? (
+                <Loader2 className="size-[15px] animate-spin" />
+              ) : (
+                <ArrowRight className="size-[15px]" />
+              )}
             </button>
           </div>
 
@@ -160,7 +153,7 @@ export function CorrecaoPage() {
                     onClick={() => void abrir(p.protocolo)}
                     onMouseMove={handleTiltMove}
                     onMouseLeave={handleTiltLeave}
-                    className="glass-tile glass-tile-3d group relative flex w-full items-center justify-between rounded-2xl px-5 py-4 text-left"
+                    className="glass-tile-v2 tilt-3d tilt-3d--suave group relative flex w-full cursor-pointer items-center justify-between rounded-[16px] px-5 py-3.5 text-left"
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">

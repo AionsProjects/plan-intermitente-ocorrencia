@@ -103,9 +103,10 @@ export function EscolherMes({ empregado, onTrocarEmpregado, onEscolher }: Props)
                     ? setConfirmandoPassado(o)
                     : onEscolher(o.papel, o.competencia ?? "")
                 }
-                className="glass-tile glass-tile-3d group relative flex w-full items-center gap-4 overflow-hidden rounded-2xl px-5 py-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--ink)/0.7)]"
+                data-tone="accent"
+                className="glass-tile-v2 tilt-3d group relative flex w-full cursor-pointer items-center gap-4 overflow-hidden px-5 py-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--ink)/0.7)]"
               >
-                <div className="icon-3d-host flex size-11 shrink-0 items-center justify-center rounded-full bg-[rgb(var(--accent-rgb)/0.12)] ring-1 ring-[rgb(var(--accent-rgb)/0.38)] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-110">
+                <div className="icon-orb icon-orb--ring icon-3d-host size-11 transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-110">
                   {o.papel === "passado" ? (
                     <History className="icon-3d-only size-5 text-[rgb(var(--accent-rgb))] transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-rotate-[30deg]" />
                   ) : o.papel === "atual" ? (

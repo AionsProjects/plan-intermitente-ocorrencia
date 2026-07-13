@@ -1,0 +1,439 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Aions Liquid Glass v2 — "vidro fumê meia-noite"
+   Handoff claude.ai/design "Design system coesão profissional".
+
+   UMA receita de vidro, quatro papéis: glass-panel (moldura da tela),
+   glass-hero (único tile com halo do acento), glass-tile-v2 (clicável),
+   glass-field (poço pill afundado). Base sempre escura translúcida —
+   nunca leitosa; o brilho vive só no lip superior e nos CTAs.
+
+   Convive com o vocabulário v1 (.glass-strong/.glass-tile/.liquid-*)
+   enquanto a migração das telas internas não termina.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Tokens v2 ─────────────────────────────────────────────────────── */
+:root {
+  /* vidro fumê — tint do painel por esquema */
+  --panel: rgba(16, 17, 21, 0.62);
+  /* CTA iluminado (gradiente claro→profundo do acento) */
+  --cta-hi: #f4d99b;
+  --cta-lo: #e3b360;
+  --cta-ink: #211703;
+  /* receita única do vidro */
+  --glass-lip: rgb(var(--ink) / 0.22);
+  --glass-inset: rgba(0, 0, 0, 0.25);
+  --panel-shadow: 0 34px 80px -28px rgb(var(--shadow) / 0.9);
+  /* ZoomTransition — superfície opaca da tela em expansão (transparência
+     aqui deixa a troca de rota visível através do overlay — esquisito) */
+  --zoom-bg: rgb(13, 14, 18);
+
+  --radius-panel: 28px;
+  --radius-hero: 22px;
+  --radius-tile: 18px;
+  --radius-sub: 16px;
+
+  --ease-liquid: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-zoom: 660ms;
+}
+
+[data-accent="aurora"] {
+  --panel: rgba(16, 17, 21, 0.62);
+  --cta-hi: #f4d99b; --cta-lo: #e3b360; --cta-ink: #211703;
+}
+[data-accent="seco"] {
+  --panel: rgba(16, 16, 18, 0.62);
+  --cta-hi: #ffffff; --cta-lo: #d9d9dd; --cta-ink: #101012;
+}
+[data-accent="verde"] {
+  --panel: rgba(17, 16, 14, 0.62);
+  --cta-hi: #f4d99b; --cta-lo: #e3b360; --cta-ink: #211703;
+}
+[data-accent="rosa"] {
+  --panel: rgba(19, 15, 20, 0.62);
+  --cta-hi: #f9a8d0; --cta-lo: #ec5fa8; --cta-ink: #33081d;
+}
+[data-accent="rubi"] {
+  --panel: rgba(20, 15, 14, 0.62);
+  --cta-hi: #fdba74; --cta-lo: #f97c28; --cta-ink: #2e1203;
+}
+[data-accent="roxo"] {
+  --panel: rgba(16, 15, 22, 0.62);
+  --cta-hi: #a5f3fc; --cta-lo: #3ecbe0; --cta-ink: #062a30;
+}
+
+[data-theme="light"] {
+  --panel: rgba(247, 249, 252, 0.66);
+  --glass-inset: rgba(20, 30, 52, 0.07);
+  --panel-shadow: 0 30px 70px -26px rgb(var(--shadow) / 0.28);
+  --zoom-bg: rgb(238, 242, 248);
+}
+[data-theme="light"][data-accent="aurora"],
+[data-theme="light"][data-accent="verde"] {
+  --cta-hi: #e8c275; --cta-lo: #c9982f; --cta-ink: #241703;
+}
+[data-theme="light"][data-accent="seco"] {
+  --cta-hi: #3a3f4c; --cta-lo: #23262e; --cta-ink: #f5f6f8;
+}
+[data-theme="light"][data-accent="rosa"] {
+  --cta-hi: #f27bb4; --cta-lo: #d54682; --cta-ink: #ffffff;
+}
+[data-theme="light"][data-accent="rubi"] {
+  --cta-hi: #f9955c; --cta-lo: #d95c1e; --cta-ink: #ffffff;
+}
+[data-theme="light"][data-accent="roxo"] {
+  --cta-hi: #4cc4dc; --cta-lo: #14829e; --cta-ink: #04222b;
+}
+
+/* Classes no layer `components` — utilities Tailwind (px-*, rounded-*)
+   continuam podendo sobrescrever pontualmente. */
+@layer components {
+
+/* ── Painel — moldura principal de cada tela ───────────────────────── */
+.glass-panel {
+  position: relative;
+  border-radius: var(--radius-panel);
+  background:
+    linear-gradient(180deg, rgb(var(--ink) / 0.035), rgb(var(--ink) / 0.01)),
+    var(--panel);
+  border: 1px solid rgb(var(--ink) / 0.14);
+  backdrop-filter: blur(32px) saturate(160%);
+  -webkit-backdrop-filter: blur(32px) saturate(160%);
+  box-shadow:
+    var(--panel-shadow),
+    inset 0 1.5px 0 0 var(--glass-lip),
+    inset 0 -1px 0 0 rgb(var(--shadow) / 0.3);
+}
+/* sheen — luz curva no topo do painel */
+.glass-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(120% 55% at 50% 0%, rgb(var(--ink) / 0.07), transparent 55%);
+}
+/* ── Hero — o único tile com halo do acento ────────────────────────── */
+.glass-hero {
+  border-radius: var(--radius-hero);
+  background: rgb(var(--ink) / 0.055);
+  border: none;
+  box-shadow:
+    inset 0 1.5px 0 0 rgb(var(--ink) / 0.26),
+    inset 0 -1px 0 0 rgb(var(--shadow) / 0.15),
+    0 16px 40px -16px rgb(var(--shadow) / 0.7),
+    0 0 48px -18px rgb(var(--accent-rgb) / 0.4);
+  transition: background 200ms ease, box-shadow 220ms ease, transform 110ms ease-out;
+}
+.glass-hero:hover {
+  background: rgb(var(--ink) / 0.075);
+  box-shadow:
+    inset 0 1.5px 0 0 rgb(var(--ink) / 0.3),
+    0 20px 48px -16px rgb(var(--shadow) / 0.75),
+    0 0 60px -14px rgb(var(--accent-rgb) / 0.55);
+}
+
+/* ── Tile v2 — superfície clicável dentro do painel ────────────────── */
+.glass-tile-v2 {
+  border-radius: var(--radius-tile);
+  background: rgb(var(--ink) / 0.045);
+  border: none;
+  box-shadow:
+    inset 0 1px 0 0 rgb(var(--ink) / 0.18),
+    0 10px 26px -14px rgb(var(--shadow) / 0.6);
+  transition: background 200ms ease, box-shadow 220ms ease, transform 110ms ease-out;
+}
+.glass-tile-v2:hover {
+  background: rgb(var(--ink) / 0.07);
+}
+.glass-tile-v2[data-tone="accent"]:hover {
+  background: rgb(var(--accent-rgb) / 0.09);
+}
+
+/* ── Campo — input pill afundado no vidro ──────────────────────────── */
+.glass-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: 9999px;
+  background: var(--glass-inset);
+  box-shadow:
+    inset 0 1px 3px rgb(var(--shadow) / 0.35),
+    inset 0 -1px 0 rgb(var(--ink) / 0.08);
+  padding: 4px 20px;
+  transition: box-shadow 200ms ease;
+}
+.glass-field:focus-within {
+  box-shadow:
+    inset 0 1px 3px rgb(var(--shadow) / 0.35),
+    inset 0 -1px 0 rgb(var(--ink) / 0.08),
+    0 0 0 3px rgb(var(--accent-rgb) / 0.22);
+}
+.glass-field input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  padding: 12px 0;
+  font-size: 15px;
+  color: var(--foreground);
+  outline: none;
+}
+.glass-field input::placeholder {
+  color: rgb(var(--ink) / 0.3);
+}
+/* variação display — busca com serif grande (Buscar empregado, protocolo) */
+.glass-field--display input {
+  font-family: "Instrument Serif", Georgia, serif;
+  font-size: 20px;
+  letter-spacing: 0.04em;
+}
+
+/* ── Chip — toggle pill (VR/VT, filtros); ligado ganha ring do acento ─ */
+.glass-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  cursor: pointer;
+  border-radius: 9999px;
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgb(var(--ink) / 0.9);
+  background: rgb(var(--ink) / 0.05);
+  box-shadow:
+    inset 0 0 0 1px rgb(var(--ink) / 0.12),
+    inset 0 1px 0 0 rgb(var(--ink) / 0.12);
+  transition: background 200ms ease, box-shadow 200ms ease;
+}
+.glass-chip[data-on="true"] {
+  background:
+    linear-gradient(135deg, rgb(var(--accent-rgb) / 0.2), rgb(var(--accent-rgb) / 0.08)),
+    rgb(var(--ink) / 0.04);
+  box-shadow:
+    inset 0 0 0 1px rgb(var(--accent-rgb) / 0.45),
+    inset 0 1px 0 0 rgb(var(--ink) / 0.2),
+    0 0 22px -8px rgb(var(--accent-rgb) / 0.5);
+}
+.glass-chip:active {
+  transform: scale(0.97);
+}
+
+/* ── CTA — botão pill que emite luz ────────────────────────────────── */
+.glass-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  cursor: pointer;
+  border-radius: 9999px;
+  padding: 13px 26px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cta-ink);
+  background: linear-gradient(180deg, var(--cta-hi), var(--cta-lo));
+  box-shadow:
+    0 0 44px -6px rgb(var(--accent-rgb) / 0.55),
+    0 14px 34px -12px rgb(var(--accent-rgb) / 0.6),
+    inset 0 1.5px 0 0 rgba(255, 255, 255, 0.55);
+  transition: box-shadow 220ms ease, transform 110ms ease-out;
+}
+.glass-cta:hover {
+  box-shadow:
+    0 0 60px -4px rgb(var(--accent-rgb) / 0.7),
+    0 16px 40px -12px rgb(var(--accent-rgb) / 0.7),
+    inset 0 1.5px 0 0 rgba(255, 255, 255, 0.6);
+}
+.glass-cta:active {
+  transform: scale(0.97);
+}
+.glass-cta:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+/* selo dentro do hero — mesmo brilho, menor */
+.glass-cta--mini {
+  padding: 7px 16px;
+  font-size: 11px;
+  box-shadow:
+    0 0 30px -6px rgb(var(--accent-rgb) / 0.6),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.5);
+}
+
+/* ── Pill neutro — botão secundário de vidro (Entrar com Google) ───── */
+.pill-soft {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: none;
+  cursor: pointer;
+  border-radius: 9999px;
+  background: rgb(var(--ink) / 0.09);
+  box-shadow: inset 0 1px 0 0 rgb(var(--ink) / 0.25);
+  color: rgb(var(--ink) / 0.9);
+  transition: background 200ms ease;
+}
+.pill-soft:hover {
+  background: rgb(var(--ink) / 0.14);
+}
+.pill-soft:active {
+  transform: scale(0.985);
+}
+
+/* ── Segmented pill — Email | CPF ──────────────────────────────────── */
+.seg-pill {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 4px;
+  border-radius: 9999px;
+  background: var(--glass-inset);
+  box-shadow: inset 0 1px 3px rgb(var(--shadow) / 0.3);
+  padding: 4px;
+}
+.seg-pill button {
+  border: none;
+  cursor: pointer;
+  border-radius: 9999px;
+  padding: 8px 0;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  background: transparent;
+  color: rgb(var(--ink) / 0.55);
+  transition: background 200ms ease, color 200ms ease;
+}
+.seg-pill button[data-on="true"] {
+  background: rgb(var(--ink) / 0.16);
+  box-shadow:
+    inset 0 1px 0 0 rgb(var(--ink) / 0.3),
+    0 2px 8px rgb(var(--shadow) / 0.3);
+  color: var(--foreground);
+}
+
+/* ── Círculo de ícone — dentro de tiles/heros ──────────────────────── */
+.icon-orb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background: rgb(var(--accent-rgb) / 0.16);
+  box-shadow:
+    inset 0 1px 0 0 rgb(var(--ink) / 0.32),
+    0 0 22px -6px rgb(var(--accent-rgb) / 0.6);
+  color: rgb(var(--accent-rgb));
+}
+.icon-orb--neutral {
+  background: rgb(var(--ink) / 0.08);
+  box-shadow: inset 0 1px 0 0 rgb(var(--ink) / 0.25);
+}
+.icon-orb--ring {
+  background: rgb(var(--accent-rgb) / 0.14);
+  box-shadow:
+    inset 0 0 0 1px rgb(var(--accent-rgb) / 0.35),
+    inset 0 1px 0 0 rgb(var(--ink) / 0.25);
+}
+
+/* ── Lamps v2 — status por lâmpada + cor, nunca emoji ──────────────── */
+.lamp--green {
+  background: var(--status-green);
+  box-shadow: 0 0 8px 2px rgb(63 207 121 / 0.5);
+}
+.lamp--yellow {
+  background: var(--status-yellow);
+  box-shadow: 0 0 8px 2px rgb(228 189 67 / 0.5);
+  animation: lamp-flicker 2.6s linear infinite;
+}
+.lamp--red {
+  background: var(--status-red);
+  box-shadow: 0 0 8px 2px rgb(239 102 102 / 0.5);
+}
+.lamp--off {
+  background: rgb(var(--ink) / 0.2);
+  box-shadow: inset 0 0 3px rgb(var(--shadow) / 0.6);
+}
+
+/* ── Eyebrow — kicker uppercase de tracking largo ──────────────────── */
+.eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: rgb(var(--ink) / 0.42);
+}
+
+/* ── Tilt 3D genérico — JS seta --mx/--my (0–100) no elemento ──────── */
+.tilt-3d {
+  --mx: 50;
+  --my: 50;
+  transform:
+    perspective(800px)
+    rotateY(calc((var(--mx) - 50) * 0.14deg))
+    rotateX(calc((50 - var(--my)) * 0.14deg));
+  transform-style: preserve-3d;
+}
+.tilt-3d:active {
+  transform: perspective(800px) translateZ(-6px) scale(0.97);
+}
+.tilt-3d--suave {
+  transform:
+    perspective(800px)
+    rotateY(calc((var(--mx) - 50) * 0.1deg))
+    rotateX(calc((50 - var(--my)) * 0.1deg));
+}
+
+/* ── ZoomTransition — entrar no botão (assinatura do sistema) ──────── */
+.zoom-overlay {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  overflow: hidden;
+  /* FLIP: o elemento é sempre fullscreen; translate+scale o levam ao rect
+     do tile. Compositor-driven — não corta com a main thread ocupada. */
+  transform-origin: 0 0;
+  will-change: transform, opacity;
+  /* SEM backdrop-filter: no Chromium o blur de backdrop não acompanha o
+     fade de opacity — sobra um retângulo de vidro nítido no fim da
+     animação ("quadrado atrás"). Fundo quase opaco cobre a troca igual. */
+  background:
+    linear-gradient(180deg, rgb(var(--ink) / 0.04), rgb(var(--ink) / 0.01)),
+    var(--zoom-bg);
+  border: 1px solid rgb(var(--ink) / 0.14);
+  box-shadow:
+    0 40px 90px -28px rgb(var(--shadow) / 0.9),
+    0 0 60px -14px rgb(var(--accent-rgb) / 0.4),
+    inset 0 1.5px 0 0 var(--glass-lip);
+}
+.zoom-overlay .zoom-label {
+  font-family: "Instrument Serif", Georgia, serif;
+  color: var(--foreground);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* reduzir animações — o componente já pula o zoom, isto é cinto extra */
+@media (prefers-reduced-motion: reduce) {
+  .zoom-overlay {
+    display: none;
+  }
+}
+
+} /* @layer components */
+
+/* Durante navegação via zoom, a tela de destino aparece já assentada — sem
+   replay das animações de entrada (fade-up) por trás/depois do overlay.
+   Fora do @layer de propósito: precisa vencer o .fade-up não-layered. */
+html.zoom-nav .fade-up {
+  animation: none !important;
+  opacity: 1;
+}

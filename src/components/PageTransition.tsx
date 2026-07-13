@@ -2,6 +2,7 @@ import { useState } from "react"
 import { useLocation, type Location } from "react-router-dom"
 
 import { SlideStack, type SlideDirection } from "./SlideStack"
+import { consumirNavegacaoZoom } from "./ZoomTransition"
 
 type Props = {
   /** Função que renderiza o conteúdo dado um Location. Pra usar com React
@@ -39,9 +40,14 @@ export function PageTransition({ renderRoutes }: Props) {
   const [direction, setDirection] = useState<SlideDirection>("forward")
 
   if (location.pathname !== renderedPath) {
-    const novoNivel = nivel(location.pathname)
-    const antigoNivel = nivel(renderedPath)
-    setDirection(novoNivel < antigoNivel ? "backward" : "forward")
+    if (consumirNavegacaoZoom()) {
+      // Navegação via ZoomTransition: overlay cobre a troca — sem slide.
+      setDirection("none")
+    } else {
+      const novoNivel = nivel(location.pathname)
+      const antigoNivel = nivel(renderedPath)
+      setDirection(novoNivel < antigoNivel ? "backward" : "forward")
+    }
     setRenderedPath(location.pathname)
   }
 

@@ -21,9 +21,7 @@ export function EscolhaTipoTrabalhador({ onSelecionar }: Props) {
 
   return (
     <div>
-      <p className="text-[11px] uppercase tracking-[0.32em] text-foreground/55">
-        Aionscorp · Atestados e declarações
-      </p>
+      <p className="eyebrow">Aionscorp · Atestados e declarações</p>
       <h1 className="text-display mt-3 text-balance text-4xl leading-[1.05] text-foreground sm:text-5xl">
         Qual <em className="italic text-[rgb(var(--accent-rgb))]">tipo</em> de trabalhador?
       </h1>
@@ -38,11 +36,12 @@ export function EscolhaTipoTrabalhador({ onSelecionar }: Props) {
           onClick={() => onSelecionar("intermitente")}
           onMouseMove={handleTiltMove}
           onMouseLeave={handleTiltLeave}
-          className="glass-tile glass-tile-3d group relative flex min-h-[5.5rem] items-center justify-between rounded-2xl px-5 py-4 text-left"
+          data-tone="accent"
+          className="glass-tile-v2 tilt-3d group relative flex min-h-[88px] cursor-pointer items-center justify-between px-5 py-[18px] text-left"
         >
           <div className="flex min-w-0 items-center gap-3.5">
-            <div className="icon-3d-host flex size-11 shrink-0 items-center justify-center rounded-full bg-[rgb(var(--accent-rgb)/0.12)] ring-1 ring-[rgb(var(--accent-rgb)/0.35)]">
-              <Hammer className="icon-3d-only size-5 text-[rgb(var(--accent-rgb))]" />
+            <div className="icon-orb icon-orb--ring size-11">
+              <Hammer className="size-[18px]" />
             </div>
             <div className="min-w-0">
               <p className="text-base font-medium leading-tight text-foreground/95">
@@ -61,11 +60,19 @@ export function EscolhaTipoTrabalhador({ onSelecionar }: Props) {
           onClick={() => onSelecionar("clt")}
           onMouseMove={handleTiltMove}
           onMouseLeave={handleTiltLeave}
-          className="glass-tile glass-tile-3d group relative flex min-h-[5.5rem] items-center justify-between rounded-2xl px-5 py-4 text-left"
+          className="glass-tile-v2 tilt-3d group relative flex min-h-[88px] cursor-pointer items-center justify-between px-5 py-[18px] text-left"
         >
           <div className="flex min-w-0 items-center gap-3.5">
-            <div className="icon-3d-host flex size-11 shrink-0 items-center justify-center rounded-full bg-[#a78fff]/12 ring-1 ring-[#a78fff]/35">
-              <Briefcase className="icon-3d-only size-5 text-[#b6a4ff]" />
+            <div
+              className="icon-orb size-11"
+              style={{
+                background: "rgba(167,143,255,0.12)",
+                boxShadow:
+                  "inset 0 0 0 1px rgba(167,143,255,0.35), inset 0 1px 0 0 rgb(var(--ink) / 0.25)",
+                color: "#b6a4ff",
+              }}
+            >
+              <Briefcase className="size-[18px]" />
             </div>
             <div className="min-w-0">
               <p className="text-base font-medium leading-tight text-foreground/95">
