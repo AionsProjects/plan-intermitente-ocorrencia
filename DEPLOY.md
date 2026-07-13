@@ -1,3 +1,5 @@
+> **DESCONTINUADO (12/07/2026):** este documento descreve o deploy antigo na VM intranet (192.168.0.41), que foi DESATIVADA. O app roda no **Vercel** (projeto `plan-intermitente-ocorrencia`, produção `https://plan-intermitente-ocorrencia.vercel.app`). Ver `docs/mensal-duravel.md` e `vercel.json`. Mantido só como referência histórica.
+
 # Deploy
 
 Há **duas formas** de subir o frontend numa VM Linux:
