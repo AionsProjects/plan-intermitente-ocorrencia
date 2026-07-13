@@ -27,7 +27,6 @@ import {
 } from "../auth-backend/src/mensal/repo.js"
 import {
   RM_COLIGADA,
-  SECOES_INTERMITENTES,
   chapasEventosPix,
   codSecaoBase,
   consultarIdfinanc,
@@ -271,14 +270,16 @@ async function etapaRmIntegrar(
   }
   const hoje = new Date().toISOString().slice(0, 10)
   const secaoBase = codSecaoBase(codigoSecaoContrato(contrato.contrato))
-  // Varre TODAS as seções de intermitentes: o RM agrupa por seção REAL da pessoa
-  // (ex: lotados em ADMINISTRATIVO), então lançamentos do contrato podem cair fora
-  // da seção-base. Dedup por IDFINANC garante que nada integra 2x entre contratos.
+  // Integra SÓ a seção-base do contrato — paridade estrita com o n8n (Consultar
+  // IDFNAN usava um único CODSECAO). Lançamentos que o RM agrupa em sub-seções
+  // fora da base (ex: 0007 ADMINISTRATIVO, 0010 SEDE) são pagos JUNTO com outro
+  // processo (folha ADM) e o DP integra por lá — o mensal NÃO deve tocá-los.
+  // Dedup por IDFINANC continua (0011 é base de SEDUC ESCOLA e INTERIOR).
   let idVR: string | null = null
   let idVT: string | null = null
   let encontrados = 0
   let integrados = 0
-  for (const secao of SECOES_INTERMITENTES) {
+  for (const secao of [secaoBase]) {
     const rotulados = await consultarIdfinanc({
       coligada: RM_COLIGADA,
       codSecao: secao,
