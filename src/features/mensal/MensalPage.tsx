@@ -584,6 +584,15 @@ function Acompanhamento({
             <h2 className="text-display mt-2 text-2xl text-foreground">
               Mês <span className="capitalize">{rotuloMes(competencia)}</span>
             </h2>
+            <button
+              onClick={onCancelar}
+              className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-[rgb(var(--status-red)/0.4)] bg-[rgb(var(--status-red)/0.08)] px-4 py-1.5 text-xs font-medium text-[rgb(var(--status-red))] transition hover:bg-[rgb(var(--status-red)/0.16)]"
+            >
+              Interromper execução
+            </button>
+            <p className="mt-1.5 text-[10px] text-foreground/40">
+              O contrato em andamento termina; os seguintes não iniciam.
+            </p>
           </div>
         ) : (
           <div className="text-center">

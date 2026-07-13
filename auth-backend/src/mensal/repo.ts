@@ -194,6 +194,14 @@ export async function cancelarRun(
   return status
 }
 
+/** true se o run está em qualquer estado cancelado — checado pelo workflow entre contratos. */
+export async function runFoiCancelado(runId: string): Promise<boolean> {
+  const { rows } = await query<{ status: string }>(
+    `SELECT status FROM mensal_run WHERE run_id=$1`, [runId],
+  )
+  return rows[0]?.status === "cancelado" || rows[0]?.status === "cancelado_com_pendencia"
+}
+
 export async function prepararRetomada(runId: string, operadorEmail: string): Promise<void> {
   const client = await pool.connect()
   try {

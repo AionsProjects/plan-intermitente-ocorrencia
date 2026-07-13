@@ -24,6 +24,7 @@ import {
   atualizarContrato,
   finalizarRun,
   registrarEvento,
+  runFoiCancelado,
 } from "../auth-backend/src/mensal/repo.js"
 import {
   RM_COLIGADA,
@@ -566,6 +567,12 @@ async function encerrarRun(runId: string): Promise<void> {
   await finalizarRun(runId)
 }
 
+/** Lê o status atual do run — true se o operador cancelou pela tela. */
+async function runCancelado(runId: string): Promise<boolean> {
+  "use step"
+  return runFoiCancelado(runId)
+}
+
 async function processarContrato(
   runId: string,
   modo: ModoExec,
@@ -654,6 +661,12 @@ export async function executarMensalWorkflow(input: MensalWorkflowInput): Promis
   const filtro = new Set(input.somenteContratos ?? [])
   for (const contrato of input.snapshot.contratos) {
     if (filtro.size && !filtro.has(contrato.contrato)) continue
+    // Interrupção: se o operador cancelou pela tela, para ANTES do próximo contrato
+    // (o contrato em andamento termina; os seguintes não iniciam).
+    if (await runCancelado(input.runId)) {
+      console.info("mensal workflow interrompido pelo operador", { runId: input.runId })
+      return { runId: input.runId }
+    }
     if (contrato.bloqueado) {
       await marcarContratoFinal(input.runId, contrato.contrato, "bloqueado", contrato.motivoBloqueio ?? undefined)
       continue
@@ -661,6 +674,7 @@ export async function executarMensalWorkflow(input: MensalWorkflowInput): Promis
     await processarContrato(input.runId, modoExec, input.snapshot, contrato)
     await sleep("1s") // espaçamento entre contratos (serial, sem paralelismo)
   }
+  if (await runCancelado(input.runId)) return { runId: input.runId }
   await encerrarRun(input.runId)
   return { runId: input.runId }
 }
