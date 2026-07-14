@@ -122,10 +122,26 @@ export interface AoVivoResp {
   proximo_after: number
 }
 
+/** Erro de API com o código cru + corpo (pra tratar conflitos como 409). */
+export class MensalApiError extends Error {
+  codigo: string
+  status: number
+  corpo: Record<string, unknown>
+  constructor(codigo: string, status: number, corpo: Record<string, unknown>) {
+    super(codigo)
+    this.name = "MensalApiError"
+    this.codigo = codigo
+    this.status = status
+    this.corpo = corpo
+  }
+}
+
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { credentials: "include", ...init })
-  const body = (await res.json().catch(() => ({}))) as { erro?: string }
-  if (!res.ok) throw new Error(body.erro || `Erro ${res.status}`)
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
+  if (!res.ok) {
+    throw new MensalApiError((body.erro as string) || `Erro ${res.status}`, res.status, body)
+  }
   return body as T
 }
 

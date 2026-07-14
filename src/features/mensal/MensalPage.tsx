@@ -15,8 +15,10 @@ import {
   buscarMeses,
   buscarPessoas,
   buscarRunAtivo,
+  buscarRunStatus,
   cancelarRunMensal,
   criarPreviaMensal,
+  MensalApiError,
   retomarRunMensal,
   type AoVivoResp,
   type Papel,
@@ -163,18 +165,53 @@ export function MensalPage() {
     }
   }
 
-  async function prepararPrevia() {
+  function aplicarPrevia(p: PreviaResp) {
+    setPrevia(p)
+    setRunId(p.run_id)
+    // Seleção padrão: todos os contratos rodáveis (não bloqueados).
+    setContratosSelecionados(p.snapshot.contratos.filter((c) => !c.bloqueado).map((c) => c.contrato))
+    setEtapa("confirma")
+  }
+
+  async function prepararPrevia(jaRetentou = false): Promise<void> {
     setOcupado(true)
     setErroDisparo(null)
     try {
       const p = await criarPreviaMensal(papel, ehHomologacao && bypassAntifraude)
-      setPrevia(p)
-      setRunId(p.run_id)
-      // Seleção padrão: todos os contratos rodáveis (não bloqueados).
-      setContratosSelecionados(p.snapshot.contratos.filter((c) => !c.bloqueado).map((c) => c.contrato))
-      setEtapa("confirma")
+      aplicarPrevia(p)
     } catch (e) {
-      setErroDisparo(e instanceof Error ? e.message : "Falha ao calcular prévia")
+      // 409: já existe um run global. Resolve automaticamente:
+      // - rodando/fila → reatar a tela de acompanhamento;
+      // - prévia parada aguardando aprovação → cancelar e recalcular 1x.
+      if (e instanceof MensalApiError && e.codigo === "mensal_run_ativo" && !jaRetentou) {
+        const outroId = e.corpo.run_id as string | undefined
+        if (outroId) {
+          try {
+            const st = await buscarRunStatus(outroId)
+            if (["fila", "rodando", "recuperando"].includes(st.run.status)) {
+              setRunId(outroId)
+              setEtapa("acompanhando")
+              return
+            }
+            // aguardando_aprovacao (prévia velha) → limpa e recalcula
+            await cancelarRunMensal(outroId, "Prévia anterior substituída por novo cálculo")
+            await prepararPrevia(true)
+            return
+          } catch {
+            setErroDisparo(
+              "Já existe um cálculo mensal em andamento e não consegui liberá-lo automaticamente. Recarregue a página e tente de novo.",
+            )
+            return
+          }
+        }
+      }
+      setErroDisparo(
+        e instanceof MensalApiError && e.codigo === "mensal_run_ativo"
+          ? "Já existe um cálculo mensal em andamento. Aguarde ou recarregue a página."
+          : e instanceof Error
+            ? e.message
+            : "Falha ao calcular prévia",
+      )
     } finally {
       setOcupado(false)
     }
@@ -282,9 +319,6 @@ export function MensalPage() {
               Erro ao carregar pessoas: {(pessoas.error as Error)?.message}
             </p>
           )}
-          {erroDisparo && (
-            <p className="mt-4 text-sm text-[rgb(var(--status-red))]">{erroDisparo}</p>
-          )}
 
           {pessoas.data && (
             <>
@@ -371,6 +405,11 @@ export function MensalPage() {
                 </div>
               )}
 
+              {erroDisparo && (
+                <p className="mt-5 rounded-2xl bg-[rgb(var(--status-red)/0.08)] px-4 py-3 text-sm text-[var(--status-red)] shadow-[inset_0_0_0_1px_rgb(239_102_102/0.3)]">
+                  {erroDisparo}
+                </p>
+              )}
               <div className="mt-5 flex justify-end gap-3">
                 <ChoiceButton onClick={() => setEtapa("mes")}>
                   Cancelar
@@ -378,7 +417,7 @@ export function MensalPage() {
                 <ChoiceButton
                   variant="primary"
                   disabled={pessoas.data.total === 0 || ocupado}
-                  onClick={previa ? () => setEtapa("confirma") : prepararPrevia}
+                  onClick={previa ? () => setEtapa("confirma") : () => prepararPrevia()}
                 >
                   {ocupado ? "Calculando prévia…" : previa ? "Reabrir prévia →" : "Calcular prévia →"}
                 </ChoiceButton>
