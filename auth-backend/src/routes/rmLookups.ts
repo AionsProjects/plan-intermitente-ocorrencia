@@ -16,6 +16,10 @@ export const CONTRATOS_PF = [
   "CETAM",
 ] as const
 
+// Contratos com unidades oficiais no RM. ADMINISTRATIVO só existe pra
+// convocação (unidades no /convocar) — ponto facultativo segue em CONTRATOS_PF.
+const CONTRATOS_RM = [...CONTRATOS_PF, "ADMINISTRATIVO"] as const
+
 const norm = (v: unknown) =>
   String(v ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/\s+/g, " ").trim()
 const normKey = (v: unknown) => norm(v).replace(/[^A-Z0-9]/g, "")
@@ -31,6 +35,7 @@ function field(row: Record<string, unknown>, candidatos: string[]): string {
 function contratoPorCodigo(codigo: string): string | null {
   const c = String(codigo || "").trim()
   if (c.startsWith("01.01.0004")) return "DETRAN"
+  if (c.startsWith("01.01.0007.04")) return "ADMINISTRATIVO"
   if (c.startsWith("01.01.0010")) return "SEDUC SEDE"
   if (c.startsWith("01.01.0011.01")) return "SEDUC ESCOLA"
   if (c.startsWith("01.01.0011.02")) return "SEDUC INTERIOR"
@@ -51,8 +56,8 @@ export interface UnidadesRm {
 /** Consulta as unidades oficiais do RM (SQL 231375) — usado pelo PF/opções. */
 export async function unidadesRm(): Promise<UnidadesRm> {
   const rows = await consultarSql({ codigoSql: "231375", solicitante: "backend-intermitente-unidades-rm" })
-  const porContrato: Record<string, string[]> = Object.fromEntries(CONTRATOS_PF.map((c) => [c, []]))
-  const vistos: Record<string, Set<string>> = Object.fromEntries(CONTRATOS_PF.map((c) => [c, new Set()]))
+  const porContrato: Record<string, string[]> = Object.fromEntries(CONTRATOS_RM.map((c) => [c, []]))
+  const vistos: Record<string, Set<string>> = Object.fromEntries(CONTRATOS_RM.map((c) => [c, new Set()]))
   const unidades: Array<{ codigo: string; contrato: string; unidade: string }> = []
   for (const r of rows) {
     const codigo = field(r, ["Código", "Codigo", "CODIGO"]).trim()
@@ -67,14 +72,14 @@ export async function unidadesRm(): Promise<UnidadesRm> {
       unidades.push({ codigo, contrato, unidade })
     }
   }
-  for (const c of CONTRATOS_PF) porContrato[c].sort((a, b) => a.localeCompare(b, "pt-BR"))
+  for (const c of CONTRATOS_RM) porContrato[c].sort((a, b) => a.localeCompare(b, "pt-BR"))
   unidades.sort((a, b) => a.contrato.localeCompare(b.contrato, "pt-BR") || a.unidade.localeCompare(b.unidade, "pt-BR"))
   return {
     ok: true,
     unidades_por_contrato: porContrato,
     unidades,
     unidade_column_id: "dropdown_mm3mcnmn",
-    contagens: Object.fromEntries(CONTRATOS_PF.map((c) => [c, porContrato[c].length])),
+    contagens: Object.fromEntries(CONTRATOS_RM.map((c) => [c, porContrato[c].length])),
   }
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   addMonths,
   endOfMonth,
@@ -55,6 +55,7 @@ import {
   senhaCorreta,
 } from "./retroativoStorage"
 import { nomeFeriado, useFeriados } from "@/lib/feriadosBoard"
+import { useUnidadesRm } from "@/lib/useUnidadesRm"
 import {
   ACOMPANHANTES,
   CONTRATOS_COLABORADOR,
@@ -262,6 +263,31 @@ export function WizardDocumento({
   )
   useFeriados()
 
+  // Unidades exatas do RM por contrato (mesma fonte do /convocar e do ponto
+  // facultativo). Fallback hardcoded quando o RM está fora.
+  const { unidadesDoContrato } = useUnidadesRm()
+  const unidadesAtestado = useCallback(
+    (contrato: string): readonly string[] => {
+      const oficiais = unidadesDoContrato(contrato)
+      return oficiais.length > 0 ? [...oficiais, UNIDADE_NAO_ENCONTRADA] : []
+    },
+    [unidadesDoContrato],
+  )
+
+  // Quando a lista do RM chega, tenta casar EXATO a unidade do empregado
+  // (localUnidade/secao) com a grafia oficial — só se o operador ainda não
+  // escolheu nada.
+  useEffect(() => {
+    const candidata = (empregado?.localUnidade ?? empregado?.secao ?? "").trim()
+    if (!candidata || draft.unidadeLabel) return
+    const normalizar = (v: string) =>
+      v.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().trim()
+    const match = unidadesDoContrato(draft.contratoColaborador).find(
+      (u) => normalizar(u) === normalizar(candidata),
+    )
+    if (match) setDraft((p) => (p.unidadeLabel ? p : { ...p, unidadeLabel: match }))
+  }, [empregado, draft.contratoColaborador, draft.unidadeLabel, unidadesDoContrato])
+
   const sabadosAtivos = useMemo(
     () => (convocacao ? sabadosAtivosDaConvocacao(convocacao) : []),
     [convocacao],
@@ -320,7 +346,7 @@ export function WizardDocumento({
   }
 
   function precisaUnidade(contrato: string): boolean {
-    return unidadesParaContrato(contrato).length > 0
+    return unidadesAtestado(contrato).length > 0
   }
 
   function diaPermitido(dia: string): { ok: boolean; motivo?: string } {
@@ -449,6 +475,7 @@ export function WizardDocumento({
       return (
         <EtapaUnidade
           contrato={draft.contratoColaborador}
+          opcoes={unidadesAtestado(draft.contratoColaborador)}
           unidadeLabel={draft.unidadeLabel}
           unidadeNaoEncontradaTexto={draft.unidadeNaoEncontradaTexto}
           onChange={(label, texto) =>
@@ -1324,18 +1351,19 @@ function EtapaDadosTrabalho({
 
 function EtapaUnidade({
   contrato,
+  opcoes,
   unidadeLabel,
   unidadeNaoEncontradaTexto,
   onChange,
   onContinuar,
 }: {
   contrato: string
+  opcoes: readonly string[]
   unidadeLabel: string | null
   unidadeNaoEncontradaTexto: string
   onChange: (label: string | null, naoEncontradaTexto?: string) => void
   onContinuar: () => void
 }) {
-  const opcoes = useMemo(() => [...unidadesParaContrato(contrato)], [contrato])
   const ehNaoEncontrada =
     unidadeLabel === UNIDADE_NAO_ENCONTRADA ||
     (unidadeLabel ?? "").includes("UNIDADE NÃO ENCONTRADA")

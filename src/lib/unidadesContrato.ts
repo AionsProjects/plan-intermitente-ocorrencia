@@ -6,6 +6,7 @@ export const CONTRATOS_OPERACIONAIS = [
   "DETRAN",
   "TRE PB",
   "CETAM",
+  "ADMINISTRATIVO",
 ] as const
 
 export type ContratoOperacional = (typeof CONTRATOS_OPERACIONAIS)[number]
@@ -63,12 +64,13 @@ export const UNIDADES_POR_CONTRATO: Record<ContratoOperacional, readonly string[
   ],
   SEMSA: ["SEMSA - INTERMITENTE"],
   "TRE PB": ["TRE PB - INTERMITENTE"],
+  // Seção RM 01.01.0007.04 (ADMINISTRAÇÃO - INTERMITENTES)
+  ADMINISTRATIVO: ["ADMINISTRAÇÃO - INTERMITENTES"],
 }
 
 export const UNIDADES_OFICIAIS = Object.values(UNIDADES_POR_CONTRATO).flat()
 
 export const UNIDADES_FORA_ESCOPO = [
-  "ADMINISTRAÇÃO - INTERMITENTES",
   "LICENÇA MATERNIDADE",
   "IFAM TEFE",
   "AFASTADO INSS",
