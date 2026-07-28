@@ -37,7 +37,15 @@ export async function rotasRm(app: FastifyInstance): Promise<void> {
           admissao: s(r["Data de Admissão"]),
           secao,
           secaoDescricao: s(r["Descrição Seção"]),
+          // Mesma descrição sob a chave que o front lê (`localUnidade`/`local_unidade`).
+          // Só `secaoDescricao` nunca casava: `/atestados` pré-seleciona a unidade
+          // comparando `localUnidade ?? secao`, e `secao` é o CÓDIGO da seção.
+          localUnidade: s(r["Descrição Seção"]),
           contrato: nomeContrato,
+          // Contrato do WF8: a chave é `optante_vt` (snake) com o label do RM ("SIM"/"NÃO"/"SIM*").
+          // O front testa `o.optante_vt`; mandar só `optanteVT` como string fazia todo mundo virar
+          // não-optante (o teste lá é `optanteVT === true`, boolean) e zerava o VT no WF5.
+          optante_vt: s(r["Vale Transporte"]),
           optanteVT: s(r["Vale Transporte"]),
           codcoligada: 3,
         }

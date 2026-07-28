@@ -89,6 +89,19 @@ function normaliza(s: string): string {
     .trim()
 }
 
+/** Label de VT vindo do RM, tolerante a boolean (backends divergiram no tipo). */
+function vtLabel(v: unknown): string {
+  if (v === true) return "SIM"
+  if (v === false) return "NÃO"
+  // Preserva acento: o label vai pro Monday como está ("NÃO", não "NAO").
+  return String(v ?? "").toUpperCase().trim()
+}
+
+function vtOptante(v: unknown): boolean {
+  const l = normaliza(vtLabel(v))
+  return l === "SIM" || l === "SIM*"
+}
+
 function uniqueOrdered(values: unknown, fallback: readonly string[]): string[] {
   const origem = Array.isArray(values) ? values : []
   const normalizadas = origem
@@ -225,16 +238,17 @@ export async function buscarEmpregado(
       secaoCodigo: o.secaoCodigo || o.secao_codigo
         ? String(o.secaoCodigo ?? o.secao_codigo)
         : undefined,
-      localUnidade: o.localUnidade || o.local_unidade
-        ? String(o.localUnidade ?? o.local_unidade)
+      // `secaoDescricao` é o nome que o auth-backend usa pra descrição da seção —
+      // aceita como 3ª forma pra não repetir o bug do VT (chave divergente = campo vazio).
+      localUnidade: o.localUnidade || o.local_unidade || o.secaoDescricao
+        ? String(o.localUnidade ?? o.local_unidade ?? o.secaoDescricao)
         : undefined,
       contrato: o.contrato ? String(o.contrato) : undefined,
-      optanteVT:
-        o.optante_vt === true ||
-        o.optante_vt === "SIM" ||
-        o.optante_vt === "SIM*" ||
-        o.optanteVT === true,
-      optanteVtLabel: String(o.optante_vt ?? o.optanteVtLabel ?? ""),
+      // VT vem do RM. Aceita as 3 formas que os backends já emitiram: `optante_vt`
+      // (contrato do WF8), `optanteVT` string e `optanteVT` boolean. Sem o caso
+      // string, "SIM" caía no default "NÃO" e o VT zerava no WF5.
+      optanteVT: vtOptante(o.optante_vt ?? o.optanteVT),
+      optanteVtLabel: vtLabel(o.optante_vt ?? o.optanteVT ?? o.optanteVtLabel),
     }
   })
 }
