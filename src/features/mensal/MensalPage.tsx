@@ -386,9 +386,19 @@ export function MensalPage() {
               </div>
 
               {ehHomologacao && (
-                <div className="mt-4 rounded-2xl border border-dashed border-[rgb(var(--accent-rgb)/0.5)] bg-[rgb(var(--accent-rgb)/0.06)] px-5 py-4">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-[rgb(var(--accent-rgb))]">
-                    Modo teste · homologação
+                <div
+                  className={`mt-4 rounded-2xl border border-dashed px-5 py-4 ${
+                    papel === "teste"
+                      ? "border-[rgb(var(--status-red)/0.55)] bg-[rgb(var(--status-red)/0.08)]"
+                      : "border-[rgb(var(--accent-rgb)/0.5)] bg-[rgb(var(--accent-rgb)/0.06)]"
+                  }`}
+                >
+                  <p
+                    className={`text-[10px] uppercase tracking-[0.18em] ${
+                      papel === "teste" ? "text-[var(--status-red)]" : "text-[rgb(var(--accent-rgb))]"
+                    }`}
+                  >
+                    {papel === "teste" ? "Board de teste · efeitos REAIS" : "Modo teste · homologação"}
                   </p>
                   <label className="mt-2 flex cursor-pointer items-center gap-2.5 text-sm text-foreground/85">
                     <input
@@ -399,9 +409,19 @@ export function MensalPage() {
                     />
                     Desligar antifraude (processa contratos já pagos)
                   </label>
-                  <p className="mt-1 text-[11px] text-foreground/45">
-                    Efeitos sempre simulados nesta homologação. Os contratos você escolhe na próxima etapa.
-                  </p>
+                  {/* O board de teste NAO simula: papel=teste sobrepoe a homologacao no workflow
+                      (modoExec = "teste") e executa Caju/RM/Monday de verdade, so marcando TESTE. */}
+                  {papel === "teste" ? (
+                    <p className="mt-1 text-[11px] text-[var(--status-red)]">
+                      Atenção: o board de teste <strong>não simula</strong>. Ao aprovar, cria pedido real
+                      na Caju, lança no RM e grava no Monday (marcados “TESTE”). Para simular sem enviar
+                      nada, use Mês atual ou Próximo mês.
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-[11px] text-foreground/45">
+                      Efeitos simulados nesta homologação. Os contratos você escolhe na próxima etapa.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -440,11 +460,21 @@ export function MensalPage() {
               <br />
               do mês <span className="capitalize">{rotuloMes(previa.snapshot.competencia)}</span>?
             </h2>
-            <div className="mt-5 flex items-start gap-2 rounded-xl border border-[rgb(var(--accent-rgb)/0.34)] bg-[rgb(var(--accent-rgb)/0.1)] px-4 py-3 text-left text-[13px] text-[rgb(var(--accent-rgb))]">
+            {/* O aviso segue o EXECUTOR real, nao so o modo: papel=teste sobrepoe a homologacao
+                (modoExec = "teste" em workflows/mensal.ts) e executa Caju/RM/Monday de verdade. */}
+            <div
+              className={`mt-5 flex items-start gap-2 rounded-xl border px-4 py-3 text-left text-[13px] ${
+                previa.snapshot.papel === "teste"
+                  ? "border-[rgb(var(--status-red)/0.45)] bg-[rgb(var(--status-red)/0.1)] text-[var(--status-red)]"
+                  : "border-[rgb(var(--accent-rgb)/0.34)] bg-[rgb(var(--accent-rgb)/0.1)] text-[rgb(var(--accent-rgb))]"
+              }`}
+            >
               <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-              {previa.modo === "homologacao"
-                ? "Homologação isolada: os efeitos externos serão simulados e registrados no ledger."
-                : "Produção: a aprovação inicia o workflow durável. Efeitos confirmados não são desfeitos automaticamente."}
+              {previa.snapshot.papel === "teste"
+                ? "Board de teste — NÃO é simulação: aprovar cria pedido real na Caju, lança no RM e grava no Monday (marcados “TESTE”). Efeitos confirmados não são desfeitos automaticamente."
+                : previa.modo === "homologacao"
+                  ? "Homologação isolada: os efeitos externos serão simulados e registrados no ledger."
+                  : "Produção: a aprovação inicia o workflow durável. Efeitos confirmados não são desfeitos automaticamente."}
             </div>
             <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Stat box k="Pessoas" v={String(previa.snapshot.contratos.reduce((n, c) => n + c.pessoas.length, 0))} />
