@@ -222,7 +222,10 @@ export function MensalPage() {
     setOcupado(true)
     setErroDisparo(null)
     try {
-      const somente = ehHomologacao && contratosSelecionados.length ? contratosSelecionados : undefined
+      // Vale em QUALQUER modo (inclui produção): backend e workflow filtram por contrato sem olhar
+      // o modo, e a antifraude da próxima prévia marca como bloqueado o que já foi processado na
+      // competência — então dá pra pagar em rodadas.
+      const somente = contratosSelecionados.length ? contratosSelecionados : undefined
       await aprovarRunMensal(runId, somente)
       setEtapa("acompanhando")
     } catch (e) {
@@ -490,41 +493,65 @@ export function MensalPage() {
             {erroDisparo && (
               <p className="mt-4 text-sm text-[rgb(var(--status-red))]">{erroDisparo}</p>
             )}
-            {ehHomologacao && (
-              <div className="mt-4 rounded-xl border border-dashed border-[rgb(var(--accent-rgb)/0.4)] bg-[rgb(var(--accent-rgb)/0.05)] px-4 py-3 text-left">
+            {/* Seleção de contratos vale em produção também — permite pagar em rodadas (ex.: fechar
+                SEMSA hoje e o resto amanhã). O que já foi pago na competência volta como
+                `bloqueado` na próxima prévia (antifraude) e o ledger por contrato é a 2ª trava. */}
+            <div className="mt-4 rounded-xl border border-dashed border-[rgb(var(--accent-rgb)/0.4)] bg-[rgb(var(--accent-rgb)/0.05)] px-4 py-3 text-left">
+              <div className="flex items-baseline justify-between gap-3">
                 <p className="text-[10px] uppercase tracking-[0.16em] text-[rgb(var(--accent-rgb))]">
-                  Contratos a processar · teste
+                  Contratos a processar
                 </p>
-                <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5">
-                  {previa.snapshot.contratos.map((c) => (
-                    <label
-                      key={c.contrato}
-                      className={`flex items-center gap-2 text-[13px] ${c.bloqueado ? "opacity-40" : "cursor-pointer text-foreground/85"}`}
-                    >
-                      <input
-                        type="checkbox"
-                        disabled={c.bloqueado}
-                        checked={contratosSelecionados.includes(c.contrato)}
-                        onChange={(e) =>
-                          setContratosSelecionados((s) =>
-                            e.target.checked ? [...s, c.contrato] : s.filter((x) => x !== c.contrato),
-                          )
-                        }
-                        className="size-3.5 accent-[rgb(var(--accent-rgb))]"
-                      />
-                      <span className="truncate">{c.contrato}</span>
-                      <span className="text-foreground/40">({c.pessoas.length})</span>
-                      {c.bloqueado && <span className="text-[10px] text-foreground/40">bloq.</span>}
-                    </label>
-                  ))}
-                </div>
+                <p className="text-[10px] text-foreground/45">
+                  {contratosSelecionados.length} de{" "}
+                  {previa.snapshot.contratos.filter((c) => !c.bloqueado).length}
+                </p>
               </div>
-            )}
+              <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5">
+                {previa.snapshot.contratos.map((c) => (
+                  <label
+                    key={c.contrato}
+                    className={`flex items-center gap-2 text-[13px] ${c.bloqueado ? "opacity-40" : "cursor-pointer text-foreground/85"}`}
+                  >
+                    <input
+                      type="checkbox"
+                      disabled={c.bloqueado}
+                      checked={contratosSelecionados.includes(c.contrato)}
+                      onChange={(e) =>
+                        setContratosSelecionados((s) =>
+                          e.target.checked ? [...s, c.contrato] : s.filter((x) => x !== c.contrato),
+                        )
+                      }
+                      className="size-3.5 accent-[rgb(var(--accent-rgb))]"
+                    />
+                    <span className="truncate">{c.contrato}</span>
+                    <span className="text-foreground/40">({c.pessoas.length})</span>
+                    {c.bloqueado && (
+                      <span
+                        className="text-[10px] text-foreground/40"
+                        title={c.motivoBloqueio ?? undefined}
+                      >
+                        {c.motivoBloqueio === "contrato_ja_processado_na_competencia"
+                          ? "já pago"
+                          : "bloq."}
+                      </span>
+                    )}
+                  </label>
+                ))}
+              </div>
+              {contratosSelecionados.length > 0 &&
+                contratosSelecionados.length <
+                  previa.snapshot.contratos.filter((c) => !c.bloqueado).length && (
+                  <p className="mt-2 text-[11px] text-[rgb(var(--accent-rgb))]">
+                    Rodada parcial: os contratos desmarcados ficam de fora e podem ser processados
+                    depois, numa nova prévia.
+                  </p>
+                )}
+            </div>
             <div className="mt-7 flex justify-center gap-3">
               <ChoiceButton onClick={() => setEtapa("tabela")}>← Revisar</ChoiceButton>
               <ChoiceButton
                 variant="primary"
-                disabled={ocupado || (ehHomologacao && contratosSelecionados.length === 0)}
+                disabled={ocupado || contratosSelecionados.length === 0}
                 onClick={aprovar}
               >
                 {ocupado ? "Iniciando…" : "Aprovar e iniciar"}
