@@ -83,6 +83,22 @@ export async function reservarEfeito(
   return rows[0]?.status === "confirmado" ? "confirmado" : "pendente"
 }
 
+/**
+ * Contratos com efeito JÁ CONFIRMADO numa competência do mensal — fonte de verdade NOSSA
+ * (não depende do estado do Monday). Chave: `mensal:<competencia>:<CONTRATO>:<etapa>`.
+ * Usado pela antifraude da prévia pra saber o que já rodou quando o pagamento é por contrato.
+ */
+export async function contratosMensalJaExecutados(competencia: string): Promise<string[]> {
+  const { rows } = await query<{ contrato: string }>(
+    `SELECT DISTINCT split_part(chave, ':', 3) AS contrato
+       FROM efeitos_externos
+      WHERE chave LIKE $1 AND status = 'confirmado'
+        AND split_part(chave, ':', 4) IN ('monday_solicitacao','caju_credito','caju_pix','rm_integrar')`,
+    [`mensal:${competencia}:%`],
+  )
+  return rows.map((r) => r.contrato).filter(Boolean)
+}
+
 export async function confirmarEfeito(chave: string, refExterna?: string): Promise<void> {
   await query(
     `UPDATE efeitos_externos SET status='confirmado', ref_externa=$2, confirmado_em=now() WHERE chave=$1`,

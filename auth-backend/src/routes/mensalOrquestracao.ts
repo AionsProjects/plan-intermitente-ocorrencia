@@ -12,6 +12,7 @@ import {
   prepararRetomada,
   vincularWorkflowRun,
 } from "../mensal/repo.js"
+import { registrarAtividadeServidor } from "./atividade.js"
 import type { PapelMensal } from "../mensal/types.js"
 import { executarMensalWorkflowClient } from "../mensal/workflowClient.js"
 import { usuarioDaSessao } from "../session.js"
@@ -99,6 +100,32 @@ export async function rotasMensalOrquestracao(app: FastifyInstance): Promise<voi
         await aprovarRun(req.params.runId, u.email)
         try {
           const workflowRunId = await iniciarWorkflow(req.params.runId, somenteContratos)
+          // Log de atividade (mesma tabela das outras ações). Feito no SERVIDOR porque é ação de
+          // dinheiro: tem que ficar registrado mesmo se o browser fechar. Guarda o escopo da
+          // rodada — todos os contratos, um subconjunto ou um só.
+          const run = await obterSnapshotRun(req.params.runId)
+          const todos = run.snapshot.contratos.map((c) => c.contrato)
+          const alvos = somenteContratos ?? todos
+          await registrarAtividadeServidor({
+            userId: u.id,
+            email: u.email,
+            nome: [u.nome, u.sobrenome].filter(Boolean).join(" ").trim() || u.email,
+            acao: "mensal",
+            alvo: req.params.runId,
+            contrato: alvos.length === 1 ? alvos[0]! : null,
+            resumo: {
+              competencia: run.snapshot.competencia,
+              papel: run.snapshot.papel,
+              modo: run.modo,
+              escopo: somenteContratos ? (alvos.length === 1 ? "contrato" : "conjunto") : "todos",
+              contratos: alvos,
+              contratos_total: todos.length,
+              pessoas: run.snapshot.contratos
+                .filter((c) => alvos.includes(c.contrato))
+                .reduce((n, c) => n + c.pessoas.length, 0),
+              workflow_run_id: workflowRunId,
+            },
+          }).catch((e) => req.log.error(e, "mensal audit"))
           return { ok: true, run_id: req.params.runId, workflow_run_id: workflowRunId }
         } catch (e) {
           await query(

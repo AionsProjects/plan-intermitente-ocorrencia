@@ -17,6 +17,37 @@ interface LinhaAtividade {
   operador_nome: string | null
 }
 
+/**
+ * Registra atividade DIRETO no servidor (sem depender do front chamar /api/atividade).
+ * Usado pelas ações de dinheiro — o log tem que existir mesmo se o browser fechar no meio.
+ */
+export async function registrarAtividadeServidor(inp: {
+  userId: string
+  email: string
+  nome: string
+  acao: string
+  alvo?: string | null
+  pessoa?: string | null
+  contrato?: string | null
+  resumo?: unknown
+}): Promise<void> {
+  await query(
+    `INSERT INTO audit_lancamentos
+       (user_id, operador_email, operador_nome, acao, uuid_alvo, pessoa_nome, contrato, payload_resumo)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+    [
+      inp.userId,
+      inp.email,
+      inp.nome,
+      inp.acao,
+      inp.alvo ?? null,
+      inp.pessoa ?? null,
+      inp.contrato ?? null,
+      inp.resumo != null ? JSON.stringify(inp.resumo) : null,
+    ],
+  )
+}
+
 export async function rotasAtividade(app: FastifyInstance): Promise<void> {
   // Registra uma acao do usuario logado.
   app.post(

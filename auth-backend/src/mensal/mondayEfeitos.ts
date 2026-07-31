@@ -3,8 +3,11 @@
 //   "Preparar+Criar Solicitação" / "Preparar Status OK" / "Preparar+Registrar Debito Controle Caju".
 // Builders puros exportados p/ teste; executores usam mondayGraphql (token só no backend).
 // ATENÇÃO: executores ESCREVEM em produção Monday. Só chamar via workflow gated (producao+ledger).
-// Fix deliberado vs n8n: grupo do Controle Caju vem da COMPETÊNCIA do snapshot (apoio.grupoControleCaju),
-// não do mês do servidor (new Date()) — bug conhecido do legado.
+// Gaveta (grupo) dos boards Solicitação e Controle Caju = mês de CAIXA (quando o pagamento sai),
+// não a competência — regra do DP confirmada em 31/07/2026. Ex.: competência AGOSTO paga em julho
+// vai no grupo JULHO. A competência fica na COLUNA "Competência" (color_mks0yady) do item, e é ela
+// que a antifraude consulta. Isso reverte o "fix" anterior (que usava a competência como gaveta):
+// o comportamento do legado n8n (new Date()) estava certo.
 import { mondayGraphql } from "../monday.js"
 import type { DescontoUpdatePrevia, PessoaPreviaMensal, PlanUpdatePrevia } from "./types.js"
 
@@ -247,6 +250,43 @@ export async function executarUpdatesDescontos(updates: DescontoUpdatePrevia[]):
   if (!mutation) return 0
   await mondayGraphql(mutation)
   return updates.length
+}
+
+const MESES_CAIXA = ["JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO",
+  "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"] as const
+
+const normTitulo = (v: string) =>
+  v.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/\s+/g, " ").trim()
+
+/** Título da gaveta de caixa de cada board (formatos diferentes, herdados do legado). */
+export function tituloGrupoCaixa(board: "solicitacao" | "controle", data = new Date()): string {
+  const mes = MESES_CAIXA[data.getMonth()]!
+  const ano = data.getFullYear()
+  return board === "solicitacao" ? `${mes}/${String(ano).slice(-2)}` : `${mes} - ${ano}`
+}
+
+/**
+ * Garante a gaveta do mês de CAIXA e devolve o group_id — acha por título (tolerante a
+ * acento/caixa/espaço) e cria se faltar, como o legado n8n fazia. A prévia é read-only, então
+ * quem cria é a execução; sem isso, virar o mês derrubava o run com grupo_ausente_no_snapshot.
+ */
+export async function garantirGrupoCaixa(
+  board: "solicitacao" | "controle",
+  data = new Date(),
+): Promise<string> {
+  const boardId = board === "solicitacao" ? BOARD_SOLICITACAO : BOARD_CONTROLE_CAJU
+  const titulo = tituloGrupoCaixa(board, data)
+  const d = await mondayGraphql<{ boards: Array<{ groups: Array<{ id: string; title: string }> }> }>(
+    `query($b:[ID!]){ boards(ids:$b){ groups{ id title } } }`,
+    { b: [boardId] },
+  )
+  const achado = d.boards?.[0]?.groups?.find((g) => normTitulo(g.title) === normTitulo(titulo))
+  if (achado) return achado.id
+  const criado = await mondayGraphql<{ create_group: { id: string } }>(
+    `mutation($b:ID!,$t:String!){ create_group(board_id:$b, group_name:$t){ id } }`,
+    { b: boardId, t: titulo },
+  )
+  return criado.create_group.id
 }
 
 export async function criarSolicitacaoMensal(

@@ -16,6 +16,7 @@ import {
   criarSolicitacaoMensal,
   executarUpdatesDescontos,
   executarUpdatesPlano,
+  garantirGrupoCaixa,
   registrarDebitoControleCaju,
   setarStatusAutomacaoOk,
 } from "../auth-backend/src/mensal/mondayEfeitos.js"
@@ -407,12 +408,13 @@ async function etapaMondayControleCaju(
   if (r.acao === "simular") return simularEfeito(runId, contrato.contrato, etapa, r.chave, metadata.attempt)
   const { mes, ano } = competenciaPartes(competencia)
   const totalCredito = contrato.totais.credito ?? 0
-  if (totalCredito > 0 && !grupoControleCaju) {
-    throw new FatalError("grupo_controle_caju_ausente_no_snapshot")
-  }
+  // Gaveta de caixa: a prévia é read-only, então quem cria o grupo do mês é a execução.
+  const grupoControle = totalCredito > 0
+    ? (grupoControleCaju ?? (await garantirGrupoCaixa("controle")))
+    : grupoControleCaju
   const res = totalCredito > 0
     ? await registrarDebitoControleCaju({
-        grupoControleCaju: grupoControleCaju!,
+        grupoControleCaju: grupoControle!,
         contrato: contrato.contrato,
         nomePrefixo: modo === "teste" ? "TESTE - " : undefined,
         competenciaLabel: MESES_LABEL[mes - 1]!,
@@ -448,7 +450,8 @@ async function etapaMondaySolicitacao(
   const r = await reservarOuPular(runId, modo, competencia, contrato.contrato, etapa, metadata.attempt)
   if (r.acao === "pular") return null
   if (r.acao === "simular") { await simularEfeito(runId, contrato.contrato, etapa, r.chave, metadata.attempt); return null }
-  if (!grupoSolicitacao) throw new FatalError("grupo_solicitacao_ausente_no_snapshot")
+  // Gaveta de caixa: cria o grupo do mês se a prévia (read-only) não achou.
+  const grupoDestino = grupoSolicitacao ?? (await garantirGrupoCaixa("solicitacao"))
   const { mes, ano } = competenciaPartes(competencia)
   const criado = await criarSolicitacaoMensal({
     contrato: contrato.contrato,
@@ -466,7 +469,7 @@ async function etapaMondaySolicitacao(
     summaryPix: refs.pedidoPixId ? `https://empresa.caju.com.br/classic/#/order/${refs.pedidoPixId}/summary` : "",
     planBoardId: boardId,
     dataIso: new Date().toISOString().slice(0, 10),
-  }, grupoSolicitacao)
+  }, grupoDestino)
   await confirmarEfeito(r.chave, `monday:solicitacao:${criado.id}`)
   await registrarEvento({
     runId, contrato: contrato.contrato, etapa, estado: "concluido", tentativa: metadata.attempt,

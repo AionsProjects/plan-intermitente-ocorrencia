@@ -1,4 +1,5 @@
 import { query } from "../db.js"
+import { contratosMensalJaExecutados } from "../jobs/repo.js"
 import { mondayGraphql } from "../monday.js"
 import type {
   ContratoPreviaMensal,
@@ -87,9 +88,15 @@ async function lerApoio(competencia: string): Promise<{
   feriadosItems: RawItem[]
   descontosItems: RawItem[]
 }> {
-  const [ano, mes] = competencia.split("-").map(Number)
+  // A competência em si não resolve gaveta nenhuma aqui — ela vive na COLUNA "Competência" do
+  // item (gravada em mondayEfeitos) e na chave do ledger. Aqui só interessa o mês de CAIXA.
   const meses = ["JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO", "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"]
-  const label = meses[(mes || 1) - 1]!
+  // GAVETA (grupo) = mês de CAIXA, quando o pagamento sai — NÃO a competência.
+  // Regra do DP (31/07/2026): competência AGOSTO paga em julho vai no grupo JULHO dos boards
+  // Solicitação e Controle Caju. A competência em si fica na COLUNA "Competência" do item.
+  const hoje = new Date()
+  const labelCaixa = meses[hoje.getMonth()]!
+  const anoCaixa = hoje.getFullYear()
   const solicit = await mondayGraphql<{
     solicit: Array<{ groups: Array<{ id: string; title: string; items_page: { items: RawItem[] } }> }>
     parametros: Array<{ items_page: { items: RawItem[] } }>
@@ -109,21 +116,37 @@ async function lerApoio(competencia: string): Promise<{
       controle: boards(ids:[${BOARD_CONTROLE_CAJU}]) { groups { id title } }
     }`,
   )
-  const grupoSolic = solicit.solicit?.[0]?.groups?.find((g) => norm(g.title) === norm(`${label}/${String(ano).slice(-2)}`))
+  const grupoSolic = solicit.solicit?.[0]?.groups?.find(
+    (g) => norm(g.title) === norm(`${labelCaixa}/${String(anoCaixa).slice(-2)}`),
+  )
+  // ANTIFRAUDE: "esse contrato já foi pago nessa competência?" é respondido pela COLUNA
+  // "Competência" do item, em QUALQUER grupo — não por onde o item foi arquivado. Sem isso,
+  // trocar a gaveta pra caixa cegaria a proteção e abriria porta pra pagamento duplicado
+  // (ex.: pagar SEMSA numa rodada e o resto na outra). O board é anual
+  // ("SOLICITAÇÃO DE PAGAMENTO - BENEFICIO - 2026"), então o label de mês é inequívoco.
+  // ANTIFRAUDE — fonte de verdade = NOSSO ledger `pi.efeitos_externos`, chave
+  // `mensal:<competencia>:<CONTRATO>:<etapa>`. Responde exatamente "esse contrato já foi
+  // processado nesta competência?", por contrato — é o que sustenta pagar em rodadas.
+  //
+  // Por que NÃO varremos o board Solicitação (como antes): o mensal CELETISTA grava no mesmo
+  // board, com o mesmo `REFERÊNCIA PGTO = MENSAL`, a mesma coluna Competência e os MESMOS nomes
+  // de contrato (verificado 31/07/2026: 13 itens MENSAL+AGOSTO no grupo JULHO/26, ex.
+  // `M-08-2026-85-SEMSA`). Filtrar por lá bloqueava TODOS os contratos do intermitente —
+  // falso positivo que inviabiliza a rodada. Enquanto o intermitente não tiver marcador próprio
+  // no board (ver pendência: usar REFERÊNCIA PGTO = INTERMITENTE, como o pontual já faz),
+  // pagamento feito 100% à mão no Monday não é detectável aqui.
   const processadas = new Set<string>()
-  for (const item of grupoSolic?.items_page.items ?? []) {
-    if (norm(valor(item, "REFERÊNCIA PGTO")) !== "MENSAL") continue
-    const status = norm(valor(item, "STATUS PROCESSO"))
-    const pendente = !status || status.includes("NAO INICIADO") || status.includes("CANCELAD") || status.includes("REPROVAD") || status.includes("PARADO")
-    if (!pendente) processadas.add(norm(valor(item, "CONTRATO")))
+  for (const contrato of await contratosMensalJaExecutados(competencia)) {
+    processadas.add(norm(contrato))
   }
   const descontos = (solicit.descontos?.[0]?.groups?.[0]?.items_page.items ?? []).filter((it) => {
     const status = norm(valor(it, "Status do Desconto"))
     return status === "PENDENTE" || status === "PARCIAL"
   }).length
+  // Controle Caju: também gaveta de CAIXA ("JULHO - 2026"), igual ao legado n8n.
   const grupoControle = solicit.controle?.[0]?.groups?.find((g) => {
     const t = norm(g.title)
-    return t.includes(norm(label)) && (t.includes(String(ano)) || t.includes(String(ano).slice(-2)))
+    return t.includes(norm(labelCaixa)) && (t.includes(String(anoCaixa)) || t.includes(String(anoCaixa).slice(-2)))
   })?.id ?? null
   return {
     solicitacoesProcessadas: [...processadas],
@@ -225,8 +248,9 @@ export async function calcularPreviaMensal(
     }
   })
   const alertas: string[] = []
-  if (!apoio.grupoControle) alertas.push("grupo_controle_caju_nao_encontrado_para_competencia")
-  if (!apoio.grupoSolicitacao) alertas.push("grupo_solicitacao_nao_encontrado_para_competencia")
+  // Gaveta de caixa ausente NÃO é erro: a execução cria o grupo do mês antes de escrever.
+  if (!apoio.grupoControle) alertas.push("grupo_caixa_controle_caju_sera_criado_na_execucao")
+  if (!apoio.grupoSolicitacao) alertas.push("grupo_caixa_solicitacao_sera_criado_na_execucao")
   if (!apoio.parametros) alertas.push("parametros_beneficios_vazio")
   if (!contratos.length) alertas.push("nenhum_contrato_elegivel")
   if (opts.bypassAntifraude) alertas.push("antifraude_desabilitada_teste_homologacao")
