@@ -29,6 +29,7 @@ const ACTION_SAVE = "http://www.totvs.com/IwsDataServer/SaveRecord"
 const ACTION_READ = "http://www.totvs.com/IwsDataServer/ReadRecord"
 const ACTION_CHECK = "http://www.totvs.com/IRMSServer/CheckServiceActivity"
 const ACTION_DELETE_KEY = "http://www.totvs.com/IwsDataServer/DeleteRecordByKey"
+const ACTION_READ_VIEW = "http://www.totvs.com/IwsDataServer/ReadView"
 const ACTION_EXEC_XML = "http://www.totvs.com/IwsProcess/ExecuteWithXmlParams"
 
 export function temRmSoap(): boolean {
@@ -170,6 +171,46 @@ export async function deleteRecordByKeyDireto(
 </soapenv:Envelope>`
   const xml = await postSoap(PATH_DATASERVER, ACTION_DELETE_KEY, envelope, config.rmSoapTimeoutMs)
   return extrairTag(xml, "DeleteRecordByKeyResult") ?? ""
+}
+
+/**
+ * ReadView — lista registros que casam com um filtro SQL do DataServer.
+ *
+ * Existe porque o ledger `pi.efeitos_externos` guarda a CONTAGEM do lote
+ * (`rm:hist:pix:l0:50`), não as PKs de cada SaveRecord. Sem isso não há caminho de volta:
+ * pra desfazer um run é preciso redescobrir os registros pelo filtro.
+ *
+ * READ-ONLY. O filtro vai cru no XML — só passe literais montados aqui, nunca entrada externa.
+ */
+export async function readViewDireto(
+  dataServerName: string,
+  filtro: string,
+  contexto: string,
+  timeoutMs = config.rmSoapTimeoutProcessoMs,
+): Promise<string> {
+  const envelope = `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tot="http://www.totvs.com/">
+   <soapenv:Header/>
+   <soapenv:Body>
+      <tot:ReadView>
+         <tot:DataServerName>${dataServerName}</tot:DataServerName>
+         <tot:Filtro><![CDATA[${filtro}]]></tot:Filtro>
+         <tot:Contexto>${contexto}</tot:Contexto>
+      </tot:ReadView>
+   </soapenv:Body>
+</soapenv:Envelope>`
+  const xml = await postSoap(PATH_DATASERVER, ACTION_READ_VIEW, envelope, timeoutMs)
+  return extrairTag(xml, "ReadViewResult") ?? ""
+}
+
+/** Desescapa XML devolvido HTML-escapado (`&lt;ID&gt;`) — ReadRecord/ReadView fazem isso. */
+export function desescaparXml(s: string): string {
+  return s
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#xD;/g, "")
+    .replace(/&amp;/g, "&")
 }
 
 /** ReadRecord de um registro existente — prova DataServerName/Contexto/permissão sem gravar. */
