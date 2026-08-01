@@ -61,6 +61,12 @@ export const config = {
   rmBridgeUrl: opt("RM_BRIDGE_URL", ""),
   rmAionsAuth: opt("RM_AIONS_AUTH", ""),
   rmDataServer: opt("RM_DATA_SERVER", ""),
+  // RM TOTVS DIRETO (Basic Auth) — só LEITURA (API consultaSQLServer/RealizaConsulta).
+  // Preferido quando configurado: tira a ponte ngrok do caminho das consultas, que era o
+  // ponto único de falha (ver janelas de "rm_indisponivel"). Escrita continua pela ponte.
+  rmDiretoUrl: opt("RM_DIRETO_URL", ""),
+  rmDiretoUser: opt("RM_DIRETO_USER", ""),
+  rmDiretoPass: opt("RM_DIRETO_PASS", ""),
   // Nexti (validação de atestado — OAuth client_credentials, Basic base64).
   nextiBasicAuth: opt("NEXTI_BASIC_AUTH", ""),
   // Google Drive (arquivamento). Use service account compartilhada na pasta raiz.

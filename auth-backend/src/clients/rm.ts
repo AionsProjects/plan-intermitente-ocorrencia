@@ -62,21 +62,76 @@ export interface ConsultaParams {
   codigoColigada?: number // default 3
 }
 
-/** Consulta SQL no RM (RealizaConsulta via ponte). Retorna o array de linhas. */
-export async function consultarSql<T = Record<string, unknown>>(p: ConsultaParams): Promise<T[]> {
-  const body = {
+// ---------------------------------------------------------------------------
+// RM DIRETO (sem ponte) — API consultaSQLServer/RealizaConsulta, Basic Auth.
+// SÓ LEITURA: a API REST do RM não cobre SaveRecord/processos, então enviarRm(),
+// executarProcesso() e deletarRm() continuam pela ponte AIONS.
+// Medido em 01/08/2026 (mesma consulta, mesmas linhas, 1a linha idêntica):
+//   BEN 2  889ms direto x 4145ms ponte | IDFINAN 380ms x 920ms | MONK23 1153ms x 1386ms
+// ---------------------------------------------------------------------------
+
+function temRmDireto(): boolean {
+  return !!(config.rmDiretoUrl && config.rmDiretoUser && config.rmDiretoPass)
+}
+
+/** `?parameters=CHAVE%3Dvalor%3BCHAVE2%3Dvalor2` — `=` e `;` ficam encodados, como a doc exige. */
+function queryParametros(parametros: Record<string, unknown>): string {
+  return Object.entries(parametros)
+    .map(([k, v]) => `${encodeURIComponent(k)}%3D${encodeURIComponent(String(v))}`)
+    .join("%3B")
+}
+
+async function consultarDireto<T>(
+  codigoSql: string,
+  coligadaUrl: number,
+  sistema: string,
+  parametros: Record<string, unknown>,
+): Promise<T[]> {
+  const base = config.rmDiretoUrl.replace(/\/$/, "")
+  const url =
+    `${base}/api/framework/v1/consultaSQLServer/RealizaConsulta/` +
+    `${encodeURIComponent(codigoSql)}/${coligadaUrl}/${sistema}/?parameters=${queryParametros(parametros)}`
+  const auth = Buffer.from(`${config.rmDiretoUser}:${config.rmDiretoPass}`).toString("base64")
+  const r = await fetch(url, { headers: { Authorization: `Basic ${auth}`, Accept: "application/json" } })
+  const txt = await r.text()
+  if (!r.ok) throw erro(`RM direto ${codigoSql} HTTP ${r.status}`, r.status, txt.slice(0, 300))
+  const j = safeJson(txt)
+  // Sucesso sem registros vem como []; qualquer outra coisa é resposta inesperada.
+  if (!Array.isArray(j)) throw erro(`RM direto ${codigoSql}: resposta nao-array`, r.status, txt.slice(0, 300))
+  return j as T[]
+}
+
+/**
+ * Consulta SQL no RM. Tenta DIRETO (rápido, sem ngrok) e cai pra ponte AIONS se falhar —
+ * a ponte segue como rota de fuga, não como caminho principal.
+ */
+async function consultar<T>(p: ConsultaParams, parametros: Record<string, unknown>): Promise<T[]> {
+  const coligada = p.codigoColigada ?? 3
+  const sistema = p.codigoSistema ?? "P"
+  if (temRmDireto()) {
+    try {
+      return await consultarDireto<T>(p.codigoSql, coligada, sistema, parametros)
+    } catch (e) {
+      console.warn(`[rm] direto falhou (${(e as Error).message}) — caindo pra ponte AIONS`)
+    }
+  }
+  const r = await post<unknown>("/consultar-rm", {
     ambiente: p.ambiente ?? "producao",
     solicitante: p.solicitante ?? "backend-pi",
     codigo_sql: p.codigoSql,
-    codigo_sistema: p.codigoSistema ?? "P",
-    codigo_coligada: p.codigoColigada ?? 3,
-    parametros: { $CODCOLIGADA: p.codigoColigada ?? 3, ...(p.parametros ?? {}) },
-  }
-  const r = await post<unknown>("/consultar-rm", body)
+    codigo_sistema: sistema,
+    codigo_coligada: coligada,
+    parametros,
+  })
   // a ponte pode devolver array direto ou { dados: [...] }
   if (Array.isArray(r)) return r as T[]
   const obj = r as { dados?: T[]; result?: T[]; rows?: T[] } | null
   return (obj?.dados ?? obj?.result ?? obj?.rows ?? []) as T[]
+}
+
+/** Consulta SQL no RM (RealizaConsulta). Injeta `$CODCOLIGADA`. Retorna o array de linhas. */
+export async function consultarSql<T = Record<string, unknown>>(p: ConsultaParams): Promise<T[]> {
+  return consultar<T>(p, { $CODCOLIGADA: p.codigoColigada ?? 3, ...(p.parametros ?? {}) })
 }
 
 /** SaveRecord no RM (escrita real — GATED no caller). dadosXml = SOAP body já montado. */
@@ -102,18 +157,7 @@ export async function executarProcesso(payload: Record<string, unknown>): Promis
 /** Consulta SQL com parâmetros EXATOS (sem injeção de $CODCOLIGADA) — paridade com nós n8n
  *  que passam chaves sem prefixo (ex: IDFNAN usa CODCOLIGADA/CODSECAO/DATAEMISSAO). */
 export async function consultarSqlBruto<T = Record<string, unknown>>(p: ConsultaParams): Promise<T[]> {
-  const body = {
-    ambiente: p.ambiente ?? "producao",
-    solicitante: p.solicitante ?? "backend-pi",
-    codigo_sql: p.codigoSql,
-    codigo_sistema: p.codigoSistema ?? "P",
-    codigo_coligada: p.codigoColigada ?? 3,
-    parametros: p.parametros ?? {},
-  }
-  const r = await post<unknown>("/consultar-rm", body)
-  if (Array.isArray(r)) return r as T[]
-  const obj = r as { dados?: T[]; result?: T[]; rows?: T[] } | null
-  return (obj?.dados ?? obj?.result ?? obj?.rows ?? []) as T[]
+  return consultar<T>(p, p.parametros ?? {})
 }
 
 /** Deleta registro RM (escrita — GATED no caller). */
