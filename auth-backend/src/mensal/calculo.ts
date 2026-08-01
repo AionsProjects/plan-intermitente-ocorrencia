@@ -194,10 +194,14 @@ export function calcularMensal(
         d.descontadoVR = r2(d.descontadoVR + tiraVR); d.descontadoVT = r2(d.descontadoVT + tiraVT)
         descontosTocados.add(d)
       }
-      // Crédito em conta Caju — ESTILO PONTUAL: até 2 dias de VR e 2 dias de VT,
-      // pra TODOS os contratos (o resto do líquido vai por PIX no boleto).
-      const tetoVR = r2(vrDia * 2)
-      const tetoVT = r2(vtDia * 2)
+      // Crédito em conta Caju: até 3 dias de VR, e VT NENHUM — o VT vai 100% no boleto.
+      // Confirmado pelo DP em 01/08/2026 contra o pagamento oficial do SEMSA (pedido Caju
+      // 622cd7d3): 73,50/pessoa em alimentação (3 × 24,50) e VT zerado nas 29 linhas.
+      // Antes eram 2 dias de VR + 2 de VT ("estilo pontual"), o que dava 69,00/pessoa e
+      // divergia do oficial em 4,50 por pessoa (130,50 no contrato).
+      // É TETO, não valor fixo: quem tem menos dias recebe o que tem direito (Math.min abaixo).
+      const tetoVR = r2(vrDia * 3)
+      const tetoVT = 0
       const creditoVR = r2(Math.min(brutoVR, tetoVR)), creditoVT = r2(Math.min(brutoVT, tetoVT))
       // Alocação do crédito por linha (ordem: inicio, itemId) — espelha o n8n.
       let remVR = creditoVR, remVT = creditoVT
