@@ -258,8 +258,15 @@ const MESES_CAIXA = ["JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO",
 const normTitulo = (v: string) =>
   v.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/\s+/g, " ").trim()
 
+/** "YYYY-MM" -> Date local no dia 1 (evita o shift de fuso do parse ISO). */
+function dataDoCaixa(caixa?: string): Date {
+  const m = /^(\d{4})-(\d{2})$/.exec(caixa ?? "")
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, 1) : new Date()
+}
+
 /** Título da gaveta de caixa de cada board (formatos diferentes, herdados do legado). */
-export function tituloGrupoCaixa(board: "solicitacao" | "controle", data = new Date()): string {
+export function tituloGrupoCaixa(board: "solicitacao" | "controle", caixa?: string): string {
+  const data = dataDoCaixa(caixa)
   const mes = MESES_CAIXA[data.getMonth()]!
   const ano = data.getFullYear()
   return board === "solicitacao" ? `${mes}/${String(ano).slice(-2)}` : `${mes} - ${ano}`
@@ -272,10 +279,10 @@ export function tituloGrupoCaixa(board: "solicitacao" | "controle", data = new D
  */
 export async function garantirGrupoCaixa(
   board: "solicitacao" | "controle",
-  data = new Date(),
+  caixa?: string,
 ): Promise<string> {
   const boardId = board === "solicitacao" ? BOARD_SOLICITACAO : BOARD_CONTROLE_CAJU
-  const titulo = tituloGrupoCaixa(board, data)
+  const titulo = tituloGrupoCaixa(board, caixa)
   const d = await mondayGraphql<{ boards: Array<{ groups: Array<{ id: string; title: string }> }> }>(
     `query($b:[ID!]){ boards(ids:$b){ groups{ id title } } }`,
     { b: [boardId] },

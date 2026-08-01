@@ -55,6 +55,8 @@ export interface SnapshotPrevia {
     feriados: number
     descontosPendentes: number
     grupoControleCaju: string | null
+    /** Mês de CAIXA da rodada ("YYYY-MM") — a gaveta dos boards Solicitação/Controle. */
+    caixa: string
   }
 }
 export interface PreviaResp {
@@ -167,8 +169,12 @@ export function buscarMeses(): Promise<MesesResp> {
 export function buscarPessoas(papel: Papel): Promise<PessoasResp> {
   return requestJson(`/api/mensal/pessoas?papel=${papel}`)
 }
-export function criarPreviaMensal(papel: Papel, bypassAntifraude = false): Promise<PreviaResp> {
-  return requestJson("/api/mensal/runs/previa", jsonPost({ papel, bypassAntifraude }))
+export function criarPreviaMensal(
+  papel: Papel,
+  bypassAntifraude = false,
+  caixa?: string,
+): Promise<PreviaResp> {
+  return requestJson("/api/mensal/runs/previa", jsonPost({ papel, bypassAntifraude, caixa }))
 }
 export function aprovarRunMensal(runId: string, somenteContratos?: string[]): Promise<{ ok: boolean; workflow_run_id: string }> {
   return requestJson(`/api/mensal/runs/${runId}/aprovar`, jsonPost({ somenteContratos }))

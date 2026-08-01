@@ -77,7 +77,7 @@ async function lerPlano(boardId: string, groupId: string): Promise<{
   return { items: d.boards?.[0]?.groups?.[0]?.items_page?.items ?? [], colunas }
 }
 
-async function lerApoio(competencia: string): Promise<{
+async function lerApoio(competencia: string, caixa: string): Promise<{
   solicitacoesProcessadas: string[]
   parametros: number
   feriados: number
@@ -94,9 +94,10 @@ async function lerApoio(competencia: string): Promise<{
   // GAVETA (grupo) = mês de CAIXA, quando o pagamento sai — NÃO a competência.
   // Regra do DP (31/07/2026): competência AGOSTO paga em julho vai no grupo JULHO dos boards
   // Solicitação e Controle Caju. A competência em si fica na COLUNA "Competência" do item.
-  const hoje = new Date()
-  const labelCaixa = meses[hoje.getMonth()]!
-  const anoCaixa = hoje.getFullYear()
+  // O caixa é ESCOLHIDO pelo operador (default = mês atual) — pagamento retroativo precisa cair
+  // na gaveta do mês em que o dinheiro saiu, não na do dia em que a tela foi aberta.
+  const [anoCaixa, mesCaixa] = caixa.split("-").map(Number)
+  const labelCaixa = meses[(mesCaixa || 1) - 1]!
   const solicit = await mondayGraphql<{
     solicit: Array<{ groups: Array<{ id: string; title: string; items_page: { items: RawItem[] } }> }>
     parametros: Array<{ items_page: { items: RawItem[] } }>
@@ -202,15 +203,21 @@ function mapearPessoas(items: RawItem[]): PessoaPreviaMensal[] {
   })).filter((p) => p.nome && p.contrato && p.dataInicio && p.dataFim && (p.cpf || p.chapa))
 }
 
+/** Mês corrente em "YYYY-MM" — default do caixa. */
+export function caixaAtual(hoje = new Date()): string {
+  return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`
+}
+
 export async function calcularPreviaMensal(
   papel: PapelMensal,
-  opts: { bypassAntifraude?: boolean } = {},
+  opts: { bypassAntifraude?: boolean; caixa?: string } = {},
 ): Promise<SnapshotPreviaMensal> {
+  const caixa = /^\d{4}-\d{2}$/.test(opts.caixa ?? "") ? opts.caixa! : caixaAtual()
   const board = await resolverBoard(papel)
   const grupo = await resolverGrupoMensal(board.monday_board_id)
   const [plano, apoio] = await Promise.all([
     lerPlano(board.monday_board_id, grupo),
-    lerApoio(board.competencia!),
+    lerApoio(board.competencia!, caixa),
   ])
   const planItems = plano.items
   const pessoas = mapearPessoas(planItems)
@@ -270,6 +277,7 @@ export async function calcularPreviaMensal(
       descontosPendentes: apoio.descontos,
       grupoControleCaju: apoio.grupoControle,
       grupoSolicitacao: apoio.grupoSolicitacao,
+      caixa,
       colunasPlano: plano.colunas,
     },
   }

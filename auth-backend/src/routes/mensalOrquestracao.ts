@@ -64,7 +64,7 @@ export async function rotasMensalOrquestracao(app: FastifyInstance): Promise<voi
 
   app.post(
     "/api/mensal/runs/previa",
-    async (req: FastifyRequest<{ Body: { papel?: string; bypassAntifraude?: boolean } }>, reply) => {
+    async (req: FastifyRequest<{ Body: { papel?: string; bypassAntifraude?: boolean; caixa?: string } }>, reply) => {
       const u = await exigirDP(req, reply)
       if (!u) return
       const papel: PapelMensal = req.body?.papel === "proximo" ? "proximo" : req.body?.papel === "teste" ? "teste" : "atual"
@@ -73,8 +73,11 @@ export async function rotasMensalOrquestracao(app: FastifyInstance): Promise<voi
       // Board sandbox (papel teste): antifraude sempre ignorada — reenvio livre é o objetivo.
       const bypassAntifraude = papel === "teste" || (req.body?.bypassAntifraude === true &&
         (config.mensalModo === "homologacao" || config.mensalTestBypassAntifraude))
+      // Mês de CAIXA (gaveta dos boards Solicitação/Controle). Default = mês atual; o operador
+      // pode escolher outro pra pagamento retroativo cair no fechamento certo.
+      const caixa = /^\d{4}-\d{2}$/.test(req.body?.caixa ?? "") ? req.body!.caixa! : undefined
       try {
-        const snapshot = await calcularPreviaMensal(papel, { bypassAntifraude })
+        const snapshot = await calcularPreviaMensal(papel, { bypassAntifraude, caixa })
         const runId = await criarRunPrevia(snapshot, u.email, config.mensalModo)
         return reply.code(201).send({ run_id: runId, snapshot, status: "aguardando_aprovacao", modo: config.mensalModo })
       } catch (e) {
@@ -115,6 +118,7 @@ export async function rotasMensalOrquestracao(app: FastifyInstance): Promise<voi
             contrato: alvos.length === 1 ? alvos[0]! : null,
             resumo: {
               competencia: run.snapshot.competencia,
+              caixa: run.snapshot.apoio.caixa,
               papel: run.snapshot.papel,
               modo: run.modo,
               escopo: somenteContratos ? (alvos.length === 1 ? "contrato" : "conjunto") : "todos",

@@ -397,6 +397,7 @@ async function etapaMondayControleCaju(
   competencia: string,
   contrato: ContratoPreviaMensal,
   grupoControleCaju: string | null,
+  caixa: string | undefined,
   pedidoCreditoId: string | null,
 ): Promise<void> {
   "use step"
@@ -410,7 +411,7 @@ async function etapaMondayControleCaju(
   const totalCredito = contrato.totais.credito ?? 0
   // Gaveta de caixa: a prévia é read-only, então quem cria o grupo do mês é a execução.
   const grupoControle = totalCredito > 0
-    ? (grupoControleCaju ?? (await garantirGrupoCaixa("controle")))
+    ? (grupoControleCaju ?? (await garantirGrupoCaixa("controle", caixa)))
     : grupoControleCaju
   const res = totalCredito > 0
     ? await registrarDebitoControleCaju({
@@ -441,6 +442,7 @@ async function etapaMondaySolicitacao(
   contrato: ContratoPreviaMensal,
   boardId: string,
   grupoSolicitacao: string | null,
+  caixa: string | undefined,
   refs: { idVR?: string | null; idVT?: string | null; pedidoCreditoId?: string | null; pedidoPixId?: string | null },
 ): Promise<string | null> {
   "use step"
@@ -451,7 +453,7 @@ async function etapaMondaySolicitacao(
   if (r.acao === "pular") return null
   if (r.acao === "simular") { await simularEfeito(runId, contrato.contrato, etapa, r.chave, metadata.attempt); return null }
   // Gaveta de caixa: cria o grupo do mês se a prévia (read-only) não achou.
-  const grupoDestino = grupoSolicitacao ?? (await garantirGrupoCaixa("solicitacao"))
+  const grupoDestino = grupoSolicitacao ?? (await garantirGrupoCaixa("solicitacao", caixa))
   const { mes, ano } = competenciaPartes(competencia)
   const criado = await criarSolicitacaoMensal({
     contrato: contrato.contrato,
@@ -625,9 +627,12 @@ async function processarContrato(
 
     // Monday (adaptador real, gated por producao+ledger).
     await etapaMondayPlano(runId, modo, competencia, contrato, snapshot.boardId, snapshot.apoio.colunasPlano)
-    await etapaMondayControleCaju(runId, modo, competencia, contrato, snapshot.apoio.grupoControleCaju, credito.orderId)
+    await etapaMondayControleCaju(
+      runId, modo, competencia, contrato, snapshot.apoio.grupoControleCaju, snapshot.apoio.caixa, credito.orderId,
+    )
     const solicitacaoId = await etapaMondaySolicitacao(
       runId, modo, competencia, contrato, snapshot.boardId, snapshot.apoio.grupoSolicitacao ?? null,
+      snapshot.apoio.caixa,
       { idVR: rmIds.idVR, idVT: rmIds.idVT, pedidoCreditoId: credito.orderId, pedidoPixId: pix.orderId },
     )
 

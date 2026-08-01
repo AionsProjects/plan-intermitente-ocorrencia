@@ -31,6 +31,22 @@ type Etapa = "mes" | "tabela" | "confirma" | "acompanhando" | "ok"
 
 const STATUS_FINAIS = ["concluido", "concluido_com_erro", "falhou", "cancelado", "cancelado_com_pendencia"]
 
+/** Meses de caixa oferecidos: 3 anteriores → atual → próximo (cobre fechamento retroativo). */
+const OPCOES_CAIXA: { valor: string; rotulo: string }[] = (() => {
+  const hoje = new Date()
+  const itens = []
+  for (let delta = -3; delta <= 1; delta++) {
+    const d = new Date(hoje.getFullYear(), hoje.getMonth() + delta, 1)
+    const valor = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+    const nome = format(d, "MMMM 'de' yyyy", { locale: ptBR })
+    itens.push({
+      valor,
+      rotulo: delta === 0 ? `${nome} (mês atual)` : nome,
+    })
+  }
+  return itens
+})()
+
 function rotuloMes(comp: string | null | undefined): string {
   if (!comp) return "—"
   try {
@@ -52,6 +68,13 @@ export function MensalPage() {
   const [ocupado, setOcupado] = useState(false)
   const [eventosAcumulados, setEventosAcumulados] = useState<EventoMensal[]>([])
   const cursorEventos = useRef(0)
+  // Mês de CAIXA = gaveta dos boards Solicitação/Controle Caju (quando o pagamento sai).
+  // Default: mês atual. Editável porque pagamento retroativo tem que cair no fechamento certo
+  // (ex.: rodar dia 01/08 um pagamento que pertence ao caixa de julho).
+  const [caixa, setCaixa] = useState<string>(() => {
+    const h = new Date()
+    return `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, "0")}`
+  })
   // Controles de teste (só homologação): desligar antifraude + escolher contratos.
   const [bypassAntifraude, setBypassAntifraude] = useState(false)
   const [contratosSelecionados, setContratosSelecionados] = useState<string[]>([])
@@ -177,7 +200,7 @@ export function MensalPage() {
     setOcupado(true)
     setErroDisparo(null)
     try {
-      const p = await criarPreviaMensal(papel, ehHomologacao && bypassAntifraude)
+      const p = await criarPreviaMensal(papel, ehHomologacao && bypassAntifraude, caixa)
       aplicarPrevia(p)
     } catch (e) {
       // 409: já existe um run global. Resolve automaticamente:
@@ -388,6 +411,33 @@ export function MensalPage() {
                 </div>
               </div>
 
+              {/* Gaveta de caixa — escolhida ANTES da prévia, porque é ela que resolve o grupo
+                  dos boards Solicitação e Controle Caju. A competência não muda: é a do board. */}
+              <div className="mt-4 rounded-2xl border border-border bg-[rgb(var(--ink)/0.04)] px-5 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-foreground/45">
+                      Mês de caixa (gaveta do pagamento)
+                    </p>
+                    <p className="mt-1 text-[11px] text-foreground/45">
+                      Onde a Solicitação e o Controle Caju vão ser arquivados — o mês em que o
+                      dinheiro sai. Não confunda com a competência ({rotuloMes(meses.data?.[papel === "teste" ? "teste" : papel]?.competencia)}).
+                    </p>
+                  </div>
+                  <select
+                    value={caixa}
+                    onChange={(e) => setCaixa(e.target.value)}
+                    className="glass-field shrink-0 rounded-xl px-3 py-2 text-sm"
+                  >
+                    {OPCOES_CAIXA.map((o) => (
+                      <option key={o.valor} value={o.valor}>
+                        {o.rotulo}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
               {ehHomologacao && (
                 <div
                   className={`mt-4 rounded-2xl border border-dashed px-5 py-4 ${
@@ -479,6 +529,11 @@ export function MensalPage() {
                   ? "Homologação isolada: os efeitos externos serão simulados e registrados no ledger."
                   : "Produção: a aprovação inicia o workflow durável. Efeitos confirmados não são desfeitos automaticamente."}
             </div>
+            <p className="mt-3 text-[12px] text-foreground/55">
+              Competência <span className="text-foreground/80">{rotuloMes(previa.snapshot.competencia)}</span>
+              {" · "}arquiva no caixa de{" "}
+              <span className="text-foreground/80">{rotuloMes(previa.snapshot.apoio.caixa)}</span>
+            </p>
             <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Stat box k="Pessoas" v={String(previa.snapshot.contratos.reduce((n, c) => n + c.pessoas.length, 0))} />
               <Stat box k="Contratos" v={String(previa.snapshot.contratos.length)} />

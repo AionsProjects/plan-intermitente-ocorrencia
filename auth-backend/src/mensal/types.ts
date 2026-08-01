@@ -90,8 +90,14 @@ export interface SnapshotPreviaMensal {
     feriados: number
     descontosPendentes: number
     grupoControleCaju: string | null
-    /** Grupo do board Solicitação (18393673859) da competência (ex: JULHO/26). */
+    /** Grupo do board Solicitação (18393673859) do mês de CAIXA (ex: JULHO/26). */
     grupoSolicitacao?: string | null
+    /**
+     * Mês de CAIXA escolhido pro pagamento ("YYYY-MM") — a gaveta dos boards Solicitação e
+     * Controle Caju. Default: mês atual. Fica no snapshot pra execução criar/usar a MESMA
+     * gaveta que a prévia mostrou, mesmo que o run atravesse a virada do mês.
+     */
+    caixa: string
     /** Colunas do board Plano resolvidas por título -> id (pros updates de escrita). */
     colunasPlano?: Record<string, string>
   }
