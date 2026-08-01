@@ -93,7 +93,11 @@ export async function contratosMensalJaExecutados(competencia: string): Promise<
     `SELECT DISTINCT split_part(chave, ':', 3) AS contrato
        FROM efeitos_externos
       WHERE chave LIKE $1 AND status = 'confirmado'
-        AND split_part(chave, ':', 4) IN ('monday_solicitacao','caju_credito','caju_pix','rm_integrar')`,
+        AND split_part(chave, ':', 4) IN ('monday_solicitacao','caju_credito','caju_pix','rm_integrar')
+        -- Simulação TAMBÉM confirma a chave (ref 'homologacao:<runId>:...'), pra exercitar a
+        -- idempotência. Sem excluir, um run de homologação bloquearia todos os contratos na
+        -- prévia seguinte — nada foi pago de verdade.
+        AND coalesce(ref_externa, '') NOT LIKE 'homologacao:%'`,
     [`mensal:${competencia}:%`],
   )
   return rows.map((r) => r.contrato).filter(Boolean)
