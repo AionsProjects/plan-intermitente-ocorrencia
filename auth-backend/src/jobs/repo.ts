@@ -103,9 +103,24 @@ export async function contratosMensalJaExecutados(competencia: string): Promise<
   return rows.map((r) => r.contrato).filter(Boolean)
 }
 
-export async function confirmarEfeito(chave: string, refExterna?: string): Promise<void> {
+/**
+ * Confirma o efeito. `detalhe` é MESCLADO no payload jsonb — é onde vivem as PKs do que
+ * foi gravado lá fora (ex.: os IDs de cada SaveRecord do histórico RM).
+ *
+ * Sem isso não há caminho de volta: em 01/08 o run cce6e4df gravou 225 registros no RM e o
+ * ledger só tinha a CONTAGEM do lote (`rm:hist:pix:l0:50`), então desfazer exigiu redescobrir
+ * tudo por ReadView + janela de RECCREATEDON. `ref_externa` continua sendo o resumo curto
+ * legível; o detalhe grande vai no payload.
+ */
+export async function confirmarEfeito(chave: string, refExterna?: string, detalhe?: unknown): Promise<void> {
   await query(
-    `UPDATE efeitos_externos SET status='confirmado', ref_externa=$2, confirmado_em=now() WHERE chave=$1`,
-    [chave, refExterna ?? null],
+    `UPDATE efeitos_externos
+        SET status='confirmado',
+            ref_externa=$2,
+            confirmado_em=now(),
+            payload = CASE WHEN $3::jsonb IS NULL THEN payload
+                           ELSE coalesce(payload, '{}'::jsonb) || $3::jsonb END
+      WHERE chave=$1`,
+    [chave, refExterna ?? null, detalhe != null ? JSON.stringify(detalhe) : null],
   )
 }

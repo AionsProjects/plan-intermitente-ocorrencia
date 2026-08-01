@@ -29,6 +29,7 @@ import {
 } from "../auth-backend/src/mensal/repo.js"
 import {
   RM_COLIGADA,
+  RM_DATA_SERVER_HISTORICO,
   chapasEventosPix,
   codSecaoBase,
   consultarIdfinanc,
@@ -227,13 +228,24 @@ async function etapaRmHistoricoLote(
   const registros: RegistroHistoricoRm[] = lotesHistorico(montarRegistrosHistorico(contrato.pessoas, tipo, {
     anoComp: ano, mesComp: mes, codSecao, dataImport: new Date().toISOString().slice(0, 10),
   }))[loteIdx] ?? []
+  // Guarda a PK de CADA SaveRecord: é o caminho de volta do lote. Antes só a contagem ia pro
+  // ledger, e desfazer o run de 01/08 exigiu redescobrir 225 registros por ReadView.
+  const pks: string[] = []
+  let viaPonte = 0
   for (const registro of registros) {
-    await enviarHistoricoRm(registro) // serial por design
+    const res = await enviarHistoricoRm(registro) // serial por design
+    if (res.chave) pks.push(res.chave)
+    else viaPonte++
   }
-  await confirmarEfeito(r.chave, `rm:hist:${tipo}:l${loteIdx}:${registros.length}`)
+  await confirmarEfeito(r.chave, `rm:hist:${tipo}:l${loteIdx}:${registros.length}`, {
+    dataServer: RM_DATA_SERVER_HISTORICO,
+    pks,
+    // >0 significa lote sem PK registrada (ponte não devolve chave) -> desfazer exige ReadView.
+    semPk: viaPonte,
+  })
   await registrarEvento({
     runId, contrato: contrato.contrato, etapa, estado: "concluido", tentativa: metadata.attempt,
-    metadados: { sub: `hist_${tipo}_lote${loteIdx}`, registros: registros.length },
+    metadados: { sub: `hist_${tipo}_lote${loteIdx}`, registros: registros.length, pks: pks.length, semPk: viaPonte },
   })
 }
 etapaRmHistoricoLote.maxRetries = 3

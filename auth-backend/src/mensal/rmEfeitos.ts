@@ -475,13 +475,28 @@ export function rotularIdfinanc(rows: RowIdfinanc[]): IdfinancRotulado[] {
 
 export interface OpcoesRm { ambiente?: "producao" | "teste"; dryRun?: boolean }
 
-/** Grava 1 registro de histórico ZMDHSTBENFUNC (SaveRecord /enviar-rm). */
-export async function enviarHistoricoRm(registro: RegistroHistoricoRm, opts: OpcoesRm = {}): Promise<unknown> {
-  return enviarRm(registro.dadosXml, {
+/** Resultado de uma escrita RM. `chave` = PK do registro — só o caminho DIRETO devolve. */
+export interface EscritaRm {
+  via: "direto" | "ponte"
+  chave?: string
+}
+
+/**
+ * Grava 1 registro de histórico ZMDHSTBENFUNC (SaveRecord /enviar-rm).
+ *
+ * Devolve a PK pra quem chama poder registrá-la no ledger. A ponte AIONS NÃO devolve chave
+ * (o payload de resposta dela não tem o campo), então `chave` vem undefined quando cai pra lá —
+ * e nesse caso o run continua sem caminho de volta pelo ledger. É mais um motivo pra escrita
+ * ficar no direto.
+ */
+export async function enviarHistoricoRm(registro: RegistroHistoricoRm, opts: OpcoesRm = {}): Promise<EscritaRm> {
+  const r = (await enviarRm(registro.dadosXml, {
     solicitante: "backend-pi-mensal-historico",
     dataServer: RM_DATA_SERVER_HISTORICO,
     ambiente: opts.ambiente ?? "producao",
-  })
+  })) as Record<string, unknown> | null
+  const chave = typeof r?.chave === "string" && r.chave.trim() ? r.chave.trim() : undefined
+  return { via: r?.via === "direto" ? "direto" : "ponte", chave }
 }
 
 /** Dispara FopRotinas (Geração de Lançamentos Financeiros) do contrato. */
