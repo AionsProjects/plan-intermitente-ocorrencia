@@ -101,7 +101,16 @@ export async function rotasRm(app: FastifyInstance): Promise<void> {
       ])
 
       return {
-        configurado: { soap: temRmSoap(), escritaDireta: config.rmEscritaDireta, dataServer: RM_DATA_SERVER_HISTORICO },
+        configurado: {
+          soap: temRmSoap(),
+          escritaDireta: config.rmEscritaDireta,
+          dataServer: RM_DATA_SERVER_HISTORICO,
+          // Estado do corte financeiro do mensal — confere ANTES de aprovar um run.
+          // Só paga de verdade com modo=producao E producaoLiberada=true (gate duplo).
+          mensalModo: config.mensalModo,
+          mensalProducaoLiberada: config.mensalProductionEnabled,
+          mensalWorkflowLigado: config.mensalWorkflowEnabled,
+        },
         soap_dataserver: dataserver,
         soap_processo: processo,
         soap_readrecord: leitura,
