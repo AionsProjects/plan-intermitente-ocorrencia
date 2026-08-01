@@ -25,6 +25,46 @@ const LABEL_ACAO: Record<string, string> = {
   atestado: "Atestado / Declaração",
   ponto_facultativo: "Ponto facultativo",
   desconto: "Registro de desconto",
+  mensal: "Pagamento mensal",
+}
+
+const MESES_LABEL = ["janeiro", "fevereiro", "março", "abril", "maio", "junho",
+  "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"]
+
+const ESCOPO_LABEL: Record<string, string> = {
+  todos: "todos os contratos",
+  conjunto: "contratos selecionados",
+  contrato: "1 contrato",
+}
+
+function competenciaLegivel(v: unknown): string {
+  const m = String(v ?? "").match(/^(\d{4})-(\d{2})$/)
+  if (!m) return String(v ?? "")
+  return `${MESES_LABEL[Number(m[2]) - 1] ?? m[2]}/${m[1]}`
+}
+
+/** Chips de detalhe a partir do payload_resumo. Rico no mensal (ação de dinheiro), genérico no resto. */
+function detalhes(a: Atividade): string[] {
+  const r = (a.payload_resumo ?? {}) as Record<string, unknown>
+  if (a.acao === "mensal") {
+    const contratos = Array.isArray(r.contratos) ? (r.contratos as string[]) : []
+    const total = Number(r.contratos_total ?? contratos.length)
+    const chips = [
+      competenciaLegivel(r.competencia),
+      `${contratos.length}${total && total !== contratos.length ? `/${total}` : ""} contrato${contratos.length === 1 ? "" : "s"}`,
+      `${r.pessoas ?? "?"} pessoas`,
+      ESCOPO_LABEL[String(r.escopo)] ?? String(r.escopo ?? ""),
+      // O modo decide se saiu dinheiro — é o dado mais importante da linha.
+      r.modo === "producao" ? "PRODUÇÃO (efeitos reais)" : "homologação (simulado)",
+    ]
+    if (r.papel === "teste") chips.push("board de teste")
+    if (contratos.length) chips.push(contratos.join(", "))
+    return chips.filter(Boolean)
+  }
+  // Genérico: mostra os escalares do resumo como "chave: valor".
+  return Object.entries(r)
+    .filter(([, v]) => v != null && typeof v !== "object")
+    .map(([k, v]) => `${k.replaceAll("_", " ")}: ${v}`)
 }
 
 const COR_ACAO: Record<string, string> = {
@@ -35,6 +75,7 @@ const COR_ACAO: Record<string, string> = {
   atestado: "text-amber-400",
   ponto_facultativo: "text-cyan-400",
   desconto: "text-blue-400",
+  mensal: "text-fuchsia-400",
 }
 
 async function listar(todos: boolean): Promise<Atividade[]> {
@@ -117,6 +158,22 @@ export function AtividadeTab() {
                 {a.pessoa_nome ?? "—"}
                 {a.contrato && <span className="text-foreground/45"> · {a.contrato}</span>}
               </p>
+            )}
+            {detalhes(a).length > 0 && (
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {detalhes(a).map((d, i) => (
+                  <span
+                    key={i}
+                    className={`rounded-md px-1.5 py-0.5 text-[11px] ${
+                      d.startsWith("PRODUÇÃO")
+                        ? "bg-[rgb(var(--status-red)/0.14)] text-[var(--status-red)]"
+                        : "bg-[rgb(var(--ink)/0.06)] text-foreground/55"
+                    }`}
+                  >
+                    {d}
+                  </span>
+                ))}
+              </div>
             )}
             {todos && (
               <p className="mt-1 text-[11px] text-foreground/45">
