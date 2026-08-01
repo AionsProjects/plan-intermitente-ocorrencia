@@ -67,6 +67,13 @@ export const config = {
   rmDiretoUrl: opt("RM_DIRETO_URL", ""),
   rmDiretoUser: opt("RM_DIRETO_USER", ""),
   rmDiretoPass: opt("RM_DIRETO_PASS", ""),
+  // ESCRITA direta (SOAP wsDataServer/wsProcess). Default DESLIGADO: até o flip, toda escrita
+  // continua pela ponte. Liga com RM_ESCRITA_DIRETA=1 e desliga sem deploy se algo estranhar.
+  rmEscritaDireta: process.env.RM_ESCRITA_DIRETA === "1",
+  rmCodUsuario: opt("RM_COD_USUARIO", "003080"),
+  rmSoapTimeoutMs: Number(opt("RM_SOAP_TIMEOUT_MS", "45000")),
+  // IntegrarBackOffices roda SyncExecution=true e segura a conexão — timeout próprio, maior.
+  rmSoapTimeoutProcessoMs: Number(opt("RM_SOAP_TIMEOUT_PROCESSO_MS", "120000")),
   // Nexti (validação de atestado — OAuth client_credentials, Basic base64).
   nextiBasicAuth: opt("NEXTI_BASIC_AUTH", ""),
   // Google Drive (arquivamento). Use service account compartilhada na pasta raiz.

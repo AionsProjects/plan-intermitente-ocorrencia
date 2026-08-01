@@ -62,6 +62,11 @@ type ModoExec = "homologacao" | "producao" | "teste"
 // Trava de produção financeira. Só libera com modo=producao E env=1. Hoje 0 em todo ambiente.
 const PRODUCAO_LIBERADA = process.env.MENSAL_PRODUCTION_ENABLED === "1"
 
+// Espera entre lotes do histórico RM. Os 60s originais existiam por causa da ponte ngrok
+// ("SEMPRE em lotes no chamador — ngrok derruba volume"); com o RM direto o motivo encolhe.
+// Lido no MÓDULO, não dentro do workflow: env lida no corpo quebraria o replay determinístico.
+const ESPERA_LOTE_MS = Number(process.env.MENSAL_RM_ESPERA_LOTE_MS ?? "15000")
+
 function normContrato(contrato: string): string {
   return contrato.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().trim()
 }
@@ -612,17 +617,25 @@ async function processarContrato(
     const ctxContagem = { anoComp: ano, mesComp: mes, codSecao: "", dataImport: "1970-01-01" }
     const lotesPorTipo = (tipo: "pix" | "credito") =>
       lotesHistorico(montarRegistrosHistorico(contrato.pessoas, tipo, ctxContagem)).length
-    for (let i = 0; i < lotesPorTipo("pix"); i++) {
+    // Contado UMA vez: antes era reavaliado na condição do for, remontando todos os XMLs a cada volta.
+    const nLotesPix = lotesPorTipo("pix")
+    const nLotesCredito = lotesPorTipo("credito")
+    // Em homologação nada é enviado — esperar entre lotes é desperdício puro (custava 60s por lote).
+    // "teste" mantém a espera: o board sandbox escreve no RM de verdade.
+    const esperaLoteMs = modo === "homologacao" ? 0 : ESPERA_LOTE_MS
+    for (let i = 0; i < nLotesPix; i++) {
       await etapaRmHistoricoLote(runId, modo, competencia, contrato, "pix", i)
-      if (i < lotesPorTipo("pix") - 1) await sleep("60s") // espera entre lotes (igual ao Wait Hist do n8n)
+      if (i < nLotesPix - 1 && esperaLoteMs > 0) await sleep(esperaLoteMs)
     }
     const { temFinanceiro } = await etapaRmFopRotinas(runId, modo, competencia, contrato)
-    await sleep("7s") // Wait RM Processar (n8n)
+    // FopRotinas é job ASSÍNCRONO no RM (SyncExecution=false): o IDFNAN só lista depois que ele
+    // materializa. Não cortar — a leitura direta encurtou a janela, então isso ficou mais crítico.
+    if (modo !== "homologacao") await sleep("7s")
     await etapaRmAguardar(runId, contrato.contrato)
     const rmIds = await etapaRmIntegrar(runId, modo, competencia, contrato, temFinanceiro)
-    for (let i = 0; i < lotesPorTipo("credito"); i++) {
+    for (let i = 0; i < nLotesCredito; i++) {
       await etapaRmHistoricoLote(runId, modo, competencia, contrato, "credito", i)
-      if (i < lotesPorTipo("credito") - 1) await sleep("60s")
+      if (i < nLotesCredito - 1 && esperaLoteMs > 0) await sleep(esperaLoteMs)
     }
 
     // Monday (adaptador real, gated por producao+ledger).

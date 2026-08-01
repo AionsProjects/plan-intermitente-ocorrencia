@@ -3,6 +3,13 @@
 // aqui só o request unitário + retry/backoff. Writes (enviar-rm) são gated: o caller
 // decide; este client só executa o POST.
 import { config } from "../config.js"
+import {
+  contextoDataServer,
+  executeWithXmlParamsDireto,
+  saveRecordDireto,
+  temRmSoap,
+  type RmSoapError,
+} from "./rmSoap.js"
 
 export interface RmError extends Error {
   rm: true
@@ -92,7 +99,12 @@ async function consultarDireto<T>(
     `${base}/api/framework/v1/consultaSQLServer/RealizaConsulta/` +
     `${encodeURIComponent(codigoSql)}/${coligadaUrl}/${sistema}/?parameters=${queryParametros(parametros)}`
   const auth = Buffer.from(`${config.rmDiretoUser}:${config.rmDiretoPass}`).toString("base64")
-  const r = await fetch(url, { headers: { Authorization: `Basic ${auth}`, Accept: "application/json" } })
+  // Timeout explícito: um RM pendurado (lento, sem recusar) não tem nada que o interrompa,
+  // e sem isso a leitura ficaria presa em vez de cair pro fallback.
+  const r = await fetch(url, {
+    headers: { Authorization: `Basic ${auth}`, Accept: "application/json" },
+    signal: AbortSignal.timeout(15_000),
+  })
   const txt = await r.text()
   if (!r.ok) throw erro(`RM direto ${codigoSql} HTTP ${r.status}`, r.status, txt.slice(0, 300))
   const j = safeJson(txt)
@@ -134,24 +146,66 @@ export async function consultarSql<T = Record<string, unknown>>(p: ConsultaParam
   return consultar<T>(p, { $CODCOLIGADA: p.codigoColigada ?? 3, ...(p.parametros ?? {}) })
 }
 
-/** SaveRecord no RM (escrita real — GATED no caller). dadosXml = SOAP body já montado. */
-export async function enviarRm(
-  dadosXml: string,
-  opts?: { solicitante?: string; dataServer?: string; ambiente?: string; codigoColigada?: number },
-): Promise<unknown> {
-  return post("/enviar-rm", {
-    ambiente: opts?.ambiente ?? "producao",
-    solicitante: opts?.solicitante ?? "backend-pi-saverecord",
-    data_server: opts?.dataServer ?? config.rmDataServer,
-    codigo_sistema: "P",
-    codigo_coligada: opts?.codigoColigada ?? 3,
-    dados_xml: dadosXml,
-  })
+// ---------------------------------------------------------------------------
+// ESCRITA — política ASSIMÉTRICA em relação à leitura.
+// Na leitura, cair pra ponte custa segundos. Na escrita, cair pra ponte depois de um timeout
+// duplica histórico ou lançamento financeiro: o AbortSignal corta o nosso lado, não o do RM.
+// Por isso só voltamos pra ponte quando o erro PROVA que nada executou (DNS/conexão/401/403/404).
+// ---------------------------------------------------------------------------
+
+/** `dry_run` e `ambiente != producao` só existem na ponte — nunca podem ir pro direto. */
+function podeEscreverDireto(ambiente: string | undefined, dryRun: boolean): boolean {
+  if (dryRun) return false
+  if ((ambiente ?? "producao") !== "producao") return false
+  return config.rmEscritaDireta && temRmSoap()
 }
 
-/** Executa um processo RM (escrita — GATED no caller). */
+/** true = o erro prova que o RM não executou nada -> a ponte pode tentar sem duplicar. */
+function seguroCairPraPonte(e: unknown): boolean {
+  const s = e as RmSoapError
+  return !!s?.rmSoap && s.indeterminado !== true
+}
+
+/** SaveRecord no RM (escrita real — GATED no caller). dadosXml = payload de negócio. */
+export async function enviarRm(
+  dadosXml: string,
+  opts?: { solicitante?: string; dataServer?: string; ambiente?: string; codigoColigada?: number; dryRun?: boolean },
+): Promise<unknown> {
+  const ambiente = opts?.ambiente ?? "producao"
+  const dataServer = opts?.dataServer ?? config.rmDataServer
+  const coligada = opts?.codigoColigada ?? 3
+  if (podeEscreverDireto(ambiente, opts?.dryRun === true)) {
+    try {
+      const { chave } = await saveRecordDireto(dataServer, dadosXml, contextoDataServer(coligada))
+      return { via: "direto", chave }
+    } catch (e) {
+      if (!seguroCairPraPonte(e)) throw e
+      console.warn(`[rm] SaveRecord direto falhou antes do RM (${(e as Error).message}) — caindo pra ponte`)
+    }
+  }
+  return post("/enviar-rm", {
+    ambiente,
+    solicitante: opts?.solicitante ?? "backend-pi-saverecord",
+    data_server: dataServer,
+    codigo_sistema: "P",
+    codigo_coligada: coligada,
+    dados_xml: dadosXml,
+  }, 1) // escrita não repete sozinha (ver acima)
+}
+
+/** Executa um processo RM (escrita — GATED no caller). O envelope vem pronto em `soap_xml`. */
 export async function executarProcesso(payload: Record<string, unknown>): Promise<unknown> {
-  return post("/executar-processo-rm", payload)
+  const soapXml = typeof payload.soap_xml === "string" ? payload.soap_xml : ""
+  if (soapXml && podeEscreverDireto(payload.ambiente as string | undefined, payload.dry_run === true)) {
+    try {
+      const { resultado } = await executeWithXmlParamsDireto(soapXml)
+      return { via: "direto", resultado }
+    } catch (e) {
+      if (!seguroCairPraPonte(e)) throw e
+      console.warn(`[rm] processo direto falhou antes do RM (${(e as Error).message}) — caindo pra ponte`)
+    }
+  }
+  return post("/executar-processo-rm", payload, 1)
 }
 
 /** Consulta SQL com parâmetros EXATOS (sem injeção de $CODCOLIGADA) — paridade com nós n8n
