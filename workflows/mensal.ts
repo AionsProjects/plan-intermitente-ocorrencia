@@ -71,6 +71,31 @@ function normContrato(contrato: string): string {
   return contrato.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().trim()
 }
 
+/**
+ * Chave de idempotência do efeito externo. SÓ produção usa a chave real por competência.
+ *
+ * Simulação (teste/homologação) tem namespace próprio POR RUN. Compartilhar a chave de produção
+ * é o que quebrou o run `e173b1ef` (01/08): a simulação `09a1e0c0` da véspera confirmou as 57
+ * chaves de `mensal:2026-08:*`, e o pagamento real seguinte pulou TODAS as etapas como
+ * "pulado_idempotencia" — terminou `ok 5/5` sem ter feito nada. Silencioso, que é o pior modo
+ * de falhar num fluxo financeiro.
+ *
+ * Efeito colateral aceito: homologação deixa de exercitar o caminho "confirmado -> pular".
+ * Esse caminho é exercitado pelos retries de produção, e o risco inverso (pagamento pulado em
+ * silêncio) é incomparavelmente pior que a cobertura perdida.
+ */
+function chaveEfeito(
+  modo: ModoExec,
+  runId: string,
+  competencia: string,
+  contrato: string,
+  etapa: string,
+): string {
+  return modo === "producao"
+    ? `mensal:${competencia}:${normContrato(contrato)}:${etapa}`
+    : `mensal-${modo}:${runId}:${normContrato(contrato)}:${etapa}`
+}
+
 function competenciaPartes(competencia: string): { mes: number; ano: number } {
   const [ano, mes] = competencia.split("-").map(Number)
   return { mes: mes || 1, ano: ano || new Date().getUTCFullYear() }
@@ -126,10 +151,8 @@ async function executarPedidoCaju(
   const metadata = getStepMetadata()
   await registrarEvento({ runId, contrato, etapa, estado: "rodando", tentativa: metadata.attempt })
 
-  // Sandbox (teste): chave por RUN — reenvio livre, cada run é um pedido novo.
-  const chave = modo === "teste"
-    ? `mensal-teste:${runId}:${normContrato(contrato)}:${etapa}`
-    : `mensal:${competencia}:${normContrato(contrato)}:${etapa}`
+  // Só produção usa a chave por competência; simulação é por RUN (ver chaveEfeito).
+  const chave = chaveEfeito(modo, runId, competencia, contrato, etapa)
   const reserva = await reservarEfeito(chave, `mensal_${etapa}`, { runId, competencia, contrato, modo, tipo })
   if (reserva === "confirmado") {
     await registrarEvento({ runId, contrato, etapa, estado: "pulado_idempotencia", tentativa: metadata.attempt })
@@ -338,11 +361,9 @@ async function reservarOuPular(
   etapa: string,
   tentativa: number,
 ): Promise<{ chave: string; acao: "executar" | "pular" | "simular" }> {
-  // Sandbox (board de teste): chave por RUN — cada reenvio é um run novo, nunca conflita
-  // com execuções anteriores. Retry do MESMO run continua idempotente.
-  const chave = modo === "teste"
-    ? `mensal-teste:${runId}:${normContrato(contrato)}:${etapa}`
-    : `mensal:${competencia}:${normContrato(contrato)}:${etapa}`
+  // Sandbox (board de teste) e homologação: chave por RUN — cada reenvio é um run novo, nunca
+  // conflita com execuções anteriores nem com a chave real. Retry do MESMO run segue idempotente.
+  const chave = chaveEfeito(modo, runId, competencia, contrato, etapa)
   const reserva = await reservarEfeito(chave, `mensal_${etapa}`, { runId, competencia, contrato, modo })
   if (reserva === "confirmado") {
     await registrarEvento({ runId, contrato, etapa, estado: "pulado_idempotencia", tentativa })

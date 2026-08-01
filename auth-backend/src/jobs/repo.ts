@@ -94,9 +94,9 @@ export async function contratosMensalJaExecutados(competencia: string): Promise<
        FROM efeitos_externos
       WHERE chave LIKE $1 AND status = 'confirmado'
         AND split_part(chave, ':', 4) IN ('monday_solicitacao','caju_credito','caju_pix','rm_integrar')
-        -- Simulação TAMBÉM confirma a chave (ref 'homologacao:<runId>:...'), pra exercitar a
-        -- idempotência. Sem excluir, um run de homologação bloquearia todos os contratos na
-        -- prévia seguinte — nada foi pago de verdade.
+        -- Simulação hoje grava em namespace próprio (mensal-homologacao:runId:...), então
+        -- nem chega aqui. O filtro fica para as linhas LEGADAS de antes de 01/08, quando a
+        -- simulação confirmava a chave de produção — foi o que fez o run e173b1ef pular tudo.
         AND coalesce(ref_externa, '') NOT LIKE 'homologacao:%'`,
     [`mensal:${competencia}:%`],
   )
