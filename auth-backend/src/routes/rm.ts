@@ -3,7 +3,8 @@ import { config } from "../config.js"
 import { consultarSql } from "../clients/rm.js"
 import { checkServiceActivity, contextoDataServer, readRecordDireto, temRmSoap } from "../clients/rmSoap.js"
 import { parseCodigoContrato } from "../domain/mobilidade.js"
-import { usuarioDaSessao } from "../session.js"
+import { RM_DATA_SERVER_HISTORICO } from "../mensal/rmEfeitos.js"
+import { usuarioDaAutorizacao } from "../session.js"
 
 // Rotas RM-backed (leitura) — substituem WF8 Buscar Empregado, Unidades RM, Celetista.
 // Servidas sob /api/* com os mesmos nomes de path dos webhooks (cutover = trocar base).
@@ -67,7 +68,8 @@ export async function rotasRm(app: FastifyInstance): Promise<void> {
   app.get(
     "/api/rm/diagnostico",
     async (req: FastifyRequest<{ Querystring: { chave?: string } }>, reply: FastifyReply) => {
-      const u = await usuarioDaSessao(req)
+      // Cookie (admin no navegador) OU Bearer de serviço — mesmo padrão das rotas de integração.
+      const u = await usuarioDaAutorizacao(req)
       if (!u) return reply.code(401).send({ erro: "nao_autenticado" })
       if (u.papel !== "admin") return reply.code(403).send({ erro: "sem_permissao" })
 
@@ -89,7 +91,9 @@ export async function rotasRm(app: FastifyInstance): Promise<void> {
         chave
           ? cronometrar(async () => {
               // ReadRecord devolve o XML HTML-escapado — desescapar antes de afirmar qualquer coisa.
-              const xml = desescapar(await readRecordDireto(config.rmDataServer, chave, contextoDataServer(3)))
+              // RM_DATA_SERVER não é setado em lugar nenhum (o caller do histórico passa o dele
+              // explicitamente) — usar a constante do histórico, que é o DataServer real.
+              const xml = desescapar(await readRecordDireto(RM_DATA_SERVER_HISTORICO, chave, contextoDataServer(3)))
               return { encontrado: /<ID>\s*\d+/.test(xml), id: /<ID>(\d+)<\/ID>/.exec(xml)?.[1] ?? null, tamanho: xml.length }
             })
           : Promise.resolve({ ok: true as const, ms: 0, valor: { pulado: "informe ?chave=<id>" } }),
@@ -97,7 +101,7 @@ export async function rotasRm(app: FastifyInstance): Promise<void> {
       ])
 
       return {
-        configurado: { soap: temRmSoap(), escritaDireta: config.rmEscritaDireta, dataServer: config.rmDataServer },
+        configurado: { soap: temRmSoap(), escritaDireta: config.rmEscritaDireta, dataServer: RM_DATA_SERVER_HISTORICO },
         soap_dataserver: dataserver,
         soap_processo: processo,
         soap_readrecord: leitura,
