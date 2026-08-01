@@ -1,6 +1,9 @@
-import type { FastifyInstance, FastifyRequest } from "fastify"
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
+import { config } from "../config.js"
 import { consultarSql } from "../clients/rm.js"
+import { checkServiceActivity, contextoDataServer, readRecordDireto, temRmSoap } from "../clients/rmSoap.js"
 import { parseCodigoContrato } from "../domain/mobilidade.js"
+import { usuarioDaSessao } from "../session.js"
 
 // Rotas RM-backed (leitura) — substituem WF8 Buscar Empregado, Unidades RM, Celetista.
 // Servidas sob /api/* com os mesmos nomes de path dos webhooks (cutover = trocar base).
@@ -51,6 +54,55 @@ export async function rotasRm(app: FastifyInstance): Promise<void> {
         }
       })
       return { resultados }
+    },
+  )
+
+  /**
+   * Diagnóstico do RM DIRETO a partir do runtime da Vercel — READ-ONLY, só admin.
+   * Existe porque provar o caminho da máquina do dev não prova nada sobre o egress da Vercel:
+   * a leitura REST já estava confirmada por log, mas o SOAP (SaveRecord/processos) nunca tinha
+   * sido exercitado de lá. Roda CheckServiceActivity nos dois serviços + ReadRecord de um
+   * registro existente. Não grava nada.
+   */
+  app.get(
+    "/api/rm/diagnostico",
+    async (req: FastifyRequest<{ Querystring: { chave?: string } }>, reply: FastifyReply) => {
+      const u = await usuarioDaSessao(req)
+      if (!u) return reply.code(401).send({ erro: "nao_autenticado" })
+      if (u.papel !== "admin") return reply.code(403).send({ erro: "sem_permissao" })
+
+      const cronometrar = async <T>(fn: () => Promise<T>) => {
+        const t0 = Date.now()
+        try {
+          return { ok: true as const, ms: Date.now() - t0, valor: await fn() }
+        } catch (e) {
+          return { ok: false as const, ms: Date.now() - t0, erro: (e as Error).message.slice(0, 200) }
+        }
+      }
+      const desescapar = (s: string) =>
+        s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").replace(/&#xD;/g, "")
+
+      const chave = (req.query.chave ?? "").trim()
+      const [dataserver, processo, leitura, sql] = await Promise.all([
+        cronometrar(() => checkServiceActivity("dataserver")),
+        cronometrar(() => checkServiceActivity("process")),
+        chave
+          ? cronometrar(async () => {
+              // ReadRecord devolve o XML HTML-escapado — desescapar antes de afirmar qualquer coisa.
+              const xml = desescapar(await readRecordDireto(config.rmDataServer, chave, contextoDataServer(3)))
+              return { encontrado: /<ID>\s*\d+/.test(xml), id: /<ID>(\d+)<\/ID>/.exec(xml)?.[1] ?? null, tamanho: xml.length }
+            })
+          : Promise.resolve({ ok: true as const, ms: 0, valor: { pulado: "informe ?chave=<id>" } }),
+        cronometrar(() => consultarSql({ codigoSql: "BEN 2", parametros: { NOME: "%silvana%" } }).then((r) => r.length)),
+      ])
+
+      return {
+        configurado: { soap: temRmSoap(), escritaDireta: config.rmEscritaDireta, dataServer: config.rmDataServer },
+        soap_dataserver: dataserver,
+        soap_processo: processo,
+        soap_readrecord: leitura,
+        rest_consulta_sql: sql,
+      }
     },
   )
 }
