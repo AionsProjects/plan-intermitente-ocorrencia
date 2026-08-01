@@ -28,6 +28,7 @@ const PATH_PROCESS = "/wsProcess/IwsProcess"
 const ACTION_SAVE = "http://www.totvs.com/IwsDataServer/SaveRecord"
 const ACTION_READ = "http://www.totvs.com/IwsDataServer/ReadRecord"
 const ACTION_CHECK = "http://www.totvs.com/IRMSServer/CheckServiceActivity"
+const ACTION_DELETE_KEY = "http://www.totvs.com/IwsDataServer/DeleteRecordByKey"
 const ACTION_EXEC_XML = "http://www.totvs.com/IwsProcess/ExecuteWithXmlParams"
 
 export function temRmSoap(): boolean {
@@ -146,6 +147,29 @@ export async function checkServiceActivity(servico: "dataserver" | "process" = "
     ACTION_CHECK, envelope, config.rmSoapTimeoutMs,
   )
   return (extrairTag(xml, "CheckServiceActivityResult") ?? "").trim() === "true"
+}
+
+/**
+ * DeleteRecordByKey — DESTRUTIVO. Existe para desfazer teste controlado e para conciliação
+ * (ex.: linha de histórico gravada em duplicidade). Nunca é chamado pelo fluxo do mensal.
+ */
+export async function deleteRecordByKeyDireto(
+  dataServerName: string,
+  chave: string,
+  contexto: string,
+): Promise<string> {
+  const envelope = `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tot="http://www.totvs.com/">
+   <soapenv:Header/>
+   <soapenv:Body>
+      <tot:DeleteRecordByKey>
+         <tot:DataServerName>${dataServerName}</tot:DataServerName>
+         <tot:PrimaryKey>${chave}</tot:PrimaryKey>
+         <tot:Contexto>${contexto}</tot:Contexto>
+      </tot:DeleteRecordByKey>
+   </soapenv:Body>
+</soapenv:Envelope>`
+  const xml = await postSoap(PATH_DATASERVER, ACTION_DELETE_KEY, envelope, config.rmSoapTimeoutMs)
+  return extrairTag(xml, "DeleteRecordByKeyResult") ?? ""
 }
 
 /** ReadRecord de um registro existente — prova DataServerName/Contexto/permissão sem gravar. */
