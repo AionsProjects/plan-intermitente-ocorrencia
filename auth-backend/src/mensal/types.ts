@@ -47,7 +47,12 @@ export interface PessoaPreviaMensal {
 export interface PlanUpdatePrevia {
   itemId: string
   vtDia: number
-  vrDia: number
+  /**
+   * VR - Unitário. `null` quando a regra do contrato é MENSAL (ex. DETRAN): o benefício é pago
+   * por mês, então preencher um valor-dia ao lado do mensal dava leitura dúbia no board.
+   * `null` LIMPA a célula (≠ 0, que leria como "zero por dia").
+   */
+  vrDia: number | null
   vrMensal: number
   diasVR: number
   diasVT: number

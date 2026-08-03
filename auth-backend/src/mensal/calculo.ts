@@ -57,7 +57,8 @@ export interface PessoaCalculadaMensal extends ConvocacaoMensal {
 export interface PlanUpdateMensal {
   itemId: string
   vtDia: number
-  vrDia: number // valor-dia efetivo (regra mensal vira mensal/30) — estilo pontual
+  /** null quando a regra é MENSAL (paga por mês) — limpa a célula VR - Unitário no board. */
+  vrDia: number | null
   vrMensal: number // referência da regra quando mensal; 0 quando VR é diário
   diasVR: number
   diasVT: number
@@ -212,9 +213,12 @@ export function calcularMensal(
         planUpdates.push({
           itemId: l.itemId,
           vtDia,
-          // Estilo pontual: VR-Unitário sempre recebe o valor-dia efetivo (mesmo
-          // quando a regra é mensal — mensal/30). VR-MENSAL fica como referência da regra.
-          vrDia,
+          // Regra MENSAL (ex. DETRAN): o board recebe SÓ o VR - MENSAL, e o VR - Unitário fica
+          // VAZIO — o benefício é pago por mês, e mostrar os dois lado a lado dava leitura dúbia.
+          // Regra diária: o inverso (unitário preenchido, VR - MENSAL zerado).
+          // O cálculo NÃO muda: o valor-dia efetivo (mensal/30) continua sendo o que multiplica
+          // os dias e alimenta o teto de crédito — só não vai mais pra célula.
+          vrDia: tipoVRMensal ? null : vrDia,
           vrMensal: tipoVRMensal ? r2(regra.vrMensal) : 0,
           diasVR: l.nVR,
           diasVT: l.nVT,

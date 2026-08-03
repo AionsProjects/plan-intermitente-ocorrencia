@@ -16,6 +16,16 @@ const planUpdate = {
   itemId: "111", vtDia: 10, vrDia: 20, vrMensal: 0, diasVR: 8, diasVT: 8, creditoVR: 60, creditoVT: 30,
 }
 
+test("vrDia null LIMPA a célula VR - Unitário (regra mensal paga por mês)", () => {
+  const mensal = montarValuesPlanUpdate({ ...planUpdate, vrDia: null, vrMensal: 588 }, undefined)
+  assert.equal(mensal["vr___saldo"], "")           // VR - Unitário vazio, não "0" nem "NaN"
+  assert.equal(mensal["numeric_mktdzme6"], "588")  // VR - MENSAL preenchido
+  // Regra diária mantém o inverso.
+  const diaria = montarValuesPlanUpdate(planUpdate, undefined)
+  assert.equal(diaria["vr___saldo"], "20")
+  assert.equal(diaria["numeric_mktdzme6"], "0")
+})
+
 test("montarValuesPlanUpdate resolve colunas por título com fallback legado", () => {
   // Sem registry -> ids legados.
   const legado = montarValuesPlanUpdate(planUpdate, undefined)

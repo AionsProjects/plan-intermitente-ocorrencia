@@ -25,6 +25,11 @@ test("regra VR Mensal vira valor-dia (mensal/30) x dias trabalhados — estilo p
   assert.equal(p.brutoVR, 156.8) // 19.6 x 8 dias (NÃO proporcional por janela)
   assert.equal(p.creditoVR, 58.8) // 3 dias x 19.6
   assert.equal(p.pixVR, 98)
+  // Board: regra mensal preenche SÓ o VR - MENSAL; o unitário fica vazio (null limpa a célula),
+  // porque o benefício é pago por mês. O valor-dia segue existindo no cálculo (p.vrDia).
+  const up = r.contratos[0]!.planUpdates[0]!
+  assert.equal(up.vrDia, null)
+  assert.equal(up.vrMensal, 588)
 })
 
 test("matching de função ignora preposições (EM vs DE)", () => {
@@ -65,6 +70,7 @@ test("emite planUpdates por linha com crédito alocado na ordem", () => {
   assert.equal(a.diasVR, 3); assert.equal(b.diasVR, 5)
   assert.equal(a.creditoVR, 60); assert.equal(b.creditoVR, 0) // teto 3 dias × 20 na 1ª linha
   assert.equal(a.creditoVT, 0); assert.equal(b.creditoVT, 0) // VT nunca vai pro crédito
+  // Regra DIÁRIA: o inverso do mensal — unitário preenchido, VR - MENSAL zerado.
   assert.equal(a.vrDia, 20); assert.equal(a.vrMensal, 0)
 })
 

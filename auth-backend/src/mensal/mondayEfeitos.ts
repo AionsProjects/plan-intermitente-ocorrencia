@@ -63,7 +63,11 @@ export function montarValuesPlanUpdate(
   const out: Record<string, string> = {}
   for (const c of PLAN_COLS) {
     const id = colunasPlano?.[norm(c.titulo)] ?? c.fallback
-    out[id] = String(r2(Number(u[c.chave])))
+    const v = u[c.chave]
+    // null/undefined LIMPA a célula (string vazia). Antes ia sempre por Number(), então um
+    // campo ausente virava "NaN" no board — silenciosamente. Usado pelo VR - Unitário, que
+    // fica vazio quando a regra do contrato é mensal.
+    out[id] = v == null ? "" : String(r2(Number(v)))
   }
   return out
 }
