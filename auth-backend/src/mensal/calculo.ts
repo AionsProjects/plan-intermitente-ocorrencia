@@ -134,14 +134,26 @@ function resolverRegra(regras: RegraBeneficioMensal[], pessoa: ConvocacaoMensal)
 
 // Dias elegíveis — ESTILO PONTUAL (regra unificada, decisão DP 13/07/2026):
 // VR: seg-sex (sábado/domingo nunca contam). VT: seg-sex + sábado se trabalha sábado.
-// Regra "VR Mensal" NÃO muda a contagem — vira valor-dia (mensal/30) × dias trabalhados.
 // Feriado: mantém a regra do board FERIADOS (SEDUC*/DETRAN recebem; demais não) —
 // única divergência consciente do pontual, que não filtra feriado.
-function diasElegiveis(p: ConvocacaoMensal, feriados: FeriadoMensal[], vr: boolean): string[] {
+//
+// EXCEÇÃO — regra de VR MENSAL (`vrTodosDias`, hoje DETRAN e TRE PB): conta DIAS CORRIDOS,
+// sábado e domingo incluídos. O par é indissociável: o valor-dia vem de `vrMensal / 30`, e 30
+// é mês CORRIDO. Dividir por 30 e contar só dias úteis mistura duas bases e paga menos que o
+// mensal — era o bug do DETRAN (588,00/mês virava 411,60 em agosto/2026: 19,60 × 21 úteis, em
+// vez de × 31 corridos). Espelha o nó "Code in JavaScript1" do WF5 Pontual, que faz
+// `if (__vrTodosDias && !__ehUtil) diasVR++`. Só o VR muda; o VT segue seg-sex (+sábado).
+function diasElegiveis(
+  p: ConvocacaoMensal,
+  feriados: FeriadoMensal[],
+  vr: boolean,
+  vrTodosDias = false,
+): string[] {
   return intervalo(p.inicio, p.fim).filter((data) => {
     const dia = Number(data.slice(-2)), dow = new Date(`${data}T00:00:00Z`).getUTCDay()
     if (p.escala12x36) return p.escala12x36 === "PAR" ? dia % 2 === 0 : dia % 2 === 1
-    if (dow === 0 || (dow === 6 && (vr || !p.trabalhaSabado))) return false
+    const corrido = vr && vrTodosDias
+    if (!corrido && (dow === 0 || (dow === 6 && (vr || !p.trabalhaSabado)))) return false
     const feriado = feriados.some((f) => f.data === data && (normMensal(f.tipo) === "NACIONAL" || f.contratos.map(normMensal).includes(normMensal(p.contrato))))
     return !feriado || normMensal(p.contrato).startsWith("SEDUC") || normMensal(p.contrato) === "DETRAN"
   })
@@ -178,7 +190,8 @@ export function calcularMensal(
       const linhasDias = linhas.map((l) => ({
         itemId: l.itemId,
         inicio: l.inicio,
-        nVR: diasElegiveis(l, feriados, true).length,
+        // Regra mensal -> VR por dias corridos (o /30 é mês corrido). VT nunca muda.
+        nVR: diasElegiveis(l, feriados, true, tipoVRMensal).length,
         nVT: vtDia > 0 ? diasElegiveis(l, feriados, false).length : 0,
       }))
       const totalDiasVR = linhasDias.reduce((n, l) => n + l.nVR, 0)

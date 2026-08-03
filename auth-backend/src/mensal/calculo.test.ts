@@ -17,14 +17,20 @@ test("dias seg-sex, crédito de 3 dias de VR (VT zero), resto PIX", () => {
   assert.deepEqual(r.contratos[0]!.totais, { vr: 160, vt: 80, credito: 60, pix: 180 })
 })
 
-test("regra VR Mensal vira valor-dia (mensal/30) x dias trabalhados — estilo pontual", () => {
+test("regra VR Mensal: valor-dia mensal/30 x dias CORRIDOS — paridade com o WF5 Pontual", () => {
   const rMensal: RegraBeneficioMensal = { ...regra, vrDia: 0, vrMensal: 588 }
+  // Período 01-10/07/2026: 10 dias corridos, 8 úteis (04 e 05 são sáb/dom).
   const r = calcularMensal([pessoa()], [rMensal], [], [])
   const p = r.contratos[0]!.pessoas[0]!
   assert.equal(p.vrDia, 19.6) // 588/30
-  assert.equal(p.brutoVR, 156.8) // 19.6 x 8 dias (NÃO proporcional por janela)
-  assert.equal(p.creditoVR, 58.8) // 3 dias x 19.6
-  assert.equal(p.pixVR, 98)
+  // O /30 é mês CORRIDO: sábado e domingo contam no VR. Contar só os 8 úteis pagaria 156,80
+  // num benefício mensal — foi o bug do DETRAN. O pontual faz `if (__vrTodosDias && !__ehUtil) diasVR++`.
+  assert.equal(p.diasVR, 10)
+  assert.equal(p.brutoVR, 196) // 19.6 x 10 corridos
+  // VT NÃO muda: segue seg-sex (+sábado se trabalha), então fica nos 8 úteis.
+  assert.equal(p.diasVT, 8)
+  assert.equal(p.creditoVR, 58.8) // teto de 3 dias x 19.6 — não muda com a contagem corrida
+  assert.equal(p.pixVR, 137.2) // 196 bruto - 58,80 de crédito
   // Board: regra mensal preenche SÓ o VR - MENSAL; o unitário fica vazio (null limpa a célula),
   // porque o benefício é pago por mês. O valor-dia segue existindo no cálculo (p.vrDia).
   const up = r.contratos[0]!.planUpdates[0]!
