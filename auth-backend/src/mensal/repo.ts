@@ -86,7 +86,19 @@ async function travarRun(client: PoolClient, runId: string): Promise<void> {
   if (rows.length) throw new Error(`mensal_run_ativo:${rows[0]!.run_id}`)
 }
 
-export async function aprovarRun(runId: string, operadorEmail: string): Promise<SnapshotPreviaMensal> {
+/**
+ * Aprova o run e o coloca na fila.
+ *
+ * `vencimentos` (contrato -> "YYYY-MM-DD") é gravado DENTRO do snapshot, na mesma transação
+ * da aprovação: a data de vencimento do lançamento financeiro é escolhida aqui, e precisa
+ * ficar registrada junto do que foi aprovado — a execução lê do snapshot, então não há como
+ * rodar com uma data diferente da que o operador confirmou.
+ */
+export async function aprovarRun(
+  runId: string,
+  operadorEmail: string,
+  vencimentos?: Record<string, string>,
+): Promise<SnapshotPreviaMensal> {
   const client = await pool.connect()
   try {
     await client.query("BEGIN")
@@ -102,13 +114,25 @@ export async function aprovarRun(runId: string, operadorEmail: string): Promise<
       `UPDATE mensal_run SET status='fila', etapa_atual='fila', aprovado_por=$2, aprovado_em=now(), atualizado_em=now()
        WHERE run_id=$1`, [runId, operadorEmail],
     )
+    // Vencimentos vão pro snapshot na MESMA transação — o que executa é o que foi aprovado.
+    let snapshot = run.snapshot
+    if (vencimentos && Object.keys(vencimentos).length) {
+      const { rows: atualizado } = await client.query<{ snapshot: SnapshotPreviaMensal }>(
+        `UPDATE mensal_run
+            SET snapshot = jsonb_set(snapshot, '{apoio,vencimentos}', $2::jsonb, true)
+          WHERE run_id = $1
+        RETURNING snapshot`,
+        [runId, JSON.stringify(vencimentos)],
+      )
+      snapshot = atualizado[0]?.snapshot ?? run.snapshot
+    }
     await client.query(
       `INSERT INTO mensal_run_event (run_id,etapa,estado,mensagem,metadados)
        VALUES ($1,'aprovacao','concluido','Run aprovado',$2::jsonb)`,
-      [runId, JSON.stringify({ operador: operadorEmail })],
+      [runId, JSON.stringify({ operador: operadorEmail, vencimentos: vencimentos ?? null })],
     )
     await client.query("COMMIT")
-    return run.snapshot
+    return snapshot
   } catch (e) {
     await client.query("ROLLBACK")
     throw e

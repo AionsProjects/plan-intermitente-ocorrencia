@@ -98,6 +98,16 @@ export interface SnapshotPreviaMensal {
      * gaveta que a prévia mostrou, mesmo que o run atravesse a virada do mês.
      */
     caixa: string
+    /**
+     * Data de vencimento do lançamento financeiro, POR CONTRATO ("CONTRATO" -> "YYYY-MM-DD").
+     * Vira `<DataVencimento>` no XML do FopRotinas. Escolhida na APROVAÇÃO (não na prévia),
+     * porque o operador precisa ver os contratos antes de decidir; gravada aqui pra ficar
+     * auditável e pra execução usar exatamente o que foi aprovado.
+     * Contrato ausente = cai no default (hoje), que era o comportamento antigo.
+     * Só o vencimento varia: `DataEmissao` continua sendo hoje, porque `consultarIdfinanc`
+     * usa ela como filtro pra achar os lançamentos que o FopRotinas acabou de criar.
+     */
+    vencimentos?: Record<string, string>
     /** Colunas do board Plano resolvidas por título -> id (pros updates de escrita). */
     colunasPlano?: Record<string, string>
   }

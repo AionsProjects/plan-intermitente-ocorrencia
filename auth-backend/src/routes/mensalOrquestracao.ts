@@ -89,7 +89,13 @@ export async function rotasMensalOrquestracao(app: FastifyInstance): Promise<voi
 
   app.post(
     "/api/mensal/runs/:runId/aprovar",
-    async (req: FastifyRequest<{ Params: { runId: string }; Body: { somenteContratos?: string[] } }>, reply) => {
+    async (
+      req: FastifyRequest<{
+        Params: { runId: string }
+        Body: { somenteContratos?: string[]; vencimentos?: Record<string, string> }
+      }>,
+      reply,
+    ) => {
       const u = await exigirDP(req, reply)
       if (!u) return
       if (!config.mensalWorkflowEnabled) {
@@ -99,8 +105,30 @@ export async function rotasMensalOrquestracao(app: FastifyInstance): Promise<voi
       const somenteContratos = Array.isArray(req.body?.somenteContratos) && req.body.somenteContratos.length
         ? req.body.somenteContratos
         : undefined
+
+      // Vencimento do lançamento financeiro por contrato. Valida ANTES de aprovar: data torta
+      // viraria <DataVencimento> num lançamento real, e desfazer isso depende do DP no RM.
+      let vencimentos: Record<string, string> | undefined
+      const brutos = req.body?.vencimentos
+      if (brutos && typeof brutos === "object") {
+        const invalidos: string[] = []
+        const limpo: Record<string, string> = {}
+        for (const [contrato, data] of Object.entries(brutos)) {
+          const s = String(data ?? "").trim()
+          if (!s) continue
+          // Formato E calendário: 2026-02-31 casa no regex mas não existe.
+          const ok = /^\d{4}-\d{2}-\d{2}$/.test(s) && new Date(`${s}T00:00:00Z`).toISOString().startsWith(s)
+          if (!ok) invalidos.push(`${contrato}=${s}`)
+          else limpo[contrato] = s
+        }
+        if (invalidos.length) {
+          return reply.code(400).send({ erro: "vencimento_invalido", detalhe: invalidos })
+        }
+        if (Object.keys(limpo).length) vencimentos = limpo
+      }
+
       try {
-        await aprovarRun(req.params.runId, u.email)
+        await aprovarRun(req.params.runId, u.email, vencimentos)
         try {
           const workflowRunId = await iniciarWorkflow(req.params.runId, somenteContratos)
           // Log de atividade (mesma tabela das outras ações). Feito no SERVIDOR porque é ação de
@@ -123,6 +151,7 @@ export async function rotasMensalOrquestracao(app: FastifyInstance): Promise<voi
               modo: run.modo,
               escopo: somenteContratos ? (alvos.length === 1 ? "contrato" : "conjunto") : "todos",
               contratos: alvos,
+              vencimentos: vencimentos ?? null,
               contratos_total: todos.length,
               pessoas: run.snapshot.contratos
                 .filter((c) => alvos.includes(c.contrato))

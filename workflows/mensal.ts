@@ -256,6 +256,8 @@ async function etapaRmFopRotinas(
   modo: ModoExec,
   competencia: string,
   contrato: ContratoPreviaMensal,
+  /** Vencimento escolhido na aprovação pra ESTE contrato ("YYYY-MM-DD"). Ausente = hoje. */
+  dataVencimentoContrato?: string,
 ): Promise<{ temFinanceiro: boolean }> {
   "use step"
   const etapa = "rm_gerar"
@@ -276,16 +278,22 @@ async function etapaRmFopRotinas(
   }
   const hoje = new Date().toISOString().slice(0, 10)
   const { mes, ano } = competenciaPartes(competencia)
+  // Vencimento vem da aprovação, por contrato. `dataEmissao` NÃO acompanha: consultarIdfinanc
+  // filtra por DATAEMISSAO pra achar os lançamentos recém-criados, e mudá-la cegaria a busca.
+  const vencimento = dataVencimentoContrato ?? hoje
   await executarFopRotinas({
     coligada: RM_COLIGADA,
     codSecao: codSecaoBase(codigoSecaoContrato(contrato.contrato)),
     chapas, eventos, anoComp: ano, mesComp: mes,
-    dataEmissao: `${hoje}T00:00:00`, dataVencimento: `${hoje}T00:00:00`,
+    dataEmissao: `${hoje}T00:00:00`, dataVencimento: `${vencimento}T00:00:00`,
   })
-  await confirmarEfeito(r.chave, `rm:foprotinas:${chapas.length}chapas:${eventos.join("+")}`)
+  await confirmarEfeito(
+    r.chave,
+    `rm:foprotinas:${chapas.length}chapas:${eventos.join("+")}:venc=${vencimento}`,
+  )
   await registrarEvento({
     runId, contrato: contrato.contrato, etapa, estado: "concluido", tentativa: metadata.attempt,
-    metadados: { chapas: chapas.length, eventos },
+    metadados: { chapas: chapas.length, eventos, dataVencimento: vencimento, dataEmissao: hoje },
   })
   return { temFinanceiro: true }
 }
@@ -660,7 +668,10 @@ async function processarContrato(
       await etapaRmHistoricoLote(runId, modo, competencia, contrato, "pix", i)
       if (i < nLotesPix - 1 && esperaLoteMs > 0) await sleep(esperaLoteMs)
     }
-    const { temFinanceiro } = await etapaRmFopRotinas(runId, modo, competencia, contrato)
+    const { temFinanceiro } = await etapaRmFopRotinas(
+      runId, modo, competencia, contrato,
+      snapshot.apoio.vencimentos?.[contrato.contrato],
+    )
     // FopRotinas é job ASSÍNCRONO no RM (SyncExecution=false): o IDFNAN só lista depois que ele
     // materializa. Não cortar — a leitura direta encurtou a janela, então isso ficou mais crítico.
     if (modo !== "homologacao") await sleep("7s")

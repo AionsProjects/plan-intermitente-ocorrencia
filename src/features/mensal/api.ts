@@ -176,8 +176,16 @@ export function criarPreviaMensal(
 ): Promise<PreviaResp> {
   return requestJson("/api/mensal/runs/previa", jsonPost({ papel, bypassAntifraude, caixa }))
 }
-export function aprovarRunMensal(runId: string, somenteContratos?: string[]): Promise<{ ok: boolean; workflow_run_id: string }> {
-  return requestJson(`/api/mensal/runs/${runId}/aprovar`, jsonPost({ somenteContratos }))
+/**
+ * Aprova e inicia o run. `vencimentos` = data de vencimento do lançamento financeiro por
+ * contrato ("CONTRATO" -> "YYYY-MM-DD"); vira `<DataVencimento>` no FopRotinas do RM.
+ */
+export function aprovarRunMensal(
+  runId: string,
+  somenteContratos?: string[],
+  vencimentos?: Record<string, string>,
+): Promise<{ ok: boolean; workflow_run_id: string }> {
+  return requestJson(`/api/mensal/runs/${runId}/aprovar`, jsonPost({ somenteContratos, vencimentos }))
 }
 export function cancelarRunMensal(runId: string, motivo: string): Promise<{ ok: boolean; status: RunStatusGeral }> {
   return requestJson(`/api/mensal/runs/${runId}/cancelar`, jsonPost({ motivo }))

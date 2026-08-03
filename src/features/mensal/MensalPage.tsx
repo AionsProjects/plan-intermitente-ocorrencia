@@ -78,6 +78,10 @@ export function MensalPage() {
   // Controles de teste (só homologação): desligar antifraude + escolher contratos.
   const [bypassAntifraude, setBypassAntifraude] = useState(false)
   const [contratosSelecionados, setContratosSelecionados] = useState<string[]>([])
+  // Vencimento do lançamento financeiro por contrato ("YYYY-MM-DD"). Começa VAZIO de propósito:
+  // é uma decisão do operador por contrato, e pré-preencher com hoje faria a pergunta passar
+  // batido. Aprovar fica travado enquanto algum contrato marcado estiver sem data.
+  const [vencimentos, setVencimentos] = useState<Record<string, string>>({})
 
   const demoRun = useDemoRun(demo)
 
@@ -249,7 +253,12 @@ export function MensalPage() {
       // o modo, e a antifraude da próxima prévia marca como bloqueado o que já foi processado na
       // competência — então dá pra pagar em rodadas.
       const somente = contratosSelecionados.length ? contratosSelecionados : undefined
-      await aprovarRunMensal(runId, somente)
+      // Manda só o vencimento dos contratos que vão rodar — data de contrato desmarcado
+      // no snapshot confundiria a auditoria de uma rodada parcial.
+      const vencSelecionados = Object.fromEntries(
+        contratosSelecionados.filter((c) => vencimentos[c]).map((c) => [c, vencimentos[c]!]),
+      )
+      await aprovarRunMensal(runId, somente, vencSelecionados)
       setEtapa("acompanhando")
     } catch (e) {
       setErroDisparo(e instanceof Error ? e.message : "Falha ao iniciar workflow")
@@ -561,38 +570,68 @@ export function MensalPage() {
                   {previa.snapshot.contratos.filter((c) => !c.bloqueado).length}
                 </p>
               </div>
-              <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5">
-                {previa.snapshot.contratos.map((c) => (
-                  <label
-                    key={c.contrato}
-                    className={`flex items-center gap-2 text-[13px] ${c.bloqueado ? "opacity-40" : "cursor-pointer text-foreground/85"}`}
-                  >
-                    <input
-                      type="checkbox"
-                      disabled={c.bloqueado}
-                      checked={contratosSelecionados.includes(c.contrato)}
-                      onChange={(e) =>
-                        setContratosSelecionados((s) =>
-                          e.target.checked ? [...s, c.contrato] : s.filter((x) => x !== c.contrato),
-                        )
-                      }
-                      className="size-3.5 accent-[rgb(var(--accent-rgb))]"
-                    />
-                    <span className="truncate">{c.contrato}</span>
-                    <span className="text-foreground/40">({c.pessoas.length})</span>
-                    {c.bloqueado && (
-                      <span
-                        className="text-[10px] text-foreground/40"
-                        title={c.motivoBloqueio ?? undefined}
+              <div className="mt-2 flex flex-col gap-1.5">
+                {previa.snapshot.contratos.map((c) => {
+                  const marcado = contratosSelecionados.includes(c.contrato)
+                  const semData = marcado && !vencimentos[c.contrato]
+                  return (
+                    <div key={c.contrato} className="flex items-center gap-2 text-[13px]">
+                      <label
+                        className={`flex min-w-0 flex-1 items-center gap-2 ${c.bloqueado ? "opacity-40" : "cursor-pointer text-foreground/85"}`}
                       >
-                        {c.motivoBloqueio === "contrato_ja_processado_na_competencia"
-                          ? "já pago"
-                          : "bloq."}
-                      </span>
-                    )}
-                  </label>
-                ))}
+                        <input
+                          type="checkbox"
+                          disabled={c.bloqueado}
+                          checked={marcado}
+                          onChange={(e) =>
+                            setContratosSelecionados((s) =>
+                              e.target.checked ? [...s, c.contrato] : s.filter((x) => x !== c.contrato),
+                            )
+                          }
+                          className="size-3.5 shrink-0 accent-[rgb(var(--accent-rgb))]"
+                        />
+                        <span className="truncate">{c.contrato}</span>
+                        <span className="shrink-0 text-foreground/40">({c.pessoas.length})</span>
+                        {c.bloqueado && (
+                          <span
+                            className="shrink-0 text-[10px] text-foreground/40"
+                            title={c.motivoBloqueio ?? undefined}
+                          >
+                            {c.motivoBloqueio === "contrato_ja_processado_na_competencia"
+                              ? "já pago"
+                              : "bloq."}
+                          </span>
+                        )}
+                      </label>
+                      {/* Vencimento do lançamento financeiro no RM, por contrato. */}
+                      <label className="flex shrink-0 items-center gap-1.5">
+                        <span className="text-[10px] uppercase tracking-[0.12em] text-foreground/40">
+                          venc.
+                        </span>
+                        <input
+                          type="date"
+                          disabled={c.bloqueado || !marcado}
+                          value={vencimentos[c.contrato] ?? ""}
+                          onChange={(e) =>
+                            setVencimentos((v) => ({ ...v, [c.contrato]: e.target.value }))
+                          }
+                          className={`rounded-md border bg-transparent px-2 py-0.5 text-[12px] tabular-nums outline-none disabled:opacity-30 ${
+                            semData
+                              ? "border-red-500/60 text-red-300"
+                              : "border-foreground/20 text-foreground/85 focus:border-[rgb(var(--accent-rgb))]"
+                          }`}
+                        />
+                      </label>
+                    </div>
+                  )
+                })}
               </div>
+              {contratosSelecionados.some((c) => !vencimentos[c]) && (
+                <p className="mt-2 text-[11px] text-red-400">
+                  Defina a data de vencimento de cada contrato marcado — ela vira o vencimento do
+                  lançamento financeiro no RM.
+                </p>
+              )}
               {contratosSelecionados.length > 0 &&
                 contratosSelecionados.length <
                   previa.snapshot.contratos.filter((c) => !c.bloqueado).length && (
@@ -606,7 +645,12 @@ export function MensalPage() {
               <ChoiceButton onClick={() => setEtapa("tabela")}>← Revisar</ChoiceButton>
               <ChoiceButton
                 variant="primary"
-                disabled={ocupado || contratosSelecionados.length === 0}
+                disabled={
+                  ocupado ||
+                  contratosSelecionados.length === 0 ||
+                  // Trava: contrato marcado sem vencimento não pode virar lançamento financeiro.
+                  contratosSelecionados.some((c) => !vencimentos[c])
+                }
                 onClick={aprovar}
               >
                 {ocupado ? "Iniciando…" : "Aprovar e iniciar"}
