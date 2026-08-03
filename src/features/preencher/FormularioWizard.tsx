@@ -351,10 +351,15 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
   const finalizar = useFinalizarProcessamento(dados.uuid)
   const cancelarConvocacao = useCancelarConvocacao(dados.uuid)
   const aplicarSplitMut = useAplicarSplit(dados.uuid)
+  /** Erro do FLUXO de envio (não só da mutation `finalizar`): o envio é uma
+   *  transação de duas fases — WF3 finalizar, depois WF cancelar parcial — e a
+   *  falha da segunda não aparece em `finalizar.error`. */
+  const [erroFluxoEnvio, setErroFluxoEnvio] = useState<string | null>(null)
   const erroEnvio =
-    finalizar.error instanceof Error
+    erroFluxoEnvio ??
+    (finalizar.error instanceof Error
       ? finalizar.error.message
-      : "Erro ao enviar. Tente novamente."
+      : "Erro ao enviar. Tente novamente.")
 
   const diasConvocacao = useMemo(() => [...dados.dias].sort(), [dados.dias])
   const primeiroDiaConvocacao = diasConvocacao[0] ?? dados.dataInicio
@@ -511,6 +516,27 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
     ).length
     return desconsiderados + comOcorrencia
   }, [diasInfo, diasAtivos, respostas])
+
+  /**
+   * Envolve `enviar()` porque ele é async e o `onClick` do React não faz await:
+   * um throw ali dentro virava unhandled rejection — o spinner parava, o botão
+   * voltava ao normal e NENHUMA mensagem aparecia. No pior caminho (finalizar
+   * OK, cancelamento parcial falhou) o registro ficava concluído no Monday com
+   * o cancelamento não gravado, em silêncio. O banner de erro também só olhava
+   * `finalizar.isError`, que nesse caminho é false.
+   */
+  async function enviarComErroVisivel() {
+    setErroFluxoEnvio(null)
+    try {
+      await enviar()
+    } catch (err) {
+      setErroFluxoEnvio(
+        err instanceof Error && err.message
+          ? err.message
+          : "Não foi possível concluir o envio. Nada foi perdido: tente novamente ou avise o DP.",
+      )
+    }
+  }
 
   async function enviar() {
     // Usa `||` (não `??`) porque o backend pode devolver "" em vez de null
@@ -970,8 +996,11 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
             </div>
           )}
 
-          {finalizar.isError ? (
-            <p className="mt-6 rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-center text-sm text-rose-700 dark:text-rose-100">
+          {finalizar.isError || erroFluxoEnvio ? (
+            <p
+              role="alert"
+              className="mt-6 rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-center text-sm text-rose-700 dark:text-rose-100"
+            >
               {erroEnvio}
             </p>
           ) : null}
@@ -979,7 +1008,9 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
           <div className="mt-8 flex flex-col items-center gap-3">
             <button
               type="button"
-              onClick={enviar}
+              onClick={() => {
+                void enviarComErroVisivel()
+              }}
               disabled={finalizar.isPending || modoApagar}
               className="glass-strong glow-gold group relative inline-flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-full px-8 text-base font-medium tracking-wide text-[#0a1224] transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-70"
               style={{
