@@ -53,6 +53,10 @@ determinar.js
 # Tooling n8n (scripts de patch/deploy) — contem tokens/URLs internos. NAO versionar
 # (alguns .cjs tinham JWT do Monday hardcoded). Repo publico.
 scripts/
+# ...mas o padrao acima e amplo e casa QUALQUER pasta "scripts", inclusive a do backend, que e
+# codigo versionado (migrate/seed/CLIs do RM). Foi por isso que registrar-boards.ts ficou fora do
+# repo sem ninguem notar. O tooling n8n da raiz e o auth-backend/scripts/ seguem ignorados.
+!auth-backend/src/scripts/
 .vercel
 _*.mjs
 
