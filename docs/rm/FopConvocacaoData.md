@@ -292,11 +292,39 @@ mão em pt-BR. Tratar tudo como ISO reprovou **13 de 13** do DETRAN com `data_ad
 Nenhum com antecedência abaixo de 3 dias. O filtro de cancelada se provou em dado real (CETAM
 `007393`). Pré-voo não achou nada já no RM — o DP ainda não lançou agosto à mão.
 
-Webhook: `POST /api/monday/convocacao-rm` (responde `challenge` no handshake).
-Flag: `CONVOCACAO_RM_HABILITADA=0` — desligada, o webhook responde 200 `ignorado: "desligado"` em vez
-de erro, pra o Monday não desativar o webhook.
+### Webhook — ✅ criado em 08/08/2026
 
-Falta: criar o webhook no board apontando pra coluna `Lançar no RM`, e ligar a flag.
+`npm run monday:webhook-convocacao-rm` (sem `--confirmar` só confere). Webhook **`620479439`**,
+board `18418191275`, evento `change_specific_column_value` na coluna `Lançar no RM`
+(`color_mm61abdf`) → `POST /api/monday/convocacao-rm`.
+
+O script confere o handshake **antes** de pedir o webhook: o Monday exige que a URL responda
+`{challenge}` no ato da criação, e endpoint fora do ar faz o `create_webhook` falhar com cara de
+erro do Monday. Idempotente — webhook cujo `config` já aponta pra mesma coluna não é recriado
+(duplicado faria o lote do contrato disparar duas vezes; o ledger seguraria a gravação, mas o
+relatório viria dobrado).
+
+**Testado ponta a ponta com a flag desligada:** status do item `SEDUC INTERIOR` posto em `LANÇAR` →
+chamada chegou de `185.237.4.4` (Monday, não a máquina do dev), 200 em 685ms, resolveu o contrato e
+parou no gate. Os 2 candidatos do contrato seguiram **sem** `Código Convocação RM`, ou seja nada foi
+gravado no RM. Status devolvido pra `AGUARDANDO`.
+
+### Deploy: produção NÃO sai da branch `vercel-deploy`
+
+`vercel-deploy` está 64 commits atrás e não é usada. Produção é `codigo-principal` promovida por CLI
+— push do GitHub gera só **preview** (`target: null`); os deploys `target: production` do histórico
+foram todos feitos por CLI.
+
+Caminho usado aqui, que preserva o conteúdo commitado:
+
+```bash
+npx vercel promote <url-do-preview> --yes
+```
+
+⚠️ **Não** use `vercel deploy --prod` nesta máquina: ele sobe o **working tree**, e é isso que os
+deploys antigos com `gitDirty: 1` fizeram — WIP de outra sessão iria pra produção junto.
+
+Falta só ligar `CONVOCACAO_RM_HABILITADA=1` no projeto da Vercel.
 
 ## Pegadinhas de transporte
 
