@@ -30,6 +30,7 @@ const ACTION_READ = "http://www.totvs.com/IwsDataServer/ReadRecord"
 const ACTION_CHECK = "http://www.totvs.com/IRMSServer/CheckServiceActivity"
 const ACTION_DELETE_KEY = "http://www.totvs.com/IwsDataServer/DeleteRecordByKey"
 const ACTION_READ_VIEW = "http://www.totvs.com/IwsDataServer/ReadView"
+const ACTION_GET_SCHEMA = "http://www.totvs.com/IwsDataServer/GetSchema"
 const ACTION_EXEC_XML = "http://www.totvs.com/IwsProcess/ExecuteWithXmlParams"
 
 export function temRmSoap(): boolean {
@@ -93,6 +94,22 @@ async function postSoap(caminho: string, action: string, envelope: string, timeo
       trecho: txt.slice(0, 400),
     })
   }
+  // Fault com HTTP 200: o RM faz isso (visto em GetSchema de DataServer inválido —
+  // "Unable to cast ... to IRMSDataServer" veio 200 + Fault). Sem checar aqui, quem chama só vê
+  // "sem <XxxResult>" e perde a mensagem real, que é justamente onde o RM explica a recusa.
+  //
+  // `indeterminado: false` de propósito: Fault = o RM respondeu e recusou, com rollback do
+  // registro — diferente de timeout/5xx, onde a escrita pode ter passado. Ainda assim não é
+  // convite pra reenviar o MESMO payload: ele vai ser recusado de novo.
+  const faultOk = extrairFault(txt)
+  if (faultOk) {
+    throw erro(`RM SOAP ${caminho} Fault: ${faultOk}`, {
+      status: r.status,
+      fault: faultOk,
+      indeterminado: false,
+      trecho: txt.slice(0, 400),
+    })
+  }
   return txt
 }
 
@@ -125,7 +142,35 @@ export async function saveRecordDireto(
   const res = extrairTag(xml, "SaveRecordResult")
   // Sem o campo esperado não dá pra afirmar que NÃO gravou -> indeterminado, nunca repetir.
   if (res == null) throw erro("RM SOAP SaveRecord sem SaveRecordResult", { indeterminado: true, trecho: xml.slice(0, 400) })
-  return { chave: res.trim(), xml }
+  const chave = res.trim()
+  // O RM devolve TEXTO DE ERRO dentro do SaveRecordResult, com HTTP 200 e sem Fault. Visto em
+  // 08/08/2026: omitir CODCONVOCACAO no FopConvocacaoData fez o SaveRecord estourar em
+  // `ReadRowPrimaryKey` ("Column 'X' does not belong to table Y") e o resultado veio com stack
+  // trace .NET no lugar da chave. Sem esta checagem, o chamador grava um stack trace como
+  // `ref_externa` no ledger — e aí não há caminho de volta pro registro.
+  //
+  // `indeterminado: true` porque, em geral, não se sabe se a exceção veio antes ou depois de
+  // persistir. (Neste caso específico do ReadRowPrimaryKey foi ANTES — confirmado por ReadView
+  // com a janela vazia. Mas isso é observação de um caso, não regra pra qualquer mensagem.)
+  if (!chaveDeRegistroPlausivel(chave)) {
+    throw erro(`RM SOAP SaveRecord devolveu mensagem no lugar da chave: ${chave.slice(0, 200)}`, {
+      indeterminado: true,
+      fault: chave.split("\n")[0]!.trim(),
+      trecho: chave.slice(0, 400),
+    })
+  }
+  return { chave, xml }
+}
+
+/**
+ * Chave de registro do RM: linha única e curta (`74886` ou `3;003330;C03S003328`). Mensagem de
+ * erro é multi-linha, longa e traz stack trace — é assim que se separam os dois.
+ */
+export function chaveDeRegistroPlausivel(chave: string): boolean {
+  if (!chave || chave.length > 200) return false
+  if (/[\r\n]/.test(chave)) return false
+  if (/\bat [A-Z][\w.]+\(/.test(chave)) return false // frame de stack .NET
+  return true
 }
 
 /** ExecuteWithXmlParams — o envelope já vem pronto de rmEfeitos (passthrough, igual à ponte). */
@@ -200,6 +245,35 @@ export async function readViewDireto(
 </soapenv:Envelope>`
   const xml = await postSoap(PATH_DATASERVER, ACTION_READ_VIEW, envelope, timeoutMs)
   return extrairTag(xml, "ReadViewResult") ?? ""
+}
+
+/**
+ * GetSchema — READ-ONLY. Devolve o XSD do DataServer: tabelas, campos, tipos e obrigatoriedade.
+ *
+ * É o passo obrigatório ANTES de montar qualquer XML de SaveRecord num DataServer novo — sem ele
+ * os nomes de campo são chute, e chute em SaveRecord ou falha com Fault opaco ou grava errado.
+ *
+ * Timeout de processo (não o curto): o RM gera o schema na hora e DataServer grande demora.
+ * O XSD vem HTML-escapado, igual ao ReadRecord — já sai desescapado daqui.
+ */
+export async function getSchemaDireto(
+  dataServerName: string,
+  contexto: string,
+  timeoutMs = config.rmSoapTimeoutProcessoMs,
+): Promise<string> {
+  const envelope = `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tot="http://www.totvs.com/">
+   <soapenv:Header/>
+   <soapenv:Body>
+      <tot:GetSchema>
+         <tot:DataServerName>${dataServerName}</tot:DataServerName>
+         <tot:Contexto>${contexto}</tot:Contexto>
+      </tot:GetSchema>
+   </soapenv:Body>
+</soapenv:Envelope>`
+  const xml = await postSoap(PATH_DATASERVER, ACTION_GET_SCHEMA, envelope, timeoutMs)
+  const res = extrairTag(xml, "GetSchemaResult")
+  if (res == null) throw erro("RM SOAP GetSchema sem GetSchemaResult", { trecho: xml.slice(0, 400) })
+  return desescaparXml(res)
 }
 
 /** Desescapa XML devolvido HTML-escapado (`&lt;ID&gt;`) — ReadRecord/ReadView fazem isso. */
