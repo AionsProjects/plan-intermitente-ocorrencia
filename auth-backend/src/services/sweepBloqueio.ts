@@ -33,7 +33,7 @@ export const COLUNAS_MOTOR = new Set(
     "Pasta Convocacao Drive", "Pasta Convocacao Drive ID",
     "PROTOCOLO", "Link", "Nome do Empregado",
     // Convocação no RM (FopConvocacaoData) — automação nova, achada na homologação.
-    "Lançar no RM", "Código Convocação RM",
+    "Lançar no RM", "Código Convocação RM", "OP - LIBERADO",
   ].map(normalizar),
 )
 
