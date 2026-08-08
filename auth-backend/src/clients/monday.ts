@@ -84,6 +84,64 @@ interface RawItem {
   column_values: Array<{ id: string; text: string | null; value: string | null }>
 }
 
+export interface ActivityLogRaw {
+  id: string
+  event: string
+  user_id: string
+  created_at: string
+  data: Record<string, unknown>
+}
+
+/**
+ * Lê o histórico de alterações de um board numa janela.
+ *
+ * Cuidados que custaram medição (08/08/2026, board 18418191275):
+ * - vem do MAIS NOVO pro mais antigo;
+ * - `limit` máximo 100 por página, e `page` começa em 1 (não há cursor aqui);
+ * - 30 dias de um board dão ~3.000 logs = 30 páginas. Parar cedo TRUNCA em silêncio,
+ *   por isso `maxPaginas` é generoso e o retorno avisa quando bateu no teto;
+ * - `data` chega como STRING JSON, não objeto;
+ * - a retenção depende do plano do Monday — por isso o sweep persiste no mesmo ciclo.
+ */
+export async function lerActivityLogs(
+  boardId: number,
+  de: Date,
+  ate: Date,
+  maxPaginas = 60,
+): Promise<{ logs: ActivityLogRaw[]; truncado: boolean }> {
+  const logs: ActivityLogRaw[] = []
+  let pagina = 1
+  for (; pagina <= maxPaginas; pagina++) {
+    const d = await gql<{
+      boards: Array<{ activity_logs: Array<{ id: string; event: string; data: string; user_id: string; created_at: string }> }>
+    }>(
+      `query($b:[ID!],$de:ISO8601DateTime!,$ate:ISO8601DateTime!,$p:Int!){
+         boards(ids:$b){ activity_logs(from:$de, to:$ate, limit:100, page:$p){
+           id event data user_id created_at } } }`,
+      { b: [String(boardId)], de: de.toISOString(), ate: ate.toISOString(), p: pagina },
+    )
+    const page = d.boards?.[0]?.activity_logs ?? []
+    if (!page.length) return { logs, truncado: false }
+    for (const l of page) {
+      let dados: Record<string, unknown> = {}
+      try {
+        dados = JSON.parse(l.data) as Record<string, unknown>
+      } catch {
+        /* log sem data parseável ainda vale pelo evento */
+      }
+      logs.push({ id: l.id, event: l.event, user_id: String(l.user_id), created_at: l.created_at, data: dados })
+    }
+    if (page.length < 100) return { logs, truncado: false }
+  }
+  return { logs, truncado: true }
+}
+
+/** Mapa user_id -> nome. O activity_log só devolve o id. */
+export async function lerUsuarios(): Promise<Map<string, string>> {
+  const d = await gql<{ users: Array<{ id: string; name: string }> }>(`{ users(limit:500){ id name } }`)
+  return new Map((d.users ?? []).map((u) => [String(u.id), u.name]))
+}
+
 /** Lê 1 item por id. Retorna null se não existir. */
 export async function lerItem(itemId: number): Promise<MondayItem | null> {
   const d = await gql<{ items: RawItem[] }>(
