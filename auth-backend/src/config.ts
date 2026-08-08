@@ -95,6 +95,11 @@ export const config = {
     // Debounce do webhook: o Monday dispara um POST por coluna, então uma convocação
     // vira ~12 webhooks em segundos. Sem isso seriam 12 varreduras do mesmo intervalo.
     debounceWebhookSeg: Number(opt("MONITOR_DEBOUNCE_WEBHOOK_SEG", "45")),
+    // ⚠️ O `activity_logs` do Monday NÃO é imediato: medido em 08/08/2026, uma escrita
+    // só aparece na consulta ~4 s depois. Como o cursor avança até o fim da fatia, varrer
+    // até "agora" pula em silêncio tudo que ainda não indexou. A varredura para nesta
+    // margem atrás do relógio; o que é mais novo fica pro próximo tick.
+    lagSegundos: Number(opt("MONITOR_LAG_SEG", "60")),
   },
   // Evolution API (WhatsApp). Instância `check-intermitente` — dedicada a este monitor;
   // `AIONS-MIKE` é compartilhada com o WF "Notificar Advertência 4 em 3 meses".

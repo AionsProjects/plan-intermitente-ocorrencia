@@ -193,3 +193,17 @@ test("varredura NUNCA olha antes da ativacao do DP", async () => {
   assert.equal(inicioDaVarredura(aberto, meio).toISOString(), meio.toISOString())
   assert.equal(inicioDaVarredura(aberto, meio.toISOString()).toISOString(), meio.toISOString())
 })
+
+test("a varredura para numa margem atras do relogio (lag do activity_logs)", async () => {
+  // Medido em 08/08/2026: o activity_logs do Monday so expoe uma escrita ~4s depois.
+  // Varrer ate "agora" avanca o cursor por cima do que ainda nao indexou e a alteracao
+  // some PARA SEMPRE. Foi exatamente o que aconteceu com uma escrita de teste:
+  //   escrita 17:11:50.551 | cursor foi a 17:11:52.029 | nunca capturada.
+  const { config } = await import("../config.js")
+  assert.ok(config.monitor.lagSegundos >= 30, "margem precisa cobrir o lag observado com folga")
+
+  const agora = new Date("2026-08-08T17:11:52Z")
+  const seguro = new Date(agora.getTime() - config.monitor.lagSegundos * 1000)
+  const escrita = new Date("2026-08-08T17:11:50.551Z")
+  assert.ok(seguro < escrita, "a escrita fica FORA da fatia e sobra pro proximo tick, em vez de ser pulada")
+})

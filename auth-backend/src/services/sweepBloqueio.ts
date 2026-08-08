@@ -133,7 +133,11 @@ export async function varrerBloqueio(
     // Teto de janela: uma janela esquecida aberta há semanas pediria milhares de
     // páginas num tick só. O resto fica pro próximo tick.
     const limite = new Date(de.getTime() + config.monitor.maxDiasPorVarredura * 86_400_000)
-    const fim = agora < limite ? agora : limite
+    // Nunca varrer até "agora": o activity_logs indexa com atraso (~4 s medido) e o
+    // cursor avançaria por cima do que ainda não apareceu, perdendo a alteração PARA
+    // SEMPRE. Foi assim que uma escrita de teste sumiu em 08/08/2026.
+    const seguro = new Date(agora.getTime() - config.monitor.lagSegundos * 1000)
+    const fim = seguro < limite ? seguro : limite
 
     while (de < fim) {
       const ate = new Date(Math.min(de.getTime() + HORAS_POR_FATIA * 3_600_000, fim.getTime()))
