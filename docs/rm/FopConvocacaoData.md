@@ -324,7 +324,36 @@ npx vercel promote <url-do-preview> --yes
 ⚠️ **Não** use `vercel deploy --prod` nesta máquina: ele sobe o **working tree**, e é isso que os
 deploys antigos com `gitDirty: 1` fizeram — WIP de outra sessão iria pra produção junto.
 
-Falta só ligar `CONVOCACAO_RM_HABILITADA=1` no projeto da Vercel.
+### ✅ Primeira gravação em produção — TRE PB, 08/08/2026
+
+`CONVOCACAO_RM_HABILITADA=1` na Vercel (env novo só vale em deployment novo → `vercel redeploy
+<preview> --target production`). Disparo pelo caminho real: status do item TRE PB → `LANÇAR`.
+
+| Chapa | Código gerado pelo RM | Período | Data do ato |
+|---|---|---|---|
+| 006824 | `C03S003756` | 2026-08-01..08-31 | 2026-07-29 |
+| 006534 | `C03S003757` | 2026-08-01..08-31 | 2026-07-29 |
+
+Cadeia inteira conferida: RM gravou com `ESTADOCONVOCACAO=4` e `INDLOCALPRESTACTRAB=0`; o código
+voltou pro `Código Convocação RM` de cada item no Monday; o ledger tem as duas chaves
+`convocacao_rm:TRE_PB:<chapa>:2026-08-01` **confirmadas**, com `ref_externa` e `payload.pks` =
+`3;<chapa>;C03S00375x`.
+
+**Disparo duplo testado:** segundo `LANÇAR` no mesmo contrato → prévia e execução devolvem
+`ja_lancado` para os dois e o RM continua com **2** registros, não 4. A primeira barreira é a coluna
+do código no Monday (classificação, antes de qualquer chamada ao RM); a segunda é o ledger.
+
+### Bug que quase passou: acento decidindo se a automação roda
+
+`normalizar()` tira os diacríticos do label vindo do Monday (`LANÇAR` → `LANCAR`), e a comparação era
+contra a constante **acentuada**. O `includes` nunca casava, a rota respondia **200** com
+`ignorado: "label_nao_gatilho"` e nada acontecia. Nos logs parecia funcionar — 200, tocou o banco —
+porque o check de coluna vem antes e a saída é idêntica. Corrigido em `ehLabelGatilho()`, com os dois
+lados normalizados e teste cobrindo `LANÇAR`/`LANCAR`/`lançar`/vazio.
+
+Foi um probe em contrato **sem candidatos** (URUGUAIANA) que expôs isso: ele mostra o estado da flag
+e o resultado da classificação sem poder gravar nada. Vale repetir esse probe antes de qualquer
+mudança no gatilho.
 
 ## Pegadinhas de transporte
 
