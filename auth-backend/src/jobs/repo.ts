@@ -65,6 +65,19 @@ export async function falhar(id: string, erro: string): Promise<void> {
 // ---- Idempotência de efeitos externos ----
 
 /**
+ * Estado de uma chave de efeito SEM reservar — pra prévia poder mostrar "já feito" sem criar
+ * linha. Reservar numa prévia envenenaria a chave: a execução real veria 'pendente' e travaria.
+ */
+export async function estadoEfeito(chave: string): Promise<"ausente" | "confirmado" | "pendente"> {
+  const { rows } = await query<{ status: string }>(
+    `SELECT status FROM efeitos_externos WHERE chave=$1`,
+    [chave],
+  )
+  if (!rows.length) return "ausente"
+  return rows[0]!.status === "confirmado" ? "confirmado" : "pendente"
+}
+
+/**
  * Reserva uma chave de efeito externo. Retorna 'novo' (pode executar), 'confirmado'
  * (já feito — PULAR) ou 'pendente' (em curso/falhou antes — decidir retry).
  */
