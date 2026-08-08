@@ -6,7 +6,28 @@ process.env.GOOGLE_CLIENT_ID ??= "test"
 process.env.GOOGLE_CLIENT_SECRET ??= "test"
 process.env.OAUTH_REDIRECT_URI ??= "http://localhost/cb"
 
-const { ehLabelGatilho, resolverColunas } = await import("./convocacaoRm.js")
+const { ehLabelGatilho, resolverColunas, loteExigeAtencao, LABEL_CONCLUIDO, LABEL_ERRO } =
+  await import("./convocacaoRm.js")
+
+test("labels de retorno NAO podem ser gatilho (senao o write-back vira loop)", () => {
+  // A rota escreve o resultado na MESMA coluna que o webhook observa. Se o label final passasse
+  // por ehLabelGatilho, cada lançamento dispararia outro, pra sempre.
+  assert.equal(ehLabelGatilho(LABEL_CONCLUIDO), false)
+  assert.equal(ehLabelGatilho(LABEL_ERRO), false)
+})
+
+const res = (estado: string) => ({ estado }) as never
+
+test("loteExigeAtencao: erro, reserva pendente e RM-sem-eco pedem olho humano", () => {
+  assert.equal(loteExigeAtencao({ resultados: [res("gravado")] } as never), false)
+  assert.equal(loteExigeAtencao({ resultados: [res("pulado_idempotencia")] } as never), false)
+  assert.equal(loteExigeAtencao({ resultados: [] } as never), false)
+  assert.equal(loteExigeAtencao({ resultados: [res("gravado"), res("erro")] } as never), true)
+  assert.equal(loteExigeAtencao({ resultados: [res("reserva_pendente")] } as never), true)
+  // Gravou no RM mas o codigo nao chegou no Monday: sem aviso, o proximo run acharia que falta
+  // lancar (a coluna esta vazia) e so o ledger seguraria.
+  assert.equal(loteExigeAtencao({ resultados: [res("gravado_monday_pendente")] } as never), true)
+})
 
 test("ehLabelGatilho: acento não pode decidir se a automação roda", () => {
   // O bug: `normalizar()` tira a cedilha do label vindo do Monday ("LANÇAR" -> "LANCAR") e a

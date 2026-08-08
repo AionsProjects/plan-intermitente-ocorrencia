@@ -121,7 +121,10 @@ export function resolverColunas(cols: Map<string, string>): {
 export async function montarLote(
   boardId: string,
   contrato: string,
-): Promise<{ itens: ItemConvocacaoMonday[]; colCodRm: string } | { erro: string; faltando: string[] }> {
+): Promise<
+  | { itens: ItemConvocacaoMonday[]; colCodRm: string; colGatilho: string | undefined }
+  | { erro: string; faltando: string[] }
+> {
   const cols = await colunasDoBoard(boardId)
   const { id, faltando } = resolverColunas(cols)
   if (faltando.length) return { erro: "colunas_ausentes_no_board", faltando }
@@ -152,13 +155,31 @@ export async function montarLote(
       codRmExistente: txt("codRm") || undefined,
     }
   })
-  return { itens, colCodRm }
+  return { itens, colCodRm, colGatilho: id("gatilho") }
+}
+
+/**
+ * Labels de retorno no próprio item do contrato — é o que o DP vê sem abrir log nenhum.
+ *
+ * Nenhum deles pode conter `LANCAR` normalizado: escrever nesta coluna re-dispara o webhook, e um
+ * label que passasse por `ehLabelGatilho` viraria loop infinito de lançamento.
+ */
+export const LABEL_CONCLUIDO = "AUTOMAÇÃO FINALIZADA"
+export const LABEL_ERRO = "ERRO NA AUTOMAÇÃO"
+
+/** Houve algo que exige olho humano? (erro, reserva pendente, RM gravado sem eco no Monday) */
+export function loteExigeAtencao(r: LoteConvocacaoRmResultado): boolean {
+  return r.resultados.some(
+    (x) => x.estado === "erro" || x.estado === "reserva_pendente" || x.estado === "gravado_monday_pendente",
+  )
 }
 
 async function rodarLote(
   boardId: string,
   contrato: string,
   previa: boolean,
+  /** Item de gatilho, pra devolver o status quando o lote termina. Só no caminho do webhook. */
+  itemGatilhoId?: string,
 ): Promise<{ status: number; body: LoteConvocacaoRmResultado | { erro: string; faltando?: string[] } }> {
   const lote = await montarLote(boardId, contrato)
   if ("erro" in lote) return { status: 400, body: lote }
@@ -173,6 +194,18 @@ async function rodarLote(
           await changeColumnValues(boardId, item.itemId, { [lote.colCodRm]: codConvocacao })
         },
   })
+
+  // Devolve o status no item do contrato, pro DP ver o fim sem abrir log.
+  // NÃO é fatal: o lote já rodou e o ledger é a fonte de verdade — falhar aqui só deixa o item
+  // com o label antigo, e reprocessar por causa disso duplicaria trabalho sem motivo.
+  if (!previa && itemGatilhoId && lote.colGatilho) {
+    const label = loteExigeAtencao(resultado) ? LABEL_ERRO : LABEL_CONCLUIDO
+    try {
+      await changeColumnValues(boardId, itemGatilhoId, { [lote.colGatilho]: { label } })
+    } catch {
+      /* ignora de propósito — ver comentário acima */
+    }
+  }
   return { status: 200, body: resultado }
 }
 
@@ -228,7 +261,7 @@ export async function rotasConvocacaoRm(app: FastifyInstance): Promise<void> {
         return { ok: true, ignorado: "desligado", contrato, dica: "CONVOCACAO_RM_HABILITADA=1" }
       }
       try {
-        const r = await rodarLote(boardId, contrato, false)
+        const r = await rodarLote(boardId, contrato, false, String(ev.pulseId))
         return reply.code(r.status).send(r.body)
       } catch (e) {
         req.log.error(e, "erro /api/monday/convocacao-rm")
