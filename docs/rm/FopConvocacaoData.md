@@ -343,6 +343,39 @@ voltou pro `Código Convocação RM` de cada item no Monday; o ledger tem as dua
 `ja_lancado` para os dois e o RM continua com **2** registros, não 4. A primeira barreira é a coluna
 do código no Monday (classificação, antes de qualquer chamada ao RM); a segunda é o ledger.
 
+### Como o DP usa (e o retorno de status)
+
+1. Grupo `LANÇAR NO RM (por contrato)` → item do contrato → coluna **`Lançar no RM`** = `LANÇAR`.
+2. Ao terminar, a própria rota grava nessa mesma coluna:
+   - **`AUTOMAÇÃO FINALIZADA`** — tudo certo;
+   - **`ERRO NA AUTOMAÇÃO`** — houve `erro`, `reserva_pendente` ou `gravado_monday_pendente`
+     (este último = gravou no RM e não conseguiu ecoar o código no Monday).
+3. Cada pessoa lançada recebe o `C03S######` na coluna `Código Convocação RM`.
+
+⚠️ Escrever nessa coluna **re-dispara o webhook** — nenhum label de retorno pode conter `LANCAR`
+normalizado, senão cada lançamento dispara outro pra sempre. Há teste garantindo que
+`ehLabelGatilho(LABEL_CONCLUIDO)` e `(LABEL_ERRO)` são `false`.
+
+O write-back **não é fatal**: o lote já rodou e o ledger é a fonte de verdade. Falhar aqui só deixa o
+item com o label antigo; reprocessar por isso duplicaria trabalho sem motivo.
+
+### CETAM em produção — 19 convocações (08/08/2026)
+
+Segundo contrato real, disparado pelo DP. Bateu **exatamente** com a prévia: 22 itens = 1 gatilho +
+19 gravados + 2 pulados. Códigos `C03S003758`..`C03S003776`, todas as 19 chaves `confirmado` no
+ledger com as PKs, e os 19 itens com o código de volta no Monday.
+
+Os 2 pulados provam as travas em dado real:
+
+| Chapa | Motivo | Por quê |
+|---|---|---|
+| `007393` | `cancelada` | `Status` = Cancelada — é exatamente o que exige a coluna de status ser obrigatória |
+| `007406` | `sem_periodo` | item sem datas no board (a MESMA chapa tem outro item válido, que foi lançado) |
+
+E a regra da data do ato é **por item, não por pessoa**: a chapa `007033` tem dois períodos
+(01–20/08 e 24–31/08) e virou duas convocações, com atos em 29/07 e 21/08 — 3 dias antes de cada
+início.
+
 ### Bug que quase passou: acento decidindo se a automação roda
 
 `normalizar()` tira os diacríticos do label vindo do Monday (`LANÇAR` → `LANCAR`), e a comparação era
