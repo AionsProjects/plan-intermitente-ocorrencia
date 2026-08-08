@@ -422,6 +422,8 @@ export interface ItemConvocacaoMonday {
   dataAdmissao?: string
   statusConvocacao?: string
   cancelamentoInicio?: string | null
+  /** `OP - Tipo Convocação` — PONTUAL / MENSAL / MOP / DEMISSÃO / NÃO CONVOCADO. */
+  tipoConvocacao?: string
   /** Código RM já gravado no item = esta convocação já foi lançada. */
   codRmExistente?: string
 }
@@ -431,8 +433,39 @@ export type MotivoPuloConvocacaoRm =
   | "sem_chapa"
   | "sem_periodo"
   | "cancelada"
+  | "tipo_nao_convocavel"
   | "dados_invalidos"
   | "ja_no_rm"
+
+/**
+ * Tipos de `OP - Tipo Convocação` que viram convocação no RM.
+ *
+ * O lote é por CONTRATO e antes só olhava chapa/datas/status — `NÃO CONVOCADO` entrava. Hoje os 77
+ * itens `NÃO CONVOCADO` do board estão sem datas e caem em `sem_periodo`, então nada vazou; mas isso
+ * é acidente de preenchimento, não trava: basta alguém digitar uma data pra convocar no RM quem não
+ * foi convocado. Daí a lista explícita.
+ *
+ * `MOP` está aqui porque é o que já foi gravado em produção (TRE PB `006824` → `C03S003756`,
+ * CETAM `006897` → `C03S003758`) — mudar isso é decisão do DP, não minha. `DEMISSÃO` fica fora.
+ */
+export const TIPOS_CONVOCAVEIS_RM = ["PONTUAL", "MENSAL", "MOP"] as const
+
+/** Compara sem acento/caixa: o label vem do Monday e "NÃO CONVOCADO" tem til. */
+function normalizarTipo(v: unknown): string {
+  return String(v ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toUpperCase()
+    .trim()
+}
+
+export function tipoEhConvocavel(tipo: unknown): boolean {
+  const t = normalizarTipo(tipo)
+  // Tipo vazio segue passando: item antigo sem o campo preenchido continua tratado como antes,
+  // e quem decide de fato são as datas e o status.
+  if (!t) return true
+  return TIPOS_CONVOCAVEIS_RM.some((ok) => normalizarTipo(ok) === t)
+}
 
 export interface CandidatoConvocacaoRm {
   item: ItemConvocacaoMonday
@@ -468,6 +501,10 @@ export function classificarItensConvocacaoRm(itens: ItemConvocacaoMonday[]): {
     }
     if (!chapaAceitavelNoFiltro(item.chapa)) {
       pulados.push({ item, motivo: "sem_chapa" })
+      continue
+    }
+    if (!tipoEhConvocavel(item.tipoConvocacao)) {
+      pulados.push({ item, motivo: "tipo_nao_convocavel", detalhe: item.tipoConvocacao ?? "" })
       continue
     }
     // Normaliza antes de tudo: `effectivePeriod` só entende ISO, e `Admissão` vem DD/MM/YYYY.

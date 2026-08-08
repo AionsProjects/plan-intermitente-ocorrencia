@@ -30,6 +30,7 @@ const T = {
   dataInicio: ["OP - Data/Inicio"],
   dataFim: ["OP - Data/Fim"],
   admissao: ["Admissão"],
+  tipoConvocacao: ["OP - Tipo Convocação"],
   statusConvocacao: ["Status Convocação", "Status"],
   cancelamentoInicio: ["Cancelamento Início", "inicio do cancelamento"],
   /** COLUNA NOVA no board (text): guarda o `C03S######` que o RM gerou. */
@@ -150,6 +151,7 @@ export async function montarLote(
       dataInicio: txt("dataInicio"),
       dataFim: txt("dataFim"),
       dataAdmissao: txt("admissao") || undefined,
+      tipoConvocacao: txt("tipoConvocacao") || undefined,
       statusConvocacao: txt("statusConvocacao") || undefined,
       cancelamentoInicio: txt("cancelamentoInicio") || null,
       codRmExistente: txt("codRm") || undefined,

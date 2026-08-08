@@ -13,6 +13,7 @@ import {
   dataPrevistaPagamentoPadrao,
   diasCorridos,
   somarDias,
+  tipoEhConvocavel,
   filtroReadViewConvocacao,
   lotesDeChapas,
   montarConvocacaoRm,
@@ -432,6 +433,37 @@ test("classificarItensConvocacaoRm: item de GATILHO (contrato sem chapa) fica fo
   ])
   assert.equal(candidatos.length, 0)
   assert.equal(pulados[0].motivo, "sem_chapa")
+})
+
+test("tipoEhConvocavel: NÃO CONVOCADO e DEMISSÃO ficam fora, acento não atrapalha", () => {
+  assert.equal(tipoEhConvocavel("PONTUAL"), true)
+  assert.equal(tipoEhConvocavel("MENSAL"), true)
+  assert.equal(tipoEhConvocavel("MOP"), true)
+  assert.equal(tipoEhConvocavel("NÃO CONVOCADO"), false)
+  assert.equal(tipoEhConvocavel("NAO CONVOCADO"), false)
+  assert.equal(tipoEhConvocavel("DEMISSÃO"), false)
+  // Vazio segue passando: item sem o campo preenchido é decidido por datas e status, como antes.
+  assert.equal(tipoEhConvocavel(""), true)
+  assert.equal(tipoEhConvocavel(undefined), true)
+})
+
+test("classificarItensConvocacaoRm: NÃO CONVOCADO não vai pro RM nem com datas preenchidas", () => {
+  // Hoje os 77 itens NÃO CONVOCADO do board estão sem datas e cairiam em sem_periodo — acidente de
+  // preenchimento, não trava. Com data preenchida, sem este filtro, convocaria no RM quem não foi
+  // convocado.
+  const { candidatos, pulados } = classificarItensConvocacaoRm([
+    item({ tipoConvocacao: "NÃO CONVOCADO" }),
+  ])
+  assert.equal(candidatos.length, 0)
+  assert.equal(pulados[0].motivo, "tipo_nao_convocavel")
+  assert.equal(pulados[0].detalhe, "NÃO CONVOCADO")
+})
+
+test("classificarItensConvocacaoRm: PONTUAL, MENSAL e MOP passam", () => {
+  for (const tipo of ["PONTUAL", "MENSAL", "MOP"]) {
+    const { candidatos } = classificarItensConvocacaoRm([item({ tipoConvocacao: tipo })])
+    assert.equal(candidatos.length, 1, tipo)
+  }
 })
 
 test("classificarItensConvocacaoRm: já lançado é pulado com o código", () => {
