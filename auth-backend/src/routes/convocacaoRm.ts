@@ -57,7 +57,14 @@ const OBRIGATORIAS: CampoColuna[] = [
   "codRm",
 ]
 
-const LABEL_GATILHO = "LANÇAR"
+/**
+ * Label que dispara, JÁ NORMALIZADA (sem cedilha).
+ *
+ * `normalizar()` tira os diacríticos do label que vem do Monday, então "LANÇAR" chega como
+ * "LANCAR". Comparar com a constante acentuada nunca casava e o gatilho morria em
+ * `label_nao_gatilho` — falha silenciosa, porque a resposta é 200 igual.
+ */
+const LABEL_GATILHO = "LANCAR"
 
 async function colunasDoBoard(boardId: string): Promise<Map<string, string>> {
   const { rows } = await query<{ nome: string; column_id: string }>(
@@ -73,6 +80,19 @@ function normalizar(v: unknown): string {
     .replace(/[̀-ͯ]/g, "")
     .toUpperCase()
     .trim()
+}
+
+/**
+ * O label do evento é o gatilho?
+ *
+ * Os DOIS lados passam pela mesma normalização — foi comparar normalizado contra acentuado que
+ * fez o gatilho morrer calado (resposta 200, `label_nao_gatilho`, nada acontecendo).
+ * Label vazio conta como gatilho: o Monday não manda `value.label` em todo formato de evento, e
+ * ali o filtro de coluna já garantiu que a mudança foi na coluna certa.
+ */
+export function ehLabelGatilho(texto: unknown): boolean {
+  const label = normalizar(texto)
+  return label === "" || label.includes(LABEL_GATILHO)
 }
 
 /** Resolve cada campo pro `column_id` do board, tentando os títulos candidatos em ordem. */
@@ -193,8 +213,7 @@ export async function rotasConvocacaoRm(app: FastifyInstance): Promise<void> {
       if (idGatilho && ev.columnId && ev.columnId !== idGatilho) {
         return { ok: true, ignorado: "outra_coluna" }
       }
-      const label = normalizar(ev.value?.label?.text)
-      if (label && !label.includes(LABEL_GATILHO)) return { ok: true, ignorado: "label_nao_gatilho" }
+      if (!ehLabelGatilho(ev.value?.label?.text)) return { ok: true, ignorado: "label_nao_gatilho" }
 
       // Contrato = coluna `Op - Contrato` do item de gatilho. Nome do item é fallback, pro caso
       // do DP montar o grupo só com o nome do contrato no título.
