@@ -20,6 +20,7 @@
     "rm:teste-convocacao": "node --env-file=.env --import tsx src/scripts/rm-teste-convocacao.ts",
     "rm:delete": "node --env-file=.env --import tsx src/scripts/rm-delete.ts",
     "monday:provisionar-convocacao-rm": "node --env-file=.env --import tsx src/scripts/monday-provisionar-convocacao-rm.ts",
+    "monday:webhook-convocacao-rm": "node --env-file=.env --import tsx src/scripts/monday-webhook-convocacao-rm.ts",
     "convocacao-rm:previa": "node --env-file=.env --import tsx src/scripts/convocacao-rm-previa.ts",
     "importar:convocacoes": "node --env-file=.env --import tsx src/scripts/importar-convocacoes.ts",
     "migrate:dist": "node dist/scripts/migrate.js",
