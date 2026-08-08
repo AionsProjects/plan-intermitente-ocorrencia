@@ -13,7 +13,7 @@ import {
   dataPrevistaPagamentoPadrao,
   diasCorridos,
   somarDias,
-  tipoEhConvocavel,
+  grupoEhConvocavel,
   filtroReadViewConvocacao,
   lotesDeChapas,
   montarConvocacaoRm,
@@ -21,6 +21,7 @@ import {
   parseConvocacoesReadView,
   periodosCruzam,
   pkConvocacaoRm,
+  quebrarPeriodoPorAusencias,
   validarConvocacaoRm,
   type ConvocacaoExistenteRm,
   type ItemConvocacaoMonday,
@@ -332,6 +333,106 @@ test("parseConvocacoesReadView: resultado vazio não explode", () => {
   assert.deepEqual(parseConvocacoesReadView(""), [])
 })
 
+// --- quebra por ausência (atestado no meio da convocação) -------------------
+
+test("quebrarPeriodoPorAusencias: o caso do DP — 05→20 com atestado 10→11 vira 05→09 e 12→20", () => {
+  assert.deepEqual(
+    quebrarPeriodoPorAusencias("2026-08-05", "2026-08-20", [{ inicio: "2026-08-10", fim: "2026-08-11" }]),
+    [
+      { inicio: "2026-08-05", fim: "2026-08-09" },
+      { inicio: "2026-08-12", fim: "2026-08-20" },
+    ],
+  )
+})
+
+test("quebrarPeriodoPorAusencias: ausência na ponta só encurta, não parte", () => {
+  // Começo: some o trecho inicial.
+  assert.deepEqual(
+    quebrarPeriodoPorAusencias("2026-08-05", "2026-08-20", [{ inicio: "2026-08-05", fim: "2026-08-06" }]),
+    [{ inicio: "2026-08-07", fim: "2026-08-20" }],
+  )
+  // Fim: some o trecho final.
+  assert.deepEqual(
+    quebrarPeriodoPorAusencias("2026-08-05", "2026-08-20", [{ inicio: "2026-08-19", fim: "2026-08-20" }]),
+    [{ inicio: "2026-08-05", fim: "2026-08-18" }],
+  )
+})
+
+test("quebrarPeriodoPorAusencias: ausência cobrindo tudo não deixa convocação", () => {
+  assert.deepEqual(
+    quebrarPeriodoPorAusencias("2026-08-05", "2026-08-20", [{ inicio: "2026-08-01", fim: "2026-08-31" }]),
+    [],
+  )
+  assert.deepEqual(
+    quebrarPeriodoPorAusencias("2026-08-05", "2026-08-05", [{ inicio: "2026-08-05", fim: "2026-08-05" }]),
+    [],
+  )
+})
+
+test("quebrarPeriodoPorAusencias: duas ausências geram três pedaços", () => {
+  assert.deepEqual(
+    quebrarPeriodoPorAusencias("2026-08-01", "2026-08-31", [
+      { inicio: "2026-08-10", fim: "2026-08-11" },
+      { inicio: "2026-08-20", fim: "2026-08-22" },
+    ]),
+    [
+      { inicio: "2026-08-01", fim: "2026-08-09" },
+      { inicio: "2026-08-12", fim: "2026-08-19" },
+      { inicio: "2026-08-23", fim: "2026-08-31" },
+    ],
+  )
+})
+
+test("quebrarPeriodoPorAusencias: sobrepostas, grudadas e fora de ordem não criam pedaço fantasma", () => {
+  // Sobrepostas + fora de ordem: o cursor não pode andar pra trás e reabrir dia já coberto.
+  assert.deepEqual(
+    quebrarPeriodoPorAusencias("2026-08-01", "2026-08-20", [
+      { inicio: "2026-08-12", fim: "2026-08-15" },
+      { inicio: "2026-08-10", fim: "2026-08-13" },
+    ]),
+    [
+      { inicio: "2026-08-01", fim: "2026-08-09" },
+      { inicio: "2026-08-16", fim: "2026-08-20" },
+    ],
+  )
+  // Grudadas (05-06 e 07-08): um corte só de 05 a 08, sem pedaço vazio entre elas.
+  assert.deepEqual(
+    quebrarPeriodoPorAusencias("2026-08-01", "2026-08-10", [
+      { inicio: "2026-08-05", fim: "2026-08-06" },
+      { inicio: "2026-08-07", fim: "2026-08-08" },
+    ]),
+    [
+      { inicio: "2026-08-01", fim: "2026-08-04" },
+      { inicio: "2026-08-09", fim: "2026-08-10" },
+    ],
+  )
+})
+
+test("quebrarPeriodoPorAusencias: ausência fora do período é ignorada", () => {
+  assert.deepEqual(
+    quebrarPeriodoPorAusencias("2026-08-05", "2026-08-20", [
+      { inicio: "2026-07-01", fim: "2026-07-10" },
+      { inicio: "2026-09-01", fim: "2026-09-05" },
+    ]),
+    [{ inicio: "2026-08-05", fim: "2026-08-20" }],
+  )
+  // Sem ausência nenhuma: o período inteiro, um pedaço só.
+  assert.deepEqual(quebrarPeriodoPorAusencias("2026-08-05", "2026-08-20", []), [
+    { inicio: "2026-08-05", fim: "2026-08-20" },
+  ])
+})
+
+test("quebrarPeriodoPorAusencias: aceita DD/MM/YYYY e rejeita período invertido", () => {
+  assert.deepEqual(
+    quebrarPeriodoPorAusencias("05/08/2026", "20/08/2026", [{ inicio: "10/08/2026", fim: "11/08/2026" }]),
+    [
+      { inicio: "2026-08-05", fim: "2026-08-09" },
+      { inicio: "2026-08-12", fim: "2026-08-20" },
+    ],
+  )
+  assert.deepEqual(quebrarPeriodoPorAusencias("2026-08-20", "2026-08-05", []), [])
+})
+
 test("periodosCruzam: inclusive nas pontas", () => {
   assert.equal(periodosCruzam("2026-08-01", "2026-08-10", "2026-08-10", "2026-08-20"), true)
   assert.equal(periodosCruzam("2026-08-01", "2026-08-10", "2026-08-11", "2026-08-20"), false)
@@ -414,6 +515,7 @@ const item = (extra: Partial<ItemConvocacaoMonday> = {}): ItemConvocacaoMonday =
   dataFim: "2026-08-31",
   dataAdmissao: "2026-01-15",
   statusConvocacao: "Válida",
+  grupo: "MENSAL",
   ...extra,
 })
 
@@ -435,34 +537,41 @@ test("classificarItensConvocacaoRm: item de GATILHO (contrato sem chapa) fica fo
   assert.equal(pulados[0].motivo, "sem_chapa")
 })
 
-test("tipoEhConvocavel: NÃO CONVOCADO e DEMISSÃO ficam fora, acento não atrapalha", () => {
-  assert.equal(tipoEhConvocavel("PONTUAL"), true)
-  assert.equal(tipoEhConvocavel("MENSAL"), true)
-  assert.equal(tipoEhConvocavel("MOP"), true)
-  assert.equal(tipoEhConvocavel("NÃO CONVOCADO"), false)
-  assert.equal(tipoEhConvocavel("NAO CONVOCADO"), false)
-  assert.equal(tipoEhConvocavel("DEMISSÃO"), false)
-  // Vazio segue passando: item sem o campo preenchido é decidido por datas e status, como antes.
-  assert.equal(tipoEhConvocavel(""), true)
-  assert.equal(tipoEhConvocavel(undefined), true)
+test("grupoEhConvocavel: só os 3 grupos do DP, e FALHA FECHADO sem grupo", () => {
+  assert.equal(grupoEhConvocavel("MENSAL"), true)
+  assert.equal(grupoEhConvocavel("PONTUAL"), true)
+  assert.equal(grupoEhConvocavel("CANCELADOS PARCIAL"), true)
+  assert.equal(grupoEhConvocavel("MOP/OUTROS"), false)
+  assert.equal(grupoEhConvocavel("NÃO CONVOCADOS"), false)
+  assert.equal(grupoEhConvocavel("CANCELADOS"), false)
+  assert.equal(grupoEhConvocavel("Acompanhamento de Fechamento"), false)
+  assert.equal(grupoEhConvocavel("LANÇAR NO RM (por contrato)"), false)
+  // Sem grupo NÃO passa: se a consulta parar de trazer group{title}, a prévia zera (barulhento)
+  // em vez de gravar eSocial de quem não devia (calado).
+  assert.equal(grupoEhConvocavel(""), false)
+  assert.equal(grupoEhConvocavel(undefined), false)
 })
 
-test("classificarItensConvocacaoRm: NÃO CONVOCADO não vai pro RM nem com datas preenchidas", () => {
-  // Hoje os 77 itens NÃO CONVOCADO do board estão sem datas e cairiam em sem_periodo — acidente de
-  // preenchimento, não trava. Com data preenchida, sem este filtro, convocaria no RM quem não foi
-  // convocado.
+test("classificarItensConvocacaoRm: MOP/OUTROS fica fora — foi o furo que gravou 3 registros", () => {
+  // C03S003756, C03S003758 e C03S003777 nasceram no RM por MOP/OUTROS e tiveram que ser apagados.
   const { candidatos, pulados } = classificarItensConvocacaoRm([
-    item({ tipoConvocacao: "NÃO CONVOCADO" }),
+    item({ grupo: "MOP/OUTROS", tipoConvocacao: "MOP" }),
   ])
   assert.equal(candidatos.length, 0)
-  assert.equal(pulados[0].motivo, "tipo_nao_convocavel")
-  assert.equal(pulados[0].detalhe, "NÃO CONVOCADO")
+  assert.equal(pulados[0].motivo, "grupo_fora_do_escopo")
+  assert.equal(pulados[0].detalhe, "MOP/OUTROS")
 })
 
-test("classificarItensConvocacaoRm: PONTUAL, MENSAL e MOP passam", () => {
-  for (const tipo of ["PONTUAL", "MENSAL", "MOP"]) {
-    const { candidatos } = classificarItensConvocacaoRm([item({ tipoConvocacao: tipo })])
-    assert.equal(candidatos.length, 1, tipo)
+test("classificarItensConvocacaoRm: NÃO CONVOCADOS não entra nem com datas boas", () => {
+  const { candidatos, pulados } = classificarItensConvocacaoRm([item({ grupo: "NÃO CONVOCADOS" })])
+  assert.equal(candidatos.length, 0)
+  assert.equal(pulados[0].motivo, "grupo_fora_do_escopo")
+})
+
+test("classificarItensConvocacaoRm: os 3 grupos do DP passam", () => {
+  for (const g of ["MENSAL", "PONTUAL", "CANCELADOS PARCIAL"]) {
+    const { candidatos } = classificarItensConvocacaoRm([item({ grupo: g })])
+    assert.equal(candidatos.length, 1, g)
   }
 })
 

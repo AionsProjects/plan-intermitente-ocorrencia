@@ -344,6 +344,56 @@ export function parseConvocacoesReadView(xml: string): ConvocacaoExistenteRm[] {
   }))
 }
 
+export interface PeriodoConvocacao {
+  inicio: string
+  fim: string
+}
+
+/**
+ * Quebra o período da convocação nos pedaços que sobram fora das ausências.
+ *
+ * Regra do DP: dia coberto por atestado não é pago, então não pode estar dentro de uma convocação.
+ * Convocação 05→20 com atestado 10→11 vira DUAS convocações: 05→09 e 12→20.
+ *
+ * Casos que a regra tem que aguentar (todos com teste): ausência na ponta inicial (só encurta o
+ * começo), na ponta final (só encurta o fim), cobrindo tudo (não sobra convocação nenhuma),
+ * ausências grudadas/sobrepostas (não geram pedaço de 1 dia fantasma no meio) e ausência fora do
+ * período (ignorada).
+ *
+ * PURA: quem descobre as ausências é outro problema — ver docs/rm/FopConvocacaoData.md.
+ */
+export function quebrarPeriodoPorAusencias(
+  inicio: string,
+  fim: string,
+  ausencias: { inicio: string; fim: string }[],
+): PeriodoConvocacao[] {
+  const ini = paraDataIso(inicio)
+  const end = paraDataIso(fim)
+  if (!ini || !end || diasCorridos(ini, end) < 0) return []
+
+  // Só as ausências que tocam o período, normalizadas e em ordem. Ordenar é o que permite varrer
+  // uma vez; sem isso, ausência fora de ordem "reabriria" um trecho já cortado.
+  const cortes = ausencias
+    .map((a) => ({ inicio: paraDataIso(a.inicio), fim: paraDataIso(a.fim) }))
+    .filter((a) => a.inicio && a.fim && diasCorridos(a.inicio, a.fim) >= 0)
+    .filter((a) => periodosCruzam(a.inicio, a.fim, ini, end))
+    .sort((a, b) => a.inicio.localeCompare(b.inicio))
+
+  const pedacos: PeriodoConvocacao[] = []
+  let cursor = ini
+  for (const c of cortes) {
+    // Trecho livre antes da ausência. `< 0` cobre ausência que começa antes/no cursor.
+    if (diasCorridos(cursor, c.inicio) > 0) {
+      pedacos.push({ inicio: cursor, fim: somarDias(c.inicio, -1) })
+    }
+    const retoma = somarDias(c.fim, 1)
+    // Ausências sobrepostas: o cursor nunca anda pra trás.
+    if (diasCorridos(cursor, retoma) > 0) cursor = retoma
+  }
+  if (diasCorridos(cursor, end) >= 0) pedacos.push({ inicio: cursor, fim: end })
+  return pedacos
+}
+
 /** Períodos [a1,a2] e [b1,b2] se cruzam (inclusive nas pontas). */
 export function periodosCruzam(a1: string, a2: string, b1: string, b2: string): boolean {
   return diaUtc(a1) <= diaUtc(b2) && diaUtc(b1) <= diaUtc(a2)
@@ -422,7 +472,9 @@ export interface ItemConvocacaoMonday {
   dataAdmissao?: string
   statusConvocacao?: string
   cancelamentoInicio?: string | null
-  /** `OP - Tipo Convocação` — PONTUAL / MENSAL / MOP / DEMISSÃO / NÃO CONVOCADO. */
+  /** Grupo do item no board. É o que decide se entra no lote — ver GRUPOS_CONVOCAVEIS_RM. */
+  grupo?: string
+  /** `OP - Tipo Convocação` — só informativo no relatório; quem manda é o grupo. */
   tipoConvocacao?: string
   /** Código RM já gravado no item = esta convocação já foi lançada. */
   codRmExistente?: string
@@ -433,25 +485,28 @@ export type MotivoPuloConvocacaoRm =
   | "sem_chapa"
   | "sem_periodo"
   | "cancelada"
-  | "tipo_nao_convocavel"
+  | "grupo_fora_do_escopo"
   | "dados_invalidos"
   | "ja_no_rm"
 
 /**
- * Tipos de `OP - Tipo Convocação` que viram convocação no RM.
+ * GRUPOS do board Entrada que viram convocação no RM. Regra do DP (08/08/2026): "olhar apenas 3
+ * grupos, MENSAL, PONTUAL e CANCELADOS PARCIAL, só esses 3".
  *
- * O lote é por CONTRATO e antes só olhava chapa/datas/status — `NÃO CONVOCADO` entrava. Hoje os 77
- * itens `NÃO CONVOCADO` do board estão sem datas e caem em `sem_periodo`, então nada vazou; mas isso
- * é acidente de preenchimento, não trava: basta alguém digitar uma data pra convocar no RM quem não
- * foi convocado. Daí a lista explícita.
+ * Ficam de fora `NÃO CONVOCADOS` (78 itens), `MOP/OUTROS` (5), `CANCELADOS` (2), o grupo do próprio
+ * gatilho e os de apoio (ORIENTAÇÕES, Acompanhamento de Fechamento).
  *
- * `MOP` está aqui porque é o que já foi gravado em produção (TRE PB `006824` → `C03S003756`,
- * CETAM `006897` → `C03S003758`) — mudar isso é decisão do DP, não minha. `DEMISSÃO` fica fora.
+ * Por que grupo e não `OP - Tipo Convocação`: o filtro por tipo deixava MOP passar, e foi assim que
+ * `C03S003756`/`C03S003758`/`C03S003777` nasceram no RM e tiveram que ser apagados. O DP organiza o
+ * trabalho pelo grupo — é o grupo que manda.
+ *
+ * `CANCELADOS PARCIAL` entra porque a convocação vale até o dia anterior ao cancelamento; quem
+ * trunca o fim é `effectivePeriod`.
  */
-export const TIPOS_CONVOCAVEIS_RM = ["PONTUAL", "MENSAL", "MOP"] as const
+export const GRUPOS_CONVOCAVEIS_RM = ["MENSAL", "PONTUAL", "CANCELADOS PARCIAL"] as const
 
-/** Compara sem acento/caixa: o label vem do Monday e "NÃO CONVOCADO" tem til. */
-function normalizarTipo(v: unknown): string {
+/** Compara sem acento/caixa: o título vem do Monday e "ORIENTAÇÕES"/"NÃO CONVOCADOS" têm acento. */
+function normalizarRotulo(v: unknown): string {
   return String(v ?? "")
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
@@ -459,12 +514,17 @@ function normalizarTipo(v: unknown): string {
     .trim()
 }
 
-export function tipoEhConvocavel(tipo: unknown): boolean {
-  const t = normalizarTipo(tipo)
-  // Tipo vazio segue passando: item antigo sem o campo preenchido continua tratado como antes,
-  // e quem decide de fato são as datas e o status.
-  if (!t) return true
-  return TIPOS_CONVOCAVEIS_RM.some((ok) => normalizarTipo(ok) === t)
+/**
+ * FALHA FECHADO: grupo desconhecido ou vazio NÃO passa.
+ *
+ * Se a consulta ao Monday parar de trazer `group{title}`, o lote inteiro vira `grupo_fora_do_escopo`
+ * e a prévia mostra zero — barulhento e inofensivo. O contrário (deixar passar quando não sei o
+ * grupo) gravaria eSocial de quem não devia, calado.
+ */
+export function grupoEhConvocavel(grupo: unknown): boolean {
+  const g = normalizarRotulo(grupo)
+  if (!g) return false
+  return GRUPOS_CONVOCAVEIS_RM.some((ok) => normalizarRotulo(ok) === g)
 }
 
 export interface CandidatoConvocacaoRm {
@@ -503,8 +563,8 @@ export function classificarItensConvocacaoRm(itens: ItemConvocacaoMonday[]): {
       pulados.push({ item, motivo: "sem_chapa" })
       continue
     }
-    if (!tipoEhConvocavel(item.tipoConvocacao)) {
-      pulados.push({ item, motivo: "tipo_nao_convocavel", detalhe: item.tipoConvocacao ?? "" })
+    if (!grupoEhConvocavel(item.grupo)) {
+      pulados.push({ item, motivo: "grupo_fora_do_escopo", detalhe: item.grupo ?? "(sem grupo)" })
       continue
     }
     // Normaliza antes de tudo: `effectivePeriod` só entende ISO, e `Admissão` vem DD/MM/YYYY.

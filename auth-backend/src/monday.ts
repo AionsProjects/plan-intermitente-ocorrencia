@@ -156,6 +156,8 @@ export async function listarWebhooks(boardId: string): Promise<WebhookMonday[]> 
 export interface ItemMonday {
   id: string
   name: string
+  /** Grupo do item. Só vem em quem pede — ver `acharItensPorColuna`. */
+  group?: { title: string }
   column_values: { id: string; text: string | null; value: string | null }[]
 }
 
@@ -195,7 +197,7 @@ export async function acharItensPorColuna(
     `query($board:ID!,$col:String!,$val:[String]!,$limit:Int!){
        items_page_by_column_values(board_id:$board, limit:$limit,
          columns:[{column_id:$col, column_values:$val}]){
-         items{ id name column_values${colsArg}{ id text value } }
+         items{ id name group{ title } column_values${colsArg}{ id text value } }
        }
      }`,
     { board: boardId, col: columnId, val: [valor], limit },

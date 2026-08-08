@@ -146,6 +146,8 @@ export async function montarLote(
     return {
       itemId: it.id,
       nome: it.name,
+      // Grupo vem de `group{title}` na consulta. Ausente => grupoEhConvocavel falha fechado.
+      grupo: it.group?.title,
       chapa: txt("chapa"),
       contrato: txt("contrato") || contrato,
       dataInicio: txt("dataInicio"),
