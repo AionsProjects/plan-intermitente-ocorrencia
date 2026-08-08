@@ -70,6 +70,9 @@ export const config = {
   // ESCRITA direta (SOAP wsDataServer/wsProcess). Default DESLIGADO: até o flip, toda escrita
   // continua pela ponte. Liga com RM_ESCRITA_DIRETA=1 e desliga sem deploy se algo estranhar.
   rmEscritaDireta: process.env.RM_ESCRITA_DIRETA === "1",
+  // Convocação no RM (SaveRecord em FopConvocacaoData) = evento eSocial S-2260. Desligada por
+  // default: o webhook do Monday responde 200 "ignorado" enquanto isso, pra não perder o webhook.
+  convocacaoRmHabilitada: process.env.CONVOCACAO_RM_HABILITADA === "1",
   rmCodUsuario: opt("RM_COD_USUARIO", "003080"),
   rmSoapTimeoutMs: Number(opt("RM_SOAP_TIMEOUT_MS", "45000")),
   // IntegrarBackOffices roda SyncExecution=true e segura a conexão — timeout próprio, maior.
