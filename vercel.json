@@ -6,7 +6,6 @@
     { "source": "/api/:path*", "destination": "/api" },
     { "source": "/((?!assets/|\\.well-known/).*)", "destination": "/index.html" }
   ],
-  "_comment_crons": "Conta HOBBY = cron so DIARIO. A cadencia curta do monitor (15 min) fica no n8n, chamando POST /api/bloqueio/varrer com X-Service-Token. Este diario e so a rede de seguranca.",
   "crons": [
     { "path": "/api/mensal/manutencao/retencao", "schedule": "17 3 1 * *" },
     { "path": "/api/bloqueio/varrer", "schedule": "0 12 * * *" }
