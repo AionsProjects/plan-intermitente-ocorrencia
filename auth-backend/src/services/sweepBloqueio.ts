@@ -17,6 +17,7 @@ import {
 import { resolverVarios, fontesReais } from "./resolverItemPlano.js"
 import {
   bloqueiosAbertos, boardsDoBloqueio, gravarAlteracoes, avancarCursor, colunasCriticas,
+  boardsDaCompetencia, vigiarBoards,
   type Bloqueio,
 } from "../repo/bloqueio.js"
 
@@ -126,6 +127,24 @@ export async function varrerBloqueio(
   }
 
   const abertoEm = new Date(b.aberto_em)
+
+  // Auto-cura da VIRADA: no dia 14 a competência migra pro board cópia, e a janela
+  // ficaria olhando o board velho pra sempre. A cada tick reconsultamos o registry
+  // pela competência e anexamos o que apareceu (vigiarBoards é idempotente).
+  // O board antigo continua vigiado de propósito: alteração nele durante o fechamento
+  // também importa, e o cursor dele já está onde parou.
+  try {
+    const doRegistry = await boardsDaCompetencia(b.competencia)
+    const jaVigiados = new Set((await boardsDoBloqueio(b.id)).map((x) => Number(x.monday_board_id)))
+    const novos = doRegistry.filter((id) => !jaVigiados.has(id))
+    if (novos.length) {
+      await vigiarBoards(b.id, novos)
+      console.warn(`[sweep] competência ${b.competencia} ganhou board(s) ${novos.join(",")} — provável virada`)
+    }
+  } catch (e) {
+    // Registry fora do ar não pode parar a varredura do que já está anexado.
+    console.warn(`[sweep] não reconsultou o registry: ${(e as Error).message}`)
+  }
 
   for (const bv of await boardsDoBloqueio(b.id)) {
     const boardId = Number(bv.monday_board_id)
