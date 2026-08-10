@@ -14,6 +14,14 @@
 
 ## Fases
 
+**F0 — Modo desenvolvedor (pedido do Isaac, 10/08)** — *vem antes: é a ferramenta de teste das fases seguintes*
+Seleção por **família de efeito** do que vai real vs simulado num run: `caju_credito`, `caju_boleto`, `rm_historico`, `rm_financeiro`, `rm_convocacao`, `monday_escritas`, `drive`. Motivação: o mensal faz muitos envios reais; pra testar UMA função (ex.: convocação RM) sem disparar as outras (ex.: criar pedido Caju).
+- Escolha feita na **aprovação do run**, persistida no run (jsonb) — workflow lê do input (replay determinístico).
+- Gate central em `reservarOuPular`/`simularEfeito` (região LIVRE do WIP) — família desligada segue o caminho de simulação da homologação, com evento `simulado_dev`. Zero mudança por etapa.
+- **Default tudo simulado**; o operador marca o que vai real. Painel na tela do mensal, só admin.
+- **Regra 1**: run dev SEMPRE usa chave por run (nunca por competência) — teste real não pode marcar etapa como feita pro run oficial (lição do incidente do ledger envenenado).
+- **Regra 2 (consequência, aceita)**: o que foi real num run dev será reenviado pelo run oficial — limpeza manual, como em qualquer teste real.
+
 **F1 — `services/convocacaoMensal.ts`** (arquivo novo — zero conflito com o WIP do split Caju)
 `processarConvocacaoMensalContrato()`: lê grupo MENSAL + CANCELADOS PARCIAL do board (registry) → 1 pré-voo do grupo (ReadView em lotes de chapas; **nunca pular entre runs** — é a única barreira contra board recopiado e lançamento manual) → 1 leitura de atestados do contrato (`CHAPA='%'` + filtro client-side por Set de chapas; nova `ausenciasDoContrato` com guarda de forasteiras, falha-fechado) → por item: `effectivePeriod` (cancelado parcial) → quebra por atestado → `gravarConvocacaoRm({pularPreVoo: true, origemAcao: 'mensal'})` → eco acumulado. Pré-voo filtra `ESTADOCONVOCACAO` cancelada → `requer_decisao_dp`. Pedaço mudo → job `convocacao_rm_pontual` **passo 1**. Agregado por contrato: `{gravados, jaExistiam, cobertos, requerDecisao[], falhas[]}`.
 
