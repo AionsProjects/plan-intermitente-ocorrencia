@@ -51,10 +51,16 @@ const texto = (v: unknown): string => (v == null ? "" : String(v).trim())
 /**
  * Minutos do RM. `HORAINICIO`/`HORAFINAL` são int (minutos desde 00:00); vazio/`null` = não
  * informado, que é diferente de zero — zero é meia-noite e conta como dia cheio.
+ *
+ * Aceita também `"HH:MM"`: não confirmamos o tipo da coluna no RM, e se ela vier como texto o
+ * `Number()` daria `NaN` → `null` → "dia cheio" → atestado de meio período passaria a quebrar a
+ * convocação. Custa duas linhas cobrir os dois formatos.
  */
 function minutos(v: unknown): number | null {
   if (v == null || v === "") return null
-  const n = Number(v)
+  const s = String(v).trim()
+  const hhmm = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(s)
+  const n = hhmm ? Number(hhmm[1]) * 60 + Number(hhmm[2]) : Number(s)
   if (!Number.isFinite(n) || n < 0 || n > 24 * 60) return null
   return Math.trunc(n)
 }

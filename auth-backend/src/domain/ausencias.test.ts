@@ -65,6 +65,17 @@ test("atestado de meio período NÃO quebra a convocação", () => {
   assert.equal(ausenciaQuebraConvocacao(a), false)
 })
 
+test("hora como texto 'HH:MM' conta igual a minutos", () => {
+  // Não confirmamos o tipo da coluna no RM. Se vier texto e o parse falhar, o `null` viraria
+  // "dia cheio" e o atestado de meio período passaria a quebrar a convocação.
+  const a = mapearLinhaAtestado(linha({ HORA_INICIO_MIN: "08:00", HORA_FINAL_MIN: "12:00" })) as Ausencia
+  assert.equal(a.horaInicio, 480)
+  assert.equal(a.horaFinal, 720)
+  assert.equal(a.diaCheio, false)
+  const b = mapearLinhaAtestado(linha({ HORA_INICIO_MIN: "00:00", HORA_FINAL_MIN: "23:59:00" })) as Ausencia
+  assert.equal(b.diaCheio, true)
+})
+
 test("tipo desconhecido QUEBRA — erra pro lado visível", () => {
   const a = mapearLinhaAtestado(linha({ COD_TIPO_ATESTADO: "999", TIPO_ATESTADO: "" })) as Ausencia
   assert.equal(ausenciaQuebraConvocacao(a), true)
