@@ -136,9 +136,15 @@ export async function saveRecordDireto(
   dataServerName: string,
   dadosXml: string,
   contexto: string,
+  /**
+   * Teto próprio. O default de 45s é do lote (ninguém olhando); num request com o operador na
+   * tela ele precisa ser curto. Encurtar NÃO é grátis: timeout vira `indeterminado`, ou seja
+   * "pode ter gravado". Quem passa um valor curto tem que ter conciliação por leitura no fluxo.
+   */
+  timeoutMs?: number,
 ): Promise<{ chave: string; xml: string }> {
   const xml = await postSoap(PATH_DATASERVER, ACTION_SAVE,
-    envelopeSaveRecord(dataServerName, dadosXml, contexto), config.rmSoapTimeoutMs)
+    envelopeSaveRecord(dataServerName, dadosXml, contexto), timeoutMs ?? config.rmSoapTimeoutMs)
   const res = extrairTag(xml, "SaveRecordResult")
   // Sem o campo esperado não dá pra afirmar que NÃO gravou -> indeterminado, nunca repetir.
   if (res == null) throw erro("RM SOAP SaveRecord sem SaveRecordResult", { indeterminado: true, trecho: xml.slice(0, 400) })

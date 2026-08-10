@@ -12,10 +12,19 @@ export interface Job {
 }
 
 /** Enfileira um job. */
-export async function enfileirar(tipo: string, payload: Record<string, unknown>): Promise<string> {
+export async function enfileirar(
+  tipo: string,
+  payload: Record<string, unknown>,
+  /**
+   * `passo` inicial. Existe pro caller que JÁ tentou e ficou com desfecho mudo: nesse caso o job
+   * tem que entrar direto no passo de conciliação, porque começar do zero seria reenviar — e
+   * reenviar um efeito que "pode ter acontecido" é exatamente como se duplica.
+   */
+  opts: { passo?: number } = {},
+): Promise<string> {
   const { rows } = await query<{ id: string }>(
-    `INSERT INTO jobs (tipo, payload) VALUES ($1, $2::jsonb) RETURNING id`,
-    [tipo, JSON.stringify(payload)],
+    `INSERT INTO jobs (tipo, payload, passo) VALUES ($1, $2::jsonb, $3) RETURNING id`,
+    [tipo, JSON.stringify(payload), opts.passo ?? 0],
   )
   return rows[0]!.id
 }

@@ -95,8 +95,19 @@ export type ConvocacaoPayload = {
  * `undefined` NÃO é "deu tudo certo": significa que quem atendeu a requisição não foi o nosso
  * backend (o n8n respondeu antes), então a convocação no RM nem foi tentada.
  */
+/**
+ * Lançamento no RM (evento eSocial S-2260). Espelha `EstadoRmResposta` no backend.
+ *
+ * `codigos` é array porque uma convocação partida por atestado vira mais de uma no RM
+ * (05→20 com atestado 10→11 = 05→09 e 12→20).
+ */
 export type ConvocacaoRmEstado =
-  | { estado: "enfileirado"; job_id: string }
+  | { estado: "gravado"; codigos: string[] }
+  | { estado: "enfileirado"; job_id: string; codigos?: string[]; motivo?: string }
+  // "pode ter gravado, estamos lendo pra saber" — nunca apresentar como falha.
+  | { estado: "conciliando"; job_id: string; codigos?: string[] }
+  | { estado: "coberto_por_ausencia" }
+  | { estado: "invalido"; motivo?: string }
   | { estado: "desligado" | "sem_chapa" | "rm_nao_configurado" }
   | { estado: "nao_enfileirado"; motivo?: string }
 

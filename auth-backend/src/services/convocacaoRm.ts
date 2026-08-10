@@ -295,7 +295,7 @@ export async function gravarConvocacaoRm(
   let pk = ""
   let codConvocacao = ""
   try {
-    const r = await saveRecordDireto(RM_DATA_SERVER_CONVOCACAO, montada.dadosXml, contexto)
+    const r = await saveRecordDireto(RM_DATA_SERVER_CONVOCACAO, montada.dadosXml, contexto, opts.timeoutMs)
     pk = r.chave
     // O RM ignora o código enviado e devolve o do contador automático — é ele que vale.
     codConvocacao = pk.split(";").pop() ?? ""

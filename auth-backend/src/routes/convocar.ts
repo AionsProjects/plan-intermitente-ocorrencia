@@ -12,6 +12,7 @@ import { chapaAceitavelNoFiltro } from "../domain/convocacaoRm.js"
 import { temRmSoap } from "../clients/rmSoap.js"
 import { enfileirar } from "../jobs/repo.js"
 import { TIPO_JOB_CONVOCACAO_RM, type PayloadConvocacaoRmPontual } from "../jobs/convocacaoRmPontual.js"
+import { processarConvocacaoPontual, TIMEOUT_INLINE_MS } from "../services/convocacaoPontual.js"
 import { unidadesRm } from "./rmLookups.js"
 import { arquivarDrive } from "../services/driveArquivar.js"
 
@@ -137,10 +138,33 @@ function normName(v: string): string {
 }
 
 /**
- * Enfileira a gravação da convocação no RM. Recusas são decididas AQUI, sem I/O, e devolvidas
- * pro operador — enfileirar o que já se sabe que não vai gravar só produziria fila morta.
+ * Desfecho do lançamento no RM, como o front vê.
+ *
+ * `gravado` é o caso comum e traz o código. Os demais dizem POR QUE não há código ainda, e a
+ * distinção importa: `conciliando` significa "pode ter gravado, estamos lendo pra saber" — nunca
+ * pode ser apresentado como falha, nem levar ninguém a tentar de novo.
  */
-async function enfileirarConvocacaoRm(p: {
+type EstadoRmResposta =
+  | { estado: "gravado"; codigos: string[] }
+  | { estado: "enfileirado"; job_id: string; codigos?: string[]; motivo?: string }
+  | { estado: "conciliando"; job_id: string; codigos?: string[] }
+  | { estado: "coberto_por_ausencia" }
+  | { estado: "invalido"; motivo: string }
+  | { estado: "desligado" | "sem_chapa" | "rm_nao_configurado" }
+  | { estado: "nao_enfileirado"; motivo: string }
+
+/**
+ * Lança a convocação no RM como parte da própria criação — o operador vê o `C03S######` na tela.
+ *
+ * Tenta AQUI, no request, com teto curto. Só cai pra fila quando o RM não fecha. A fila continua
+ * existindo porque encurtar o timeout tem preço: timeout é `indeterminado` ("pode ter gravado"),
+ * e nesse caso reenviar é o único jeito de duplicar um S-2260 — quem resolve é a conciliação por
+ * leitura do passo 1 do job, não uma segunda tentativa.
+ *
+ * Recusas baratas (flag, chapa, RM não configurado) são decididas antes de qualquer I/O:
+ * enfileirar o que já se sabe que não vai gravar só produz fila morta.
+ */
+async function lancarConvocacaoRm(p: {
   itemId: string
   boardId: string
   colCodRm: string | null
@@ -148,10 +172,7 @@ async function enfileirarConvocacaoRm(p: {
   dataInicio: string
   dataFim: string
   operador?: string | null
-}): Promise<
-  | { estado: "enfileirado"; job_id: string }
-  | { estado: "desligado" | "sem_chapa" | "rm_nao_configurado" }
-> {
+}): Promise<EstadoRmResposta> {
   if (!config.convocacaoRmHabilitada) return { estado: "desligado" }
   // `empregado_chapa` NÃO é campo obrigatório do form — e sem chapa não existe convocação no RM.
   if (!chapaAceitavelNoFiltro(p.campos.empregado_chapa ?? "")) return { estado: "sem_chapa" }
@@ -170,8 +191,36 @@ async function enfileirarConvocacaoRm(p: {
     data_admissao: p.campos.empregado_admissao || null,
     operador: p.operador ?? null,
   }
-  const jobId = await enfileirar(TIPO_JOB_CONVOCACAO_RM, payload as unknown as Record<string, unknown>)
-  return { estado: "enfileirado", job_id: jobId }
+  const paraFila = async (passo: 0 | 1): Promise<string> =>
+    enfileirar(TIPO_JOB_CONVOCACAO_RM, payload as unknown as Record<string, unknown>, { passo })
+
+  const dados = {
+    itemId: p.itemId,
+    boardId: p.boardId,
+    colCodRm: p.colCodRm,
+    contrato: payload.contrato,
+    chapa: payload.chapa,
+    dataInicio: p.dataInicio,
+    dataFim: p.dataFim,
+    dataAdmissao: payload.data_admissao,
+    operador: payload.operador,
+  }
+
+  let r: Awaited<ReturnType<typeof processarConvocacaoPontual>>
+  try {
+    r = await processarConvocacaoPontual(dados, { timeoutMs: TIMEOUT_INLINE_MS })
+  } catch (e) {
+    // Estouro ANTES de qualquer gravação (leitura de atestado fechada, board fora do ar...).
+    // Nada foi escrito no RM, então a fila pode tentar do zero.
+    return { estado: "enfileirado", job_id: await paraFila(0), motivo: (e as Error).message.slice(0, 160) }
+  }
+
+  if (r.cobertoPorAusencia) return { estado: "coberto_por_ausencia" }
+  // Mudo: pode ter gravado. Vai direto pro passo de CONCILIAÇÃO — nunca pro reenvio.
+  if (r.precisaConciliar) return { estado: "conciliando", job_id: await paraFila(1), codigos: r.codigos }
+  if (r.retryavel) return { estado: "enfileirado", job_id: await paraFila(0), codigos: r.codigos, motivo: r.retryavel }
+  if (r.invalido) return { estado: "invalido", motivo: r.invalido }
+  return { estado: "gravado", codigos: r.codigos }
 }
 
 export async function rotasConvocar(app: FastifyInstance): Promise<void> {
@@ -232,11 +281,6 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
    * Estado da convocação no RM, devolvido junto com a criação. O front usa a PRESENÇA deste
    * campo pra saber quem atendeu: sem ele, quem respondeu foi o n8n e o RM não foi acionado.
    */
-  type EstadoRmResposta =
-    | { estado: "enfileirado"; job_id: string }
-    | { estado: "desligado" | "sem_chapa" | "rm_nao_configurado" }
-    | { estado: "nao_enfileirado"; motivo: string }
-
   const criarConvocacaoHandler = async (req: FastifyRequest, reply: FastifyReply) => {
     // Escrita no Monday -> exige sessão (operador logado).
     const usuario = await usuarioDaSessao(req)
@@ -400,7 +444,7 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
       //
       // try/catch PRÓPRIO: falhar aqui não pode virar 502. O item já existe no Monday; o
       // operador tentaria de novo e levaria 409 da própria antifraude.
-      rm = await enfileirarConvocacaoRm({
+      rm = await lancarConvocacaoRm({
         itemId: item.id,
         boardId: b.boardId,
         colCodRm: id(COL.codigoRm) ?? null,

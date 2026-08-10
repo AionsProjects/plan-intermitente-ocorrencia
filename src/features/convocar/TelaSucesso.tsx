@@ -9,34 +9,62 @@ type Props = {
 }
 
 /**
- * Uma linha sobre o lançamento no RM. A convocação já está criada no monday quando esta tela
- * aparece — isto aqui é só o segundo passo, que roda em fila.
+ * O lançamento no RM (evento eSocial S-2260). Roda dentro da própria criação, então no caso comum
+ * o código já vem aqui.
  *
  * `rm` ausente é o caso que mais importa: significa que quem respondeu foi o n8n, não o nosso
  * backend, então o RM nem foi tentado e ninguém saberia sem este aviso.
+ *
+ * "conciliando" NUNCA é apresentado como falha: quer dizer que o RM não respondeu a tempo e pode
+ * ter gravado. Sugerir "tente de novo" nesse estado é o caminho pra duplicar um evento eSocial.
  */
 function LinhaRm({ rm }: { rm?: ConvocacaoRmEstado }) {
-  const atencao = !rm || rm.estado === "nao_enfileirado"
+  const codigos = rm && "codigos" in rm ? (rm.codigos ?? []) : []
+  const atencao =
+    !rm || rm.estado === "nao_enfileirado" || rm.estado === "invalido" || rm.estado === "sem_chapa"
+
   const texto = !rm
     ? "Lançamento no RM: não acionado (a convocação foi criada por outro caminho) — avise o DP."
-    : rm.estado === "enfileirado"
-      ? "Lançamento no RM: em processamento. O código aparece no item em alguns minutos."
-      : rm.estado === "sem_chapa"
-        ? "Lançamento no RM: não acionado — convocação sem chapa."
-        : rm.estado === "desligado"
-          ? "Lançamento no RM: desligado nesta configuração."
-          : rm.estado === "rm_nao_configurado"
-            ? "Lançamento no RM: indisponível (RM não configurado)."
-            : "Lançamento no RM: falhou ao entrar na fila — avise o DP."
+    : rm.estado === "gravado"
+      ? null // o código fala por si, renderizado abaixo
+      : rm.estado === "conciliando"
+        ? "Lançamento no RM: o RM não respondeu a tempo. Estamos conferindo se gravou — não crie de novo."
+        : rm.estado === "enfileirado"
+          ? "Lançamento no RM: em nova tentativa. O código aparece no item do monday em instantes."
+          : rm.estado === "coberto_por_ausencia"
+            ? "Lançamento no RM: nenhum dia a convocar — o período está coberto por atestado."
+            : rm.estado === "invalido"
+              ? `Lançamento no RM: recusado (${rm.motivo ?? "dados inválidos"}) — avise o DP.`
+              : rm.estado === "sem_chapa"
+                ? "Lançamento no RM: não acionado — convocação sem chapa."
+                : rm.estado === "desligado"
+                  ? "Lançamento no RM: desligado nesta configuração."
+                  : rm.estado === "rm_nao_configurado"
+                    ? "Lançamento no RM: indisponível (RM não configurado)."
+                    : "Lançamento no RM: falhou — avise o DP."
 
   return (
-    <p
-      className={`mt-3 text-xs ${
-        atencao ? "text-amber-700 dark:text-amber-200" : "text-foreground/55"
-      }`}
-    >
-      {texto}
-    </p>
+    <div className="mt-3">
+      {codigos.length > 0 && (
+        <p className="text-xs text-foreground/70">
+          {codigos.length > 1 ? "Convocações no RM: " : "Convocação no RM: "}
+          {codigos.map((c, i) => (
+            <span key={c}>
+              {i > 0 && ", "}
+              <code className="text-[rgb(var(--accent-rgb))]">{c}</code>
+            </span>
+          ))}
+          {codigos.length > 1 && (
+            <span className="text-foreground/50"> — período dividido por atestado</span>
+          )}
+        </p>
+      )}
+      {texto && (
+        <p className={atencao ? "text-xs text-amber-700 dark:text-amber-200" : "text-xs text-foreground/55"}>
+          {texto}
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -57,7 +85,7 @@ export function TelaSucesso({ itemId, itemUrl, rm, onNovaConvocacao }: Props) {
       </p>
 
       <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.05)] px-4 py-2 text-xs text-foreground/70 backdrop-blur">
-        Código da convocação:{" "}
+        Item no monday:{" "}
         <code className="text-[rgb(var(--accent-rgb))]">{itemId}</code>
         {ehMock && (
           <span className="ml-2 rounded-full border border-amber-300/40 bg-amber-300/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-200">
