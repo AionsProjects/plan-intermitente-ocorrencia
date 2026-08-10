@@ -12,6 +12,7 @@ import type { EventoMensal, RunStatus } from "./api"
 // Ordem e rótulos amigáveis das etapas emitidas pelo workflow (12 passos).
 export const ETAPAS_ORDEM = [
   "validacao", "caju_pessoas", "caju_credito", "caju_pix",
+  "convocacao_rm",
   "rm_gerar", "rm_aguardar", "rm_integrar",
   "monday_plano", "monday_controle_caju", "monday_solicitacao", "drive", "monday_status_ok",
 ] as const
@@ -21,6 +22,7 @@ const ETAPA_LABEL: Record<string, string> = {
   caju_credito: "Pedido de crédito Caju",
   caju_pix: "Pedido PIX Caju",
   caju_polling_boleto: "Gerando boleto / QR",
+  convocacao_rm: "Convocação no RM (eSocial)",
   rm_gerar: "Gerando lançamento RM",
   rm_aguardar: "Aguardando RM processar",
   rm_integrar: "Integrando no RM",

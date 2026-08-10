@@ -44,6 +44,16 @@ import { codigoSecaoContrato } from "../auth-backend/src/mensal/calculo.js"
 import type { ContratoPreviaMensal, SnapshotPreviaMensal } from "../auth-backend/src/mensal/types.js"
 // Modo desenvolvedor (import isolado de propósito — o bloco acima está sob edição de outra sessão).
 import { etapaRealNoRunDev } from "../auth-backend/src/mensal/devEfeitos.js"
+// Convocação no RM (S-2260) — serviço testado à parte; aqui só o fatiamento em steps.
+import {
+  lerItensConvocacaoMensal,
+  mesclarRelatorios,
+  planejarAlvosMensal,
+  processarLoteConvocacaoMensal,
+  resolverEcoConvocacaoRm,
+  type AlvoConvocacaoMensal,
+  type RelatorioConvocacaoMensal,
+} from "../auth-backend/src/services/convocacaoMensal.js"
 
 const MESES_LABEL = ["JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO",
   "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"] as const
@@ -374,6 +384,168 @@ async function etapaRmIntegrar(
 }
 etapaRmIntegrar.maxRetries = 3
 
+// --- Convocação no RM (S-2260) — decisões em docs/rm/plano-convocacao-mensal.md. --------------
+// Flag PRÓPRIA e desligada por default: convocação é evento eSocial transmitido, não acompanha a
+// flag do pontual. Lida no MÓDULO (padrão PRODUCAO_LIBERADA): env no corpo quebraria o replay.
+const CONVOCACAO_RM_MENSAL = process.env.CONVOCACAO_RM_MENSAL_HABILITADA === "1"
+// ~10 por step: pior caso medido (RM degradado, 20s/SaveRecord) ≈ 200s — cabe no teto da função.
+// O contrato inteiro num step só (SEMSA, 27 pessoas) estouraria: 540s.
+const TAMANHO_LOTE_CONVOCACAO_RM = 10
+
+/**
+ * Lê o board (grupos MENSAL + CANCELADOS PARCIAL) e planeja os alvos com período efetivo já
+ * truncado. READ-ONLY — sem ledger; o resultado fica memoizado pelo WDK e os lotes fatiam dele.
+ * Ler o board (e não o snapshot) é a decisão 1: líquido-zero e cancelado parcial entram.
+ */
+async function etapaConvocacaoRmPlano(
+  runId: string,
+  contrato: string,
+): Promise<{
+  alvos: AlvoConvocacaoMensal[]
+  previa: RelatorioConvocacaoMensal
+  boardId: string
+  colCodRm: string | null
+} | null> {
+  "use step"
+  const etapa = "convocacao_rm"
+  const metadata = getStepMetadata()
+  if (!CONVOCACAO_RM_MENSAL) {
+    await registrarEvento({
+      runId, contrato, etapa, estado: "concluido", tentativa: metadata.attempt,
+      metadados: { desligado: true },
+    })
+    return null
+  }
+  await registrarEvento({ runId, contrato, etapa, estado: "rodando", tentativa: metadata.attempt })
+  const itens = await lerItensConvocacaoMensal(contrato)
+  const { alvos, previa } = planejarAlvosMensal(contrato, itens)
+  const eco = await resolverEcoConvocacaoRm()
+  await registrarEvento({
+    runId, contrato, etapa, estado: "rodando", tentativa: metadata.attempt,
+    metadados: {
+      sub: "plano", itens: itens.length, alvos: alvos.length,
+      invalidos: previa.invalidos.length, canceladas_sem_dias: previa.canceladasSemDias,
+      eco_coluna: eco.colCodRm ?? "AUSENTE",
+    },
+  })
+  return { alvos, previa, ...eco }
+}
+etapaConvocacaoRmPlano.maxRetries = 3
+
+/**
+ * Grava UM lote (~10 pessoas). Ledger POR LOTE (`convocacao_rm_lote<N>` — família `rm_convocacao`
+ * no modo desenvolvedor); por pessoa, o rastro pi.convocacoes_rm + ledger + pré-voo já seguram o
+ * retry — re-executar o step pula quem gravou.
+ */
+async function etapaConvocacaoRmLote(
+  runId: string,
+  modo: ModoExec,
+  competencia: string,
+  contrato: string,
+  alvos: AlvoConvocacaoMensal[],
+  loteIdx: number,
+  boardId: string,
+  colCodRm: string | null,
+): Promise<RelatorioConvocacaoMensal | null> {
+  "use step"
+  const etapa = "convocacao_rm"
+  const metadata = getStepMetadata()
+  await registrarEvento({
+    runId, contrato, etapa, estado: "rodando", tentativa: metadata.attempt,
+    metadados: { sub: `lote${loteIdx}`, pessoas: alvos.length },
+  })
+  const r = await reservarOuPular(runId, modo, competencia, contrato, `convocacao_rm_lote${loteIdx}`, metadata.attempt)
+  if (r.acao === "pular") return null
+  if (r.acao === "simular") {
+    await simularEfeito(runId, contrato, etapa, r.chave, metadata.attempt)
+    return null
+  }
+
+  const rel = await processarLoteConvocacaoMensal(contrato, alvos, { boardId, colCodRm })
+
+  // Falha retryável JOGA — o WDK re-executa o step e a idempotência por pessoa pula os gravados.
+  if (rel.falhas.length) {
+    await registrarEvento({
+      runId, contrato, etapa, estado: "erro", tentativa: metadata.attempt,
+      mensagem: `lote${loteIdx}: ${rel.falhas.length} falha(s)`,
+      metadados: { sub: `lote${loteIdx}`, falhas: rel.falhas.map((f) => `${f.chapa}: ${f.detalhe}`) },
+    })
+    throw new Error(`convocacao_rm_lote${loteIdx}_falhas: ${rel.falhas.map((f) => f.chapa).join(", ")}`)
+  }
+
+  // SÓ confirma lote LIMPO. requer_decisao/conciliando NÃO confirmam de propósito: confirmado é
+  // pulado pra sempre — o DP resolveria no RM, retomaria o run, e a pessoa nunca seria reavaliada.
+  if (!rel.temPendencia) {
+    await confirmarEfeito(r.chave, `convocacao_rm:${contrato}:lote${loteIdx}`)
+  }
+  await registrarEvento({
+    runId, contrato, etapa, estado: "concluido", tentativa: metadata.attempt,
+    metadados: {
+      sub: `lote${loteIdx}`, gravados: rel.gravados, ja_existiam: rel.jaExistiam,
+      cobertos: rel.cobertos, requer_decisao: rel.requerDecisao.length, conciliando: rel.conciliando.length,
+      codigos: rel.pessoas.flatMap((p) => p.codigos ?? []),
+    },
+  })
+  return rel
+}
+etapaConvocacaoRmLote.maxRetries = 3
+
+/** Evento-resumo do contrato (step próprio: escrita de evento não pode viver no corpo do workflow). */
+async function etapaConvocacaoRmResumo(
+  runId: string,
+  contrato: string,
+  agregado: RelatorioConvocacaoMensal,
+): Promise<void> {
+  "use step"
+  const metadata = getStepMetadata()
+  await registrarEvento({
+    runId, contrato, etapa: "convocacao_rm",
+    estado: agregado.temPendencia ? "erro" : "concluido",
+    tentativa: metadata.attempt,
+    mensagem: agregado.temPendencia
+      ? `${agregado.requerDecisao.length} requer decisão DP, ${agregado.conciliando.length} conciliando`
+      : undefined,
+    metadados: {
+      sub: "resumo", total: agregado.total, gravados: agregado.gravados,
+      ja_existiam: agregado.jaExistiam, cobertos: agregado.cobertos,
+      canceladas_sem_dias: agregado.canceladasSemDias,
+      requer_decisao: agregado.requerDecisao.map((p) => `${p.chapa} ${p.nome}: ${p.detalhe}`),
+      conciliando: agregado.conciliando.map((p) => p.chapa),
+      invalidos: agregado.invalidos.map((p) => `${p.chapa || p.itemId}: ${p.detalhe}`),
+    },
+  })
+}
+
+/**
+ * Orquestra plano → lotes → resumo. Pendência humana (requer_decisao/conciliando) lança
+ * FatalError DEPOIS do resumo: o contrato marca erro (decisão 4 — AUTOMAÇÃO-OK só com 100%) com
+ * o detalhe já registrado na timeline. Retry não conserta decisão humana, por isso Fatal.
+ */
+async function executarConvocacaoRmContrato(
+  runId: string,
+  modo: ModoExec,
+  competencia: string,
+  contrato: string,
+): Promise<void> {
+  const plano = await etapaConvocacaoRmPlano(runId, contrato)
+  if (!plano) return
+  let agregado = plano.previa
+  for (let i = 0; i * TAMANHO_LOTE_CONVOCACAO_RM < plano.alvos.length; i++) {
+    const fatia = plano.alvos.slice(i * TAMANHO_LOTE_CONVOCACAO_RM, (i + 1) * TAMANHO_LOTE_CONVOCACAO_RM)
+    const rel = await etapaConvocacaoRmLote(
+      runId, modo, competencia, contrato, fatia, i, plano.boardId, plano.colCodRm,
+    )
+    if (rel) agregado = mesclarRelatorios(agregado, rel)
+  }
+  await etapaConvocacaoRmResumo(runId, contrato, agregado)
+  if (agregado.requerDecisao.length || agregado.conciliando.length) {
+    throw new FatalError(
+      `convocacao_rm_pendencias: ${agregado.requerDecisao.length} requer decisao DP, ` +
+        `${agregado.conciliando.length} em conciliacao`,
+    )
+  }
+}
+
 // --- Monday: helpers de reserva/confirm no ledger + steps reais (gated). -----
 async function reservarOuPular(
   runId: string,
@@ -657,6 +829,11 @@ async function processarContrato(
 
     const credito = await executarPedidoCaju(runId, modo, competencia, contrato.contrato, "credito", pessoasComId)
     const pix = await executarPedidoCaju(runId, modo, competencia, contrato.contrato, "boleto", pessoasComId)
+
+    // Convocação no RM (S-2260) ANTES do financeiro — decisão 2 do Isaac: a convocação precede o
+    // pagamento na ordem do eSocial. Pendência humana lança FatalError e o contrato marca erro
+    // (decisão 4): o pagamento deste contrato só roda depois que o DP resolver e retomar.
+    await executarConvocacaoRmContrato(runId, modo, competencia, contrato.contrato)
 
     // RM via ponte AIONS — SERIAL com esperas (a ponte não aguenta volume).
     // Histórico ZMDHSTBENFUNC em lotes de 50 (contagem determinística a partir do snapshot).

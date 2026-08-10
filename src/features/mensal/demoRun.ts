@@ -11,6 +11,7 @@ import type { EventoMensal, RunHeader, RunItem, RunStatus } from "./api"
 
 const ETAPAS = [
   "validacao", "caju_pessoas", "caju_credito", "caju_pix",
+  "convocacao_rm",
   "rm_gerar", "rm_aguardar", "rm_integrar",
   "monday_plano", "monday_controle_caju", "monday_solicitacao", "drive", "monday_status_ok",
 ] as const

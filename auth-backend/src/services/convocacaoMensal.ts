@@ -179,23 +179,17 @@ export const DEPS_MENSAL_PADRAO: DepsConvocacaoMensal = {
   pontual: DEPS_PONTUAL_PADRAO,
 }
 
-/**
- * Grava no RM as convocações do grupo MENSAL de UM contrato. Idempotente por pessoa (índice
- * parcial + ledger + pré-voo, iguais ao pontual) — re-rodar o lote pula quem já gravou.
- *
- * NÃO decide política: devolve o relatório e quem traduz em erro-de-contrato é o step.
- */
-export async function processarConvocacaoMensalContrato(
-  contrato: string,
-  opts: { boardId: string; colCodRm: string | null; deps?: DepsConvocacaoMensal; timeoutMs?: number },
-): Promise<RelatorioConvocacaoMensal> {
-  const deps = opts.deps ?? DEPS_MENSAL_PADRAO
-  const timeoutMs = opts.timeoutMs ?? TIMEOUT_FILA_MS
-  const itens = await deps.lerItens(contrato)
+/** Alvo pronto pra gravar: item + período EFETIVO (já truncado se cancelado parcial). */
+export interface AlvoConvocacaoMensal {
+  item: ItemConvocacaoMensal
+  inicio: string
+  fim: string
+}
 
-  const r: RelatorioConvocacaoMensal = {
+function relatorioVazio(contrato: string, total: number): RelatorioConvocacaoMensal {
+  return {
     contrato,
-    total: itens.length,
+    total,
     gravados: 0,
     jaExistiam: 0,
     cobertos: 0,
@@ -207,17 +201,30 @@ export async function processarConvocacaoMensalContrato(
     pessoas: [],
     temPendencia: false,
   }
-  if (!itens.length) return r
+}
 
-  // Período efetivo POR ITEM antes de qualquer I/O. Cancelada total/sem datas sai aqui;
-  // cancelada parcial vira o período truncado (até Cancelamento Início - 1).
-  const alvos: { item: ItemConvocacaoMensal; inicio: string; fim: string }[] = []
+/**
+ * Filtra e trunca ANTES de qualquer I/O — puro e serializável de propósito: o step do workflow
+ * guarda o resultado (WDK memoíza) e fatia os alvos em lotes.
+ *
+ * Cancelada total/sem datas sai aqui; cancelada parcial vira o período truncado (até
+ * Cancelamento Início - 1).
+ */
+export function planejarAlvosMensal(
+  contrato: string,
+  itens: ItemConvocacaoMensal[],
+): { alvos: AlvoConvocacaoMensal[]; previa: RelatorioConvocacaoMensal } {
+  // `total` da prévia = só quem ELA classificou (inválidos/canceladas). O lote conta os alvos;
+  // a soma dos dois fecha em itens.length sem contar ninguém duas vezes.
+  const previa = relatorioVazio(contrato, 0)
+  const alvos: AlvoConvocacaoMensal[] = []
   for (const item of itens) {
     const pessoaBase = { itemId: item.itemId, nome: item.nome, chapa: item.chapa }
     if (!chapaAceitavelNoFiltro(item.chapa)) {
       const p: PessoaRelatorioMensal = { ...pessoaBase, periodo: "", desfecho: "invalido", detalhe: "chapa_invalida" }
-      r.invalidos.push(p)
-      r.pessoas.push(p)
+      previa.invalidos.push(p)
+      previa.pessoas.push(p)
+      previa.total++
       continue
     }
     const periodo = effectivePeriod(
@@ -235,13 +242,69 @@ export async function processarConvocacaoMensalContrato(
         desfecho: semDatas ? "invalido" : "cancelada_sem_dias",
         detalhe: semDatas ? "sem_datas" : `cancelamento em ${item.cancelamentoInicio}`,
       }
-      if (semDatas) r.invalidos.push(p)
-      else r.canceladasSemDias++
-      r.pessoas.push(p)
+      if (semDatas) previa.invalidos.push(p)
+      else previa.canceladasSemDias++
+      previa.pessoas.push(p)
+      previa.total++
       continue
     }
     alvos.push({ item, inicio: periodo.start, fim: periodo.end })
   }
+  return { alvos, previa }
+}
+
+/** Soma dois relatórios do MESMO contrato (a prévia do planejamento + os lotes). */
+export function mesclarRelatorios(
+  a: RelatorioConvocacaoMensal,
+  b: RelatorioConvocacaoMensal,
+): RelatorioConvocacaoMensal {
+  return {
+    contrato: a.contrato,
+    total: a.total + b.total,
+    gravados: a.gravados + b.gravados,
+    jaExistiam: a.jaExistiam + b.jaExistiam,
+    cobertos: a.cobertos + b.cobertos,
+    canceladasSemDias: a.canceladasSemDias + b.canceladasSemDias,
+    requerDecisao: [...a.requerDecisao, ...b.requerDecisao],
+    conciliando: [...a.conciliando, ...b.conciliando],
+    falhas: [...a.falhas, ...b.falhas],
+    invalidos: [...a.invalidos, ...b.invalidos],
+    pessoas: [...a.pessoas, ...b.pessoas],
+    temPendencia: a.temPendencia || b.temPendencia,
+  }
+}
+
+/** Board atual + coluna do eco (`Código Convocação RM`) — resolvidos pelo registry. */
+export async function resolverEcoConvocacaoRm(): Promise<{ boardId: string; colCodRm: string | null }> {
+  const { rows: br } = await query<{ monday_board_id: string }>(
+    `SELECT monday_board_id FROM boards WHERE papel='atual' AND ativo=true
+      ORDER BY atualizado_em DESC LIMIT 1`,
+  )
+  const boardId = br[0]?.monday_board_id
+  if (!boardId) throw new Error("board_atual_nao_registrado")
+  const { rows: cols } = await query<{ column_id: string }>(
+    `SELECT column_id FROM board_colunas
+      WHERE monday_board_id=$1 AND nome='Código Convocação RM' LIMIT 1`,
+    [boardId],
+  )
+  return { boardId, colCodRm: cols[0]?.column_id ?? null }
+}
+
+/**
+ * Grava no RM as convocações de um LOTE de alvos (o step fatia em ~10 por invocação).
+ * Idempotente por pessoa (índice parcial + ledger + pré-voo, iguais ao pontual) — re-rodar
+ * pula quem já gravou.
+ *
+ * NÃO decide política: devolve o relatório e quem traduz em erro-de-contrato é o step.
+ */
+export async function processarLoteConvocacaoMensal(
+  contrato: string,
+  alvos: AlvoConvocacaoMensal[],
+  opts: { boardId: string; colCodRm: string | null; deps?: DepsConvocacaoMensal; timeoutMs?: number },
+): Promise<RelatorioConvocacaoMensal> {
+  const deps = opts.deps ?? DEPS_MENSAL_PADRAO
+  const timeoutMs = opts.timeoutMs ?? TIMEOUT_FILA_MS
+  const r = relatorioVazio(contrato, alvos.length)
   if (!alvos.length) return r
 
   // Atestados do contrato inteiro numa consulta (falha fechado: estourou aqui, o lote nem começa
@@ -349,4 +412,20 @@ export async function processarConvocacaoMensalContrato(
 
   r.temPendencia = r.falhas.length > 0 || r.requerDecisao.length > 0 || r.conciliando.length > 0
   return r
+}
+
+/**
+ * O contrato inteiro numa chamada — composição de planejar + lote único. É o caminho dos testes
+ * e de qualquer caller fora do workflow; o step do workflow usa as partes pra fatiar em lotes.
+ */
+export async function processarConvocacaoMensalContrato(
+  contrato: string,
+  opts: { boardId: string; colCodRm: string | null; deps?: DepsConvocacaoMensal; timeoutMs?: number },
+): Promise<RelatorioConvocacaoMensal> {
+  const deps = opts.deps ?? DEPS_MENSAL_PADRAO
+  const itens = await deps.lerItens(contrato)
+  const { alvos, previa } = planejarAlvosMensal(contrato, itens)
+  if (!alvos.length) return previa
+  const lote = await processarLoteConvocacaoMensal(contrato, alvos, opts)
+  return mesclarRelatorios(previa, lote)
 }
