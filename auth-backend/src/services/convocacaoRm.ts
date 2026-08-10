@@ -29,7 +29,7 @@ import {
   temRmSoap,
   type RmSoapError,
 } from "../clients/rmSoap.js"
-import { confirmarEfeito, estadoEfeito, reservarEfeito } from "../jobs/repo.js"
+import { confirmarEfeito, estadoEfeito, liberarEfeito, reservarEfeito } from "../jobs/repo.js"
 
 export interface JanelaConvocacoesRm {
   chapas: string[]
@@ -37,6 +37,11 @@ export interface JanelaConvocacoesRm {
   dataInicio: string
   dataFim: string
   coligada?: number
+  /**
+   * Teto do ReadView. Sem isto herda o timeout de PROCESSO (120s), que é absurdo pra ler UMA
+   * chapa e é o que faz um job de convocação estourar a função inteira.
+   */
+  timeoutMs?: number
 }
 
 /**
@@ -53,7 +58,9 @@ export async function convocacoesExistentesRm(j: JanelaConvocacoesRm): Promise<C
   for (const lote of lotesDeChapas(j.chapas)) {
     const filtro = filtroReadViewConvocacao({ ...j, chapas: lote })
     // ReadView devolve HTML-escapado — sem desescapar, o parse acha zero e mente "não existe".
-    const xml = desescaparXml(await readViewDireto(RM_DATA_SERVER_CONVOCACAO, filtro, contexto))
+    const xml = desescaparXml(
+      await readViewDireto(RM_DATA_SERVER_CONVOCACAO, filtro, contexto, j.timeoutMs),
+    )
     out.push(...parseConvocacoesReadView(xml))
   }
   return out
@@ -82,7 +89,7 @@ export interface PreVooConvocacaoRm {
  */
 export async function preVooConvocacaoRm(
   alvos: AlvoConvocacaoRm[],
-  opts: { coligada?: number } = {},
+  opts: { coligada?: number; timeoutMs?: number } = {},
 ): Promise<PreVooConvocacaoRm> {
   if (!alvos.length) return { aGravar: [], jaExistem: [], existentesNoRm: [] }
   const dataInicio = alvos.map((a) => a.dataInicio).sort()[0]
@@ -92,6 +99,7 @@ export async function preVooConvocacaoRm(
     dataInicio,
     dataFim,
     coligada: opts.coligada,
+    timeoutMs: opts.timeoutMs,
   })
 
   const aGravar: AlvoConvocacaoRm[] = []
@@ -272,6 +280,11 @@ export async function executarLoteConvocacaoRm(
       await confirmarEfeito(chave, pk, { pks: [pk], codConvocacao })
     } catch (e) {
       const err = e as RmSoapError
+      // Fault do RM = respondeu e recusou, COM rollback: está PROVADO que não gravou, então a
+      // reserva tem que voltar. Sem isso a chave fica `pendente` para sempre e aquela pessoa
+      // nunca mais entra no RM — nem por aqui, nem por nenhum outro caminho.
+      // Timeout/5xx (indeterminado) é o oposto: pode ter gravado, a reserva FICA.
+      if (err?.indeterminado === false) await liberarEfeito(chave).catch(() => {})
       resultados.push({
         ...base,
         estado: "erro",

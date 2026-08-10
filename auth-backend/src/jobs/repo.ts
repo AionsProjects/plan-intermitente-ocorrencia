@@ -20,20 +20,48 @@ export async function enfileirar(tipo: string, payload: Record<string, unknown>)
   return rows[0]!.id
 }
 
-/** Pega até N jobs prontos (due) e marca como rodando (claim atômico via UPDATE...RETURNING). */
-export async function pegarDevidos(limite = 5): Promise<Job[]> {
+/**
+ * Pega até N jobs prontos (due) e marca como rodando (claim atômico via UPDATE...RETURNING).
+ *
+ * `tipo` filtra o despacho: jobs lentos (os que falam com o RM) rodam num tick próprio, senão um
+ * deles sozinho consome a janela inteira e segura os rápidos atrás na fila.
+ */
+export async function pegarDevidos(limite = 5, tipo?: string): Promise<Job[]> {
   const { rows } = await query<Job>(
     `UPDATE jobs SET estado='rodando', atualizado_em=now()
        WHERE id IN (
          SELECT id FROM jobs
           WHERE estado IN ('pendente','aguardando_externo') AND proximo_em <= now()
+            AND ($2::text IS NULL OR tipo = $2)
           ORDER BY proximo_em ASC LIMIT $1
           FOR UPDATE SKIP LOCKED
        )
      RETURNING id, tipo, estado, passo, payload, cursor, tentativas`,
-    [limite],
+    [limite, tipo ?? null],
   )
   return rows
+}
+
+/**
+ * Devolve à fila os jobs que ficaram presos em `rodando` — processo morto no meio, timeout da
+ * função, deploy no meio do tick. `pegarDevidos` só enxerga `pendente`/`aguardando_externo`,
+ * então sem isto o job fica invisível e nunca mais roda.
+ *
+ * `tentativas+1` é obrigatório: sem contar a tentativa, um job que sempre estoura o tempo é
+ * retomado para sempre, num laço que ninguém vê.
+ */
+export async function retomarPresos(minutos = 10): Promise<number> {
+  const { rows } = await query<{ id: string }>(
+    `UPDATE jobs
+        SET estado = CASE WHEN tentativas+1 >= 5 THEN 'falhou' ELSE 'pendente' END,
+            tentativas = tentativas+1,
+            erro = 'retomado: preso em rodando',
+            atualizado_em = now()
+      WHERE estado='rodando' AND atualizado_em < now() - ($1 || ' minutes')::interval
+      RETURNING id`,
+    [String(minutos)],
+  )
+  return rows.length
 }
 
 export async function avancar(
@@ -78,6 +106,51 @@ export async function estadoEfeito(chave: string): Promise<"ausente" | "confirma
 }
 
 /**
+ * Como `estadoEfeito`, mas devolve `ref_externa` e `payload` junto.
+ *
+ * Existe porque quando uma execução recebe "já confirmado", o identificador do que foi gravado
+ * lá fora (ex.: o `C03S######` da convocação) só sobrevive no ledger — sem lê-lo não há como
+ * ecoar o resultado de volta pro board, e o operador fica sem o número.
+ */
+export async function detalheEfeito(chave: string): Promise<{
+  status: "confirmado" | "pendente"
+  refExterna: string | null
+  payload: Record<string, unknown> | null
+} | null> {
+  const { rows } = await query<{
+    status: string
+    ref_externa: string | null
+    payload: Record<string, unknown> | null
+  }>(`SELECT status, ref_externa, payload FROM efeitos_externos WHERE chave=$1`, [chave])
+  const r = rows[0]
+  if (!r) return null
+  return {
+    status: r.status === "confirmado" ? "confirmado" : "pendente",
+    refExterna: r.ref_externa,
+    payload: r.payload,
+  }
+}
+
+/**
+ * Devolve a chave reservada quando ficou PROVADO que o efeito não aconteceu.
+ *
+ * Sem isso, um erro determinístico do serviço externo (o RM respondendo Fault, com rollback)
+ * deixa a chave `pendente` PARA SEMPRE: toda execução seguinte lê "em curso", se recusa a
+ * reenviar — corretamente, porque não sabe distinguir — e aquela pessoa nunca mais entra.
+ * Falha silenciosa e permanente, disfarçada de proteção.
+ *
+ * `status <> 'confirmado'` é a trava que torna isto seguro: efeito confirmado nunca é liberado,
+ * em nenhuma circunstância.
+ */
+export async function liberarEfeito(chave: string): Promise<boolean> {
+  const { rows } = await query<{ chave: string }>(
+    `DELETE FROM efeitos_externos WHERE chave=$1 AND status <> 'confirmado' RETURNING chave`,
+    [chave],
+  )
+  return rows.length > 0
+}
+
+/**
  * Reserva uma chave de efeito externo. Retorna 'novo' (pode executar), 'confirmado'
  * (já feito — PULAR) ou 'pendente' (em curso/falhou antes — decidir retry).
  */
@@ -100,13 +173,22 @@ export async function reservarEfeito(
  * Contratos com efeito JÁ CONFIRMADO numa competência do mensal — fonte de verdade NOSSA
  * (não depende do estado do Monday). Chave: `mensal:<competencia>:<CONTRATO>:<etapa>`.
  * Usado pela antifraude da prévia pra saber o que já rodou quando o pagamento é por contrato.
+ *
+ * A lista de etapas é chumbada, então ela CEGA a antifraude toda vez que uma etapa de dinheiro é
+ * renomeada. `caju_credito`/`caju_pix` são os nomes de antes do split VR/VT (08/2026) e ficam para
+ * que competências anteriores continuem casando; os quatro `caju_*_v[rt]` são os de hoje. Ao criar
+ * etapa nova que grave dinheiro, acrescentar aqui — nunca substituir.
  */
 export async function contratosMensalJaExecutados(competencia: string): Promise<string[]> {
   const { rows } = await query<{ contrato: string }>(
     `SELECT DISTINCT split_part(chave, ':', 3) AS contrato
        FROM efeitos_externos
       WHERE chave LIKE $1 AND status = 'confirmado'
-        AND split_part(chave, ':', 4) IN ('monday_solicitacao','caju_credito','caju_pix','rm_integrar')
+        AND split_part(chave, ':', 4) IN (
+              'monday_solicitacao','rm_integrar',
+              'caju_credito','caju_pix',
+              'caju_credito_vr','caju_credito_vt','caju_pix_vr','caju_pix_vt'
+            )
         -- Simulação hoje grava em namespace próprio (mensal-homologacao:runId:...), então
         -- nem chega aqui. O filtro fica para as linhas LEGADAS de antes de 01/08, quando a
         -- simulação confirmava a chave de produção — foi o que fez o run e173b1ef pular tudo.

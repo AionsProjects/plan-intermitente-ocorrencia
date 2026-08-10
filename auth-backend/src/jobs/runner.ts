@@ -2,7 +2,7 @@
 // Handlers de RM/Caju (pontual/mensal/virada) são GATED: marcam erro explicativo até
 // serem ligados com idempotência. expiracao + sync_monday são executáveis.
 import { query } from "../db.js"
-import { pegarDevidos, avancar, falhar, type Job } from "./repo.js"
+import { pegarDevidos, avancar, falhar, retomarPresos, type Job } from "./repo.js"
 
 type Handler = (job: Job) => Promise<void>
 
@@ -35,9 +35,18 @@ const HANDLERS: Record<string, Handler> = {
   noop: async (job) => avancar(job.id, { estado: "concluido" }),
 }
 
-/** Processa até `limite` jobs devidos. Retorna resumo. */
-export async function tick(limite = 5): Promise<{ processados: number; ids: string[] }> {
-  const jobs = await pegarDevidos(limite)
+/**
+ * Processa até `limite` jobs devidos. `tipo` restringe o despacho (jobs lentos em tick próprio).
+ *
+ * Começa devolvendo à fila o que ficou preso em `rodando`: um job que morreu no meio fica
+ * invisível pro claim e nunca mais roda sozinho.
+ */
+export async function tick(
+  limite = 5,
+  tipo?: string,
+): Promise<{ processados: number; ids: string[]; retomados: number }> {
+  const retomados = await retomarPresos()
+  const jobs = await pegarDevidos(limite, tipo)
   const ids: string[] = []
   for (const job of jobs) {
     const h = HANDLERS[job.tipo]
@@ -49,5 +58,5 @@ export async function tick(limite = 5): Promise<{ processados: number; ids: stri
       await falhar(job.id, (e as Error).message)
     }
   }
-  return { processados: ids.length, ids }
+  return { processados: ids.length, ids, retomados }
 }

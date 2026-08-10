@@ -1,21 +1,33 @@
-import type { FastifyInstance, FastifyRequest } from "fastify"
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
 import { tick } from "../jobs/runner.js"
 
-// Tick da fila de jobs — chamado pelo Vercel Cron. Protegido por header secret
-// (CRON_SECRET). Avança jobs devidos 1 passo cada (serverless-safe).
+// Tick da fila de jobs. Avança jobs devidos 1 passo cada (serverless-safe).
+//
+// ⚠️ Existe o par GET/POST pelo mesmo motivo de routes/bloqueio.ts: o **Vercel Cron só faz GET**,
+// então um cron apontando pro POST responderia 404 e pareceria configurado enquanto nada roda.
+// O GET é o do cron; o POST é o disparo manual (dev/n8n).
+//
+// ⚠️ Cadência: a conta é HOBBY e só aceita cron DIÁRIO (o `*/15` foi recusado no deploy — ver
+// commit c64eeac). O cron da Vercel aqui é só rede de segurança; a cadência curta sai do n8n
+// chamando este endpoint, mesmo arranjo já usado pelo monitor de bloqueio.
 export async function rotasJobs(app: FastifyInstance): Promise<void> {
-  app.post(
-    "/api/jobs/tick",
-    async (req: FastifyRequest<{ Querystring: { limite?: string } }>, reply) => {
-      const secret = process.env.CRON_SECRET
-      if (secret) {
-        const h = req.headers["authorization"] || req.headers["x-cron-secret"]
-        const ok = h === `Bearer ${secret}` || h === secret
-        if (!ok) return reply.code(401).send({ erro: "nao_autorizado" })
-      }
-      const limite = Math.min(20, Math.max(1, Number(req.query.limite) || 5))
-      const r = await tick(limite)
-      return { ok: true, ...r }
-    },
-  )
+  const autorizado = (req: FastifyRequest): boolean => {
+    const secret = process.env.CRON_SECRET
+    if (!secret) return true // sem segredo configurado, não trava (mesma escolha de bloqueio.ts)
+    const h = req.headers["authorization"] || req.headers["x-cron-secret"]
+    return h === `Bearer ${secret}` || h === secret
+  }
+
+  const executar = async (
+    req: FastifyRequest<{ Querystring: { limite?: string; tipo?: string } }>,
+    reply: FastifyReply,
+  ) => {
+    if (!autorizado(req)) return reply.code(401).send({ erro: "nao_autorizado" })
+    const limite = Math.min(20, Math.max(1, Number(req.query.limite) || 5))
+    const tipo = (req.query.tipo || "").trim() || undefined
+    return { ok: true, ...(await tick(limite, tipo)) }
+  }
+
+  app.get("/api/jobs/tick", executar)
+  app.post("/api/jobs/tick", executar)
 }
