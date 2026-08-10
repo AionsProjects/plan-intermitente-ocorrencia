@@ -75,6 +75,11 @@ export const config = {
   convocacaoRmHabilitada: process.env.CONVOCACAO_RM_HABILITADA === "1",
   rmCodUsuario: opt("RM_COD_USUARIO", "003080"),
   rmSoapTimeoutMs: Number(opt("RM_SOAP_TIMEOUT_MS", "45000")),
+  // Quebra da convocação por atestado (lê a consulta registrada abaixo). Desligada por default:
+  // ligar sem a consulta registrada no RM faria TODA gravação falhar — o serviço falha fechado.
+  atestadoQuebraConvocacao: process.env.ATESTADO_QUEBRA_CONVOCACAO === "1",
+  // Código da consulta SQL registrada no RM. Env pra poder trocar sem deploy se o DP renomear.
+  rmSqlAtestados: opt("RM_SQL_ATESTADOS", "PI ATESTADOS"),
   // IntegrarBackOffices roda SyncExecution=true e segura a conexão — timeout próprio, maior.
   rmSoapTimeoutProcessoMs: Number(opt("RM_SOAP_TIMEOUT_PROCESSO_MS", "120000")),
   // Nexti (validação de atestado — OAuth client_credentials, Basic base64).

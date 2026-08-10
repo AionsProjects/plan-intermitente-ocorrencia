@@ -19,6 +19,7 @@
     "rm:prevoo": "node --env-file=.env --import tsx src/scripts/rm-prevoo-convocacao.ts",
     "rm:teste-convocacao": "node --env-file=.env --import tsx src/scripts/rm-teste-convocacao.ts",
     "rm:delete": "node --env-file=.env --import tsx src/scripts/rm-delete.ts",
+    "rm:atestados": "node --env-file=.env --import tsx src/scripts/rm-atestados.ts",
     "importar:convocacoes": "node --env-file=.env --import tsx src/scripts/importar-convocacoes.ts",
     "migrate:dist": "node dist/scripts/migrate.js",
     "seed:dist": "node dist/scripts/seed.js"
