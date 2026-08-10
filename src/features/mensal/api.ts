@@ -184,8 +184,14 @@ export function aprovarRunMensal(
   runId: string,
   somenteContratos?: string[],
   vencimentos?: Record<string, string>,
+  /**
+   * MODO DESENVOLVEDOR (só admin): famílias de efeito que vão REAIS — o resto simula.
+   * Presente = o backend força o run pra homologação (chave de idempotência por RUN, nunca por
+   * competência), então o teste real jamais marca etapa como feita pro run oficial.
+   */
+  familiasReais?: string[],
 ): Promise<{ ok: boolean; workflow_run_id: string }> {
-  return requestJson(`/api/mensal/runs/${runId}/aprovar`, jsonPost({ somenteContratos, vencimentos }))
+  return requestJson(`/api/mensal/runs/${runId}/aprovar`, jsonPost({ somenteContratos, vencimentos, familiasReais }))
 }
 export function cancelarRunMensal(runId: string, motivo: string): Promise<{ ok: boolean; status: RunStatusGeral }> {
   return requestJson(`/api/mensal/runs/${runId}/cancelar`, jsonPost({ motivo }))

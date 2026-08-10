@@ -42,6 +42,8 @@ import {
 } from "../auth-backend/src/mensal/rmEfeitos.js"
 import { codigoSecaoContrato } from "../auth-backend/src/mensal/calculo.js"
 import type { ContratoPreviaMensal, SnapshotPreviaMensal } from "../auth-backend/src/mensal/types.js"
+// Modo desenvolvedor (import isolado de propósito — o bloco acima está sob edição de outra sessão).
+import { etapaRealNoRunDev } from "../auth-backend/src/mensal/devEfeitos.js"
 
 const MESES_LABEL = ["JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO",
   "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"] as const
@@ -394,6 +396,13 @@ async function reservarOuPular(
   // "pendente" no teste não exige conciliação: re-executa direto (retomada nunca trava).
   if (modo === "teste") return { chave, acao: "executar" }
   if (reserva === "pendente") throw new FatalError(`efeito_pendente_requer_conciliacao:${etapa}`)
+  // Modo DESENVOLVEDOR: run de homologação com whitelist de famílias reais (dev_familias_reais no
+  // run). Família marcada executa DE VERDADE — mas com a chave por run lá de cima, então o envio
+  // de teste nunca marca a etapa como feita pra competência. Depois do check de "pendente" de
+  // propósito: envio real de dev que ficou mudo trava em conciliação igual produção.
+  if (modo === "homologacao" && (await etapaRealNoRunDev(runId, etapa))) {
+    return { chave, acao: "executar" }
+  }
   if (modo !== "producao") return { chave, acao: "simular" }
   if (!PRODUCAO_LIBERADA) throw new FatalError("execucao_mensal_producao_bloqueada_ate_cutover")
   return { chave, acao: "executar" }

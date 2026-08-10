@@ -13,6 +13,7 @@ import {
   vincularWorkflowRun,
 } from "../mensal/repo.js"
 import { registrarAtividadeServidor } from "./atividade.js"
+import { FAMILIAS_EFEITO, familiasValidas, marcarRunDev } from "../mensal/devEfeitos.js"
 import type { PapelMensal } from "../mensal/types.js"
 import { executarMensalWorkflowClient } from "../mensal/workflowClient.js"
 import { usuarioDaSessao } from "../session.js"
@@ -92,7 +93,7 @@ export async function rotasMensalOrquestracao(app: FastifyInstance): Promise<voi
     async (
       req: FastifyRequest<{
         Params: { runId: string }
-        Body: { somenteContratos?: string[]; vencimentos?: Record<string, string> }
+        Body: { somenteContratos?: string[]; vencimentos?: Record<string, string>; familiasReais?: string[] }
       }>,
       reply,
     ) => {
@@ -100,6 +101,17 @@ export async function rotasMensalOrquestracao(app: FastifyInstance): Promise<voi
       if (!u) return
       if (!config.mensalWorkflowEnabled) {
         return reply.code(503).send({ erro: "workflow_mensal_desabilitado" })
+      }
+
+      // MODO DESENVOLVEDOR: whitelist de famílias que vão REAIS num run de teste (o resto simula).
+      // Só admin — é envio real fora do fluxo oficial. A validação é fechada: família desconhecida
+      // é 400, não ignorada, senão um typo viraria "simulou e ninguém percebeu".
+      const familiasReais = req.body?.familiasReais
+      if (familiasReais !== undefined) {
+        if (u.papel !== "admin") return reply.code(403).send({ erro: "modo_dev_requer_admin" })
+        if (!familiasValidas(familiasReais)) {
+          return reply.code(400).send({ erro: "familia_invalida", validas: FAMILIAS_EFEITO })
+        }
       }
       // Filtro opcional de contratos (teste): roda só os informados. Vazio/ausente = todos.
       const somenteContratos = Array.isArray(req.body?.somenteContratos) && req.body.somenteContratos.length
@@ -129,6 +141,11 @@ export async function rotasMensalOrquestracao(app: FastifyInstance): Promise<voi
 
       try {
         await aprovarRun(req.params.runId, u.email, vencimentos)
+        // DEPOIS do aprovarRun (que valida estado/aprovador) e ANTES do iniciarWorkflow (que lê
+        // o modo do run): marcar dev força modo=homologacao + grava a whitelist.
+        if (familiasReais !== undefined && familiasValidas(familiasReais)) {
+          await marcarRunDev(req.params.runId, familiasReais)
+        }
         try {
           const workflowRunId = await iniciarWorkflow(req.params.runId, somenteContratos)
           // Log de atividade (mesma tabela das outras ações). Feito no SERVIDOR porque é ação de
@@ -152,6 +169,7 @@ export async function rotasMensalOrquestracao(app: FastifyInstance): Promise<voi
               escopo: somenteContratos ? (alvos.length === 1 ? "contrato" : "conjunto") : "todos",
               contratos: alvos,
               vencimentos: vencimentos ?? null,
+              dev_familias_reais: familiasReais ?? null,
               contratos_total: todos.length,
               pessoas: run.snapshot.contratos
                 .filter((c) => alvos.includes(c.contrato))

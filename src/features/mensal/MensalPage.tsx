@@ -6,6 +6,7 @@ import { ptBR } from "date-fns/locale"
 import { ArrowLeft, Banknote, CalendarDays, Loader2, TriangleAlert } from "lucide-react"
 
 import { ChoiceButton } from "@/features/atestados/ChoiceButton"
+import { useAuth } from "@/components/AuthContext"
 import { Acompanhamento } from "./Acompanhamento"
 import { useDemoRun } from "./demoRun"
 import {
@@ -82,8 +83,14 @@ export function MensalPage() {
   // é uma decisão do operador por contrato, e pré-preencher com hoje faria a pergunta passar
   // batido. Aprovar fica travado enquanto algum contrato marcado estiver sem data.
   const [vencimentos, setVencimentos] = useState<Record<string, string>>({})
+  // MODO DESENVOLVEDOR (só admin): escolher POR FAMÍLIA o que vai real — o resto simula.
+  // Caju NÃO aparece na lista de propósito: em run dev ele SEMPRE simula (v1).
+  const [devLigado, setDevLigado] = useState(false)
+  const [familiasReais, setFamiliasReais] = useState<string[]>([])
 
   const demoRun = useDemoRun(demo)
+  const { usuario } = useAuth()
+  const ehAdmin = usuario?.papel === "admin"
 
   const config = useQuery({ queryKey: ["mensal-config"], queryFn: buscarConfigMensal, enabled: !demo })
   const ehHomologacao = config.data?.controlesTeste ?? (config.data?.modo === "homologacao")
@@ -258,7 +265,13 @@ export function MensalPage() {
       const vencSelecionados = Object.fromEntries(
         contratosSelecionados.filter((c) => vencimentos[c]).map((c) => [c, vencimentos[c]!]),
       )
-      await aprovarRunMensal(runId, somente, vencSelecionados)
+      await aprovarRunMensal(
+        runId,
+        somente,
+        vencSelecionados,
+        // Modo dev só viaja se ligado E com pelo menos uma família — lista vazia não é run dev.
+        devLigado && familiasReais.length ? familiasReais : undefined,
+      )
       setEtapa("acompanhando")
     } catch (e) {
       setErroDisparo(e instanceof Error ? e.message : "Falha ao iniciar workflow")
@@ -641,6 +654,64 @@ export function MensalPage() {
                   </p>
                 )}
             </div>
+            {/* MODO DESENVOLVEDOR — só admin. Escolhe POR FAMÍLIA o que vai real; o resto simula.
+                O backend força o run pra homologação (chave por RUN): teste real nunca marca a
+                etapa como feita pra competência. O que for real aqui será reenviado pelo run
+                oficial — teste real implica limpeza manual, como qualquer teste. */}
+            {ehAdmin && !demo && (
+              <div className="mt-4 rounded-xl border border-dashed border-violet-400/50 bg-violet-400/[0.06] px-4 py-3 text-left">
+                <label className="flex cursor-pointer items-center gap-2.5">
+                  <input
+                    type="checkbox"
+                    checked={devLigado}
+                    onChange={(e) => setDevLigado(e.target.checked)}
+                    className="size-4 accent-violet-400"
+                  />
+                  <span className="text-[10px] uppercase tracking-[0.16em] text-violet-500 dark:text-violet-300">
+                    Modo desenvolvedor · real por função
+                  </span>
+                </label>
+                {devLigado && (
+                  <>
+                    <p className="mt-2 text-[11px] text-foreground/55">
+                      Marque o que vai <strong>de verdade</strong> — todo o resto simula. Caju{" "}
+                      <strong>sempre simula</strong> neste modo. Envio real de teste não conta pro
+                      run oficial (será reenviado) e pede limpeza manual depois.
+                    </p>
+                    <div className="mt-2 flex flex-col gap-1.5">
+                      {(
+                        [
+                          ["rm_historico", "RM — histórico de benefícios (ZMDHSTBENFUNC)"],
+                          ["rm_financeiro", "RM — lançamento financeiro (FopRotinas + Integrar)"],
+                          ["rm_convocacao", "RM — convocação (eSocial S-2260)"],
+                          ["monday_escritas", "Monday — escritas (Plano, Solicitação, Controle, OK)"],
+                          ["drive", "Drive — arquivamento"],
+                        ] as const
+                      ).map(([valor, rotulo]) => (
+                        <label key={valor} className="flex cursor-pointer items-center gap-2 text-[13px] text-foreground/85">
+                          <input
+                            type="checkbox"
+                            checked={familiasReais.includes(valor)}
+                            onChange={(e) =>
+                              setFamiliasReais((s) =>
+                                e.target.checked ? [...s, valor] : s.filter((x) => x !== valor),
+                              )
+                            }
+                            className="size-3.5 shrink-0 accent-violet-400"
+                          />
+                          <span>{rotulo}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {familiasReais.length > 0 && (
+                      <p className="mt-2 text-[11px] text-violet-500 dark:text-violet-300">
+                        {familiasReais.length} função(ões) com envio REAL — as demais simulam.
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
             <div className="mt-7 flex justify-center gap-3">
               <ChoiceButton onClick={() => setEtapa("tabela")}>← Revisar</ChoiceButton>
               <ChoiceButton
@@ -649,11 +720,13 @@ export function MensalPage() {
                   ocupado ||
                   contratosSelecionados.length === 0 ||
                   // Trava: contrato marcado sem vencimento não pode virar lançamento financeiro.
-                  contratosSelecionados.some((c) => !vencimentos[c])
+                  contratosSelecionados.some((c) => !vencimentos[c]) ||
+                  // Modo dev ligado sem nenhuma família marcada = intenção ambígua; trava.
+                  (devLigado && familiasReais.length === 0)
                 }
                 onClick={aprovar}
               >
-                {ocupado ? "Iniciando…" : "Aprovar e iniciar"}
+                {ocupado ? "Iniciando…" : devLigado && familiasReais.length ? "Aprovar (modo dev)" : "Aprovar e iniciar"}
               </ChoiceButton>
             </div>
           </div>
