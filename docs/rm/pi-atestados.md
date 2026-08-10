@@ -75,6 +75,23 @@ Amostra do ano de 2026 inteiro, coligada 3: **1649 atestados**, dos quais **81 d
 - Uma pessoa pode ter **vários atestados** no período (ex.: chapa `006448`, três em 2026, incluindo maternidade de 4 meses). `quebrarPeriodoPorAusencias` já trata sobreposição e ordena.
 - `COD_SITUACAO` traz `A`, `E`, `P`, `F`, `D` (inclusive demitido). Vem como coluna e **não** filtra — ver correção nº 3.
 
+## Validação end-to-end (10/08/2026, dados reais de produção)
+
+Depois de corrigir a ordem dos parâmetros, 8 casos contra o RM:
+
+| # | Caso | Resultado |
+|---|---|---|
+| 1 | Monotonicidade | ago 24 → jul-ago 209 → jun-set 397 → ano 1649. Cresce, como interseção exige |
+| 2 | Meio período não quebra | chapas `003301` (647..960), `007250` (625..1020), `007312` (542..960) → **0 cortes** cada |
+| 3 | Caso do DP | `006448`: convocação 08→23/01, atestado 13→14/01 → **`08–12`** e **`15–23`** |
+| 4 | Atestado que começa **antes** da janela | `006372`, janela 23/01→05/02, atestado 22→24/01 → apara o começo, sobra `25/01–05/02` |
+| 5 | Múltiplos atestados na janela | `006448`, janela 05/01→10/02, dois atestados → `05–12/01` e `15/01–03/02` |
+| 6 | Atestado cobre o período inteiro | `006448` em março (maternidade 04/02→03/06) → **0 pedaços**, não há o que convocar |
+| 7 | Janela limpa | `006372` em março → 1 pedaço, o período inteiro |
+| 8 | Chapa não-numérica | rejeitada antes de consultar (`chapa invalida`) — filtro que não casa nada devolveria "sem atestado" |
+
+O caso 4 é a prova da correção nº 1: com o `DTINICIO BETWEEN` da consulta base, esse atestado não apareceria e a convocação teria sido gravada por cima de dois dias cobertos.
+
 `CAST(...)` está sobre a **coluna**, nunca sobre o parâmetro: é o que permite comparar com `'YYYY-MM-DD'` mesmo se `DTINICIO` tiver hora, sem embrulhar `:PARAM` em função.
 
 ## Se o cadastro falhar
