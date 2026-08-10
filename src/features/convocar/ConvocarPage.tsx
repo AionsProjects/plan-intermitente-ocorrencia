@@ -8,12 +8,13 @@ import { EscolherMes } from "./EscolherMes"
 import { FormularioConvocacao } from "./FormularioConvocacao"
 import { TelaSucesso } from "./TelaSucesso"
 import type { EmpregadoRM } from "./types"
+import type { ConvocacaoResposta } from "./types"
 
 type Etapa =
   | { tipo: "busca" }
   | { tipo: "mes"; empregado: EmpregadoRM }
   | { tipo: "form"; empregado: EmpregadoRM; papel: "passado" | "atual" | "proximo"; competencia: string }
-  | { tipo: "sucesso"; itemId: string; itemUrl: string }
+  | { tipo: "sucesso"; itemId: string; itemUrl: string; rm?: ConvocacaoResposta["rm"] }
 
 const ORDEM: Record<Etapa["tipo"], number> = {
   busca: 0,
@@ -78,8 +79,8 @@ export function ConvocarPage() {
           competencia={etapa.competencia}
           onTrocarEmpregado={() => ir({ tipo: "busca" })}
           onVoltarMes={() => ir({ tipo: "mes", empregado: etapa.empregado })}
-          onSucesso={(itemId, itemUrl) =>
-            ir({ tipo: "sucesso", itemId, itemUrl })
+          onSucesso={(itemId, itemUrl, rm) =>
+            ir({ tipo: "sucesso", itemId, itemUrl, rm })
           }
         />
       )
@@ -88,6 +89,7 @@ export function ConvocarPage() {
       <TelaSucesso
         itemId={etapa.itemId}
         itemUrl={etapa.itemUrl}
+        rm={etapa.rm}
         onNovaConvocacao={() => ir({ tipo: "busca" })}
       />
     )

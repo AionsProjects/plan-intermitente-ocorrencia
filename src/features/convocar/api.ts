@@ -324,5 +324,7 @@ export async function criarConvocacao(
     ok: true,
     itemId: String(data.item_id ?? ""),
     itemUrl: String(data.item_url ?? ""),
+    // Ausente = respondeu o n8n, não o backend — logo o RM não foi acionado. A tela avisa.
+    rm: data.rm as ConvocacaoResposta["rm"],
   }
 }

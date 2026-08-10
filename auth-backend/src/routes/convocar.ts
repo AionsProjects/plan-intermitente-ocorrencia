@@ -7,6 +7,11 @@ import {
   uploadFileToColumn,
 } from "../monday.js"
 import { usuarioDaSessao } from "../session.js"
+import { config } from "../config.js"
+import { chapaAceitavelNoFiltro } from "../domain/convocacaoRm.js"
+import { temRmSoap } from "../clients/rmSoap.js"
+import { enfileirar } from "../jobs/repo.js"
+import { TIPO_JOB_CONVOCACAO_RM, type PayloadConvocacaoRmPontual } from "../jobs/convocacaoRmPontual.js"
 import { unidadesRm } from "./rmLookups.js"
 import { arquivarDrive } from "../services/driveArquivar.js"
 
@@ -80,6 +85,8 @@ const COL = {
   vtSoVolta: "OP - VT só volta?",
   termoConvocacao: "Termo de Convocação",
   termoInsalubridade: "Termo de Insalubridade",
+  /** Onde o C03S###### do RM é ecoado. Só o código real entra aqui. */
+  codigoRm: "Código Convocação RM",
 } as const
 const CANCEL_INICIO_ID = "date_mm3b88ta" // Cancelamento Início (id estável)
 
@@ -127,6 +134,44 @@ function normCode(v: string): string {
 
 function normName(v: string): string {
   return semAcento(v).toUpperCase().replace(/\s+/g, " ").trim()
+}
+
+/**
+ * Enfileira a gravação da convocação no RM. Recusas são decididas AQUI, sem I/O, e devolvidas
+ * pro operador — enfileirar o que já se sabe que não vai gravar só produziria fila morta.
+ */
+async function enfileirarConvocacaoRm(p: {
+  itemId: string
+  boardId: string
+  colCodRm: string | null
+  campos: Record<string, string>
+  dataInicio: string
+  dataFim: string
+  operador?: string | null
+}): Promise<
+  | { estado: "enfileirado"; job_id: string }
+  | { estado: "desligado" | "sem_chapa" | "rm_nao_configurado" }
+> {
+  if (!config.convocacaoRmHabilitada) return { estado: "desligado" }
+  // `empregado_chapa` NÃO é campo obrigatório do form — e sem chapa não existe convocação no RM.
+  if (!chapaAceitavelNoFiltro(p.campos.empregado_chapa ?? "")) return { estado: "sem_chapa" }
+  if (!temRmSoap()) return { estado: "rm_nao_configurado" }
+
+  const payload: PayloadConvocacaoRmPontual = {
+    item_id: p.itemId,
+    board_id: p.boardId,
+    col_cod_rm: p.colCodRm,
+    contrato: p.campos.contrato ?? "",
+    chapa: p.campos.empregado_chapa ?? "",
+    nome: p.campos.empregado_nome,
+    data_inicio: p.dataInicio,
+    data_fim: p.dataFim,
+    // Vem do RM em `DD/MM/YYYY`; `paraDataIso` no domínio aceita os dois formatos.
+    data_admissao: p.campos.empregado_admissao || null,
+    operador: p.operador ?? null,
+  }
+  const jobId = await enfileirar(TIPO_JOB_CONVOCACAO_RM, payload as unknown as Record<string, unknown>)
+  return { estado: "enfileirado", job_id: jobId }
 }
 
 export async function rotasConvocar(app: FastifyInstance): Promise<void> {
@@ -183,6 +228,15 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
 
   // Cria convocação no board do mês (atual/proximo) — substitui WF7. Multipart
   // (campos + termos opcionais). Antifraude de período + create_item + upload.
+  /**
+   * Estado da convocação no RM, devolvido junto com a criação. O front usa a PRESENÇA deste
+   * campo pra saber quem atendeu: sem ele, quem respondeu foi o n8n e o RM não foi acionado.
+   */
+  type EstadoRmResposta =
+    | { estado: "enfileirado"; job_id: string }
+    | { estado: "desligado" | "sem_chapa" | "rm_nao_configurado" }
+    | { estado: "nao_enfileirado"; motivo: string }
+
   const criarConvocacaoHandler = async (req: FastifyRequest, reply: FastifyReply) => {
     // Escrita no Monday -> exige sessão (operador logado).
     const usuario = await usuarioDaSessao(req)
@@ -249,6 +303,9 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
     const papel = campos.papel === "proximo" ? "proximo"
       : campos.papel === "passado" ? "passado"
       : "atual"
+    // Fora do try grande: entra na resposta mesmo se algo depois falhar.
+    let rm: EstadoRmResposta = { estado: "nao_enfileirado", motivo: "nao_avaliado" }
+
     const b = await resolverBoard(papel)
     if (!b) return reply.code(404).send({ ok: false, erro: "board_nao_registrado" })
     const id = (nome: string) => b.idPorNome.get(nome)
@@ -333,6 +390,29 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
         b.grupoPontual,
       )
 
+      // Convocação no RM — enfileirada, nunca inline.
+      //
+      // Aqui e não antes: sem `item.id` não há a que amarrar o registro, e um `createItem` que
+      // falhasse depois deixaria um evento eSocial S-2260 no RM sem contrapartida no board.
+      // Aqui e não depois do Drive: `arquivarDrive` é awaited e custa segundos (6 níveis de
+      // pasta, uploads, planilha) — se a função estourar ali, o que já foi persistido sobrevive,
+      // e a linha em `pi.jobs` precisa estar entre esses "antes".
+      //
+      // try/catch PRÓPRIO: falhar aqui não pode virar 502. O item já existe no Monday; o
+      // operador tentaria de novo e levaria 409 da própria antifraude.
+      rm = await enfileirarConvocacaoRm({
+        itemId: item.id,
+        boardId: b.boardId,
+        colCodRm: id(COL.codigoRm) ?? null,
+        campos,
+        dataInicio,
+        dataFim,
+        operador: usuario.email,
+      }).catch((e) => {
+        req.log.warn(e, "enfileirar convocacao RM falhou")
+        return { estado: "nao_enfileirado" as const, motivo: (e as Error).message.slice(0, 120) }
+      })
+
       // UPLOAD termos (best-effort: não derruba a criação se falhar).
       const uploads: [string, string][] = [
         ["termo_convocacao", COL.termoConvocacao],
@@ -367,7 +447,7 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
           .filter((a): a is { buffer: Buffer; filename: string; mime: string } => !!a),
       }).catch((e) => req.log.warn(e, "drive convocacao falhou"))
 
-      return { ok: true, item_id: item.id, item_url: item.url }
+      return { ok: true, item_id: item.id, item_url: item.url, rm }
     } catch (e) {
       req.log.error(e, "erro criar convocacao")
       return reply.code(502).send({ ok: false, erro: "erro_monday" })

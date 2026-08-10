@@ -1,12 +1,46 @@
 import { CheckCircle2, ExternalLink, RotateCcw } from "lucide-react"
+import type { ConvocacaoRmEstado } from "./types"
 
 type Props = {
   itemId: string
   itemUrl: string
+  rm?: ConvocacaoRmEstado
   onNovaConvocacao: () => void
 }
 
-export function TelaSucesso({ itemId, itemUrl, onNovaConvocacao }: Props) {
+/**
+ * Uma linha sobre o lançamento no RM. A convocação já está criada no monday quando esta tela
+ * aparece — isto aqui é só o segundo passo, que roda em fila.
+ *
+ * `rm` ausente é o caso que mais importa: significa que quem respondeu foi o n8n, não o nosso
+ * backend, então o RM nem foi tentado e ninguém saberia sem este aviso.
+ */
+function LinhaRm({ rm }: { rm?: ConvocacaoRmEstado }) {
+  const atencao = !rm || rm.estado === "nao_enfileirado"
+  const texto = !rm
+    ? "Lançamento no RM: não acionado (a convocação foi criada por outro caminho) — avise o DP."
+    : rm.estado === "enfileirado"
+      ? "Lançamento no RM: em processamento. O código aparece no item em alguns minutos."
+      : rm.estado === "sem_chapa"
+        ? "Lançamento no RM: não acionado — convocação sem chapa."
+        : rm.estado === "desligado"
+          ? "Lançamento no RM: desligado nesta configuração."
+          : rm.estado === "rm_nao_configurado"
+            ? "Lançamento no RM: indisponível (RM não configurado)."
+            : "Lançamento no RM: falhou ao entrar na fila — avise o DP."
+
+  return (
+    <p
+      className={`mt-3 text-xs ${
+        atencao ? "text-amber-700 dark:text-amber-200" : "text-foreground/55"
+      }`}
+    >
+      {texto}
+    </p>
+  )
+}
+
+export function TelaSucesso({ itemId, itemUrl, rm, onNovaConvocacao }: Props) {
   const ehMock = itemId.startsWith("mock-")
   return (
     <div className="text-center">
@@ -31,6 +65,8 @@ export function TelaSucesso({ itemId, itemUrl, onNovaConvocacao }: Props) {
           </span>
         )}
       </div>
+
+      {!ehMock && <LinhaRm rm={rm} />}
 
       <div className="mt-8 flex flex-col items-stretch gap-3 sm:flex-row sm:justify-center">
         {!ehMock && itemUrl && (

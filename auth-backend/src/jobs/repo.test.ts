@@ -59,9 +59,11 @@ test("pegarDevidos: filtra por tipo, pra job lento não segurar job rápido", as
   const soA = await pegarDevidos(10, TIPO_A)
   assert.equal(soA.length, 1)
   assert.equal(soA[0]!.tipo, TIPO_A)
-  // Sem filtro pega o que sobrou (o de tipo A já foi reivindicado e está 'rodando').
-  const resto = await pegarDevidos(10)
-  assert.deepEqual(resto.map((j) => j.tipo), [TIPO_B])
+  // Sem filtro pega o que sobrou. Não asserir a lista inteira: os arquivos de teste rodam em
+  // paralelo contra o MESMO banco, então jobs de outra suíte podem aparecer aqui.
+  const resto = await pegarDevidos(20)
+  assert.ok(resto.some((j) => j.tipo === TIPO_B), "o de tipo B tinha que vir")
+  assert.ok(!resto.some((j) => j.tipo === TIPO_A), "o de tipo A já foi reivindicado")
 })
 
 test("retomarPresos: job morto em 'rodando' volta pra fila contando a tentativa", async () => {

@@ -29,6 +29,7 @@ import {
 } from "./types"
 import { useCriarConvocacao, useOpcoesConvocacao } from "./useConvocacao"
 import { unidadesParaContrato } from "@/lib/unidadesContrato"
+import type { ConvocacaoResposta } from "./types"
 
 type Props = {
   empregado: EmpregadoRM
@@ -36,7 +37,7 @@ type Props = {
   competencia: string // YYYY-MM do mês escolhido (trava o calendário)
   onTrocarEmpregado: () => void
   onVoltarMes: () => void
-  onSucesso: (itemId: string, itemUrl: string) => void
+  onSucesso: (itemId: string, itemUrl: string, rm?: ConvocacaoResposta["rm"]) => void
 }
 
 type FormState = {
@@ -193,7 +194,7 @@ export function FormularioConvocacao({
     }
     try {
       const res = await mutation.mutateAsync(payload)
-      onSucesso(res.itemId, res.itemUrl)
+      onSucesso(res.itemId, res.itemUrl, res.rm)
     } catch (err) {
       if (
         err instanceof ConvocacaoApiError &&

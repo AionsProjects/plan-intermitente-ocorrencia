@@ -3,6 +3,7 @@
 // serem ligados com idempotência. expiracao + sync_monday são executáveis.
 import { query } from "../db.js"
 import { pegarDevidos, avancar, falhar, retomarPresos, type Job } from "./repo.js"
+import { handlerConvocacaoRmPontual, TIPO_JOB_CONVOCACAO_RM } from "./convocacaoRmPontual.js"
 
 type Handler = (job: Job) => Promise<void>
 
@@ -27,6 +28,8 @@ const gated: Handler = async (job) => {
 
 const HANDLERS: Record<string, Handler> = {
   expiracao,
+  // Tipo PRÓPRIO: reusar `pontual` cairia no handler `gated` abaixo e o job morreria calado.
+  [TIPO_JOB_CONVOCACAO_RM]: handlerConvocacaoRmPontual,
   sync_monday: syncMonday,
   pontual: gated,
   mensal: gated,

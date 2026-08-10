@@ -89,10 +89,22 @@ export type ConvocacaoPayload = {
   papel?: "passado" | "atual" | "proximo"
 }
 
+/**
+ * Estado da convocação no RM.
+ *
+ * `undefined` NÃO é "deu tudo certo": significa que quem atendeu a requisição não foi o nosso
+ * backend (o n8n respondeu antes), então a convocação no RM nem foi tentada.
+ */
+export type ConvocacaoRmEstado =
+  | { estado: "enfileirado"; job_id: string }
+  | { estado: "desligado" | "sem_chapa" | "rm_nao_configurado" }
+  | { estado: "nao_enfileirado"; motivo?: string }
+
 export type ConvocacaoResposta = {
   ok: true
   itemId: string
   itemUrl: string
+  rm?: ConvocacaoRmEstado
 }
 
 export type ConvocacaoConflito = {
