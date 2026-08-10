@@ -164,6 +164,9 @@ test("relatorio agrega a tabela inteira, inclusive o que nao vira alerta", async
 
   const quem = rel.porAutor.map((x: { quem: string }) => x.quem)
   assert.ok(quem.includes("KAMILLY SILVA"), "operador real do app aparece por nome")
+  // sobrenome repetido do cadastro nao pode vazar pro relatorio (so a mensagem limpava)
+  assert.ok(!quem.some((q: string) => /SOUZA SOUZA|ROMASKEVIS DE OLIVEIRA ROMASKEVIS/.test(q)),
+    "nomeLimpo aplicado tambem no relatorio")
   assert.ok(rel.porItem.length === 1 && rel.porItem[0].criticas === 3)
   assert.equal(rel.notificacoes[0].enviadas, 0)
 })
@@ -214,5 +217,21 @@ test("GET /api/bloqueio/varrer recusa CRON_SECRET errado", async () => {
   } finally {
     if (antes === undefined) delete process.env.CRON_SECRET
     else process.env.CRON_SECRET = antes
+  }
+})
+
+test("relatorio limpa sobrenome repetido do operador", async () => {
+  const janela = await req("POST", "/api/bloqueio", sessaoDp, { competencia: "1996-05", boards: [BOARD + 9] })
+  const id = janela.json().bloqueio.id
+  try {
+    await gravarAlteracoes(id, [alteracao({
+      activityLogId: `nl-${Date.now()}`, origem: "app",
+      operadorNome: "THALLISON GOMES SOUZA SOUZA", operadorEmail: "t@x",
+    })], "sweep")
+    const r = await req("GET", `/api/bloqueio/${id}/relatorio`, sessaoDp)
+    const quem = r.json().relatorio.porAutor.map((x: { quem: string }) => x.quem)
+    assert.deepEqual(quem, ["THALLISON GOMES SOUZA"], "cadastro tem SOUZA SOUZA; relatorio nao repete")
+  } finally {
+    await query(`DELETE FROM competencia_bloqueio WHERE id=$1`, [id])
   }
 })

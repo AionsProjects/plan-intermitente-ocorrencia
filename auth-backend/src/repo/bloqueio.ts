@@ -6,6 +6,7 @@
 // invisível: era edição do DP, que não gera alerta mas precisa aparecer no relatório.
 import { query } from "../db.js"
 import type { AlteracaoClassificada } from "../domain/alteracaoBoard.js"
+import { nomeLimpo } from "../domain/mensagemAlteracao.js"
 
 export interface Bloqueio {
   id: string
@@ -296,10 +297,14 @@ export async function relatorio(bloqueioId: string) {
     totais,
     porOrigem: await um(`SELECT origem, count(*)::int n FROM board_alteracao WHERE bloqueio_id=$1 GROUP BY origem ORDER BY n DESC`),
     porSeveridade: await um(`SELECT severidade, count(*)::int n FROM board_alteracao WHERE bloqueio_id=$1 GROUP BY severidade ORDER BY n DESC`),
-    porAutor: await um(
+    // `operador_nome` vem do cadastro com sobrenome repetido ("THALLISON GOMES SOUZA
+    // SOUZA"). A mensagem já limpava; o relatório mostrava cru. Limpeza é de EXIBIÇÃO —
+    // o dado gravado continua fiel à origem.
+    porAutor: (await um<{ quem: string; origem: string; n: number }>(
       `SELECT COALESCE(operador_nome, autor_nome, autor_id) AS quem, origem, count(*)::int n
          FROM board_alteracao WHERE bloqueio_id=$1
-        GROUP BY 1,2 ORDER BY n DESC LIMIT 30`),
+        GROUP BY 1,2 ORDER BY n DESC LIMIT 30`)
+    ).map((r) => ({ ...r, quem: nomeLimpo(r.quem) ?? r.quem })),
     porColuna: await um(
       `SELECT COALESCE(coluna_titulo, evento) AS o_que, severidade, count(*)::int n
          FROM board_alteracao WHERE bloqueio_id=$1
