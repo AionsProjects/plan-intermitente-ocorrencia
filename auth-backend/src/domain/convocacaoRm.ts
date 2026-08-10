@@ -16,6 +16,19 @@ export const RM_COLIGADA_CONVOCACAO = 3
 
 /** Situação da convocação. `4` = Concluída — decisão do DP (08/08/2026). */
 export const ESTADO_CONVOCACAO_CONCLUIDA = 4
+
+/**
+ * O registro existente no RM conta como convocação VÁLIDA?
+ *
+ * Medido em produção (10/08/2026): o DP usa `4` = Concluída (1278×) e `3` = Em progresso (1×).
+ * Qualquer outro estado (cancelada, recusada, o que for) NÃO vale como "já convocado" — mas
+ * também não é regravado por cima em silêncio: vira `requer_decisao_dp` no mensal (decisão do
+ * Isaac em 10/08). Erra pro lado que pergunta, nunca pro que esconde.
+ */
+export function estadoConvocacaoValido(estado: string | number | undefined | null): boolean {
+  const e = String(estado ?? "").trim()
+  return e === "3" || e === "4"
+}
 /** `0` = "No mesmo endereço do estabelecimento" — 100% da base do DP. */
 export const LOCAL_PRESTACAO_MESMO_ESTABELECIMENTO = 0
 

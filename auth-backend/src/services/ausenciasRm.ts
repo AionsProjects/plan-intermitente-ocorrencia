@@ -87,3 +87,49 @@ export async function ausenciasDaConvocacao(
   }
   return { cortes: cortesDaChapa(ausencias, chapa), ausencias, descartadas, linhas: linhas.length }
 }
+
+/**
+ * Ausências de um CONTRATO inteiro numa consulta só — pro lote do mensal.
+ *
+ * A SQL aceita `CHAPA LIKE '%'`; o filtro por pessoa é client-side, contra o Set de chapas do
+ * contrato. Uma consulta pro contrato em vez de N por pessoa: o RM devolve a coligada inteira na
+ * janela (medido: ~24 linhas num mês típico — barato), e a alternativa seriam 27 round-trips no
+ * SEMSA.
+ *
+ * MESMA política do por-pessoa: falha fechado (RM fora do ar = erro, nunca "sem atestado") e
+ * guarda de forasteiras (ausência fora da janela = parâmetro trocado na consulta registrada).
+ * Chapas comparadas sem zeros à esquerda — o RM devolve '006824', o board guarda '6824'.
+ */
+export async function ausenciasDoContrato(
+  chapas: string[],
+  inicio: string,
+  fim: string,
+  consulta: ConsultaAtestados = consultaPadrao,
+): Promise<Map<string, { inicio: string; fim: string }[]>> {
+  const alvo = new Set(chapas.map((c) => c.trim().replace(/^0+/, "")).filter(Boolean))
+  const out = new Map<string, { inicio: string; fim: string }[]>()
+  if (!alvo.size) return out
+
+  const linhas = await consulta({ chapa: "%", dataInicial: inicio, dataFinal: fim })
+  const { ausencias, descartadas } = mapearAtestados(linhas)
+
+  const forasteiras = ausencias.filter((a) => a.fim < inicio || a.inicio > fim)
+  if (forasteiras.length) {
+    throw new Error(
+      `ausencias_rm: ${forasteiras.length} de ${ausencias.length} fora da janela ${inicio}..${fim} ` +
+        `— confira a ORDEM dos parametros na consulta ${config.rmSqlAtestados} (o RM casa por posicao)`,
+    )
+  }
+  if (descartadas.length) {
+    console.warn(
+      `[ausencias] contrato: ${descartadas.length} linha(s) descartada(s) —`,
+      descartadas.map((d) => d.motivo).join(", "),
+    )
+  }
+
+  for (const chapa of alvo) {
+    const cortes = cortesDaChapa(ausencias, chapa)
+    if (cortes.length) out.set(chapa, cortes)
+  }
+  return out
+}

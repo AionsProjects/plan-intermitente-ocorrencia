@@ -1,7 +1,7 @@
 // Roda: node --import tsx --test src/services/ausenciasRm.test.ts
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { ausenciasDaConvocacao, ORDEM_PARAMETROS_ATESTADOS } from "./ausenciasRm.js"
+import { ausenciasDaConvocacao, ausenciasDoContrato, ORDEM_PARAMETROS_ATESTADOS } from "./ausenciasRm.js"
 import type { LinhaAtestadoRm } from "../domain/ausencias.js"
 
 const linha = (ini: string, fim: string): LinhaAtestadoRm => ({
@@ -68,6 +68,48 @@ test("RM fora do ar propaga o erro — falha fechado", async () => {
   await assert.rejects(
     () =>
       ausenciasDaConvocacao("006824", "2026-08-01", "2026-08-31", async () => {
+        throw new Error("rm indisponivel")
+      }),
+    /rm indisponivel/,
+  )
+})
+
+test("contrato: UMA consulta com '%', cortes só das chapas do contrato", async () => {
+  let pedido = ""
+  const mapa = await ausenciasDoContrato(
+    ["007001", "7002", "007003"],
+    "2026-08-01",
+    "2026-08-31",
+    async (p) => {
+      pedido = p.chapa
+      return [
+        linha("2026-08-10", "2026-08-11"), // 006824 — NAO e do contrato, tem que sumir
+        { ...linha("2026-08-05", "2026-08-06"), CHAPA: "007001" },
+        { ...linha("2026-08-20", "2026-08-20"), CHAPA: "007002" },
+      ]
+    },
+  )
+  assert.equal(pedido, "%", "lote consulta a coligada inteira e filtra client-side")
+  assert.deepEqual(mapa.get("7001"), [{ inicio: "2026-08-05", fim: "2026-08-06" }])
+  assert.deepEqual(mapa.get("7002"), [{ inicio: "2026-08-20", fim: "2026-08-20" }])
+  assert.equal(mapa.has("7003"), false, "chapa sem atestado nem entra no Map")
+  assert.equal(mapa.has("6824"), false, "atestado de fora do contrato nao vaza")
+})
+
+test("contrato: forasteira derruba o lote inteiro — melhor atrasado que subcontado", async () => {
+  await assert.rejects(
+    () =>
+      ausenciasDoContrato(["007001"], "2026-08-01", "2026-08-31", async () => [
+        { ...linha("2026-01-02", "2026-01-03"), CHAPA: "007001" },
+      ]),
+    /fora da janela/,
+  )
+})
+
+test("contrato: RM fora do ar propaga — falha fechado no lote também", async () => {
+  await assert.rejects(
+    () =>
+      ausenciasDoContrato(["007001"], "2026-08-01", "2026-08-31", async () => {
         throw new Error("rm indisponivel")
       }),
     /rm indisponivel/,

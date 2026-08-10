@@ -9,6 +9,7 @@ import { config } from "../config.js"
 import { changeColumnValues } from "../monday.js"
 import {
   calcularDataConvocacao,
+  estadoConvocacaoValido,
   quebrarPeriodoPorAusencias,
   type PeriodoConvocacao,
 } from "../domain/convocacaoRm.js"
@@ -53,6 +54,9 @@ export interface PedacoProcessado {
   periodo: string
   estado: EstadoGravacaoRm
   codConvocacao?: string
+  /** No `ja_no_rm`, o estado do registro achado — o mensal separa válida de CANCELADA no RM. */
+  existenteEstado?: string
+  existenteEstadoDescricao?: string
 }
 
 export interface ResultadoPontual {
@@ -122,10 +126,16 @@ export async function ecoAcumulado(
  */
 export async function processarConvocacaoPontual(
   d: DadosConvocacaoPontual,
-  opts: { timeoutMs?: number; deps?: DepsPontual } = {},
+  opts: {
+    timeoutMs?: number
+    deps?: DepsPontual
+    /** Forense do rastro (`pi.convocacoes_rm.origem_acao`). O mensal passa "mensal". */
+    origemAcao?: string
+  } = {},
 ): Promise<ResultadoPontual> {
   const deps = opts.deps ?? DEPS_PONTUAL_PADRAO
   const timeoutMs = opts.timeoutMs ?? TIMEOUT_FILA_MS
+  const origemAcao = opts.origemAcao ?? "pontual"
 
   const { pedacos, cortes } = await planejarPedacos(d, deps)
   if (!pedacos.length) {
@@ -163,16 +173,21 @@ export async function processarConvocacaoPontual(
         dataFim: p.fim,
         dataAdmissao: d.dataAdmissao ?? undefined,
         dataConvocacao: dataAtoHerdada,
-        origemAcao: "pontual",
+        origemAcao,
         criadoPor: d.operador ?? null,
       },
       { timeoutMs },
     )
-    if (r.codConvocacao) gravadosAgora.push(r.codConvocacao)
+    // Código de convocação CANCELADA no RM não entra no eco: escrever o código de um registro
+    // cancelado na coluna do board afirmaria uma convocação que não vale.
+    const canceladaNoRm = r.estado === "ja_no_rm" && !estadoConvocacaoValido(r.existente?.estado)
+    if (r.codConvocacao && !canceladaNoRm) gravadosAgora.push(r.codConvocacao)
     out.pedacos.push({
       periodo: `${p.inicio}..${p.fim}`,
       estado: r.estado,
       codConvocacao: r.codConvocacao,
+      existenteEstado: r.existente?.estado,
+      existenteEstadoDescricao: r.existente?.estadoDescricao,
     })
 
     switch (r.estado) {

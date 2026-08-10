@@ -155,6 +155,12 @@ export interface ResultadoGravacaoRm {
   /** true = pode ter gravado. NUNCA reenviar; conferir lendo. */
   indeterminado?: boolean
   detalhe?: string
+  /**
+   * No `ja_no_rm`, o registro que o pré-voo achou — com ESTADO. O mensal precisa distinguir
+   * convocação válida (pula de verdade) de CANCELADA no RM (vira `requer_decisao_dp`, decisão do
+   * Isaac em 10/08: nem regravar por cima nem pular calado).
+   */
+  existente?: ConvocacaoExistenteRm
 }
 
 export interface AlvoGravacaoRm {
@@ -245,7 +251,8 @@ export async function gravarConvocacaoRm(
         ...base,
         estado: "ja_no_rm",
         codConvocacao: jaLa.codConvocacao,
-        detalhe: `${jaLa.codConvocacao} ${jaLa.dataInicio}..${jaLa.dataFim}`,
+        detalhe: `${jaLa.codConvocacao} ${jaLa.dataInicio}..${jaLa.dataFim} (${jaLa.estadoDescricao || jaLa.estado})`,
+        existente: jaLa,
       }
     }
   }
