@@ -6,7 +6,6 @@
     { "source": "/api/:path*", "destination": "/api" },
     { "source": "/((?!assets/|\\.well-known/).*)", "destination": "/index.html" }
   ],
-  "_comment_crons": "Conta HOBBY = cron so DIARIO (o */15 foi recusado no deploy, commit c64eeac) e o Vercel Cron so faz GET. A cadencia curta da fila sai do n8n chamando GET /api/jobs/tick?tipo=convocacao_rm_pontual com o CRON_SECRET; este diario e so a rede de seguranca pra job que ficou pra tras.",
   "crons": [
     { "path": "/api/mensal/manutencao/retencao", "schedule": "17 3 1 * *" },
     { "path": "/api/jobs/tick?limite=20", "schedule": "0 11 * * *" }

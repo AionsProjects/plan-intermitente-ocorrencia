@@ -8,8 +8,12 @@ import { tick } from "../jobs/runner.js"
 // O GET é o do cron; o POST é o disparo manual (dev/n8n).
 //
 // ⚠️ Cadência: a conta é HOBBY e só aceita cron DIÁRIO (o `*/15` foi recusado no deploy — ver
-// commit c64eeac). O cron da Vercel aqui é só rede de segurança; a cadência curta sai do n8n
-// chamando este endpoint, mesmo arranjo já usado pelo monitor de bloqueio.
+// commit c64eeac). O cron da Vercel aqui é só REDE DE SEGURANÇA pra job que ficou pra trás; o
+// caminho normal da convocação pontual é o próprio request do /convocar, que grava inline.
+//
+// ⚠️ E não tente documentar isso no vercel.json: propriedade extra ali NÃO é ignorada, o deploy
+// falha — sem log de build, o que faz parecer problema de infra. Aconteceu duas vezes (commits
+// 85f8f895 e o `_comment_crons` deste trabalho, que derrubou 6 deploys seguidos).
 export async function rotasJobs(app: FastifyInstance): Promise<void> {
   const autorizado = (req: FastifyRequest): boolean => {
     const secret = process.env.CRON_SECRET
