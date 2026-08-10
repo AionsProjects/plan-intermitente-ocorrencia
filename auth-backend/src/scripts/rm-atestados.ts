@@ -9,9 +9,38 @@
  *   npm run rm:atestados -- 2026-08-05 2026-08-20 006824 --cruas
  */
 import { config } from "../config.js"
-import { ausenciaQuebraConvocacao } from "../domain/ausencias.js"
+import { consultarSql } from "../clients/rm.js"
+import { ausenciaQuebraConvocacao, type LinhaAtestadoRm } from "../domain/ausencias.js"
 import { quebrarPeriodoPorAusencias } from "../domain/convocacaoRm.js"
 import { ausenciasDaConvocacao } from "../services/ausenciasRm.js"
+
+/**
+ * Canário da ORDEM dos parâmetros.
+ *
+ * O RM casa parâmetro por POSIÇÃO na querystring, não por nome (medido 10/08/2026). Se a sentença
+ * registrada for editada e a ordem de `:DATA_INICIAL`/`:DATA_FINAL` inverter, a consulta passa a
+ * devolver o COMPLEMENTO da janela — menos linhas, sem erro nenhum. A guarda do serviço não pega
+ * esse caso (o que volta está dentro da janela; o problema é o que NÃO volta), então aqui a gente
+ * pergunta as duas ordens e compara.
+ */
+async function canarioOrdem(chapa: string, inicio: string, fim: string): Promise<void> {
+  const pedir = (parametros: Record<string, string>) =>
+    consultarSql<LinhaAtestadoRm>({ codigoSql: config.rmSqlAtestados, parametros }).catch(() => null)
+
+  const [normal, invertida] = await Promise.all([
+    pedir({ CHAPA: chapa, DATA_INICIAL: inicio, DATA_FINAL: fim }),
+    pedir({ CHAPA: chapa, DATA_FINAL: fim, DATA_INICIAL: inicio }),
+  ])
+  if (!normal || !invertida) return
+  if (invertida.length > normal.length) {
+    console.log(
+      `\n⚠ ORDEM DOS PARAMETROS INVERTIDA na consulta "${config.rmSqlAtestados}".\n` +
+        `  ordem normal devolveu ${normal.length}; ordem invertida devolveu ${invertida.length}.\n` +
+        `  Na sentenca registrada, :DATA_INICIAL tem que aparecer ANTES de :DATA_FINAL.\n` +
+        `  Ver docs/rm/pi-atestados.md. TUDO abaixo esta subcontando.\n`,
+    )
+  }
+}
 
 async function main(): Promise<void> {
   const [, , inicio, fim, chapa, ...flags] = process.argv
@@ -22,6 +51,7 @@ async function main(): Promise<void> {
   const cruas = flags.includes("--cruas")
 
   console.log(`consulta "${config.rmSqlAtestados}" | chapa ${chapa} | janela ${inicio} .. ${fim}\n`)
+  await canarioOrdem(chapa, inicio, fim)
   const r = await ausenciasDaConvocacao(chapa, inicio, fim)
 
   console.log(`RM devolveu ${r.linhas} linha(s); ${r.ausencias.length} mapeada(s), ${r.descartadas.length} descartada(s)\n`)
