@@ -7,13 +7,12 @@ import {
   chapaAceitavelNoFiltro,
   chapaRm,
   chaveEfeitoConvocacaoRm,
-  classificarItensConvocacaoRm,
+  chaveEfeitoRemocaoConvocacaoRm,
   convocacaoJaNoRm,
   dataHoraRm,
   dataPrevistaPagamentoPadrao,
   diasCorridos,
   somarDias,
-  grupoEhConvocavel,
   filtroReadViewConvocacao,
   lotesDeChapas,
   montarConvocacaoRm,
@@ -24,7 +23,6 @@ import {
   quebrarPeriodoPorAusencias,
   validarConvocacaoRm,
   type ConvocacaoExistenteRm,
-  type ItemConvocacaoMonday,
 } from "./convocacaoRm.js"
 
 test("chapaRm: 6 dígitos com zero à esquerda, ignora ruído", () => {
@@ -87,14 +85,6 @@ test("admissão em DD/MM/YYYY não reprova nem perde o piso da regra", () => {
     validarConvocacaoRm({ chapa: "6323", dataInicio: "2026-08-01", dataFim: "2026-08-03", dataAdmissao: "05/08/2026" }),
     ["admissao_apos_inicio"],
   )
-})
-
-test("classificarItensConvocacaoRm: admissão BR e cancelamento BR são normalizados", () => {
-  const { candidatos } = classificarItensConvocacaoRm([
-    item({ dataAdmissao: "09/07/2024", statusConvocacao: "Cancelada parcialmente", cancelamentoInicio: "20/08/2026" }),
-  ])
-  assert.equal(candidatos.length, 1)
-  assert.equal(candidatos[0].dataFim, "2026-08-19")
 })
 
 test("somarDias: atravessa mês e ano sem o fuso mexer no dia", () => {
@@ -276,15 +266,25 @@ test("pkConvocacaoRm: coligada;chapa;codigo na ordem do XSD", () => {
   assert.equal(pkConvocacaoRm({ chapa: "3330", codConvocacao: "C03S003328" }), "3;003330;C03S003328")
 })
 
-test("chaveEfeitoConvocacaoRm: por PESSOA e com nome de etapa novo", () => {
-  assert.equal(
-    chaveEfeitoConvocacaoRm({ contrato: "SEDUC ESCOLA", chapa: "3330", dataInicio: "2026-08-11" }),
-    "convocacao_rm:SEDUC_ESCOLA:003330:2026-08-11",
-  )
-  // Duas pessoas do mesmo contrato/período têm chaves distintas: chave de lote pularia o resto.
-  const a = chaveEfeitoConvocacaoRm({ contrato: "DETRAN", chapa: "1", dataInicio: "2026-08-01" })
-  const b = chaveEfeitoConvocacaoRm({ contrato: "DETRAN", chapa: "2", dataInicio: "2026-08-01" })
-  assert.notEqual(a, b)
+test("chaveEfeitoConvocacaoRm: ancorada no id da linha, nunca em atributo de negócio", () => {
+  assert.equal(chaveEfeitoConvocacaoRm("abc-123"), "convocacao_rm:abc-123")
+  assert.equal(chaveEfeitoRemocaoConvocacaoRm("abc-123"), "convocacao_rm_remover:abc-123")
+  // Namespaces distintos: apagar é outro efeito, e re-executar um cancelamento não pode
+  // redisparar o delete de um registro que já saiu.
+  assert.notEqual(chaveEfeitoConvocacaoRm("x"), chaveEfeitoRemocaoConvocacaoRm("x"))
+})
+
+test("REGRESSÃO: a chave antiga colidia com o pedaço que herda o início", () => {
+  // A chave era `convocacao_rm:<CONTRATO>:<chapa>:<dataInicio>`. Grava-se 05→20; depois chega
+  // atestado 10→11 e o período vira 05→09 + 12→20. O pedaço 05→09 herda o início, então batia
+  // na MESMA chave, já confirmada -> pulado em silêncio. O RM ficava só com 12→20 e a pessoa
+  // perdia 5 dias no eSocial, com o lote verde.
+  const pedacos = quebrarPeriodoPorAusencias("2026-08-05", "2026-08-20", [
+    { inicio: "2026-08-10", fim: "2026-08-11" },
+  ])
+  assert.equal(pedacos[0]!.inicio, "2026-08-05", "o pedaço 1 herda mesmo o início do original")
+  // Com a chave por id de linha, dois lançamentos distintos nunca compartilham chave.
+  assert.notEqual(chaveEfeitoConvocacaoRm("linha-original"), chaveEfeitoConvocacaoRm("linha-pedaco1"))
 })
 
 const VIEW_XML = `<NewDataSet>
@@ -502,125 +502,4 @@ test("lotesDeChapas: dedup, normaliza e fatia", () => {
 
 test("lotesDeChapas: também rejeita chapa suja (senão o filtro já receberia dígitos)", () => {
   assert.throws(() => lotesDeChapas(["3330", "x9"]), /filtro_chapa_invalida/)
-})
-
-// --- classificação do lote por contrato -------------------------------------
-
-const item = (extra: Partial<ItemConvocacaoMonday> = {}): ItemConvocacaoMonday => ({
-  itemId: "1",
-  nome: "Fulana",
-  chapa: "003330",
-  contrato: "SEDUC ESCOLA",
-  dataInicio: "2026-08-11",
-  dataFim: "2026-08-31",
-  dataAdmissao: "2026-01-15",
-  statusConvocacao: "Válida",
-  grupo: "MENSAL",
-  ...extra,
-})
-
-test("classificarItensConvocacaoRm: item válido vira candidato com o período efetivo", () => {
-  const { candidatos, pulados } = classificarItensConvocacaoRm([item()])
-  assert.equal(pulados.length, 0)
-  assert.equal(candidatos.length, 1)
-  assert.equal(candidatos[0].dataInicio, "2026-08-11")
-  assert.equal(candidatos[0].dataFim, "2026-08-31")
-})
-
-test("classificarItensConvocacaoRm: item de GATILHO (contrato sem chapa) fica fora do lote", () => {
-  // O grupo do gatilho tem 1 item por contrato no mesmo board: contrato preenchido, chapa vazia.
-  // Sem esse filtro ele viraria "convocação" de ninguém.
-  const { candidatos, pulados } = classificarItensConvocacaoRm([
-    item({ itemId: "gatilho", chapa: "", nome: "SEDUC ESCOLA" }),
-  ])
-  assert.equal(candidatos.length, 0)
-  assert.equal(pulados[0].motivo, "sem_chapa")
-})
-
-test("grupoEhConvocavel: só os 3 grupos do DP, e FALHA FECHADO sem grupo", () => {
-  assert.equal(grupoEhConvocavel("MENSAL"), true)
-  assert.equal(grupoEhConvocavel("PONTUAL"), true)
-  assert.equal(grupoEhConvocavel("CANCELADOS PARCIAL"), true)
-  assert.equal(grupoEhConvocavel("MOP/OUTROS"), false)
-  assert.equal(grupoEhConvocavel("NÃO CONVOCADOS"), false)
-  assert.equal(grupoEhConvocavel("CANCELADOS"), false)
-  assert.equal(grupoEhConvocavel("Acompanhamento de Fechamento"), false)
-  assert.equal(grupoEhConvocavel("LANÇAR NO RM (por contrato)"), false)
-  // Sem grupo NÃO passa: se a consulta parar de trazer group{title}, a prévia zera (barulhento)
-  // em vez de gravar eSocial de quem não devia (calado).
-  assert.equal(grupoEhConvocavel(""), false)
-  assert.equal(grupoEhConvocavel(undefined), false)
-})
-
-test("classificarItensConvocacaoRm: MOP/OUTROS fica fora — foi o furo que gravou 3 registros", () => {
-  // C03S003756, C03S003758 e C03S003777 nasceram no RM por MOP/OUTROS e tiveram que ser apagados.
-  const { candidatos, pulados } = classificarItensConvocacaoRm([
-    item({ grupo: "MOP/OUTROS", tipoConvocacao: "MOP" }),
-  ])
-  assert.equal(candidatos.length, 0)
-  assert.equal(pulados[0].motivo, "grupo_fora_do_escopo")
-  assert.equal(pulados[0].detalhe, "MOP/OUTROS")
-})
-
-test("classificarItensConvocacaoRm: NÃO CONVOCADOS não entra nem com datas boas", () => {
-  const { candidatos, pulados } = classificarItensConvocacaoRm([item({ grupo: "NÃO CONVOCADOS" })])
-  assert.equal(candidatos.length, 0)
-  assert.equal(pulados[0].motivo, "grupo_fora_do_escopo")
-})
-
-test("classificarItensConvocacaoRm: os 3 grupos do DP passam", () => {
-  for (const g of ["MENSAL", "PONTUAL", "CANCELADOS PARCIAL"]) {
-    const { candidatos } = classificarItensConvocacaoRm([item({ grupo: g })])
-    assert.equal(candidatos.length, 1, g)
-  }
-})
-
-test("classificarItensConvocacaoRm: já lançado é pulado com o código", () => {
-  const { candidatos, pulados } = classificarItensConvocacaoRm([item({ codRmExistente: " C03S003742 " })])
-  assert.equal(candidatos.length, 0)
-  assert.equal(pulados[0].motivo, "ja_lancado")
-  assert.equal(pulados[0].detalhe, "C03S003742")
-})
-
-test("classificarItensConvocacaoRm: cancelada e bloqueada não vão pro RM", () => {
-  for (const status of ["Cancelada", "Bloqueada - conflito"]) {
-    const { candidatos, pulados } = classificarItensConvocacaoRm([item({ statusConvocacao: status })])
-    assert.equal(candidatos.length, 0, status)
-    assert.equal(pulados[0].motivo, "cancelada", status)
-  }
-})
-
-test("classificarItensConvocacaoRm: cancelamento parcial TRUNCA o fim", () => {
-  const { candidatos } = classificarItensConvocacaoRm([
-    item({ statusConvocacao: "Cancelada parcialmente", cancelamentoInicio: "2026-08-20" }),
-  ])
-  assert.equal(candidatos.length, 1)
-  assert.equal(candidatos[0].dataFim, "2026-08-19") // cancelamento − 1
-})
-
-test("classificarItensConvocacaoRm: parcial cancelado no 1º dia não sobra período", () => {
-  const { candidatos, pulados } = classificarItensConvocacaoRm([
-    item({ statusConvocacao: "Cancelada parcialmente", cancelamentoInicio: "2026-08-11" }),
-  ])
-  assert.equal(candidatos.length, 0)
-  assert.equal(pulados[0].motivo, "cancelada")
-})
-
-test("classificarItensConvocacaoRm: sem período e admissão depois do início são pulados", () => {
-  const semData = classificarItensConvocacaoRm([item({ dataFim: "" })])
-  assert.equal(semData.pulados[0].motivo, "sem_periodo")
-  const admissaoRuim = classificarItensConvocacaoRm([item({ dataAdmissao: "2026-09-01" })])
-  assert.equal(admissaoRuim.pulados[0].motivo, "dados_invalidos")
-  assert.match(admissaoRuim.pulados[0].detalhe!, /admissao_apos_inicio/)
-})
-
-test("classificarItensConvocacaoRm: lote misto mantém contagem e ordem", () => {
-  const r = classificarItensConvocacaoRm([
-    item({ itemId: "ok1" }),
-    item({ itemId: "gat", chapa: "" }),
-    item({ itemId: "ok2", chapa: "7404" }),
-    item({ itemId: "canc", statusConvocacao: "Cancelada" }),
-  ])
-  assert.deepEqual(r.candidatos.map((c) => c.item.itemId), ["ok1", "ok2"])
-  assert.deepEqual(r.pulados.map((p) => p.item.itemId), ["gat", "canc"])
 })

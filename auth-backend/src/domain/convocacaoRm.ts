@@ -11,8 +11,6 @@
 //   - `DESCESTADOCONVOCACAO`/`DESCINDLOCALPRESTACTRAB` são derivados (só a view devolve) ->
 //     mandar no save seria ruído.
 
-import { effectivePeriod } from "./antifraude.js"
-
 export const RM_DATA_SERVER_CONVOCACAO = "FopConvocacaoData"
 export const RM_COLIGADA_CONVOCACAO = 3
 
@@ -299,17 +297,28 @@ export function pkConvocacaoRm(p: { coligada?: number; chapa: string; codConvoca
 }
 
 /**
- * Chave de idempotência (`pi.efeitos_externos`). Etapa NOVA — nome nunca reciclado de outra,
- * senão uma competência já executada devolve "confirmado" e o lote pula tudo em silêncio
- * (foi o que aconteceu em 01/08 com o mensal).
+ * Chave de idempotência do EFEITO EXTERNO — uma por CHAMADA ao RM, ancorada no id da linha de
+ * `pi.convocacoes_rm` (uuid gerado por nós antes da chamada).
  *
- * Granularidade = PESSOA. Chave por lote/contrato faria uma pessoa nova no grupo cancelar a
- * gravação de todo o resto.
+ * A chave anterior era `convocacao_rm:<CONTRATO>:<chapa>:<dataInicio>` e QUEBRAVA: o pedaço 1 da
+ * quebra por atestado e a parte1 da bifurcação herdam o início (e o contrato) do registro que
+ * estão substituindo. A chave batia como `confirmado`, o pedaço era pulado em silêncio, e a
+ * pessoa terminava com menos dias no eSocial — com o lote aparecendo verde.
+ *
+ * Regra que ficou: chave de idempotência é IMUTÁVEL e ÚNICA por chamada real. Chave montada de
+ * atributos de negócio que podem legitimamente se repetir no tempo é armadilha. O de-dup DE
+ * NEGÓCIO mudou de lugar: virou o índice parcial `uq_convocacoes_rm_vivo`, que pode ser liberado
+ * quando o registro é legitimamente superado.
  */
-export function chaveEfeitoConvocacaoRm(p: { contrato: string; chapa: string; dataInicio: string }): string {
-  const contrato = String(p.contrato || "SEM_CONTRATO").trim().toUpperCase().replace(/\s+/g, "_")
-  return `convocacao_rm:${contrato}:${chapaRm(p.chapa)}:${String(p.dataInicio).slice(0, 10)}`
+export function chaveEfeitoConvocacaoRm(lancamentoId: string): string {
+  return `convocacao_rm:${lancamentoId}`
 }
+
+/** Chave da REMOÇÃO. Namespace próprio: apagar é outro efeito, e re-executar não pode redisparar. */
+export function chaveEfeitoRemocaoConvocacaoRm(lancamentoId: string): string {
+  return `convocacao_rm_remover:${lancamentoId}`
+}
+
 
 // ---------------------------------------------------------------------------
 // Pré-voo: o que já existe no RM.
@@ -455,149 +464,6 @@ export function filtroReadViewConvocacao(p: {
     ` AND DTINIPRESTSERV <= '${String(p.dataFim).slice(0, 10)}'` +
     ` AND DTFIMPRESTSERV >= '${String(p.dataInicio).slice(0, 10)}'`
   )
-}
-
-// ---------------------------------------------------------------------------
-// Classificação do lote por contrato (o gatilho é 1 clique = contrato inteiro).
-// ---------------------------------------------------------------------------
-
-/** Item do board Entrada, já reduzido ao que a convocação no RM precisa. */
-export interface ItemConvocacaoMonday {
-  itemId: string
-  nome: string
-  chapa: string
-  contrato: string
-  dataInicio: string
-  dataFim: string
-  dataAdmissao?: string
-  statusConvocacao?: string
-  cancelamentoInicio?: string | null
-  /** Grupo do item no board. É o que decide se entra no lote — ver GRUPOS_CONVOCAVEIS_RM. */
-  grupo?: string
-  /** `OP - Tipo Convocação` — só informativo no relatório; quem manda é o grupo. */
-  tipoConvocacao?: string
-  /** Código RM já gravado no item = esta convocação já foi lançada. */
-  codRmExistente?: string
-}
-
-export type MotivoPuloConvocacaoRm =
-  | "ja_lancado"
-  | "sem_chapa"
-  | "sem_periodo"
-  | "cancelada"
-  | "grupo_fora_do_escopo"
-  | "dados_invalidos"
-  | "ja_no_rm"
-
-/**
- * GRUPOS do board Entrada que viram convocação no RM. Regra do DP (08/08/2026): "olhar apenas 3
- * grupos, MENSAL, PONTUAL e CANCELADOS PARCIAL, só esses 3".
- *
- * Ficam de fora `NÃO CONVOCADOS` (78 itens), `MOP/OUTROS` (5), `CANCELADOS` (2), o grupo do próprio
- * gatilho e os de apoio (ORIENTAÇÕES, Acompanhamento de Fechamento).
- *
- * Por que grupo e não `OP - Tipo Convocação`: o filtro por tipo deixava MOP passar, e foi assim que
- * `C03S003756`/`C03S003758`/`C03S003777` nasceram no RM e tiveram que ser apagados. O DP organiza o
- * trabalho pelo grupo — é o grupo que manda.
- *
- * `CANCELADOS PARCIAL` entra porque a convocação vale até o dia anterior ao cancelamento; quem
- * trunca o fim é `effectivePeriod`.
- */
-export const GRUPOS_CONVOCAVEIS_RM = ["MENSAL", "PONTUAL", "CANCELADOS PARCIAL"] as const
-
-/** Compara sem acento/caixa: o título vem do Monday e "ORIENTAÇÕES"/"NÃO CONVOCADOS" têm acento. */
-function normalizarRotulo(v: unknown): string {
-  return String(v ?? "")
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toUpperCase()
-    .trim()
-}
-
-/**
- * FALHA FECHADO: grupo desconhecido ou vazio NÃO passa.
- *
- * Se a consulta ao Monday parar de trazer `group{title}`, o lote inteiro vira `grupo_fora_do_escopo`
- * e a prévia mostra zero — barulhento e inofensivo. O contrário (deixar passar quando não sei o
- * grupo) gravaria eSocial de quem não devia, calado.
- */
-export function grupoEhConvocavel(grupo: unknown): boolean {
-  const g = normalizarRotulo(grupo)
-  if (!g) return false
-  return GRUPOS_CONVOCAVEIS_RM.some((ok) => normalizarRotulo(ok) === g)
-}
-
-export interface CandidatoConvocacaoRm {
-  item: ItemConvocacaoMonday
-  /** Período EFETIVO — cancelamento parcial trunca o fim. */
-  dataInicio: string
-  dataFim: string
-}
-
-export interface PuloConvocacaoRm {
-  item: ItemConvocacaoMonday
-  motivo: MotivoPuloConvocacaoRm
-  detalhe?: string
-}
-
-/**
- * Separa quem pode ir pro RM de quem não pode, sem tocar em rede.
- *
- * `sem_chapa` não é só defensividade: o gatilho vive num grupo com **um item por contrato**, no
- * mesmo board. Esses itens de gatilho têm contrato preenchido e chapa vazia — é por aqui que eles
- * ficam de fora do lote em vez de virarem "convocação" de ninguém.
- */
-export function classificarItensConvocacaoRm(itens: ItemConvocacaoMonday[]): {
-  candidatos: CandidatoConvocacaoRm[]
-  pulados: PuloConvocacaoRm[]
-} {
-  const candidatos: CandidatoConvocacaoRm[] = []
-  const pulados: PuloConvocacaoRm[] = []
-
-  for (const item of itens) {
-    if ((item.codRmExistente ?? "").trim()) {
-      pulados.push({ item, motivo: "ja_lancado", detalhe: item.codRmExistente!.trim() })
-      continue
-    }
-    if (!chapaAceitavelNoFiltro(item.chapa)) {
-      pulados.push({ item, motivo: "sem_chapa" })
-      continue
-    }
-    if (!grupoEhConvocavel(item.grupo)) {
-      pulados.push({ item, motivo: "grupo_fora_do_escopo", detalhe: item.grupo ?? "(sem grupo)" })
-      continue
-    }
-    // Normaliza antes de tudo: `effectivePeriod` só entende ISO, e `Admissão` vem DD/MM/YYYY.
-    const ini = paraDataIso(item.dataInicio)
-    const fim = paraDataIso(item.dataFim)
-    if (!ini || !fim) {
-      pulados.push({ item, motivo: "sem_periodo" })
-      continue
-    }
-    // Cancelada/bloqueada -> período nulo. Parcial -> fim truncado em (cancelamento - 1).
-    const periodo = effectivePeriod(
-      ini,
-      fim,
-      item.statusConvocacao ?? null,
-      paraDataIso(item.cancelamentoInicio) || null,
-    )
-    if (!periodo) {
-      pulados.push({ item, motivo: "cancelada", detalhe: item.statusConvocacao ?? "" })
-      continue
-    }
-    const erros = validarConvocacaoRm({
-      chapa: item.chapa,
-      dataInicio: periodo.start,
-      dataFim: periodo.end,
-      dataAdmissao: item.dataAdmissao,
-    })
-    if (erros.length) {
-      pulados.push({ item, motivo: "dados_invalidos", detalhe: erros.join(",") })
-      continue
-    }
-    candidatos.push({ item, dataInicio: periodo.start, dataFim: periodo.end })
-  }
-  return { candidatos, pulados }
 }
 
 /**

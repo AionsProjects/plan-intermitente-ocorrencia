@@ -1,25 +1,24 @@
-// Pré-voo da convocação no RM: o que JÁ existe lá antes de gravar qualquer coisa.
+// Gravação de convocação no RM, UMA PESSOA por vez.
 //
-// Existe porque o DP lança convocação no RM na mão desde 2023 (3746 registros na coligada 3).
-// O gatilho novo é por CONTRATO — um clique grava o contrato inteiro. Sem consultar antes, o lote
-// duplica o que um humano gravou minutos atrás, e convocação de intermitente é evento eSocial
-// S-2260: duplicata é problema trabalhista, não sujeira de tabela.
+// Por pessoa, e não por contrato, porque é assim que os dois consumidores funcionam: o pontual
+// grava uma convocação quando o operador cria uma; o mensal chama isto em laço no fim do
+// pagamento. Lote por contrato foi o modelo antigo e saiu.
 //
-// READ-ONLY. Nada aqui grava. O SaveRecord fica na rota do gatilho, atrás de flag + ledger.
+// O pré-voo existe porque o DP lança convocação no RM na mão desde 2023 (3746 registros na
+// coligada 3) e continua lançando. Sem consultar antes, a automação duplica o que um humano
+// gravou minutos atrás — e convocação de intermitente é evento eSocial S-2260, então duplicata é
+// problema trabalhista, não sujeira de tabela.
 import {
   chaveEfeitoConvocacaoRm,
-  classificarItensConvocacaoRm,
   convocacaoJaNoRm,
+  ESTADO_CONVOCACAO_CONCLUIDA,
   filtroReadViewConvocacao,
   lotesDeChapas,
   montarConvocacaoRm,
   parseConvocacoesReadView,
   RM_COLIGADA_CONVOCACAO,
   RM_DATA_SERVER_CONVOCACAO,
-  type CandidatoConvocacaoRm,
   type ConvocacaoExistenteRm,
-  type ItemConvocacaoMonday,
-  type PuloConvocacaoRm,
 } from "../domain/convocacaoRm.js"
 import {
   contextoDataServer,
@@ -29,7 +28,16 @@ import {
   temRmSoap,
   type RmSoapError,
 } from "../clients/rmSoap.js"
-import { confirmarEfeito, estadoEfeito, liberarEfeito, reservarEfeito } from "../jobs/repo.js"
+import { confirmarEfeito, liberarEfeito, reservarEfeito } from "../jobs/repo.js"
+import {
+  confirmarLancamentoRm,
+  falharLancamentoRm,
+  reservarLancamentoRm,
+  type LancamentoRm,
+} from "../repo/convocacoesRm.js"
+
+/** Teto do ReadView de uma pessoa. O default do transporte é de PROCESSO (120s) e é absurdo aqui. */
+const TIMEOUT_PREVOO_MS = 20_000
 
 export interface JanelaConvocacoesRm {
   chapas: string[]
@@ -113,221 +121,222 @@ export async function preVooConvocacaoRm(
 }
 
 // ---------------------------------------------------------------------------
-// Execução do lote por contrato. Aqui é onde GRAVA.
+// Gravação. Aqui é onde escreve no RM.
 // ---------------------------------------------------------------------------
 
-export type EstadoConvocacaoRm =
+export type EstadoGravacaoRm =
+  /** Gravou e o código voltou. */
   | "gravado"
-  /** Chave de efeito já confirmada: alguém (ou outro run) já gravou. Não gravar de novo. */
-  | "pulado_idempotencia"
-  /** Reserva anterior sem confirmação: pode ter gravado e morrido no meio. Exige olho humano. */
-  | "reserva_pendente"
+  /** Gravou no RM, mas o eco do código no Monday falhou. O ledger impede regravar. */
   | "gravado_monday_pendente"
+  /** Nosso rastro já tem um lançamento vivo para este item+início. */
+  | "ja_lancado"
+  /** O pré-voo achou no RM uma convocação cruzando o período (provável lançamento manual do DP). */
+  | "ja_no_rm"
+  /** Slot preso por reserva anterior sem confirmação: pode ter gravado e morrido. Conferir lendo. */
+  | "reserva_pendente"
   | "erro"
-  /** Prévia: seria gravado. */
-  | "seria_gravado"
 
-export interface ResultadoConvocacaoRm {
-  itemId: string
+export interface ResultadoGravacaoRm {
+  estado: EstadoGravacaoRm
   chapa: string
-  nome: string
-  estado: EstadoConvocacaoRm
   dataInicio: string
   dataFim: string
-  dataConvocacao: string
-  antecedenciaDias: number
-  /** Fora da antecedência legal — vai no relatório pro DP ver, não bloqueia. */
-  exigeConfirmacaoRm: boolean
-  chave: string
-  /** Código que o RM gerou (contador automático). Só em `gravado`. */
+  dataConvocacao?: string
+  antecedenciaDias?: number
+  /** Fora da antecedência legal do art. 452-A — vai no relatório, não bloqueia. */
+  exigeConfirmacaoRm?: boolean
+  lancamentoId?: string
+  chave?: string
   codConvocacao?: string
-  /** PK do registro no RM (`3;chapa;codigo`) — é o caminho de volta. */
+  /** PK no RM (`3;chapa;codigo`) — é o caminho de volta. */
   pk?: string
   erro?: string
   /** true = pode ter gravado. NUNCA reenviar; conferir lendo. */
   indeterminado?: boolean
+  detalhe?: string
 }
 
-export interface LoteConvocacaoRmResultado {
+export interface AlvoGravacaoRm {
+  itemOrigemId: string | number
+  mondayBoardId?: string | number | null
+  uuidConvocacao?: string | null
+  chapa: string
   contrato: string
-  previa: boolean
-  resultados: ResultadoConvocacaoRm[]
-  pulados: { itemId: string; chapa: string; nome: string; motivo: string; detalhe?: string }[]
-  totais: Record<string, number>
-}
-
-export interface ExecutarLoteConvocacaoRm {
-  contrato: string
-  itens: ItemConvocacaoMonday[]
-  /** true = não grava nada, nem no RM nem no ledger. */
-  previa: boolean
-  coligada?: number
+  dataInicio: string
+  dataFim: string
+  /** Piso da regra dos 3 dias. Sem ela o ato pode cair antes da admissão de um recém-contratado. */
+  dataAdmissao?: string
   /**
-   * Grava o código do RM de volta no item do Monday. Injetado pela rota — este módulo não conhece
-   * Monday de propósito, pra poder ser exercitado sem board.
+   * Override da data do ato. É por aqui que os pedaços de um período partido herdam o ato do
+   * período original — houve UM ato de convocação, o atestado só interrompeu a prestação.
    */
-  gravarNoMonday?: (item: ItemConvocacaoMonday, codConvocacao: string, pk: string) => Promise<void>
+  dataConvocacao?: string
+  coligada?: number
+  origemAcao?: string
+  criadoPor?: string | null
+  origemLancamentoId?: string | null
 }
 
 /**
- * Executa o lote de um contrato: classifica -> pré-voo no RM -> grava um por um.
+ * Grava UMA convocação no RM.
  *
- * Ordem que importa (lição do mensal em 01/08): a chave de efeito é reservada ANTES do SaveRecord.
- * Se o processo morrer no meio, sobra `pendente` — que na próxima passada vira
- * `reserva_pendente` e pede conferência humana — em vez de gravar a convocação duas vezes.
+ * Ordem que importa (lição do mensal em 01/08): reserva ANTES do SaveRecord, nos dois lugares.
+ * Morrer no meio deixa rastro `reservado` — que na passada seguinte vira `reserva_pendente` e pede
+ * conferência — em vez de gravar a convocação duas vezes.
  *
- * Um item que falha NÃO derruba o lote: cada pessoa tem chave e resultado próprios. Chave de lote
- * faria uma pessoa nova cancelar a gravação de todo o resto.
+ * Três barreiras, e nenhuma é redundante:
+ *   1. `reservarLancamentoRm` — nosso rastro (pega o retry do mesmo pedido);
+ *   2. pré-voo `ReadView` — o que o DP lançou à mão, que o rastro não conhece;
+ *   3. `reservarEfeito` — o ledger transversal de efeitos irreversíveis.
  */
-export async function executarLoteConvocacaoRm(
-  p: ExecutarLoteConvocacaoRm,
-): Promise<LoteConvocacaoRmResultado> {
-  if (!temRmSoap()) throw new Error("rm_soap_nao_configurado")
-  const contexto = contextoDataServer(p.coligada ?? RM_COLIGADA_CONVOCACAO)
-  const { candidatos, pulados } = classificarItensConvocacaoRm(p.itens)
+export async function gravarConvocacaoRm(
+  alvo: AlvoGravacaoRm,
+  opts: {
+    /** Eco do código no item do Monday. Injetado: este módulo não conhece board de propósito. */
+    gravarNoMonday?: (r: { codConvocacao: string; pk: string }) => Promise<void>
+    /** Pula o ReadView quando o caller já fez o pré-voo do grupo todo (mensal). */
+    pularPreVoo?: boolean
+    timeoutMs?: number
+  } = {},
+): Promise<ResultadoGravacaoRm> {
+  const coligada = alvo.coligada ?? RM_COLIGADA_CONVOCACAO
+  const contexto = contextoDataServer(coligada)
 
-  const pool: PuloConvocacaoRm[] = [...pulados]
-  let aGravar: CandidatoConvocacaoRm[] = candidatos
+  // 1) Monta e valida antes de qualquer I/O — entrada ruim não merece round-trip.
+  let montada: ReturnType<typeof montarConvocacaoRm>
+  try {
+    montada = montarConvocacaoRm({
+      chapa: alvo.chapa,
+      dataInicio: alvo.dataInicio,
+      dataFim: alvo.dataFim,
+      dataAdmissao: alvo.dataAdmissao,
+      dataConvocacao: alvo.dataConvocacao,
+      coligada,
+    })
+  } catch (e) {
+    return {
+      estado: "erro",
+      chapa: alvo.chapa,
+      dataInicio: alvo.dataInicio,
+      dataFim: alvo.dataFim,
+      erro: (e as Error).message,
+    }
+  }
 
-  // Pré-voo: o DP lança na mão, então parte do lote pode já estar no RM.
-  if (candidatos.length) {
-    const preVoo = await preVooConvocacaoRm(
-      candidatos.map((c) => ({ chapa: c.item.chapa, dataInicio: c.dataInicio, dataFim: c.dataFim, ref: c.item.itemId })),
-      { coligada: p.coligada },
+  const base = {
+    chapa: montada.chapa,
+    dataInicio: montada.dataInicio,
+    dataFim: montada.dataFim,
+    dataConvocacao: montada.dataConvocacao,
+    antecedenciaDias: montada.antecedenciaDias,
+    exigeConfirmacaoRm: montada.exigeConfirmacaoRm,
+  }
+
+  // 2) Pré-voo: o DP lança à mão e o nosso rastro não sabe disso.
+  if (!opts.pularPreVoo) {
+    const pre = await preVooConvocacaoRm(
+      [{ chapa: montada.chapa, dataInicio: montada.dataInicio, dataFim: montada.dataFim }],
+      { coligada, timeoutMs: opts.timeoutMs ?? TIMEOUT_PREVOO_MS },
     )
-    const jaNoRmPorItem = new Map(preVoo.jaExistem.map((j) => [j.alvo.ref!, j.existente]))
-    aGravar = candidatos.filter((c) => !jaNoRmPorItem.has(c.item.itemId))
-    for (const c of candidatos) {
-      const existente = jaNoRmPorItem.get(c.item.itemId)
-      if (existente) {
-        pool.push({
-          item: c.item,
-          motivo: "ja_no_rm",
-          detalhe: `${existente.codConvocacao} ${existente.dataInicio}..${existente.dataFim}`,
-        })
+    const jaLa = pre.jaExistem[0]?.existente
+    if (jaLa) {
+      return {
+        ...base,
+        estado: "ja_no_rm",
+        codConvocacao: jaLa.codConvocacao,
+        detalhe: `${jaLa.codConvocacao} ${jaLa.dataInicio}..${jaLa.dataFim}`,
       }
     }
   }
 
-  const resultados: ResultadoConvocacaoRm[] = []
-  for (const c of aGravar) {
-    const montada = montarConvocacaoRm({
-      chapa: c.item.chapa,
-      dataInicio: c.dataInicio,
-      dataFim: c.dataFim,
-      dataAdmissao: c.item.dataAdmissao,
-    })
-    const chave = chaveEfeitoConvocacaoRm({
-      contrato: p.contrato,
-      chapa: c.item.chapa,
-      dataInicio: c.dataInicio,
-    })
-    const base = {
-      itemId: c.item.itemId,
-      chapa: montada.chapa,
-      nome: c.item.nome,
-      dataInicio: montada.dataInicio,
-      dataFim: montada.dataFim,
-      dataConvocacao: montada.dataConvocacao,
-      antecedenciaDias: montada.antecedenciaDias,
-      exigeConfirmacaoRm: montada.exigeConfirmacaoRm,
+  // 3) Reserva no nosso rastro. É o índice parcial que decide, não uma chave semântica.
+  const reserva = await reservarLancamentoRm({
+    itemOrigemId: alvo.itemOrigemId,
+    mondayBoardId: alvo.mondayBoardId,
+    uuidConvocacao: alvo.uuidConvocacao,
+    chapa: montada.chapa,
+    contrato: alvo.contrato,
+    dataInicio: montada.dataInicio,
+    dataFim: montada.dataFim,
+    dataConvocacao: montada.dataConvocacao,
+    estadoConvocacao: ESTADO_CONVOCACAO_CONCLUIDA,
+    coligada,
+    origemAcao: alvo.origemAcao,
+    criadoPor: alvo.criadoPor,
+    origemLancamentoId: alvo.origemLancamentoId,
+    payload: { xml: montada.dadosXml },
+  })
+  if (reserva.status === "ocupado") {
+    const dono: LancamentoRm = reserva.lancamento
+    return {
+      ...base,
+      lancamentoId: dono.id,
+      estado: dono.estado === "no_rm" ? "ja_lancado" : "reserva_pendente",
+      codConvocacao: dono.codigo ?? undefined,
+      pk: dono.pk_rm ?? undefined,
+      indeterminado: dono.indeterminado,
+      detalhe: dono.codigo ?? dono.erro ?? undefined,
+    }
+  }
+  const lancamentoId = reserva.lancamento.id
+
+  // 4) Ledger transversal. A chave é o id da linha: uuid fresco, então nunca colide — e é por
+  // isso que ela pode ser a mesma para uma segunda gravação legítima do mesmo período.
+  const chave = chaveEfeitoConvocacaoRm(lancamentoId)
+  await reservarEfeito(chave, "convocacao_rm", {
+    itemOrigemId: String(alvo.itemOrigemId),
+    contrato: alvo.contrato,
+    chapa: montada.chapa,
+    periodo: [montada.dataInicio, montada.dataFim],
+  })
+
+  // 5) Grava.
+  let pk = ""
+  let codConvocacao = ""
+  try {
+    const r = await saveRecordDireto(RM_DATA_SERVER_CONVOCACAO, montada.dadosXml, contexto)
+    pk = r.chave
+    // O RM ignora o código enviado e devolve o do contador automático — é ele que vale.
+    codConvocacao = pk.split(";").pop() ?? ""
+    await confirmarEfeito(chave, pk, { pks: [pk], codConvocacao })
+    await confirmarLancamentoRm(lancamentoId, { codigo: codConvocacao, pkRm: pk })
+  } catch (e) {
+    const err = e as RmSoapError
+    const determinístico = err?.indeterminado === false
+    // Fault = respondeu e recusou, COM rollback: está PROVADO que não gravou, então os dois slots
+    // voltam. Timeout/5xx é o oposto — pode ter gravado, e reenviar é o único jeito de duplicar.
+    if (determinístico) await liberarEfeito(chave).catch(() => {})
+    await falharLancamentoRm(lancamentoId, err?.message ?? String(e), {
+      indeterminado: err?.indeterminado === true,
+    }).catch(() => {})
+    return {
+      ...base,
+      lancamentoId,
       chave,
+      estado: "erro",
+      erro: err?.message?.slice(0, 300) ?? String(e),
+      indeterminado: err?.indeterminado === true,
     }
+  }
 
-    if (p.previa) {
-      // Prévia NÃO reserva: reservar aqui deixaria a chave 'pendente' e travaria a execução real.
-      const estado = await estadoEfeito(chave)
-      resultados.push({
-        ...base,
-        estado:
-          estado === "confirmado"
-            ? "pulado_idempotencia"
-            : estado === "pendente"
-              ? "reserva_pendente"
-              : "seria_gravado",
-      })
-      continue
-    }
-
-    const reserva = await reservarEfeito(chave, "convocacao_rm", {
-      contrato: p.contrato,
-      itemId: c.item.itemId,
-      dataServer: RM_DATA_SERVER_CONVOCACAO,
-      periodo: [montada.dataInicio, montada.dataFim],
-    })
-    if (reserva === "confirmado") {
-      resultados.push({ ...base, estado: "pulado_idempotencia" })
-      continue
-    }
-    if (reserva === "pendente") {
-      // Tentativa anterior reservou e não confirmou. Pode ter gravado no RM. Reenviar é o único
-      // jeito de duplicar de verdade — então não reenvia.
-      resultados.push({
-        ...base,
-        estado: "reserva_pendente",
-        erro: "reserva anterior sem confirmação — conferir no RM antes de repetir",
-      })
-      continue
-    }
-
-    let pk = ""
-    let codConvocacao = ""
+  // 6) Eco no Monday. A partir daqui o RM já tem o registro: falhar aqui só deixa a tela sem o
+  // número, e quem impede a regravação é o rastro + o ledger.
+  if (opts.gravarNoMonday) {
     try {
-      const r = await saveRecordDireto(RM_DATA_SERVER_CONVOCACAO, montada.dadosXml, contexto)
-      pk = r.chave
-      // O RM ignora o código enviado e devolve o do contador automático — é ele que vale.
-      codConvocacao = pk.split(";").pop() ?? ""
-      await confirmarEfeito(chave, pk, { pks: [pk], codConvocacao })
+      await opts.gravarNoMonday({ codConvocacao, pk })
     } catch (e) {
-      const err = e as RmSoapError
-      // Fault do RM = respondeu e recusou, COM rollback: está PROVADO que não gravou, então a
-      // reserva tem que voltar. Sem isso a chave fica `pendente` para sempre e aquela pessoa
-      // nunca mais entra no RM — nem por aqui, nem por nenhum outro caminho.
-      // Timeout/5xx (indeterminado) é o oposto: pode ter gravado, a reserva FICA.
-      if (err?.indeterminado === false) await liberarEfeito(chave).catch(() => {})
-      resultados.push({
+      return {
         ...base,
-        estado: "erro",
-        erro: err?.message?.slice(0, 300) ?? String(e),
-        indeterminado: err?.indeterminado === true,
-      })
-      continue
-    }
-
-    // A partir daqui o RM já tem o registro. Falha no Monday não desfaz nada — só deixa a tela
-    // sem o código, e o ledger é quem impede a regravação.
-    if (p.gravarNoMonday) {
-      try {
-        await p.gravarNoMonday(c.item, codConvocacao, pk)
-      } catch (e) {
-        resultados.push({
-          ...base,
-          estado: "gravado_monday_pendente",
-          codConvocacao,
-          pk,
-          erro: `gravou no RM, falhou no Monday: ${(e as Error).message.slice(0, 200)}`,
-        })
-        continue
+        lancamentoId,
+        chave,
+        estado: "gravado_monday_pendente",
+        codConvocacao,
+        pk,
+        erro: `gravou no RM, falhou no Monday: ${(e as Error).message.slice(0, 200)}`,
       }
     }
-    resultados.push({ ...base, estado: "gravado", codConvocacao, pk })
   }
 
-  const totais: Record<string, number> = {}
-  for (const r of resultados) totais[r.estado] = (totais[r.estado] ?? 0) + 1
-  for (const x of pool) totais[x.motivo] = (totais[x.motivo] ?? 0) + 1
-
-  return {
-    contrato: p.contrato,
-    previa: p.previa,
-    resultados,
-    pulados: pool.map((x) => ({
-      itemId: x.item.itemId,
-      chapa: x.item.chapa,
-      nome: x.item.nome,
-      motivo: x.motivo,
-      detalhe: x.detalhe,
-    })),
-    totais,
-  }
+  return { ...base, lancamentoId, chave, estado: "gravado", codConvocacao, pk }
 }
