@@ -70,7 +70,18 @@ export interface ArquivarInput {
   gerar_planilha_conferencia?: boolean
   atualizar_monday?: boolean
   arquivos?: ArquivoEntrada[]
+  /**
+   * Segmento da NATUREZA na árvore do Drive: `ano/mês/CONTATO/<contrato>/<natureza>/<pessoa>`.
+   *
+   * Default é PONTUAL porque foi quem nasceu aqui, mas o mensal chama esta mesma função — e sem
+   * este parâmetro os arquivos dele iam parar dentro de "INTERMITENTE - PONTUAL", misturados com
+   * os do pontual.
+   */
+  natureza?: string
 }
+
+/** Natureza default — mantém intacto o caminho que o pontual já usa em produção. */
+const NATUREZA_PADRAO = "INTERMITENTE - PONTUAL"
 
 export interface ArquivarResultado {
   ok: true
@@ -161,7 +172,8 @@ export async function arquivarDrive(input: ArquivarInput): Promise<ArquivarResul
   const periodo = sanitizeName(periodoNome(input.data_inicio, input.data_fim))
   const tipo = normDrive(input.tipo || "convocacao").toLowerCase()
 
-  const pastaPessoa = await ensurePath(root, [ano, mes, "CONTATO", contrato, "INTERMITENTE - PONTUAL", pessoa])
+  const natureza = sanitizeName(input.natureza || NATUREZA_PADRAO)
+  const pastaPessoa = await ensurePath(root, [ano, mes, "CONTATO", contrato, natureza, pessoa])
   const pastaConvocacao = await ensureFolder(pastaPessoa.id, periodo)
 
   let pastaUpload = pastaConvocacao

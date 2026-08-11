@@ -9,6 +9,7 @@ import { ChoiceButton } from "@/features/atestados/ChoiceButton"
 import { useAuth } from "@/components/AuthContext"
 import { Acompanhamento } from "./Acompanhamento"
 import { useDemoRun } from "./demoRun"
+import { PainelDev } from "./PainelDev"
 import {
   aprovarRunMensal,
   buscarAoVivo,
@@ -505,6 +506,20 @@ export function MensalPage() {
                   {erroDisparo}
                 </p>
               )}
+              {/* Painel dev também AQUI (pedido do Isaac): a escolha do que vai real pode ser
+                  feita já na conferência, sem percorrer a lista inteira até a confirmação. É o
+                  mesmo estado — marcar aqui aparece marcado lá. Só o painel dev; os controles de
+                  homologação seguem só na confirmação. */}
+              {ehAdmin && !demo && (
+                <div className="mt-4">
+                  <PainelDev
+                    ligado={devLigado}
+                    onLigado={setDevLigado}
+                    familias={familiasReais}
+                    onFamilias={setFamiliasReais}
+                  />
+                </div>
+              )}
               <div className="mt-5 flex justify-end gap-3">
                 <ChoiceButton onClick={() => setEtapa("mes")}>
                   Cancelar
@@ -654,62 +669,14 @@ export function MensalPage() {
                   </p>
                 )}
             </div>
-            {/* MODO DESENVOLVEDOR — só admin. Escolhe POR FAMÍLIA o que vai real; o resto simula.
-                O backend força o run pra homologação (chave por RUN): teste real nunca marca a
-                etapa como feita pra competência. O que for real aqui será reenviado pelo run
-                oficial — teste real implica limpeza manual, como qualquer teste. */}
             {ehAdmin && !demo && (
-              <div className="mt-4 rounded-xl border border-dashed border-violet-400/50 bg-violet-400/[0.06] px-4 py-3 text-left">
-                <label className="flex cursor-pointer items-center gap-2.5">
-                  <input
-                    type="checkbox"
-                    checked={devLigado}
-                    onChange={(e) => setDevLigado(e.target.checked)}
-                    className="size-4 accent-violet-400"
-                  />
-                  <span className="text-[10px] uppercase tracking-[0.16em] text-violet-500 dark:text-violet-300">
-                    Modo desenvolvedor · real por função
-                  </span>
-                </label>
-                {devLigado && (
-                  <>
-                    <p className="mt-2 text-[11px] text-foreground/55">
-                      Marque o que vai <strong>de verdade</strong> — todo o resto simula. Caju{" "}
-                      <strong>sempre simula</strong> neste modo. Envio real de teste não conta pro
-                      run oficial (será reenviado) e pede limpeza manual depois.
-                    </p>
-                    <div className="mt-2 flex flex-col gap-1.5">
-                      {(
-                        [
-                          ["rm_historico", "RM — histórico de benefícios (ZMDHSTBENFUNC)"],
-                          ["rm_financeiro", "RM — lançamento financeiro (FopRotinas + Integrar)"],
-                          ["rm_convocacao", "RM — convocação (eSocial S-2260)"],
-                          ["monday_escritas", "Monday — escritas (Plano, Solicitação, Controle, OK)"],
-                          ["drive", "Drive — arquivamento"],
-                        ] as const
-                      ).map(([valor, rotulo]) => (
-                        <label key={valor} className="flex cursor-pointer items-center gap-2 text-[13px] text-foreground/85">
-                          <input
-                            type="checkbox"
-                            checked={familiasReais.includes(valor)}
-                            onChange={(e) =>
-                              setFamiliasReais((s) =>
-                                e.target.checked ? [...s, valor] : s.filter((x) => x !== valor),
-                              )
-                            }
-                            className="size-3.5 shrink-0 accent-violet-400"
-                          />
-                          <span>{rotulo}</span>
-                        </label>
-                      ))}
-                    </div>
-                    {familiasReais.length > 0 && (
-                      <p className="mt-2 text-[11px] text-violet-500 dark:text-violet-300">
-                        {familiasReais.length} função(ões) com envio REAL — as demais simulam.
-                      </p>
-                    )}
-                  </>
-                )}
+              <div className="mt-4">
+                <PainelDev
+                  ligado={devLigado}
+                  onLigado={setDevLigado}
+                  familias={familiasReais}
+                  onFamilias={setFamiliasReais}
+                />
               </div>
             )}
             <div className="mt-7 flex justify-center gap-3">

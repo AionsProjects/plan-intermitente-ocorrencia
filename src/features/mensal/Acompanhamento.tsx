@@ -249,6 +249,7 @@ export function Acompanhamento({
                   {it.status !== "ok" && it.erro_msg && (
                     <p className="truncate text-[11px] text-[var(--status-red)]">{it.erro_msg}</p>
                   )}
+                  {"referencias_externas" in it && <Referencias refs={it.referencias_externas} />}
                 </div>
                 <span className="shrink-0 font-mono text-xs tabular-nums text-foreground/40">{it.qtd}</span>
               </div>
@@ -354,5 +355,54 @@ export function Acompanhamento({
         )}
       </div>
     </section>
+  )
+}
+
+/**
+ * Referências externas do contrato — o que o run deixou fora do app.
+ *
+ * Hoje o workflow grava só os ids de pedido Caju e o da Solicitação (`referencias_externas` em
+ * `mensal_run_item`). O LINK DA PASTA DO DRIVE ainda não aparece aqui porque `etapaDrive` retorna
+ * `void` e descarta o `pasta_convocacao_drive_url` que o `arquivarDrive` devolve — capturar isso
+ * exige mexer no step, que está sob edição no split Caju VR/VT. Assim que aquilo commitar, o
+ * campo entra neste mesmo componente (a chave prevista é `pastaDriveUrl`).
+ */
+function Referencias({ refs }: { refs: Record<string, unknown> }) {
+  const entradas = Object.entries(refs ?? {}).filter(([, v]) => v != null && v !== "")
+  if (!entradas.length) return null
+  const rotulo = (k: string): string =>
+    ({
+      pedidoCreditoVR: "Crédito VR",
+      pedidoCreditoVT: "Crédito VT",
+      pedidoPixVR: "Boleto VR",
+      pedidoPixVT: "Boleto VT",
+      solicitacaoId: "Solicitação",
+      pastaDriveUrl: "Pasta no Drive",
+    })[k] ?? k
+
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+      {entradas.map(([k, v]) => {
+        const texto = String(v)
+        const ehLink = /^https?:\/\//.test(texto)
+        return (
+          <span key={k} className="text-[10px] text-foreground/45">
+            {rotulo(k)}:{" "}
+            {ehLink ? (
+              <a
+                href={texto}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[rgb(var(--accent-rgb))] underline underline-offset-2"
+              >
+                abrir
+              </a>
+            ) : (
+              <code className="font-mono text-foreground/60">{texto}</code>
+            )}
+          </span>
+        )
+      })}
+    </div>
   )
 }

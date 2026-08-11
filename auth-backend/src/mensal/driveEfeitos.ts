@@ -122,6 +122,9 @@ export async function arquivarDriveMensal(
   for (const [tipo, grupo] of porTipo) {
     const resultado = await arquivarDrive({
       tipo,
+      // Pasta própria: sem isto o mensal caía dentro de "INTERMITENTE - PONTUAL", que é o default
+      // de arquivarDrive (nasceu no pontual e o segmento estava cravado no ensurePath).
+      natureza: "INTERMITENTE - MENSAL",
       nome: `${refs.nomePrefixo ?? ""}MENSAL - ${contrato.contrato}`,
       contrato: contrato.contrato,
       data_inicio: dataInicio,
