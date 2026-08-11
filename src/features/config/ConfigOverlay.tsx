@@ -131,10 +131,22 @@ export function ConfigOverlay() {
 
   return (
     <Dialog open={configAberto} onOpenChange={(o) => !o && fecharConfig()}>
+      {/* `bg-transparent` (utility) sobrescrevia o tint do .glass-modal e o painel ficava SEM
+          superfície própria: o fundo do diálogo passava a ser o BACKDROP. No tema escuro isso
+          combina; no claro o backdrop escurecido virava um cinza-azulado (rgb 128,136,155) e o
+          texto por cima caía pra ~2,2 de contraste. Agora o painel pinta o próprio vidro, e o
+          backdrop é por tema: `--shadow` é preto no escuro (0,0,0) e azul-ardósia no claro
+          (28,40,70) — a mesma opacidade pesa muito mais no claro. */}
       <DialogContent
-        className="glass-modal border-0 bg-transparent p-6 text-foreground sm:max-w-lg sm:p-7"
-        overlayClassName="bg-[rgb(var(--shadow)/0.5)] backdrop-blur-[3px]"
+        className="glass-modal border-0 p-6 text-foreground sm:max-w-lg sm:p-7"
+        overlayClassName="bg-[rgb(var(--shadow)/0.22)] dark:bg-[rgb(var(--shadow)/0.55)] backdrop-blur-[3px]"
         style={{
+          // No `style` e não em classe: as duas formas do Tailwind (`bg-[var(--x)]` e `bg-(--x)`)
+          // são resolvidas em BUILD neste setup e entregavam o mesmo valor fixo nos dois temas —
+          // medido. Inline é runtime puro, então a var acompanha o tema de verdade, e ainda vence
+          // o `bg-background` que o DialogContent aplica como utility (cascade layers fazem
+          // utilities ganharem de qualquer classe em @layer components, mesmo mais específica).
+          background: "var(--glass-bg-strong)",
           backdropFilter: "blur(10px) saturate(130%)",
           WebkitBackdropFilter: "blur(10px) saturate(130%)",
         }}
