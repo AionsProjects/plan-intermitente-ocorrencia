@@ -90,6 +90,16 @@ export async function etapaRealNoRunDev(runId: string, etapa: string): Promise<b
   return familia != null && familias.has(familia)
 }
 
+/**
+ * A FAMÍLIA vai real neste run dev? Igual a `etapaRealNoRunDev`, mas perguntando direto pela
+ * família — serve pra efeito que não é uma etapa do ledger, como o eco do código no board (que
+ * acontece dentro do serviço de convocação, não num step).
+ */
+export async function familiaRealNoRunDev(runId: string, familia: FamiliaEfeito): Promise<boolean> {
+  const familias = await familiasReaisDoRun(runId)
+  return !!familias && familias.has(familia)
+}
+
 /** Só pra teste: limpa o cache entre casos. */
 export function limparCacheDev(): void {
   cache.clear()

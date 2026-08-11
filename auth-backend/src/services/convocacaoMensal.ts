@@ -300,9 +300,21 @@ export async function resolverEcoConvocacaoRm(): Promise<{ boardId: string; colC
 export async function processarLoteConvocacaoMensal(
   contrato: string,
   alvos: AlvoConvocacaoMensal[],
-  opts: { boardId: string; colCodRm: string | null; deps?: DepsConvocacaoMensal; timeoutMs?: number },
+  opts: {
+    boardId: string
+    colCodRm: string | null
+    deps?: DepsConvocacaoMensal
+    timeoutMs?: number
+    /**
+     * Escrever o código na coluna do board. `false` num run de desenvolvedor que não marcou
+     * `monday_escritas`: gravar no RM sem tocar no Monday. Default true — em run normal o eco é
+     * parte da convocação (é onde o C03S###### fica visível pro DP).
+     */
+     ecoNoBoard?: boolean
+  },
 ): Promise<RelatorioConvocacaoMensal> {
   const deps = opts.deps ?? DEPS_MENSAL_PADRAO
+  const ecoNoBoard = opts.ecoNoBoard !== false
   const timeoutMs = opts.timeoutMs ?? TIMEOUT_FILA_MS
   const r = relatorioVazio(contrato, alvos.length)
   if (!alvos.length) return r
@@ -323,6 +335,9 @@ export async function processarLoteConvocacaoMensal(
     // substituída por lookup local, mantendo o resto do fluxo idêntico ao pontual.
     const depsPessoa: DepsPontual = {
       ...deps.pontual,
+      // Eco desligado = no-op. O serviço do pontual sempre ecoa (lá é o comportamento certo);
+      // quem decide no mensal é o run.
+      mudarColunas: ecoNoBoard ? deps.pontual.mudarColunas : (async () => {}) as DepsPontual["mudarColunas"],
       ausencias: async () => ({
         cortes: cortesPorChapa.get(chapaNorm) ?? [],
         ausencias: [],

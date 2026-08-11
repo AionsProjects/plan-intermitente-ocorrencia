@@ -4,7 +4,9 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import {
+  planejarAlvosMensal,
   processarConvocacaoMensalContrato,
+  processarLoteConvocacaoMensal,
   type DepsConvocacaoMensal,
   type ItemConvocacaoMensal,
 } from "./convocacaoMensal.js"
@@ -223,4 +225,24 @@ test("contrato vazio devolve relatório zerado sem I/O de atestado", async () =>
   const r = await processarConvocacaoMensalContrato("TESTE", { ...OPTS, deps: d })
   assert.equal(r.total, 0)
   assert.equal(r.temPendencia, false)
+})
+
+test("ecoNoBoard=false: grava no RM sem tocar no board", async () => {
+  // Run dev que marcou só `rm_convocacao`: o eco é escrita no Monday e segue a família
+  // `monday_escritas`, que está desmarcada. Sem isto, "só convocação" ainda escrevia no board.
+  let escreveu = false
+  const { d } = deps([item()], RESULTADO_OK)
+  d.pontual.mudarColunas = (async () => { escreveu = true }) as DepsConvocacaoMensal["pontual"]["mudarColunas"]
+  d.processar = (async (_dados, opts) => {
+    // o serviço do pontual ecoa por aqui — com eco desligado tem que ser no-op
+    await opts!.deps!.mudarColunas("1", "900001", { x: "C03S000100" })
+    return RESULTADO_OK
+  }) as DepsConvocacaoMensal["processar"]
+
+  const { alvos } = planejarAlvosMensal("TESTE", [item()])
+  await processarLoteConvocacaoMensal("TESTE", alvos, { ...OPTS, deps: d, ecoNoBoard: false })
+  assert.equal(escreveu, false, "com eco desligado o board não pode ser tocado")
+
+  await processarLoteConvocacaoMensal("TESTE", alvos, { ...OPTS, deps: d })
+  assert.equal(escreveu, true, "default (run normal) ecoa")
 })

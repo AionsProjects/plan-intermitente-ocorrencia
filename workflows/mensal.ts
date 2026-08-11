@@ -43,7 +43,7 @@ import {
 import { codigoSecaoContrato } from "../auth-backend/src/mensal/calculo.js"
 import type { ContratoPreviaMensal, SnapshotPreviaMensal } from "../auth-backend/src/mensal/types.js"
 // Modo desenvolvedor (import isolado de propósito — o bloco acima está sob edição de outra sessão).
-import { etapaRealNoRunDev } from "../auth-backend/src/mensal/devEfeitos.js"
+import { etapaRealNoRunDev, familiaRealNoRunDev } from "../auth-backend/src/mensal/devEfeitos.js"
 // Convocação no RM (S-2260) — serviço testado à parte; aqui só o fatiamento em steps.
 import {
   lerItensConvocacaoMensal,
@@ -461,7 +461,11 @@ async function etapaConvocacaoRmLote(
     return null
   }
 
-  const rel = await processarLoteConvocacaoMensal(contrato, alvos, { boardId, colCodRm })
+  // O eco do codigo no board e escrita no Monday, entao segue a familia `monday_escritas`: num
+  // run dev que so marcou `rm_convocacao`, grava no RM e NAO toca no board. Fora de run dev o eco
+  // acontece sempre — e onde o C03S###### fica visivel pro DP.
+  const ecoNoBoard = modo !== "homologacao" || (await familiaRealNoRunDev(runId, "monday_escritas"))
+  const rel = await processarLoteConvocacaoMensal(contrato, alvos, { boardId, colCodRm, ecoNoBoard })
 
   // Falha retryável JOGA — o WDK re-executa o step e a idempotência por pessoa pula os gravados.
   if (rel.falhas.length) {
@@ -481,7 +485,7 @@ async function etapaConvocacaoRmLote(
   await registrarEvento({
     runId, contrato, etapa, estado: "concluido", tentativa: metadata.attempt,
     metadados: {
-      sub: `lote${loteIdx}`, gravados: rel.gravados, ja_existiam: rel.jaExistiam,
+      sub: `lote${loteIdx}`, eco_no_board: ecoNoBoard, gravados: rel.gravados, ja_existiam: rel.jaExistiam,
       cobertos: rel.cobertos, requer_decisao: rel.requerDecisao.length, conciliando: rel.conciliando.length,
       codigos: rel.pessoas.flatMap((p) => p.codigos ?? []),
     },
