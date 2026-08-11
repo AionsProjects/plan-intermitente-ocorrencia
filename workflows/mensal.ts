@@ -42,17 +42,16 @@ import {
 } from "../auth-backend/src/mensal/rmEfeitos.js"
 import { codigoSecaoContrato } from "../auth-backend/src/mensal/calculo.js"
 import type { ContratoPreviaMensal, SnapshotPreviaMensal } from "../auth-backend/src/mensal/types.js"
-// Modo desenvolvedor (import isolado de propósito — o bloco acima está sob edição de outra sessão).
-import { etapaRealNoRunDev, familiaRealNoRunDev } from "../auth-backend/src/mensal/devEfeitos.js"
-// Convocação no RM (S-2260) — serviço testado à parte; aqui só o fatiamento em steps.
-import {
-  lerItensConvocacaoMensal,
-  mesclarRelatorios,
-  planejarAlvosMensal,
-  processarLoteConvocacaoMensal,
-  resolverEcoConvocacaoRm,
-  type AlvoConvocacaoMensal,
-  type RelatorioConvocacaoMensal,
+// ⚠️ Modo desenvolvedor e convocação no RM entram por import DINÂMICO, dentro dos steps.
+//
+// O corpo do workflow é avaliado numa VM isolada (`Script.runInContext`) que NÃO tem `require`.
+// Importar estes módulos no topo arrasta o driver `pg` (CommonJS) para dentro dessa VM e o
+// workflow inteiro morre no load com `ReferenceError: require is not defined` — derrubando o
+// mensal todo, não só o passo novo. Os steps rodam em Node normal, então lá o import é seguro.
+// Só os TIPOS podem vir no topo: são apagados na compilação.
+import type {
+  AlvoConvocacaoMensal,
+  RelatorioConvocacaoMensal,
 } from "../auth-backend/src/services/convocacaoMensal.js"
 
 const MESES_LABEL = ["JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO",
@@ -417,6 +416,8 @@ async function etapaConvocacaoRmPlano(
     return null
   }
   await registrarEvento({ runId, contrato, etapa, estado: "rodando", tentativa: metadata.attempt })
+  const { lerItensConvocacaoMensal, planejarAlvosMensal, resolverEcoConvocacaoRm } =
+    await import("../auth-backend/src/services/convocacaoMensal.js")
   const itens = await lerItensConvocacaoMensal(contrato)
   const { alvos, previa } = planejarAlvosMensal(contrato, itens)
   const eco = await resolverEcoConvocacaoRm()
@@ -464,6 +465,8 @@ async function etapaConvocacaoRmLote(
   // O eco do codigo no board e escrita no Monday, entao segue a familia `monday_escritas`: num
   // run dev que so marcou `rm_convocacao`, grava no RM e NAO toca no board. Fora de run dev o eco
   // acontece sempre — e onde o C03S###### fica visivel pro DP.
+  const { familiaRealNoRunDev } = await import("../auth-backend/src/mensal/devEfeitos.js")
+  const { processarLoteConvocacaoMensal } = await import("../auth-backend/src/services/convocacaoMensal.js")
   const ecoNoBoard = modo !== "homologacao" || (await familiaRealNoRunDev(runId, "monday_escritas"))
   const rel = await processarLoteConvocacaoMensal(contrato, alvos, { boardId, colCodRm, ecoNoBoard })
 
@@ -521,6 +524,31 @@ async function etapaConvocacaoRmResumo(
 }
 
 /**
+ * Soma dois relatórios do mesmo contrato. Vive AQUI, e não importado do serviço, porque
+ * `executarConvocacaoRmContrato` roda no CORPO do workflow (a VM sem `require`) — importar de lá
+ * arrastaria `pg` pra dentro dela. É função pura; duplicar é mais barato que quebrar o load.
+ */
+function mesclarRelatoriosPuro(
+  a: RelatorioConvocacaoMensal,
+  b: RelatorioConvocacaoMensal,
+): RelatorioConvocacaoMensal {
+  return {
+    contrato: a.contrato,
+    total: a.total + b.total,
+    gravados: a.gravados + b.gravados,
+    jaExistiam: a.jaExistiam + b.jaExistiam,
+    cobertos: a.cobertos + b.cobertos,
+    canceladasSemDias: a.canceladasSemDias + b.canceladasSemDias,
+    requerDecisao: [...a.requerDecisao, ...b.requerDecisao],
+    conciliando: [...a.conciliando, ...b.conciliando],
+    falhas: [...a.falhas, ...b.falhas],
+    invalidos: [...a.invalidos, ...b.invalidos],
+    pessoas: [...a.pessoas, ...b.pessoas],
+    temPendencia: a.temPendencia || b.temPendencia,
+  }
+}
+
+/**
  * Orquestra plano → lotes → resumo. Pendência humana (requer_decisao/conciliando) lança
  * FatalError DEPOIS do resumo: o contrato marca erro (decisão 4 — AUTOMAÇÃO-OK só com 100%) com
  * o detalhe já registrado na timeline. Retry não conserta decisão humana, por isso Fatal.
@@ -539,7 +567,7 @@ async function executarConvocacaoRmContrato(
     const rel = await etapaConvocacaoRmLote(
       runId, modo, competencia, contrato, fatia, i, plano.boardId, plano.colCodRm,
     )
-    if (rel) agregado = mesclarRelatorios(agregado, rel)
+    if (rel) agregado = mesclarRelatoriosPuro(agregado, rel)
   }
   await etapaConvocacaoRmResumo(runId, contrato, agregado)
   if (agregado.requerDecisao.length || agregado.conciliando.length) {
@@ -576,6 +604,7 @@ async function reservarOuPular(
   // run). Família marcada executa DE VERDADE — mas com a chave por run lá de cima, então o envio
   // de teste nunca marca a etapa como feita pra competência. Depois do check de "pendente" de
   // propósito: envio real de dev que ficou mudo trava em conciliação igual produção.
+  const { etapaRealNoRunDev } = await import("../auth-backend/src/mensal/devEfeitos.js")
   if (modo === "homologacao" && (await etapaRealNoRunDev(runId, etapa))) {
     return { chave, acao: "executar" }
   }
