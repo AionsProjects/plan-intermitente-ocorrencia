@@ -208,6 +208,15 @@ export function caixaAtual(hoje = new Date()): string {
   return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`
 }
 
+/**
+ * Marca no snapshot que a antifraude foi desligada nesta prévia.
+ *
+ * É constante (e não string solta) porque virou TRAVA: a rota de aprovação recusa aprovar uma
+ * prévia com esta marca fora de homologação, a menos que o run seja de desenvolvedor. Sem isso,
+ * um bypass feito "pra testar" poderia virar um pagamento real em contrato já pago.
+ */
+export const ALERTA_ANTIFRAUDE_OFF = "antifraude_desabilitada_teste_homologacao"
+
 export async function calcularPreviaMensal(
   papel: PapelMensal,
   opts: { bypassAntifraude?: boolean; caixa?: string } = {},
@@ -260,7 +269,7 @@ export async function calcularPreviaMensal(
   if (!apoio.grupoSolicitacao) alertas.push("grupo_caixa_solicitacao_sera_criado_na_execucao")
   if (!apoio.parametros) alertas.push("parametros_beneficios_vazio")
   if (!contratos.length) alertas.push("nenhum_contrato_elegivel")
-  if (opts.bypassAntifraude) alertas.push("antifraude_desabilitada_teste_homologacao")
+  if (opts.bypassAntifraude) alertas.push(ALERTA_ANTIFRAUDE_OFF)
   alertas.push("totais_financeiros_calculados_em_codigo_aguardando_paridade_aprovada")
   return {
     versao: 1,

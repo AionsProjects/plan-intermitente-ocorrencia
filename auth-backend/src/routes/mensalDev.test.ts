@@ -72,4 +72,35 @@ test("sem familiasReais o fluxo normal segue intacto (cai no 404/409 do run, nã
   assert.notEqual(r.statusCode, 403)
 })
 
+
+test("previa com antifraude desligada NAO pode virar run normal — so modo dev", async () => {
+  // A trava existe porque furar a antifraude é útil pra teste (competência já paga bloqueia
+  // tudo) mas aprovar isso como run normal pagaria DE NOVO quem já recebeu.
+  const { query } = await import("../db.js")
+  const RUN = "00000000-0000-4000-8000-00000000d2aa"
+  await query(`DELETE FROM mensal_run WHERE run_id=$1`, [RUN])
+  await query(
+    `INSERT INTO mensal_run (run_id, papel, competencia, modo, status, snapshot)
+     VALUES ($1,'atual','2099-01','producao','aguardando_aprovacao',
+             '{"alertas":["antifraude_desabilitada_teste_homologacao"],"contratos":[]}'::jsonb)`,
+    [RUN],
+  )
+  const c = await cookieDe("admin.teste@contatoserv.com.br", "admin")
+  const semDev = await app.inject({
+    method: "POST", url: `/api/mensal/runs/${RUN}/aprovar`,
+    headers: { "content-type": "application/json", cookie: c }, payload: {},
+  })
+  assert.equal(semDev.statusCode, 400)
+  assert.equal(semDev.json().erro, "previa_sem_antifraude_exige_modo_dev")
+
+  // Com modo dev, a trava libera (segue o fluxo normal de aprovação).
+  const comDev = await app.inject({
+    method: "POST", url: `/api/mensal/runs/${RUN}/aprovar`,
+    headers: { "content-type": "application/json", cookie: c },
+    payload: { familiasReais: ["rm_convocacao"] },
+  })
+  assert.notEqual(comDev.json().erro, "previa_sem_antifraude_exige_modo_dev")
+  await query(`DELETE FROM mensal_run WHERE run_id=$1`, [RUN])
+})
+
 test("teardown", async () => { await app.close() })

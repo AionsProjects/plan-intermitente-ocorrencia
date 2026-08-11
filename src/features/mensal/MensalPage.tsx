@@ -212,7 +212,7 @@ export function MensalPage() {
     setOcupado(true)
     setErroDisparo(null)
     try {
-      const p = await criarPreviaMensal(papel, ehHomologacao && bypassAntifraude, caixa)
+      const p = await criarPreviaMensal(papel, (ehHomologacao || ehAdmin) && bypassAntifraude, caixa)
       aplicarPrevia(p)
     } catch (e) {
       // 409: já existe um run global. Resolve automaticamente:
@@ -518,6 +518,20 @@ export function MensalPage() {
                     familias={familiasReais}
                     onFamilias={setFamiliasReais}
                   />
+                  {/* Antifraude só aparece aqui pra ADMIN fora de homologação: numa competência
+                      já paga todo contrato volta bloqueado e não há o que testar. O backend só
+                      aceita aprovar uma prévia assim em modo dev. */}
+                  {devLigado && !ehHomologacao && (
+                    <label className="mt-2 flex cursor-pointer items-center gap-2.5 text-[13px] text-foreground/85">
+                      <input
+                        type="checkbox"
+                        checked={bypassAntifraude}
+                        onChange={(e) => alternarBypass(e.target.checked)}
+                        className="size-4 accent-violet-400"
+                      />
+                      Desligar antifraude (mostra contratos já pagos — recalcula a prévia)
+                    </label>
+                  )}
                 </div>
               )}
               <div className="mt-5 flex justify-end gap-3">

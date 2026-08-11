@@ -14,6 +14,7 @@ import {
 } from "../mensal/repo.js"
 import { registrarAtividadeServidor } from "./atividade.js"
 import { FAMILIAS_EFEITO, familiasValidas, marcarRunDev } from "../mensal/devEfeitos.js"
+import { ALERTA_ANTIFRAUDE_OFF } from "../mensal/previa.js"
 import type { PapelMensal } from "../mensal/types.js"
 import { executarMensalWorkflowClient } from "../mensal/workflowClient.js"
 import { usuarioDaSessao } from "../session.js"
@@ -72,8 +73,12 @@ export async function rotasMensalOrquestracao(app: FastifyInstance): Promise<voi
       // Bypass da antifraude é TESTE — homologação sempre; producao SÓ na janela de ensaio
       // (MENSAL_TEST_BYPASS_ANTIFRAUDE=1). Fora disso, produção mantém a proteção anti-duplicidade.
       // Board sandbox (papel teste): antifraude sempre ignorada — reenvio livre é o objetivo.
+      // ADMIN também pode furar, mesmo em produção: sem isso não há como testar nada numa
+      // competência já paga (todo contrato volta `bloqueado`). O risco de virar pagamento real
+      // está fechado na APROVAÇÃO — prévia com bypass fora de homologação só é aprovada em modo
+      // desenvolvedor. Ver ALERTA_ANTIFRAUDE_OFF abaixo.
       const bypassAntifraude = papel === "teste" || (req.body?.bypassAntifraude === true &&
-        (config.mensalModo === "homologacao" || config.mensalTestBypassAntifraude))
+        (config.mensalModo === "homologacao" || config.mensalTestBypassAntifraude || u.papel === "admin"))
       // Mês de CAIXA (gaveta dos boards Solicitação/Controle). Default = mês atual; o operador
       // pode escolher outro pra pagamento retroativo cair no fechamento certo.
       const caixa = /^\d{4}-\d{2}$/.test(req.body?.caixa ?? "") ? req.body!.caixa! : undefined
@@ -111,6 +116,21 @@ export async function rotasMensalOrquestracao(app: FastifyInstance): Promise<voi
         if (u.papel !== "admin") return reply.code(403).send({ erro: "modo_dev_requer_admin" })
         if (!familiasValidas(familiasReais)) {
           return reply.code(400).send({ erro: "familia_invalida", validas: FAMILIAS_EFEITO })
+        }
+      }
+
+      // TRAVA: prévia que furou a antifraude fora de homologação só pode virar run de
+      // DESENVOLVEDOR. Furar é útil pra teste (competência já paga bloqueia tudo), mas aprovar
+      // isso como run normal pagaria de novo quem já recebeu — e o snapshot é imutável, então a
+      // marca do bypass viaja com ele até aqui.
+      {
+        const run = await obterSnapshotRun(req.params.runId).catch(() => null)
+        const furou = run?.snapshot?.alertas?.includes(ALERTA_ANTIFRAUDE_OFF)
+        if (furou && run?.modo !== "homologacao" && familiasReais === undefined) {
+          return reply.code(400).send({
+            erro: "previa_sem_antifraude_exige_modo_dev",
+            detalhe: "Esta prévia foi calculada com a antifraude desligada. Aprove em Modo desenvolvedor ou refaça a prévia com a antifraude ligada.",
+          })
         }
       }
       // Filtro opcional de contratos (teste): roda só os informados. Vazio/ausente = todos.
