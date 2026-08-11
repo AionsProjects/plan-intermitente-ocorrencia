@@ -383,7 +383,7 @@ export function MensalPage() {
                   {pessoas.data.porContrato.map((c) => (
                     <span
                       key={c.contrato}
-                      className="inline-flex items-center gap-2 rounded-full border border-border bg-[#13131b] px-3 py-1 text-[12px]"
+                      className="inline-flex items-center gap-2 rounded-full border border-border bg-popover px-3 py-1 text-[12px]"
                     >
                       <span className="text-foreground/85">{c.contrato}</span>
                       <span className="rounded-full bg-[rgb(var(--accent-rgb)/0.15)] px-1.5 font-mono text-[11px] text-[rgb(var(--accent-rgb))]">
@@ -398,7 +398,7 @@ export function MensalPage() {
                 <div className="max-h-[60vh] overflow-auto overscroll-contain rounded-2xl border border-border">
                   <table className="w-full border-collapse text-[13px]">
                     <thead className="sticky top-0 z-20">
-                      <tr className="bg-[#13131b] text-foreground [&_th]:bg-[#13131b] [&_th]:shadow-[0_8px_14px_-6px_rgba(0,0,0,0.9)]">
+                      <tr className="bg-popover text-foreground [&_th]:bg-popover [&_th]:shadow-[0_8px_14px_-6px_rgb(var(--shadow)/0.5)]">
                         <Th>#</Th>
                         <Th>Nome</Th>
                         <Th>Chapa</Th>
@@ -409,7 +409,7 @@ export function MensalPage() {
                     </thead>
                     <tbody>
                       {pessoas.data.pessoas.map((p, i) => (
-                        <tr key={p.chapa + i} className="border-t border-border/70 hover:bg-white/[0.025]">
+                        <tr key={p.chapa + i} className="border-t border-border/70 hover:bg-foreground/[0.04]">
                           <Td className="text-center text-foreground/40">{i + 1}</Td>
                           <Td className="font-medium text-foreground/95 whitespace-nowrap">{p.nome}</Td>
                           <Td className="font-mono">{p.chapa}</Td>
