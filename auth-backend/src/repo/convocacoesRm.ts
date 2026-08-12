@@ -239,6 +239,12 @@ export async function vincularUuidConvocacao(
  *
  * `a_remover` está fora do índice único de propósito — libera o slot pro pedaço que herda o mesmo
  * início (o 05→09 da quebra por atestado).
+ *
+ * SÓ aceita `no_rm`. Antes aceitava `reservado` também, e isso NUNCA funcionou: linha reservada
+ * tem `codigo` NULL e o CHECK `ck_convocacoes_rm_codigo` exige código para `a_remover` — dava
+ * 23514 justamente no caso "gravou e morreu no meio", o que mais se precisa remover. E o remédio
+ * certo ali não é remover: sem código não há registro no RM pra apagar. Esse caso é
+ * `falharLancamentoRm` (libera o slot) ou conciliação por leitura, se for indeterminado.
  */
 export async function marcarParaRemocaoRm(
   id: string,
@@ -248,7 +254,7 @@ export async function marcarParaRemocaoRm(
     `UPDATE convocacoes_rm
         SET estado='a_remover', motivo_saida=$2, removido_por=$3,
             observacao=coalesce($4, observacao), atualizado_em=now()
-      WHERE id=$1 AND estado IN ('no_rm','reservado') RETURNING *`,
+      WHERE id=$1 AND estado='no_rm' RETURNING *`,
     [id, p.motivo, p.removidoPor ?? null, p.observacao ?? null],
   )
   return rows[0] ?? null
@@ -290,10 +296,12 @@ export async function planejarSubstituicaoRm(p: {
 
     const aRemover: LancamentoRm[] = []
     for (const r of p.remover) {
+      // Só `no_rm`, mesma razão de marcarParaRemocaoRm: `reservado` tem código NULL e o CHECK
+      // recusa. Linha que não casa fica de fora do plano — o caller vê pelo tamanho de `aRemover`.
       const { rows } = await client.query<LancamentoRm>(
         `UPDATE convocacoes_rm
             SET estado='a_remover', motivo_saida=$2, removido_por=$3, atualizado_em=now()
-          WHERE id=$1 AND estado IN ('no_rm','reservado') RETURNING *`,
+          WHERE id=$1 AND estado='no_rm' RETURNING *`,
         [r.id, r.motivo, p.removidoPor ?? null],
       )
       if (rows[0]) aRemover.push(rows[0])

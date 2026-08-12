@@ -205,10 +205,39 @@ export async function checkServiceActivity(servico: "dataserver" | "process" = "
  * DeleteRecordByKey — DESTRUTIVO. Existe para desfazer teste controlado e para conciliação
  * (ex.: linha de histórico gravada em duplicidade). Nunca é chamado pelo fluxo do mensal.
  */
+/**
+ * O registro existe no RM? Devolve o XML quando existe, `null` quando não.
+ *
+ * É a prova obrigatória ANTES e DEPOIS de um DeleteRecordByKey. O motivo é um caso real: em
+ * 08/08 uma limpeza apagou uma PK *prevista* que nunca existiu, e como `ReadRecord` lançar foi
+ * lido como "removido", dois registros ficaram órfãos no RM. Sem checar antes, não se sabe se
+ * havia o que apagar; sem checar depois, não se sabe se apagou.
+ *
+ * Exceção vira `null` de propósito: o RM lança quando a chave não existe, e esse é o caso
+ * "não existe" — não um erro a propagar. Quem precisa distinguir indisponibilidade chama
+ * `readRecordDireto` direto.
+ */
+export async function existeRegistroRm(
+  dataServerName: string,
+  chave: string,
+  contexto: string,
+): Promise<string | null> {
+  try {
+    const xml = desescaparXml(await readRecordDireto(dataServerName, chave, contexto))
+    // Resposta vazia/curta = sem registro. O 40 vem do script rm-delete, que é o uso que já
+    // apagou registro real em produção.
+    return /<\w+>[\s\S]*<\/\w+>/.test(xml) && xml.trim().length > 40 ? xml : null
+  } catch {
+    return null
+  }
+}
+
 export async function deleteRecordByKeyDireto(
   dataServerName: string,
   chave: string,
   contexto: string,
+  /** Teto próprio — mesmo motivo do `saveRecordDireto`: timeout curto vira `indeterminado`. */
+  timeoutMs?: number,
 ): Promise<string> {
   const envelope = `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tot="http://www.totvs.com/">
    <soapenv:Header/>
@@ -220,7 +249,7 @@ export async function deleteRecordByKeyDireto(
       </tot:DeleteRecordByKey>
    </soapenv:Body>
 </soapenv:Envelope>`
-  const xml = await postSoap(PATH_DATASERVER, ACTION_DELETE_KEY, envelope, config.rmSoapTimeoutMs)
+  const xml = await postSoap(PATH_DATASERVER, ACTION_DELETE_KEY, envelope, timeoutMs ?? config.rmSoapTimeoutMs)
   return extrairTag(xml, "DeleteRecordByKeyResult") ?? ""
 }
 

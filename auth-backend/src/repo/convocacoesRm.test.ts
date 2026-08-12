@@ -130,9 +130,27 @@ test("planejarSubstituicaoRm: o pedaço que HERDA o início cabe, atomicamente",
   assert.equal(vivos.length, 2)
 })
 
+test("remover só vale pra quem ESTÁ no RM — linha reservada não vira a_remover", async () => {
+  await limpar()
+  // Linha `reservado` tem codigo NULL, e o CHECK ck_convocacoes_rm_codigo exige código pra
+  // 'a_remover'. Antes a função aceitava 'reservado' e estourava 23514 — justamente no caso
+  // "gravou e morreu no meio". Agora devolve null: sem código não há registro no RM pra apagar,
+  // e o caminho certo pra esse caso é falharLancamentoRm / conciliação.
+  const r = await reservarLancamentoRm(base())
+  assert.equal(r.lancamento.estado, "reservado")
+  assert.equal(r.lancamento.codigo, null)
+  const m = await marcarParaRemocaoRm(r.lancamento.id, { motivo: "cancelamento_total" })
+  assert.equal(m, null, "não pode marcar; e não pode estourar")
+  const [depois] = await lancamentosDoItem(ITEM)
+  assert.equal(depois!.estado, "reservado", "a linha fica intacta")
+})
+
 test("planejarSubstituicaoRm: falha no meio não deixa metade aplicada", async () => {
   await limpar()
+  // `orig` precisa estar NO RM pra entrar no plano de remoção — senão o rejects viria só da
+  // colisão dos dois `criar`, e o teste passaria sem exercitar o que anuncia.
   const orig = await reservarLancamentoRm(base())
+  await confirmarLancamentoRm(orig.lancamento.id, { codigo: "C03S999004", pkRm: "3;x;C03S999004" })
   await assert.rejects(() =>
     planejarSubstituicaoRm({
       remover: [{ id: orig.lancamento.id, motivo: "bifurcacao" }],
@@ -145,7 +163,7 @@ test("planejarSubstituicaoRm: falha no meio não deixa metade aplicada", async (
   // Rollback: o original continua vivo e nada novo entrou.
   const todos = await lancamentosDoItem(ITEM)
   assert.equal(todos.length, 1)
-  assert.equal(todos[0]!.estado, "reservado")
+  assert.equal(todos[0]!.estado, "no_rm", "rollback devolve o original ao estado anterior")
 })
 
 test("lancamentosVivosPorItens: em lote, agrupado por item, ignora id não numérico", async () => {
