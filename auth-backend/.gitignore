@@ -1,0 +1,4 @@
+/.swc
+
+# artefato de build do tsc (incremental)
+tsconfig.tsbuildinfo

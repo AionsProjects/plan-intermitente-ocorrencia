@@ -141,8 +141,16 @@ function resolverRegra(regras: RegraBeneficioMensal[], pessoa: ConvocacaoMensal)
 // sábado e domingo incluídos. O par é indissociável: o valor-dia vem de `vrMensal / 30`, e 30
 // é mês CORRIDO. Dividir por 30 e contar só dias úteis mistura duas bases e paga menos que o
 // mensal — era o bug do DETRAN (588,00/mês virava 411,60 em agosto/2026: 19,60 × 21 úteis, em
-// vez de × 31 corridos). Espelha o nó "Code in JavaScript1" do WF5 Pontual, que faz
+// vez de × 30 corridos). Espelha o nó "Code in JavaScript1" do WF5 Pontual, que faz
 // `if (__vrTodosDias && !__ehUtil) diasVR++`. Só o VR muda; o VT segue seg-sex (+sábado).
+//
+// TETO DO MÊS — o dia 31 NÃO conta no VR de regra mensal. O divisor é 30 fixo, então contar 31
+// dias corridos paga 31/30 do benefício: em agosto/2026 o MICHEL levou 607,60 de um mensal de
+// 588,00. Com o dia 31 fora, mês cheio fecha EXATAMENTE o mensal e período parcial segue
+// proporcional (03–31/08 = 28 dias, não 29). Regra do DP, apurada na correção manual do DETRAN
+// de 03/08/2026 (Thifany, board 08/26): pagamos 149,45 a mais em 8 pessoas — 1 dia cada — e o
+// TRE PB 22,00. Mês de 30 dias ou menos não é afetado. ⚠️ O WF5 Pontual NÃO tem esse teto:
+// convocação pontual que cruze o dia 31 diverge do mensal até o nó ser ajustado.
 function diasElegiveis(
   p: ConvocacaoMensal,
   feriados: FeriadoMensal[],
@@ -153,6 +161,7 @@ function diasElegiveis(
     const dia = Number(data.slice(-2)), dow = new Date(`${data}T00:00:00Z`).getUTCDay()
     if (p.escala12x36) return p.escala12x36 === "PAR" ? dia % 2 === 0 : dia % 2 === 1
     const corrido = vr && vrTodosDias
+    if (corrido && dia > 30) return false
     if (!corrido && (dow === 0 || (dow === 6 && (vr || !p.trabalhaSabado)))) return false
     const feriado = feriados.some((f) => f.data === data && (normMensal(f.tipo) === "NACIONAL" || f.contratos.map(normMensal).includes(normMensal(p.contrato))))
     return !feriado || normMensal(p.contrato).startsWith("SEDUC") || normMensal(p.contrato) === "DETRAN"
@@ -232,7 +241,12 @@ export function calcularMensal(
           // O cálculo NÃO muda: o valor-dia efetivo (mensal/30) continua sendo o que multiplica
           // os dias e alimenta o teto de crédito — só não vai mais pra célula.
           vrDia: tipoVRMensal ? null : vrDia,
-          vrMensal: tipoVRMensal ? r2(regra.vrMensal) : 0,
+          // `VR - MENSAL` é o valor GANHO no período desta linha (dias × valor-dia), não o
+          // parâmetro mensal do board de valores. Escrevíamos o parâmetro cru (588,00 em toda
+          // linha DETRAN, inclusive numa convocação de 3 dias) e o DP reescrevia à mão as 8 linhas
+          // que divergiam — em 08/2026 a coluna somava 5.659,50 contra os 4.331,60 devidos.
+          // É o BRUTO: o desconto FIFO tem coluna própria (`DESCONTO - VR`) no mesmo board.
+          vrMensal: tipoVRMensal ? maxVR : 0,
           diasVR: l.nVR,
           diasVT: l.nVT,
           creditoVR: credVR,

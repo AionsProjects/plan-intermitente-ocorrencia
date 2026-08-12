@@ -3,6 +3,7 @@
 // (services/driveArquivar.ts, já portado do WF Drive do n8n: CAJU/BOLETOS,
 // CAJU/COMPROVANTES, link da pasta na Solicitação de Pagamento).
 import { arquivarDrive, type ArquivarResultado } from "../services/driveArquivar.js"
+import { summaryUrlCaju, type PedidosCajuIds } from "../clients/caju.js"
 import type { ContratoPreviaMensal, PessoaPreviaMensal } from "./types.js"
 
 const r2 = (v: number): number => Math.round((Number(v) || 0) * 100) / 100
@@ -28,14 +29,13 @@ function pessoasResumoTxt(pessoas: PessoaPreviaMensal[]): string {
   }).join("\n")
 }
 
-export interface RefsDriveMensal {
-  pedidoCreditoId?: string | null
-  pedidoPixId?: string | null
-  summaryCredito?: string
-  summaryPix?: string
+export interface RefsDriveMensal extends PedidosCajuIds {
   idVR?: string | null
   idVT?: string | null
-  qrBoletoBase64?: string
+  /** QR do boleto de VR. Desde 08/2026 são dois boletos por contrato, logo dois QRs. */
+  qrBoletoVRBase64?: string
+  /** QR do boleto de VT. */
+  qrBoletoVTBase64?: string
   resumoSolicitacao?: string
 }
 
@@ -61,10 +61,14 @@ export function montarArquivosDriveMensal(
   const boletoTxt = [
     `Pedido mensal Caju - ${contrato.contrato}`,
     `Competencia: ${competenciaLabel}/${ano}`,
-    `Pedido Credito: ${refs.pedidoCreditoId || "-"}`,
-    `Summary Credito: ${refs.summaryCredito || "-"}`,
-    `Pedido PIX: ${refs.pedidoPixId || "-"}`,
-    `Summary PIX: ${refs.summaryPix || "-"}`,
+    `Pedido Credito VR: ${refs.pedidoCreditoVR || "-"}`,
+    `Summary Credito VR: ${summaryUrlCaju(refs.pedidoCreditoVR ?? null) || "-"}`,
+    `Pedido Credito VT: ${refs.pedidoCreditoVT || "-"}`,
+    `Summary Credito VT: ${summaryUrlCaju(refs.pedidoCreditoVT ?? null) || "-"}`,
+    `Pedido PIX VR: ${refs.pedidoPixVR || "-"}`,
+    `Summary PIX VR: ${summaryUrlCaju(refs.pedidoPixVR ?? null) || "-"}`,
+    `Pedido PIX VT: ${refs.pedidoPixVT || "-"}`,
+    `Summary PIX VT: ${summaryUrlCaju(refs.pedidoPixVT ?? null) || "-"}`,
     `Total VR: ${r2(contrato.totais.vr ?? 0)}`,
     `Total VT: ${r2(contrato.totais.vt ?? 0)}`,
     "",
@@ -97,12 +101,14 @@ export function montarArquivosDriveMensal(
       conteudoBase64: Buffer.from(comprovanteTxt, "utf8").toString("base64"),
     },
   ]
-  if (refs.qrBoletoBase64) {
+  // Um QR por boleto — o nome do arquivo carrega o benefício, senão os dois se sobrescrevem na pasta.
+  for (const [beneficio, qr] of [["vr", refs.qrBoletoVRBase64], ["vt", refs.qrBoletoVTBase64]] as const) {
+    if (!qr) continue
     arquivos.push({
       tipo: "caju_boleto",
-      nome_arquivo: `boleto-pix-qr-${sufixo}.png`,
+      nome_arquivo: `boleto-pix-qr-${beneficio}-${sufixo}.png`,
       mime: "image/png",
-      conteudoBase64: refs.qrBoletoBase64,
+      conteudoBase64: qr,
     })
   }
   return { dataInicio, dataFim, arquivos }

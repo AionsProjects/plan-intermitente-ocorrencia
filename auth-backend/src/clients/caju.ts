@@ -3,6 +3,9 @@
 //   - endpoint singular /voucher/allowance_order
 //   - payload { sponsorId, name, allowances:[{employeeId, amounts:[{category, amount(centavos)}]}] }
 //   - confirm POST /voucher/allowance_order/{id} { paymentStrategies:[{paymentType, amount}] }
+// MUDANÇA 08/2026: o pedido é SEPARADO por benefício — um pedido de VR e outro de VT por contrato,
+// cada um com seu boleto. Antes VR e VT compartilhavam o `amounts[]` da mesma allowance do mesmo
+// pedido, e um PIX só pagava os dois. Ver `BeneficioCaju` e `montarPedidoCaju`.
 // ATENÇÃO: criarPedido + confirmarPedido = DINHEIRO REAL. GATED: só via ledger pi.efeitos_externos,
 // e só no modo "producao" do workflow (hoje bloqueado). getToken/buscarEmployeeId/buscarPedido são READ-ONLY.
 import { config } from "../config.js"
@@ -53,6 +56,16 @@ export function montarNomePedido(contrato: string, mesComp: number | string, ano
 
 export type PaymentTypeCaju = "EXISTING_BALANCE" | "PIX_CODE"
 export type TipoPedidoCaju = "credito" | "boleto"
+/**
+ * Benefício do pedido. Desde 08/2026 o pedido é SEPARADO por benefício: cada contrato gera um
+ * pedido de VR e outro de VT, para que cada um tenha boleto e rastro financeiro próprios.
+ * Antes VR e VT iam no mesmo `amounts[]` da mesma allowance.
+ *
+ * Cruza com `TipoPedidoCaju` (a natureza do pagamento): credito×VR, credito×VT, boleto×VR,
+ * boleto×VT. Com `tetoVT = 0` no crédito (ver mensal/calculo.ts), credito×VT nasce vazio e é
+ * descartado pelo `tem === false` — sem chamada à Caju.
+ */
+export type BeneficioCaju = "VR" | "VT"
 
 export interface PessoaPedidoCaju {
   employeeId?: string | null
@@ -71,6 +84,7 @@ export interface AllowanceCaju {
 
 export interface PedidoMontadoCaju {
   tipoPedido: TipoPedidoCaju
+  beneficio: BeneficioCaju
   tem: boolean
   paymentType: PaymentTypeCaju
   totalCentavos: number
@@ -79,10 +93,18 @@ export interface PedidoMontadoCaju {
   confirmPayload: { paymentStrategies: Array<{ paymentType: PaymentTypeCaju; amount: number }> }
 }
 
-/** Monta o pedido em lote do contrato (credito ou boleto), idêntico aos nós "Montar Pedido CREDITO/BOLETO". */
+/**
+ * Monta o pedido em lote do contrato para UM benefício e UMA natureza de pagamento.
+ *
+ * O pedido de VR leva só `FOOD_AID`; o de VT leva só a categoria de transporte. Um pedido de VT
+ * pode legitimamente carregar as DUAS categorias de transporte (`TRANSPORTATION` para quem é
+ * interior/mobilidade e `TRANSPORTATION_VOUCHER` para o resto) quando o contrato mistura os dois —
+ * isso continua sendo um pedido de VT e não se subdivide mais.
+ */
 export function montarPedidoCaju(
   pessoas: PessoaPedidoCaju[],
   tipo: TipoPedidoCaju,
+  beneficio: BeneficioCaju,
   contrato: string,
   mesComp: number | string,
   anoComp: number | string,
@@ -91,20 +113,22 @@ export function montarPedidoCaju(
   for (const p of pessoas) {
     const eid = p.employeeId
     if (!eid) continue
-    const vr = tipo === "credito" ? p.creditoVR : p.pixVR
-    const vt = tipo === "credito" ? p.creditoVT : p.pixVT
-    const amounts: Array<{ category: string; amount: number }> = []
-    if (centsCaju(vr) > 0) amounts.push({ category: "FOOD_AID", amount: centsCaju(vr) })
-    if (centsCaju(vt) > 0) amounts.push({ category: categoriaVT(p.contrato, p.interior), amount: centsCaju(vt) })
-    if (amounts.length) allowances.push({ employeeId: eid, amounts })
+    const valor = tipo === "credito"
+      ? (beneficio === "VR" ? p.creditoVR : p.creditoVT)
+      : (beneficio === "VR" ? p.pixVR : p.pixVT)
+    const centavos = centsCaju(valor)
+    if (centavos <= 0) continue
+    const category = beneficio === "VR" ? "FOOD_AID" : categoriaVT(p.contrato, p.interior)
+    allowances.push({ employeeId: eid, amounts: [{ category, amount: centavos }] })
   }
   const paymentType: PaymentTypeCaju = tipo === "credito" ? "EXISTING_BALANCE" : "PIX_CODE"
-  const sufixo = tipo === "credito" ? "3 DIAS CREDITO" : "DEBITO"
+  const sufixo = (tipo === "credito" ? "3 DIAS CREDITO" : "DEBITO") + " " + beneficio
   const name = montarNomePedido(contrato, mesComp, anoComp, sufixo)
   const totalCentavos = allowances.reduce((a, e) => a + e.amounts.reduce((b, x) => b + x.amount, 0), 0)
   const tem = allowances.length > 0
   return {
     tipoPedido: tipo,
+    beneficio,
     tem,
     paymentType,
     totalCentavos,
@@ -250,3 +274,39 @@ export async function buscarPedido(orderId: string): Promise<unknown> {
 
 export const summaryUrlCaju = (orderId: string | null): string =>
   orderId ? `https://empresa.caju.com.br/classic/#/order/${orderId}/summary` : ""
+
+/**
+ * Ids dos pedidos de um contrato numa competência: natureza × benefício.
+ * Nomes iguais em Monday e Drive para o mesmo objeto ser repassado inteiro.
+ */
+export interface PedidosCajuIds {
+  pedidoCreditoVR?: string | null
+  pedidoCreditoVT?: string | null
+  pedidoPixVR?: string | null
+  pedidoPixVT?: string | null
+}
+
+/**
+ * Separador de múltiplos ids numa mesma célula do Monday. É o `"; "` que o DP já usa à mão nas
+ * colunas de IDFINANC (ex.: `"24007; 24009"`) — não inventar formato novo.
+ */
+export const SEP_IDS_CAJU = "; "
+
+/** Junta ids de pedido numa célula, na ordem recebida, descartando vazios. */
+export function juntarIdsCaju(ids: Array<string | null | undefined>): string {
+  return ids.filter((x): x is string => Boolean(x)).join(SEP_IDS_CAJU)
+}
+
+/** Junta as URLs de summary dos mesmos ids, no mesmo formato e na mesma ordem. */
+export function juntarSummariesCaju(ids: Array<string | null | undefined>): string {
+  return ids.filter((x): x is string => Boolean(x)).map((id) => summaryUrlCaju(id)).join(SEP_IDS_CAJU)
+}
+
+/**
+ * Ids que vão para a coluna de pedido Caju do board de Solicitação: os de BOLETO (VR e VT).
+ * São os que o DP efetivamente paga. O pedido de crédito nasce Rascunho e não é confirmado — o id
+ * dele vive no board Controle Caju e no texto da DESCRIÇÃO, como antes do split.
+ */
+export function idsPedidoParaSolicitacao(p: PedidosCajuIds): string[] {
+  return [p.pedidoPixVR, p.pedidoPixVT].filter((x): x is string => Boolean(x))
+}

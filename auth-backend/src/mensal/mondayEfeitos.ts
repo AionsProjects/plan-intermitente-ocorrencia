@@ -9,6 +9,12 @@
 // que a antifraude consulta. Isso reverte o "fix" anterior (que usava a competência como gaveta):
 // o comportamento do legado n8n (new Date()) estava certo.
 import { mondayGraphql } from "../monday.js"
+import {
+  idsPedidoParaSolicitacao,
+  juntarIdsCaju,
+  juntarSummariesCaju,
+  type PedidosCajuIds,
+} from "../clients/caju.js"
 import type { DescontoUpdatePrevia, PessoaPreviaMensal, PlanUpdatePrevia } from "./types.js"
 
 /**
@@ -121,19 +127,17 @@ export function montarMutationDescontos(updates: DescontoUpdatePrevia[]): string
 // Solicitação de Pagamento — porta do "Mensal Preparar Solicitação".
 // ---------------------------------------------------------------------------
 
-export interface SolicitacaoMensalInput {
+export interface SolicitacaoMensalInput extends PedidosCajuIds {
   contrato: string
   nomePrefixo?: string // ex "TESTE - " (runs sandbox) — só afeta o NOME do item, não as colunas
   competenciaLabel: string // ex "JULHO"
   anoComp: number
   totais: { vr: number; vt: number; credito: number; pix: number }
   pessoas: PessoaPreviaMensal[]
+  /** IDFINANC do RM, evento VR — vai em `text_mkrenhm` ("ID CAJU"), que é RM e não Caju. */
   idVR?: string | null
+  /** IDFINANC do RM, evento VT — vai em `text_mkwhg4dn` ("ID CAJU VT"). Também RM. */
   idVT?: string | null
-  pedidoCreditoId?: string | null
-  pedidoPixId?: string | null
-  summaryCredito?: string
-  summaryPix?: string
   planBoardId: string
   dataIso: string // hoje (passar de fora — workflow não pode usar new Date())
 }
@@ -154,8 +158,10 @@ export function montarResumoSolicitacao(inp: SolicitacaoMensalInput): string {
     `VT: R$ ${r2(inp.totais.vt)}`,
     `Crédito Caju: R$ ${r2(inp.totais.credito)}`,
     `PIX: R$ ${r2(inp.totais.pix)}`,
-    `Pedido Crédito: ${inp.pedidoCreditoId || "-"}`,
-    `Pedido PIX: ${inp.pedidoPixId || "-"}`,
+    // Pedido separado por benefício desde 08/2026 — os 4 ids ficam listados aqui porque a coluna
+    // só carrega os de boleto.
+    `Pedido Crédito VR: ${inp.pedidoCreditoVR || "-"} | VT: ${inp.pedidoCreditoVT || "-"}`,
+    `Pedido PIX VR: ${inp.pedidoPixVR || "-"} | VT: ${inp.pedidoPixVT || "-"}`,
     `RM idVR: ${inp.idVR || "-"} | idVT: ${inp.idVT || "-"}`,
     "",
     "INTERMITENTES INCLUSOS:",
@@ -163,10 +169,35 @@ export function montarResumoSolicitacao(inp: SolicitacaoMensalInput): string {
   ].join("\n")
 }
 
+/**
+ * VALOR CAJU / VALOR CAJU VT são a perna Monday da conferência de três pernas, então têm que estar
+ * na MESMA base do RM e do boleto: o PIX, ou seja, líquido JÁ DESCONTADO o crédito.
+ *
+ * `totais.vr`/`totais.vt` somam `liquidoVR`/`liquidoVT` — líquido do desconto FIFO mas ANTES do
+ * crédito. Usá-los aqui fazia o Monday divergir do RM exatamente pelo valor do crédito, em todo
+ * contrato e todo mês (DETRAN 08/2026: board 4.481,05 × IDFINANC 24096 = 4.032,70 = 448,35 de
+ * crédito). O DP corrigia à mão. Confirmado pelo próprio board: SEDUC ESCOLA e SEDUC INTERIOR
+ * estavam com o pixVR cravado.
+ *
+ * O crédito não some da escrituração — ele fica no board Controle Caju e no resumo.
+ */
+function pixPorBeneficio(inp: SolicitacaoMensalInput): { vr: number; vt: number } {
+  return {
+    vr: r2(inp.pessoas.reduce((t, p) => t + (p.pixVR || 0), 0)),
+    vt: r2(inp.pessoas.reduce((t, p) => t + (p.pixVT || 0), 0)),
+  }
+}
+
 export function montarValuesSolicitacao(inp: SolicitacaoMensalInput): Record<string, unknown> {
+  const pix = pixPorBeneficio(inp)
   const labelsPgto: string[] = []
+  // A label segue o benefício APURADO, não o que sobra pro boleto: contrato cujo VR coube inteiro
+  // no crédito continua sendo um pagamento de VR.
   if ((inp.totais.vr || 0) > 0) labelsPgto.push("CAJU")
   if ((inp.totais.vt || 0) > 0) labelsPgto.push("CAJU VT")
+  // O board continua com UM item por contrato, então os dois ids de pedido (VR e VT) dividem a
+  // mesma célula, separados por "; " — mesmo formato dos IDFINANC.
+  const idsPedido = idsPedidoParaSolicitacao(inp)
   return {
     dropdown_mkwhxxs2: { labels: labelsPgto.length ? labelsPgto : ["CAJU"] },
     dropdown_mkretdvv: { labels: [inp.contrato] },
@@ -174,12 +205,12 @@ export function montarValuesSolicitacao(inp: SolicitacaoMensalInput): Record<str
     status: { label: "NÃO INICIADO" },
     color_mkref5wt: { label: "MENSAL" },
     color_mks0yady: { label: inp.competenciaLabel },
-    numeric_mkrek29b: String(r2(inp.totais.vr)),
-    numeric_mkwhk2xr: String(r2(inp.totais.vt)),
+    numeric_mkrek29b: String(pix.vr),
+    numeric_mkwhk2xr: String(pix.vt),
     text_mkrenhm: String(inp.idVR || ""),
     text_mkwhg4dn: String(inp.idVT || ""),
-    text_mm1zyhcw: String(inp.pedidoPixId || inp.pedidoCreditoId || ""),
-    text_mm395p8s: String(inp.summaryPix || inp.summaryCredito || ""),
+    text_mm1zyhcw: juntarIdsCaju(idsPedido),
+    text_mm395p8s: juntarSummariesCaju(idsPedido),
     link_mkre40qn: { url: `https://contato-serv.monday.com/boards/${inp.planBoardId}`, text: "Plan Intermitentes" },
     long_text_mkre1qa0: { text: montarResumoSolicitacao(inp) },
   }

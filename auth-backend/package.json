@@ -20,6 +20,7 @@
     "rm:prevoo": "node --env-file=.env --import tsx src/scripts/rm-prevoo-convocacao.ts",
     "rm:teste-convocacao": "node --env-file=.env --import tsx src/scripts/rm-teste-convocacao.ts",
     "rm:teste-bifurcacao": "node --env-file=.env --import tsx src/scripts/rm-teste-bifurcacao.ts",
+    "rm:teste-parcial": "node --env-file=.env --import tsx src/scripts/rm-teste-parcial.ts",
     "rm:delete": "node --env-file=.env --import tsx src/scripts/rm-delete.ts",
     "rm:atestados": "node --env-file=.env --import tsx src/scripts/rm-atestados.ts",
     "importar:convocacoes": "node --env-file=.env --import tsx src/scripts/importar-convocacoes.ts",

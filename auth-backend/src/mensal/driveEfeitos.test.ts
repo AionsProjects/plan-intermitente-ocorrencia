@@ -30,7 +30,8 @@ test("ultimoDiaMes cobre fevereiro bissexto e dezembro", () => {
 
 test("montarArquivosDriveMensal: 2 TXT + datas do mês", () => {
   const r = montarArquivosDriveMensal(contrato, "2026-07", "JULHO", {
-    pedidoCreditoId: "ord-c", pedidoPixId: "ord-p", idVR: "555", resumoSolicitacao: "RESUMO X",
+    pedidoCreditoVR: "ord-cvr", pedidoPixVR: "ord-pvr", pedidoPixVT: "ord-pvt",
+    idVR: "555", resumoSolicitacao: "RESUMO X",
   })
   assert.equal(r.dataInicio, "2026-07-01")
   assert.equal(r.dataFim, "2026-07-31")
@@ -40,7 +41,10 @@ test("montarArquivosDriveMensal: 2 TXT + datas do mês", () => {
   const boleto = Buffer.from(r.arquivos[0]!.conteudoBase64, "base64").toString("utf8")
   assert.ok(boleto.includes("Pedido mensal Caju - SEDUC INTERIOR"))
   assert.ok(boleto.includes("Competencia: JULHO/2026"))
-  assert.ok(boleto.includes("Pedido Credito: ord-c"))
+  assert.ok(boleto.includes("Pedido Credito VR: ord-cvr"))
+  assert.ok(boleto.includes("Pedido PIX VR: ord-pvr"))
+  assert.ok(boleto.includes("Pedido PIX VT: ord-pvt"))
+  assert.ok(boleto.includes("Summary PIX VT: https://empresa.caju.com.br/classic/#/order/ord-pvt/summary"))
   assert.ok(boleto.includes("Total VR: 392"))
   assert.ok(boleto.includes("01. Fulana | Chapa: 007174"))
   assert.ok(boleto.includes("Crédito: 88.50 | PIX: 147.50"))
@@ -51,11 +55,21 @@ test("montarArquivosDriveMensal: 2 TXT + datas do mês", () => {
 })
 
 test("QR base64 vira terceiro arquivo (PNG em caju_boleto)", () => {
-  const r = montarArquivosDriveMensal(contrato, "2026-07", "JULHO", { qrBoletoBase64: "QUJD" })
+  const r = montarArquivosDriveMensal(contrato, "2026-07", "JULHO", { qrBoletoVRBase64: "QUJD" })
   assert.equal(r.arquivos.length, 3)
   const qr = r.arquivos[2]!
   assert.equal(qr.tipo, "caju_boleto")
   assert.equal(qr.mime, "image/png")
-  assert.equal(qr.nome_arquivo, "boleto-pix-qr-SEDUC-INTERIOR-2026-07.png")
+  assert.equal(qr.nome_arquivo, "boleto-pix-qr-vr-SEDUC-INTERIOR-2026-07.png")
   assert.equal(qr.conteudoBase64, "QUJD")
+})
+
+test("dois boletos = dois PNGs com nomes distintos", () => {
+  const r = montarArquivosDriveMensal(contrato, "2026-07", "JULHO", { qrBoletoVRBase64: "QUJD", qrBoletoVTBase64: "WFla" })
+  assert.equal(r.arquivos.length, 4)
+  assert.deepEqual(r.arquivos.slice(2).map((a) => a.nome_arquivo), [
+    "boleto-pix-qr-vr-SEDUC-INTERIOR-2026-07.png",
+    "boleto-pix-qr-vt-SEDUC-INTERIOR-2026-07.png",
+  ])
+  assert.equal(r.arquivos[3]!.conteudoBase64, "WFla")
 })

@@ -35,7 +35,62 @@ test("regra VR Mensal: valor-dia mensal/30 x dias CORRIDOS — paridade com o WF
   // porque o benefício é pago por mês. O valor-dia segue existindo no cálculo (p.vrDia).
   const up = r.contratos[0]!.planUpdates[0]!
   assert.equal(up.vrDia, null)
-  assert.equal(up.vrMensal, 588)
+  // E o que vai na célula é o valor GANHO no período (10 dias x 19,60), não o parâmetro 588,00.
+  assert.equal(up.vrMensal, 196)
+  assert.equal(up.vrMensal, p.brutoVR) // linha única -> coincide com o bruto da pessoa
+})
+
+test("VR - MENSAL leva o ganho por LINHA, não o parâmetro — caso real DETRAN 08/2026", () => {
+  const rMensal: RegraBeneficioMensal = { ...regra, contrato: "DETRAN", vrDia: 0, vrMensal: 588 }
+  // Mesma pessoa com 2 convocações, como o MICHEL: 01-03/08 (3 dias) e 04-31/08 (27 com o teto).
+  const r = calcularMensal([
+    pessoa({ itemId: "A", contrato: "DETRAN", inicio: "2026-08-01", fim: "2026-08-03" }),
+    pessoa({ itemId: "B", contrato: "DETRAN", inicio: "2026-08-04", fim: "2026-08-31" }),
+  ], [rMensal], [], [])
+  const ups = r.contratos[0]!.planUpdates
+  const porItem = Object.fromEntries(ups.map((u) => [u.itemId, u.vrMensal]))
+  assert.equal(porItem["A"], 58.8)   // 3 x 19,60 — e NÃO 588,00 como antes
+  assert.equal(porItem["B"], 529.2)  // 27 x 19,60
+  // As linhas somam o mês cheio do contrato.
+  assert.equal(Math.round((porItem["A"]! + porItem["B"]!) * 100) / 100, 588)
+})
+
+test("regra VR Mensal: o dia 31 não conta — mês cheio fecha EXATAMENTE o mensal", () => {
+  const rMensal: RegraBeneficioMensal = { ...regra, vrDia: 0, vrMensal: 588 }
+  // Agosto/2026 tem 31 dias corridos, mas o divisor é 30 fixo. Contar os 31 pagaria 607,60 —
+  // 31/30 do benefício. Foi o que pagamos a mais no DETRAN em 03/08/2026.
+  const r = calcularMensal([pessoa({ inicio: "2026-08-01", fim: "2026-08-31" })], [rMensal], [], [])
+  const p = r.contratos[0]!.pessoas[0]!
+  assert.equal(p.diasVR, 30)
+  assert.equal(p.brutoVR, 588) // 19,60 x 30 = o mensal cravado
+  // O teto é do VR. O VT segue dias úteis e o dia 31 (segunda) continua contando: 21 em agosto.
+  assert.equal(p.diasVT, 21)
+})
+
+test("regra VR Mensal: período parcial que cruza o dia 31 segue proporcional, sem o 31", () => {
+  const rMensal: RegraBeneficioMensal = { ...regra, vrDia: 0, vrMensal: 588 }
+  // Caso real JAMILE (DETRAN, 03-31/08/2026): 29 dias corridos, 28 depois do teto.
+  // Não é teto de 30 no total da pessoa — se fosse, 29 < 30 e ela ficaria com 29.
+  const r = calcularMensal([pessoa({ inicio: "2026-08-03", fim: "2026-08-31" })], [rMensal], [], [])
+  const p = r.contratos[0]!.pessoas[0]!
+  assert.equal(p.diasVR, 28)
+  assert.equal(p.brutoVR, 548.8)
+})
+
+test("regra VR Mensal: mês de 30 dias não é afetado pelo teto", () => {
+  const rMensal: RegraBeneficioMensal = { ...regra, vrDia: 0, vrMensal: 588 }
+  const r = calcularMensal([pessoa({ inicio: "2026-09-01", fim: "2026-09-30" })], [rMensal], [], [])
+  const p = r.contratos[0]!.pessoas[0]!
+  assert.equal(p.diasVR, 30)
+  assert.equal(p.brutoVR, 588)
+})
+
+test("regra DIÁRIA ignora o teto — dia 31 útil continua contando no VR", () => {
+  // 31/08/2026 é segunda. O teto vale só pra regra mensal (vrMensal > 0).
+  const r = calcularMensal([pessoa({ inicio: "2026-08-31", fim: "2026-08-31" })], [regra], [], [])
+  const p = r.contratos[0]!.pessoas[0]!
+  assert.equal(p.diasVR, 1)
+  assert.equal(p.brutoVR, 20)
 })
 
 test("matching de função ignora preposições (EM vs DE)", () => {

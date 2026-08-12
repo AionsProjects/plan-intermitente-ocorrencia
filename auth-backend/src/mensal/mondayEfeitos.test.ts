@@ -71,8 +71,10 @@ const solicitacaoInput = {
   pessoas: [{ itemId: "1", itemIds: ["1", "2"], nome: "Fulana", chapa: "006534", cpf: "123", contrato: "TRE PB",
     funcao: "X", unidade: "U", interior: "NAO", dataInicio: "2026-07-01", dataFim: "2026-07-31",
     liquidoVR: 660, liquidoVT: 250.7, creditoVR: 66, creditoVT: 32.7, pixVR: 594, pixVT: 218 }],
-  idVR: "555", idVT: null, pedidoCreditoId: "ord-c", pedidoPixId: "ord-p",
-  summaryCredito: "sc", summaryPix: "sp", planBoardId: "18418191275", dataIso: "2026-07-11",
+  idVR: "555", idVT: null,
+  pedidoCreditoVR: "ord-cvr", pedidoCreditoVT: null,
+  pedidoPixVR: "ord-pvr", pedidoPixVT: "ord-pvt",
+  planBoardId: "18418191275", dataIso: "2026-07-11",
 }
 
 test("montarValuesSolicitacao espelha o nó Preparar Solicitação", () => {
@@ -83,12 +85,62 @@ test("montarValuesSolicitacao espelha o nó Preparar Solicitação", () => {
   assert.deepEqual(v["status"], { label: "NÃO INICIADO" })
   assert.deepEqual(v["color_mkref5wt"], { label: "MENSAL" })
   assert.deepEqual(v["color_mks0yady"], { label: "JULHO" })
-  assert.equal(v["numeric_mkrek29b"], "660")
-  assert.equal(v["numeric_mkwhk2xr"], "250.7")
+  // VALOR CAJU / VALOR CAJU VT vão na base do PIX (pós-crédito), igual ao RM e ao boleto —
+  // não em totais.vr/vt, que são pré-crédito. Fixture: 660 - 66 = 594 e 250,70 - 32,70 = 218.
+  assert.equal(v["numeric_mkrek29b"], "594")
+  assert.equal(v["numeric_mkwhk2xr"], "218")
   assert.equal(v["text_mkrenhm"], "555")
-  assert.equal(v["text_mm1zyhcw"], "ord-p") // PIX tem prioridade
-  assert.equal(v["text_mm395p8s"], "sp")
+  // Pedido separado por benefício: os dois ids de BOLETO dividem a mesma célula, "; " como nos
+  // IDFINANC. O pedido de crédito não entra na coluna (nasce Rascunho, não confirmado).
+  assert.equal(v["text_mm1zyhcw"], "ord-pvr; ord-pvt")
+  assert.equal(v["text_mm395p8s"],
+    "https://empresa.caju.com.br/classic/#/order/ord-pvr/summary; https://empresa.caju.com.br/classic/#/order/ord-pvt/summary")
   assert.deepEqual(v["link_mkre40qn"], { url: "https://contato-serv.monday.com/boards/18418191275", text: "Plan Intermitentes" })
+})
+
+test("VALOR CAJU fica na base do RM/boleto — caso real DETRAN 08/2026", () => {
+  // Run 672eb8ee: o board recebeu 4.481,05 (pré-crédito) enquanto o IDFINANC 24096 do RM levou
+  // 4.032,70. A diferença era exatamente o crédito (448,35), e o DP corrigia à mão.
+  // Com o teto do dia 31, o VR correto cai pra 4.331,60 e o PIX pra 3.883,25 — o número que a
+  // Thifany digitou no board em 06/08.
+  const detran = {
+    ...solicitacaoInput, contrato: "DETRAN", competenciaLabel: "AGOSTO",
+    totais: { vr: 4331.6, vt: 630, credito: 448.35, pix: 4513.25 },
+    pessoas: [
+      { ...solicitacaoInput.pessoas[0]!, liquidoVR: 4331.6, liquidoVT: 630,
+        creditoVR: 448.35, creditoVT: 0, pixVR: 3883.25, pixVT: 630 },
+    ],
+  }
+  const v = montarValuesSolicitacao(detran) as Record<string, unknown>
+  assert.equal(v["numeric_mkrek29b"], "3883.25")
+  assert.equal(v["numeric_mkwhk2xr"], "630")
+  // VR + VT do board somam o boleto, que é o que a Caju cobra.
+  assert.equal(Number(v["numeric_mkrek29b"]) + Number(v["numeric_mkwhk2xr"]), 4513.25)
+})
+
+test("VALOR CAJU: contrato cujo VR coube todo no crédito vai a zero, mas segue rotulado CAJU", () => {
+  const tudoCredito = {
+    ...solicitacaoInput,
+    totais: { vr: 58.8, vt: 0, credito: 58.8, pix: 0 },
+    pessoas: [{ ...solicitacaoInput.pessoas[0]!, liquidoVR: 58.8, liquidoVT: 0,
+      creditoVR: 58.8, creditoVT: 0, pixVR: 0, pixVT: 0 }],
+  }
+  const v = montarValuesSolicitacao(tudoCredito) as Record<string, unknown>
+  assert.equal(v["numeric_mkrek29b"], "0")
+  // A label segue o benefício apurado, não o que sobra pro boleto.
+  assert.deepEqual(v["dropdown_mkwhxxs2"], { labels: ["CAJU"] })
+})
+
+test("coluna de pedido: só VT preenchido não deixa separador solto", () => {
+  const v = montarValuesSolicitacao({ ...solicitacaoInput, pedidoPixVR: null }) as Record<string, unknown>
+  assert.equal(v["text_mm1zyhcw"], "ord-pvt")
+  assert.equal(v["text_mm395p8s"], "https://empresa.caju.com.br/classic/#/order/ord-pvt/summary")
+})
+
+test("coluna de pedido fica vazia quando nenhum boleto saiu", () => {
+  const v = montarValuesSolicitacao({ ...solicitacaoInput, pedidoPixVR: null, pedidoPixVT: null }) as Record<string, unknown>
+  assert.equal(v["text_mm1zyhcw"], "")
+  assert.equal(v["text_mm395p8s"], "")
 })
 
 test("resumo lista pessoas com itens do Plan", () => {
@@ -97,6 +149,9 @@ test("resumo lista pessoas com itens do Plan", () => {
   assert.ok(r.includes("01. Fulana | Chapa: 006534"))
   assert.ok(r.includes("Plan: 1, 2"))
   assert.ok(r.includes("RM idVR: 555 | idVT: -"))
+  // Os 4 ids ficam no texto livre — é o único lugar com o rastro do crédito.
+  assert.ok(r.includes("Pedido Crédito VR: ord-cvr | VT: -"))
+  assert.ok(r.includes("Pedido PIX VR: ord-pvr | VT: ord-pvt"))
 })
 
 test("VT zerado não gera label CAJU VT", () => {

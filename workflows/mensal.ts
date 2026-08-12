@@ -6,9 +6,12 @@ import {
   confirmarPedido,
   criarPedido,
   extrairQrBase64,
+  juntarIdsCaju,
   montarPedidoCaju,
   resetTokenCaju,
   summaryUrlCaju,
+  type BeneficioCaju,
+  type PedidosCajuIds,
   type PessoaPedidoCaju,
   type TipoPedidoCaju,
 } from "../auth-backend/src/clients/caju.js"
@@ -149,23 +152,38 @@ async function resolverEmployeesCaju(
 }
 resolverEmployeesCaju.maxRetries = 3
 
+/**
+ * Nome da etapa no ledger. Um por combinação natureza × benefício — quatro no total.
+ *
+ * ⚠️ NUNCA reaproveitar os nomes antigos `caju_credito`/`caju_pix` para uma das metades. Numa
+ * competência já executada, `reservarEfeito` devolveria "confirmado" para a metade com nome velho e
+ * "novo" para a nova: o run pagaria METADE e marcaria o contrato `ok`, em silêncio. É o modo de
+ * falha do run `e173b1ef` (ver `chaveEfeito` acima). Os nomes antigos seguem só na lista de
+ * `contratosMensalJaExecutados` (jobs/repo.ts), para que competências pré-split continuem casando.
+ */
+function etapaPedidoCaju(tipo: TipoPedidoCaju, beneficio: BeneficioCaju): string {
+  return `caju_${tipo === "credito" ? "credito" : "pix"}_${beneficio.toLowerCase()}`
+}
+
 // --- Caju: criar (e confirmar, no PIX) pedido. DINHEIRO REAL — GATED. -------
+// Um pedido por benefício: VR e VT não compartilham mais o mesmo allowance_order.
 async function executarPedidoCaju(
   runId: string,
   modo: ModoExec,
   competencia: string,
   contrato: string,
   tipo: TipoPedidoCaju,
+  beneficio: BeneficioCaju,
   pessoas: PessoaPedidoCaju[],
 ): Promise<{ orderId: string | null; qr: string; pulado: boolean; simulado: boolean }> {
   "use step"
-  const etapa = tipo === "credito" ? "caju_credito" : "caju_pix"
+  const etapa = etapaPedidoCaju(tipo, beneficio)
   const metadata = getStepMetadata()
   await registrarEvento({ runId, contrato, etapa, estado: "rodando", tentativa: metadata.attempt })
 
   // Só produção usa a chave por competência; simulação é por RUN (ver chaveEfeito).
   const chave = chaveEfeito(modo, runId, competencia, contrato, etapa)
-  const reserva = await reservarEfeito(chave, `mensal_${etapa}`, { runId, competencia, contrato, modo, tipo })
+  const reserva = await reservarEfeito(chave, `mensal_${etapa}`, { runId, competencia, contrato, modo, tipo, beneficio })
   if (reserva === "confirmado") {
     await registrarEvento({ runId, contrato, etapa, estado: "pulado_idempotencia", tentativa: metadata.attempt })
     return { orderId: null, qr: "", pulado: true, simulado: false }
@@ -185,7 +203,7 @@ async function executarPedidoCaju(
   // Produção: gate duplo. "teste" executa real, com nome do pedido marcado TESTE.
   if (modo === "producao" && !PRODUCAO_LIBERADA) throw new FatalError("execucao_mensal_producao_bloqueada_ate_cutover")
 
-  const pedido = montarPedidoCaju(pessoas, tipo, modo === "teste" ? `TESTE ${contrato}` : contrato, mes, ano)
+  const pedido = montarPedidoCaju(pessoas, tipo, beneficio, modo === "teste" ? `TESTE ${contrato}` : contrato, mes, ano)
   if (!pedido.tem || !pedido.payload) {
     await confirmarEfeito(chave, `caju:${etapa}:vazio`)
     await registrarEvento({ runId, contrato, etapa, estado: "concluido", tentativa: metadata.attempt, metadados: { vazio: true } })
@@ -205,7 +223,7 @@ async function executarPedidoCaju(
   await confirmarEfeito(chave, orderId ? `caju:${etapa}:${orderId}` : `caju:${etapa}:sem-id`)
   await registrarEvento({
     runId, contrato, etapa, estado: "concluido", tentativa: metadata.attempt,
-    metadados: { orderId, totalCentavos: pedido.totalCentavos, temQr: qr.length > 0, summary: summaryUrlCaju(orderId) },
+    metadados: { orderId, beneficio, totalCentavos: pedido.totalCentavos, temQr: qr.length > 0, summary: summaryUrlCaju(orderId) },
   })
   return { orderId: orderId ?? null, qr, pulado: false, simulado: false }
 }
@@ -662,7 +680,8 @@ async function etapaMondayControleCaju(
   contrato: ContratoPreviaMensal,
   grupoControleCaju: string | null,
   caixa: string | undefined,
-  pedidoCreditoId: string | null,
+  /** Ids dos pedidos de crédito (VR e VT são pedidos separados desde 08/2026). */
+  creditos: { creditoVR: string | null; creditoVT: string | null },
 ): Promise<void> {
   "use step"
   const etapa = "monday_controle_caju"
@@ -685,7 +704,7 @@ async function etapaMondayControleCaju(
         competenciaLabel: MESES_LABEL[mes - 1]!,
         anoComp: ano,
         totalCredito,
-        pedidoCreditoId,
+        pedidoCreditoId: juntarIdsCaju([creditos.creditoVR, creditos.creditoVT]),
         dataIso: new Date().toISOString().slice(0, 10),
       })
     : ({ pulado: true, motivo: "sem_credito_contrato" } as const)
@@ -707,7 +726,7 @@ async function etapaMondaySolicitacao(
   boardId: string,
   grupoSolicitacao: string | null,
   caixa: string | undefined,
-  refs: { idVR?: string | null; idVT?: string | null; pedidoCreditoId?: string | null; pedidoPixId?: string | null },
+  refs: PedidosCajuIds & { idVR?: string | null; idVT?: string | null },
 ): Promise<string | null> {
   "use step"
   const etapa = "monday_solicitacao"
@@ -730,9 +749,8 @@ async function etapaMondaySolicitacao(
     },
     pessoas: contrato.pessoas,
     idVR: refs.idVR, idVT: refs.idVT,
-    pedidoCreditoId: refs.pedidoCreditoId, pedidoPixId: refs.pedidoPixId,
-    summaryCredito: refs.pedidoCreditoId ? `https://empresa.caju.com.br/classic/#/order/${refs.pedidoCreditoId}/summary` : "",
-    summaryPix: refs.pedidoPixId ? `https://empresa.caju.com.br/classic/#/order/${refs.pedidoPixId}/summary` : "",
+    pedidoCreditoVR: refs.pedidoCreditoVR, pedidoCreditoVT: refs.pedidoCreditoVT,
+    pedidoPixVR: refs.pedidoPixVR, pedidoPixVT: refs.pedidoPixVT,
     planBoardId: boardId,
     dataIso: new Date().toISOString().slice(0, 10),
   }, grupoDestino)
@@ -773,10 +791,9 @@ async function etapaDrive(
   modo: ModoExec,
   competencia: string,
   contrato: ContratoPreviaMensal,
-  refs: {
-    pedidoCreditoId: string | null
-    pedidoPixId: string | null
-    qrBoletoBase64: string
+  refs: PedidosCajuIds & {
+    qrBoletoVRBase64: string
+    qrBoletoVTBase64: string
     idVR: string | null
     idVT: string | null
     solicitacaoId: string | null
@@ -791,13 +808,14 @@ async function etapaDrive(
   if (r.acao === "simular") return simularEfeito(runId, contrato.contrato, etapa, r.chave, metadata.attempt)
   const { mes } = competenciaPartes(competencia)
   const resultados = await arquivarDriveMensal(contrato, competencia, MESES_LABEL[mes - 1]!, {
-    pedidoCreditoId: refs.pedidoCreditoId,
-    pedidoPixId: refs.pedidoPixId,
-    summaryCredito: refs.pedidoCreditoId ? `https://empresa.caju.com.br/classic/#/order/${refs.pedidoCreditoId}/summary` : "",
-    summaryPix: refs.pedidoPixId ? `https://empresa.caju.com.br/classic/#/order/${refs.pedidoPixId}/summary` : "",
+    pedidoCreditoVR: refs.pedidoCreditoVR,
+    pedidoCreditoVT: refs.pedidoCreditoVT,
+    pedidoPixVR: refs.pedidoPixVR,
+    pedidoPixVT: refs.pedidoPixVT,
     idVR: refs.idVR,
     idVT: refs.idVT,
-    qrBoletoBase64: refs.qrBoletoBase64,
+    qrBoletoVRBase64: refs.qrBoletoVRBase64,
+    qrBoletoVTBase64: refs.qrBoletoVTBase64,
     solicitacaoId: refs.solicitacaoId,
     nomePrefixo: modo === "teste" ? "TESTE - " : undefined,
   })
@@ -864,8 +882,14 @@ async function processarContrato(
       pixVT: p.pixVT,
     }))
 
-    const credito = await executarPedidoCaju(runId, modo, competencia, contrato.contrato, "credito", pessoasComId)
-    const pix = await executarPedidoCaju(runId, modo, competencia, contrato.contrato, "boleto", pessoasComId)
+    // Quatro pedidos: natureza (crédito/boleto) × benefício (VR/VT). O pedido de VR e o de VT são
+    // separados desde 08/2026 para que cada benefício tenha boleto e rastro próprios.
+    // creditoVT é sempre 0 hoje (tetoVT=0 em calculo.ts), então creditoVT nasce vazio e não chama a
+    // Caju — mas a etapa existe no ledger, o que mantém o run correto se a regra do crédito mudar.
+    const creditoVR = await executarPedidoCaju(runId, modo, competencia, contrato.contrato, "credito", "VR", pessoasComId)
+    const creditoVT = await executarPedidoCaju(runId, modo, competencia, contrato.contrato, "credito", "VT", pessoasComId)
+    const pixVR = await executarPedidoCaju(runId, modo, competencia, contrato.contrato, "boleto", "VR", pessoasComId)
+    const pixVT = await executarPedidoCaju(runId, modo, competencia, contrato.contrato, "boleto", "VT", pessoasComId)
 
     // Convocação no RM (S-2260) ANTES do financeiro — decisão 2 do Isaac: a convocação precede o
     // pagamento na ordem do eSocial. Pendência humana lança FatalError e o contrato marca erro
@@ -908,19 +932,26 @@ async function processarContrato(
     // Monday (adaptador real, gated por producao+ledger).
     await etapaMondayPlano(runId, modo, competencia, contrato, snapshot.boardId, snapshot.apoio.colunasPlano)
     await etapaMondayControleCaju(
-      runId, modo, competencia, contrato, snapshot.apoio.grupoControleCaju, snapshot.apoio.caixa, credito.orderId,
+      runId, modo, competencia, contrato, snapshot.apoio.grupoControleCaju, snapshot.apoio.caixa,
+      { creditoVR: creditoVR.orderId, creditoVT: creditoVT.orderId },
     )
+    const pedidos = {
+      pedidoCreditoVR: creditoVR.orderId,
+      pedidoCreditoVT: creditoVT.orderId,
+      pedidoPixVR: pixVR.orderId,
+      pedidoPixVT: pixVT.orderId,
+    }
     const solicitacaoId = await etapaMondaySolicitacao(
       runId, modo, competencia, contrato, snapshot.boardId, snapshot.apoio.grupoSolicitacao ?? null,
       snapshot.apoio.caixa,
-      { idVR: rmIds.idVR, idVT: rmIds.idVT, pedidoCreditoId: credito.orderId, pedidoPixId: pix.orderId },
+      { idVR: rmIds.idVR, idVT: rmIds.idVT, ...pedidos },
     )
 
-    // Drive (adaptador real, gated).
+    // Drive (adaptador real, gated). Dois boletos = dois QRs.
     await etapaDrive(runId, modo, competencia, contrato, {
-      pedidoCreditoId: credito.orderId,
-      pedidoPixId: pix.orderId,
-      qrBoletoBase64: pix.qr,
+      ...pedidos,
+      qrBoletoVRBase64: pixVR.qr,
+      qrBoletoVTBase64: pixVT.qr,
       idVR: rmIds.idVR,
       idVT: rmIds.idVT,
       solicitacaoId,
@@ -930,8 +961,7 @@ async function processarContrato(
     await etapaMondayStatusOk(runId, modo, competencia, contrato.contrato, solicitacaoId)
 
     const referencias: Record<string, unknown> = {}
-    if (credito.orderId) referencias.pedidoCreditoId = credito.orderId
-    if (pix.orderId) referencias.pedidoPixId = pix.orderId
+    for (const [k, v] of Object.entries(pedidos)) if (v) referencias[k] = v
     if (solicitacaoId) referencias.solicitacaoId = solicitacaoId
     await marcarContratoFinal(runId, contrato.contrato, "ok", undefined, Object.keys(referencias).length ? referencias : undefined)
   } catch (e) {

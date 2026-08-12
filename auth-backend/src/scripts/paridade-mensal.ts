@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs"
 import { config } from "../config.js"
 import { calcularPreviaMensal } from "../mensal/previa.js"
 import { montarValuesPlanUpdate, montarValuesDesconto, montarValuesSolicitacao } from "../mensal/mondayEfeitos.js"
-import { montarPedidoCaju, type PessoaPedidoCaju } from "../clients/caju.js"
+import { montarPedidoCaju, type AllowanceCaju, type PessoaPedidoCaju } from "../clients/caju.js"
 
 const BACKEND = "http://127.0.0.1:3000"
 const r2 = (v: number): number => Math.round((Number(v) || 0) * 100) / 100
@@ -153,7 +153,25 @@ async function main(): Promise<void> {
     cmp(`descontoUpdate ${id}`, valsLegado, valsNosso)
   }
 
-  // 4) Payloads Caju (crédito + boleto) por contrato — employeeIds fictícios iguais dos 2 lados
+  // 4) Payloads Caju por contrato — employeeIds fictícios iguais dos 2 lados.
+  //
+  // Desde 08/2026 o pedido é SEPARADO por benefício, então não há paridade 1:1 de payload: o legado
+  // monta UM pedido com VR e VT no mesmo `amounts[]`, e nós montamos dois. O que a paridade tem que
+  // provar é que o EMPACOTAMENTO mudou e o DINHEIRO não — então compara a UNIÃO dos nossos dois
+  // pedidos contra o pedido único do legado, normalizada por (employeeId, category).
+  const fundirAmounts = (payloads: Array<{ allowances: AllowanceCaju[] } | null>): Array<[string, number]> => {
+    const mapa = new Map<string, number>()
+    for (const p of payloads) {
+      for (const a of p?.allowances ?? []) {
+        for (const x of a.amounts) {
+          const k = `${a.employeeId}|${x.category}`
+          mapa.set(k, (mapa.get(k) ?? 0) + x.amount)
+        }
+      }
+    }
+    return [...mapa.entries()].sort(([a], [b]) => a.localeCompare(b))
+  }
+
   for (const lc of legado.contratos) {
     const nc = snapshot.contratos.find((c) => norm(c.contrato) === norm(lc.contrato))
     if (!nc) continue
@@ -165,10 +183,24 @@ async function main(): Promise<void> {
       creditoVR: p.creditoVR, creditoVT: p.creditoVT, pixVR: p.pixVR, pixVT: p.pixVT,
     }))
     for (const [nodeName, tipo] of [["Mensal Montar Pedido CREDITO", "credito"], ["Mensal Montar Pedido BOLETO", "boleto"]] as const) {
-      const lp = json1(rodarCodeNode(nodes[nodeName]!, { sd })) as { payload: unknown; confirmPayload: unknown; totalCentavos: number }
-      const np = montarPedidoCaju(pessoasNossas, tipo, nc.contrato, 7, 2026)
-      cmp(`${lc.contrato} · caju ${tipo} · payload`, lp.payload, np.payload)
-      cmp(`${lc.contrato} · caju ${tipo} · confirm`, lp.confirmPayload, np.confirmPayload)
+      const lp = json1(rodarCodeNode(nodes[nodeName]!, { sd })) as {
+        payload: { allowances: AllowanceCaju[] } | null; confirmPayload: unknown; totalCentavos: number
+      }
+      const nossoVR = montarPedidoCaju(pessoasNossas, tipo, "VR", nc.contrato, 7, 2026)
+      const nossoVT = montarPedidoCaju(pessoasNossas, tipo, "VT", nc.contrato, 7, 2026)
+      // Nenhum centavo a mais nem a menos, por pessoa e por categoria.
+      cmp(`${lc.contrato} · caju ${tipo} · amounts (união VR+VT)`,
+        fundirAmounts([lp.payload]), fundirAmounts([nossoVR.payload, nossoVT.payload]))
+      // O total do legado tem que fechar com a soma dos dois pedidos — é o valor que vira boleto.
+      cmp(`${lc.contrato} · caju ${tipo} · total centavos`,
+        lp.totalCentavos, nossoVR.totalCentavos + nossoVT.totalCentavos)
+      // E cada pedido nosso carrega SÓ a sua categoria — é a garantia do split.
+      const cats = (p: { allowances: AllowanceCaju[] } | null): string[] =>
+        [...new Set((p?.allowances ?? []).flatMap((a) => a.amounts.map((x) => x.category)))].sort()
+      cmp(`${lc.contrato} · caju ${tipo} · categorias do pedido VR`, ["FOOD_AID"].slice(0, cats(nossoVR.payload).length), cats(nossoVR.payload))
+      if (cats(nossoVT.payload).includes("FOOD_AID")) {
+        divergencias.push(`${lc.contrato} · caju ${tipo} · pedido de VT contém FOOD_AID — split quebrado`)
+      }
     }
   }
 
@@ -176,6 +208,9 @@ async function main(): Promise<void> {
   for (const lc of legado.contratos) {
     const nc = snapshot.contratos.find((c) => norm(c.contrato) === norm(lc.contrato))
     if (!nc) continue
+    // O legado só conhece um pedido de crédito e um de boleto. Para a paridade das OUTRAS colunas
+    // continuar valendo, damos ao nosso lado o caso degenerado: só o boleto de VR preenchido.
+    // O formato de dois ids na mesma célula é conferido logo abaixo, à parte.
     const refs = { idVR: "111", idVT: "222", pedidoCreditoId: "ord-c", pedidoPixId: "ord-p", summaryCredito: "sc", summaryPix: "sp" }
     const sd = {}
     const lp = json1(rodarCodeNode(nodes["Mensal Preparar Solicitação"]!, {
@@ -187,8 +222,7 @@ async function main(): Promise<void> {
       contrato: nc.contrato, competenciaLabel: "JULHO", anoComp: 2026,
       totais: { vr: nc.totais.vr ?? 0, vt: nc.totais.vt ?? 0, credito: nc.totais.credito ?? 0, pix: nc.totais.pix ?? 0 },
       pessoas: nc.pessoas, idVR: refs.idVR, idVT: refs.idVT,
-      pedidoCreditoId: refs.pedidoCreditoId, pedidoPixId: refs.pedidoPixId,
-      summaryCredito: refs.summaryCredito, summaryPix: refs.summaryPix,
+      pedidoCreditoVR: refs.pedidoCreditoId, pedidoPixVR: refs.pedidoPixId,
       planBoardId: "18408773953", dataIso: new Date().toISOString().slice(0, 10),
     })
     const legadoValues = JSON.parse(lp.column_values_json) as Record<string, unknown>
@@ -196,7 +230,21 @@ async function main(): Promise<void> {
     const { long_text_mkre1qa0: lvResumo, ...lvResto } = legadoValues
     const { long_text_mkre1qa0: nvResumo, ...nvResto } = nossoValues as Record<string, unknown>
     cmp(`${lc.contrato} · solicitacao · values`, lvResto, nvResto)
-    cmp(`${lc.contrato} · solicitacao · resumo`, lvResumo, nvResumo)
+    // O resumo lista os 4 pedidos desde o split — divergência esperada e não comparável 1:1.
+    void lvResumo; void nvResumo
+
+    // Formato de dois ids na mesma célula (o board segue com UM item por contrato).
+    const doisPedidos = montarValuesSolicitacao({
+      contrato: nc.contrato, competenciaLabel: "JULHO", anoComp: 2026,
+      totais: { vr: nc.totais.vr ?? 0, vt: nc.totais.vt ?? 0, credito: nc.totais.credito ?? 0, pix: nc.totais.pix ?? 0 },
+      pessoas: nc.pessoas, idVR: refs.idVR, idVT: refs.idVT,
+      pedidoPixVR: "ord-vr", pedidoPixVT: "ord-vt",
+      planBoardId: "18408773953", dataIso: new Date().toISOString().slice(0, 10),
+    })
+    cmp(`${lc.contrato} · solicitacao · dois ids na coluna`, "ord-vr; ord-vt", doisPedidos.text_mm1zyhcw)
+    cmp(`${lc.contrato} · solicitacao · dois summaries na coluna`,
+      "https://empresa.caju.com.br/classic/#/order/ord-vr/summary; https://empresa.caju.com.br/classic/#/order/ord-vt/summary",
+      doisPedidos.text_mm395p8s)
   }
 
   // --- Relatório -------------------------------------------------------------
