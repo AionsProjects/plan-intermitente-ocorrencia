@@ -15,6 +15,7 @@ import { TIPO_JOB_CONVOCACAO_RM, type PayloadConvocacaoRmPontual } from "../jobs
 import { processarConvocacaoPontual, TIMEOUT_INLINE_MS } from "../services/convocacaoPontual.js"
 import { unidadesRm } from "./rmLookups.js"
 import { arquivarDrive } from "../services/driveArquivar.js"
+import { abrirExecucao, comEtapa, type EstadoEtapa, type Execucao } from "../services/execucao.js"
 
 // Opções do form de convocação: labels das colunas status do board Entrada ATUAL
 // (resolvido pelo registry, por nome — robusto à virada). unidadesPorContrato vem do RM
@@ -350,8 +351,39 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
     // Fora do try grande: entra na resposta mesmo se algo depois falhar.
     let rm: EstadoRmResposta = { estado: "nao_enfileirado", motivo: "nao_avaliado" }
 
+    // Log de execução. Aberto DEPOIS da validação de payload (400 é erro de quem
+    // chamou, não falha de automação) e ANTES de qualquer efeito — é o que faz a
+    // convocação que quebra no meio deixar rastro em vez de sumir.
+    //
+    // `campos.execucao_id` vem do front, que já abriu a execução e cunhou o id; sem
+    // ele nasce aqui. Em nenhum caso duas linhas são criadas (ON CONFLICT no id).
+    const ex: Execucao = await abrirExecucao({
+      id: campos.execucao_id || null,
+      acao: "convocacao",
+      motor: "backend",
+      operador: {
+        userId: usuario.id,
+        email: usuario.email,
+        nome: [usuario.nome, usuario.sobrenome].filter(Boolean).join(" ").trim() || usuario.email,
+      },
+      pessoa: campos.empregado_nome,
+      contrato: campos.contrato,
+      resumo: {
+        chapa: campos.empregado_chapa || null,
+        data_inicio: dataInicio,
+        data_fim: dataFim,
+        unidade: campos.local_unidade,
+        papel,
+        solicitante: campos.solicitante,
+        optante_vt: optanteVt,
+      },
+    })
+
     const b = await resolverBoard(papel)
-    if (!b) return reply.code(404).send({ ok: false, erro: "board_nao_registrado" })
+    if (!b) {
+      await ex.fechar("erro", { erro: "board_nao_registrado", etapaErro: "resolver_board" })
+      return reply.code(404).send({ ok: false, erro: "board_nao_registrado" })
+    }
     const id = (nome: string) => b.idPorNome.get(nome)
 
     try {
@@ -360,11 +392,11 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
       const colIdentidade = temChapa ? id(COL.chapa) : id(COL.nomeEmpregado)
       const valorIdentidade = temChapa ? campos.empregado_chapa : campos.empregado_nome
       if (colIdentidade && valorIdentidade) {
-        const existentes = await acharItensPorColuna(
+        const existentes = await comEtapa(ex, "antifraude", () => acharItensPorColuna(
           b.boardId, colIdentidade, valorIdentidade,
           [id(COL.nomeEmpregado)!, id(COL.chapa)!, id(COL.dataInicio)!, id(COL.dataFim)!, id(COL.statusConvocacao)!, CANCEL_INICIO_ID].filter(Boolean) as string[],
           50,
-        )
+        ))
         for (const it of existentes) {
           const m = new Map(it.column_values.map((c) => [c.id, c.text]))
           const atual = temChapa ? normCode(campos.empregado_chapa) : normName(campos.empregado_nome)
@@ -384,6 +416,19 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
             eFim = d.toISOString().slice(0, 10)
           }
           if (eIni && eFim && overlap(dataInicio, dataFim, eIni, eFim)) {
+            // Conflito é desfecho de negócio, não crash — mas a convocação NÃO
+            // aconteceu, então fecha 'erro'. `fechar` é first-wins, então o
+            // 'ok' do fim do handler não sobrescreve isto.
+            await ex.fechar("erro", {
+              erro: `convocacao_conflitante: item ${it.id} (${eIni} a ${eFim})`,
+              etapaErro: "antifraude",
+            })
+            await ex.artefato({
+              tipo: "monday_item",
+              chave: it.id,
+              rotulo: "Convocação conflitante",
+              url: `https://contato-serv.monday.com/boards/${b.boardId}/pulses/${it.id}`,
+            })
             return reply.code(409).send({
               ok: false, erro: "convocacao_conflitante",
               conflito: {
@@ -427,12 +472,20 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
       setStatus(COL.optanteVT, optanteVt)
       setStatus(COL.vtSoVolta, optanteVt === "SIM*" ? "SIM" : "NÃO")
 
-      const item = await createItem(
+      const item = await comEtapa(ex, "criar_item_monday", () => createItem(
         b.boardId,
         campos.name || `INTERMITENTE - ${campos.empregado_nome}`,
         cv,
         b.grupoPontual,
-      )
+      ))
+      // `uuid_alvo` de acao='convocacao' é o item_id do Monday — semântica que o
+      // monitor de alteração de board depende (cascata resolverItemDoPlano). O front
+      // pode ter aberto a execução antes de o item existir, então preenche aqui.
+      await query(
+        `UPDATE audit_lancamentos SET uuid_alvo = COALESCE(uuid_alvo, $2) WHERE id = $1`,
+        [ex.id, item.id],
+      ).catch((e) => req.log.warn(e, "gravar uuid_alvo da execucao falhou"))
+      await ex.artefato({ tipo: "monday_item", chave: item.id, rotulo: "Item no Plano", url: item.url })
 
       // Convocação no RM — enfileirada, nunca inline.
       //
@@ -457,6 +510,31 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
         return { estado: "nao_enfileirado" as const, motivo: (e as Error).message.slice(0, 120) }
       })
 
+      // A fase do RM não é "ok ou erro": `conciliando` significa "pode ter gravado,
+      // estamos lendo pra saber" e nunca pode ser apresentado como falha. Por isso a
+      // fase é gravada à mão, com o estado escolhido por desfecho, em vez de sair de
+      // um comEtapa que só conhece ok/erro.
+      const estadoRm: EstadoEtapa =
+        rm.estado === "gravado" ? "ok"
+        : rm.estado === "invalido" ? "erro"
+        : rm.estado === "coberto_por_ausencia" ? "pulado"
+        : rm.estado === "desligado" || rm.estado === "sem_chapa" || rm.estado === "rm_nao_configurado" ? "pulado"
+        : "aviso" // enfileirado | conciliando | nao_enfileirado — pendente, não falha
+      await ex.etapa("convocacao_rm", estadoRm, {
+        mensagem: "motivo" in rm ? rm.motivo : rm.estado,
+        metadados: { estado: rm.estado, ...("job_id" in rm && rm.job_id ? { job_id: rm.job_id } : {}) },
+      })
+      for (const codigo of ("codigos" in rm ? rm.codigos ?? [] : [])) {
+        await ex.artefato({ tipo: "rm_convocacao", chave: codigo, rotulo: "Convocação no RM" })
+      }
+      if ("job_id" in rm && rm.job_id) {
+        // Amarra o job à execução: é o que faz o alerta de um job morto linkar pro log
+        // desta convocação em vez de um uuid opaco de job.
+        await ex.artefato({ tipo: "job", chave: rm.job_id, rotulo: "Fila do RM" })
+        await query(`UPDATE jobs SET execucao_id = $2 WHERE id = $1`, [rm.job_id, ex.id])
+          .catch((e) => req.log.warn(e, "amarrar job a execucao falhou"))
+      }
+
       // UPLOAD termos (best-effort: não derruba a criação se falhar).
       const uploads: [string, string][] = [
         ["termo_convocacao", COL.termoConvocacao],
@@ -468,13 +546,18 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
         if (arq && colId) {
           try {
             await uploadFileToColumn(item.id, colId, arq.buffer, arq.filename, arq.mime)
+            await ex.artefato({ tipo: "monday_asset", chave: `${item.id}:${campo}`, rotulo: arq.filename })
           } catch (e) {
             req.log.warn(e, `upload ${campo} falhou`)
+            // Upload é best-effort e não derruba a criação — mas some do log se não
+            // for registrado, e "o termo não subiu" é justamente o tipo de coisa que
+            // aparece depois como reclamação.
+            await ex.etapa("upload_termo", "aviso", { mensagem: e as Error, metadados: { campo } })
           }
         }
       }
 
-      await arquivarDrive({
+      const drive = await comEtapa(ex, "arquivar_drive", () => arquivarDrive({
         tipo: "convocacao",
         nome: campos.empregado_nome,
         chapa: campos.empregado_chapa,
@@ -489,11 +572,37 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
         arquivos: uploads
           .map(([campo]) => arquivos[campo])
           .filter((a): a is { buffer: Buffer; filename: string; mime: string } => !!a),
-      }).catch((e) => req.log.warn(e, "drive convocacao falhou"))
+      })).catch((e) => {
+        // Segue best-effort: Drive fora do ar não invalida a convocação já criada.
+        // O comEtapa acima já gravou a fase como 'erro' antes de re-lançar.
+        req.log.warn(e, "drive convocacao falhou")
+        return null
+      })
+      if (drive) {
+        await ex.artefato({
+          tipo: "drive_pasta",
+          chave: drive.pasta_convocacao_drive_id,
+          rotulo: "Pasta da convocação",
+          url: drive.pasta_convocacao_drive_url,
+        })
+        if (drive.planilha) {
+          await ex.artefato({
+            tipo: "drive_arquivo",
+            chave: drive.planilha.id,
+            rotulo: drive.planilha.name,
+            url: drive.planilha.url ?? null,
+          })
+        }
+      }
 
+      // 'parcial' e não 'ok' quando algo best-effort ficou pendente: a convocação
+      // existe, mas o operador precisa saber que o Drive ou o RM não fecharam.
+      const pendenteRm = rm.estado === "enfileirado" || rm.estado === "conciliando" || rm.estado === "nao_enfileirado"
+      await ex.fechar(!drive || pendenteRm ? "parcial" : "ok")
       return { ok: true, item_id: item.id, item_url: item.url, rm }
     } catch (e) {
       req.log.error(e, "erro criar convocacao")
+      await ex.fechar("erro", { erro: e })
       return reply.code(502).send({ ok: false, erro: "erro_monday" })
     }
   }
