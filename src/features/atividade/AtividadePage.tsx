@@ -9,6 +9,7 @@ import { normalizarBusca } from "@/lib/buscaUnidade"
 import { useDebounce } from "@/lib/useDebounce"
 import { listarAtividade, buscarDetalheExecucao } from "./api"
 import { BarraFiltros, type Filtros, type Periodo } from "./BarraFiltros"
+import { GerarRelatorio } from "./GerarRelatorio"
 import { diaManaus, rotuloDia, rotuloEtapa } from "./etapas"
 import { LinhaExecucao } from "./LinhaExecucao"
 import { ehFalha, rotuloAcao, type Execucao } from "./types"
@@ -222,6 +223,8 @@ export function AtividadePage() {
             />
           </div>
 
+          <GerarRelatorio todos={escopoTodos} />
+
           {/* Convocação pro erro: quem abre a página vê que tem coisa quebrada mesmo
               sem estar filtrando por isso. */}
           {!filtros.soErro && qtdErros > 0 && (
@@ -245,7 +248,7 @@ export function AtividadePage() {
             </p>
             {data?.truncado && (
               // Honestidade obrigatória: a busca é local, então só alcança o que veio.
-              <p className="text-[11px] text-foreground/30">
+              <p className="text-[11px] text-foreground/45">
                 mostrando as {data.limite} mais recentes
               </p>
             )}
@@ -314,7 +317,7 @@ export function AtividadePage() {
 
           {grupos.map(([dia, linhas]) => (
             <section key={dia} className="mt-6">
-              <p className="eyebrow sticky top-0 z-10 -mx-1 bg-[rgb(var(--panel))]/85 px-1 py-1.5 backdrop-blur-sm">
+              <p className="eyebrow sticky top-0 z-10 -mx-1 rounded-md px-1 py-1.5 backdrop-blur-md [background:var(--panel)]">
                 {rotuloDia(dia)}
               </p>
               <ul className="mt-1.5 space-y-2">

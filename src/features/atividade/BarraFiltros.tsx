@@ -1,5 +1,6 @@
-import { Search, X } from "lucide-react"
+import { Search, UserRound, X } from "lucide-react"
 
+import { ComboboxFiltravel } from "@/components/ui/combobox-filtravel"
 import { nomeLimpo } from "@/lib/texto"
 import { ACOES_FILTRAVEIS, rotuloAcao } from "./types"
 
@@ -55,7 +56,7 @@ export function BarraFiltros({
     <div className="space-y-3">
       {/* Busca + escopo */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="glass-field flex min-w-[16rem] flex-1 items-center gap-2.5">
+        <div className="glass-field flex h-10 min-w-[16rem] flex-1 items-center gap-2.5 py-0">
           <Search className="size-4 shrink-0 text-foreground/35" aria-hidden />
           <input
             type="search"
@@ -63,7 +64,7 @@ export function BarraFiltros({
             onChange={(e) => onMudar({ busca: e.target.value })}
             placeholder="nome, contrato, fase, erro, id…"
             aria-label="Buscar no histórico"
-            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-foreground/30"
+            className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-foreground/35"
           />
           {filtros.busca && (
             <button
@@ -81,7 +82,7 @@ export function BarraFiltros({
             Só DP/Admin: o backend só honra ?todos=1 pra eles, e insinuar
             permissão que o operador não tem é pior que não mostrar nada. */}
         {podeVerTodos && (
-          <div className="seg-pill shrink-0">
+          <div className="seg-pill seg-pill--sm shrink-0">
             <button type="button" data-on={!filtros.todos} onClick={() => onMudar({ todos: false, quem: "" })}>
               Minhas
             </button>
@@ -104,7 +105,7 @@ export function BarraFiltros({
               type="button"
               // O padding default do .glass-chip é 10px/20px — grande demais pra
               // oito chips. Utilities vencem @layer components.
-              className="glass-chip shrink-0 px-3 py-1.5 text-[12px] disabled:opacity-40"
+              className="glass-chip h-8 shrink-0 px-3 text-[12px] disabled:opacity-40"
               data-on={on ? "true" : "false"}
               aria-pressed={on}
               disabled={n === 0 && !on}
@@ -119,7 +120,7 @@ export function BarraFiltros({
 
       {/* Período, só-erro, executora, limpar */}
       <div className="flex flex-wrap items-center gap-2.5">
-        <div className="seg-pill">
+        <div className="seg-pill seg-pill--sm">
           {PERIODOS.map((p) => (
             <button key={p.v} type="button" data-on={filtros.periodo === p.v} onClick={() => onMudar({ periodo: p.v })}>
               {p.rotulo}
@@ -129,7 +130,7 @@ export function BarraFiltros({
 
         <button
           type="button"
-          className="glass-chip px-3 py-1.5 text-[12px]"
+          className="glass-chip h-8 px-3 text-[12px]"
           data-on={filtros.soErro ? "true" : "false"}
           aria-pressed={filtros.soErro}
           onClick={() => onMudar({ soErro: !filtros.soErro })}
@@ -138,33 +139,34 @@ export function BarraFiltros({
           {qtdErros > 0 && <span className="font-mono text-[10px] text-foreground/45">{qtdErros}</span>}
         </button>
 
-        {/* Opções derivadas das linhas carregadas: /api/usuarios é admin-only, então
-            um DP tomaria 403 tentando listar gente.
+        {/* Combobox da casa, não <select> nativo: o popup do sistema (branco, seleção
+            azul do SO) quebrava o mundo de vidro — foi um dos "não se encaixa"
+            apontados. Opções derivadas das linhas carregadas: /api/usuarios é
+            admin-only, e um DP tomaria 403 tentando listar gente.
 
-            `min-w-0 max-w-full` no LABEL, não só no select: o select nativo se
-            dimensiona pela opção mais longa ("KARINE ROMASKEVIS DE OLIVEIRA" dava
-            303px), e como o label é o flex item, sem isso ele não encolhia e estourava
-            o painel em 375px — a página não rolava, então o conteúdo era cortado, que
-            é pior. */}
+            Exibe o nome LIMPO e mapeia de volta pro bruto no onChange — é o bruto que
+            casa com o dado das linhas. */}
         {filtros.todos && operadores.length > 1 && (
-          <label className="glass-field flex min-w-0 max-w-full items-center gap-2 py-1.5 text-[12px]">
-            <span className="shrink-0 text-foreground/45">Quem</span>
-            <select
-              value={filtros.quem}
-              onChange={(e) => onMudar({ quem: e.target.value })}
-              className="min-w-0 flex-1 truncate bg-transparent text-[12px] outline-none"
-            >
-              <option value="">todas as pessoas</option>
-              {operadores.map((o) => (
-                // `value` é o nome BRUTO (é o que casa com o dado); só o rótulo é limpo.
-                <option key={o} value={o}>{nomeLimpo(o) ?? o}</option>
-              ))}
-            </select>
-          </label>
+          <div className="w-full max-w-[16rem]">
+            <ComboboxFiltravel
+              valor={filtros.quem ? (nomeLimpo(filtros.quem) ?? filtros.quem) : ""}
+              opcoes={["Todas as pessoas", ...operadores.map((o) => nomeLimpo(o) ?? o)]}
+              onChange={(v) => {
+                if (v === "Todas as pessoas") return onMudar({ quem: "" })
+                const bruto = operadores.find((o) => (nomeLimpo(o) ?? o) === v)
+                onMudar({ quem: bruto ?? v })
+              }}
+              placeholder="Quem executou"
+              buscaPlaceholder="Buscar pessoa…"
+              noMatchMessage="Ninguém com esse nome no período"
+              iconeOpcao={UserRound}
+              compacto
+            />
+          </div>
         )}
 
         {temFiltro && (
-          <button type="button" onClick={onLimpar} className="pill-soft px-3 py-1.5 text-[12px]">
+          <button type="button" onClick={onLimpar} className="pill-soft h-8 px-3 text-[12px]">
             Limpar filtros
           </button>
         )}

@@ -78,7 +78,7 @@ export function LinhaExecucao({
             <HighlightedText text={rotuloAcao(exec.acao)} query={busca} />
           </span>
           <span
-            className="shrink-0 font-mono text-[11px] tabular-nums text-foreground/40"
+            className="shrink-0 font-mono text-[11px] tabular-nums text-foreground/55"
             title={new Date(exec.criado_em).toLocaleString("pt-BR", { timeZone: "America/Manaus" })}
           >
             {horaManaus(exec.criado_em)}
@@ -100,7 +100,7 @@ export function LinhaExecucao({
               : subtitulo || "—"}
           </span>
           {mostrarOperador && (
-            <span className="shrink-0 text-[11px] text-foreground/35">
+            <span className="shrink-0 text-[11px] text-foreground/55">
               <HighlightedText
                 text={nomeLimpo(exec.operador_nome) ?? exec.operador_email ?? "—"}
                 query={busca}

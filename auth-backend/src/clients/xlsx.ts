@@ -51,9 +51,11 @@ const FILES = {
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
 <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
 </Relationships>`,
+  // `__NOME_ABA__` é substituído em criarXlsx — o Excel mostra o nome da aba, e
+  // "Conferencia" num relatório de atividade seria mentira pequena mas visível.
   "xl/workbook.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-<sheets><sheet name="Conferencia" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+<sheets><sheet name="__NOME_ABA__" sheetId="1" r:id="rId1"/></sheets></workbook>`,
   "xl/_rels/workbook.xml.rels": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
 <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
@@ -88,8 +90,15 @@ function u32(n: number): Buffer {
   return b
 }
 
-export function criarXlsx(rows: unknown[][]): Buffer {
-  const entries = Object.entries({ ...FILES, "xl/worksheets/sheet1.xml": sheetXml(rows) })
+export function criarXlsx(rows: unknown[][], nomeAba = "Conferencia"): Buffer {
+  // Nome de aba no Excel: máx 31 chars e sem []*?:/\ — sanitiza em vez de deixar o
+  // arquivo abrir com aviso de corrompido.
+  const aba = xml(nomeAba.replace(/[[\]*?:/\\]/g, " ").trim().slice(0, 31) || "Planilha")
+  const entries = Object.entries({
+    ...FILES,
+    "xl/workbook.xml": FILES["xl/workbook.xml"].replace("__NOME_ABA__", aba),
+    "xl/worksheets/sheet1.xml": sheetXml(rows),
+  })
   const locals: Buffer[] = []
   const centrals: Buffer[] = []
   let offset = 0

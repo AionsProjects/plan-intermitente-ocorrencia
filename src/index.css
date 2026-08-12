@@ -3868,6 +3868,17 @@ html {
   text-size-adjust: 100%;
 }
 
+/* Controles NATIVOS (input date, select, scrollbar) seguem o tema do app, não o do
+   SO. Sem isto, o ícone do calendário do <input type="date"> do relatório sai preto
+   sobre vidro escuro quando o SO está em modo claro — invisível. Nenhum outro lugar
+   definia color-scheme. */
+html {
+  color-scheme: light;
+}
+html.dark {
+  color-scheme: dark;
+}
+
 @supports (min-height: 100dvh) {
   html,
   body,

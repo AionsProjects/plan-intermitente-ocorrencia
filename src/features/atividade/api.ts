@@ -34,3 +34,44 @@ export function listarAtividade(todos: boolean): Promise<ListaAtividade> {
 export function buscarDetalheExecucao(id: string): Promise<DetalheExecucao> {
   return pegar<DetalheExecucao>(`/api/atividade/${encodeURIComponent(id)}`)
 }
+
+export type PeriodoRelatorio = "diario" | "semanal" | "mensal" | "personalizado"
+
+/**
+ * Baixa o relatório XLSX e dispara o download no navegador.
+ *
+ * O escopo é decidido no SERVIDOR: OP recebe o próprio relatório mesmo mandando
+ * `todos=1`. O nome do arquivo vem do Content-Disposition pra bater com o que o
+ * backend gerou (período nas duas pontas).
+ */
+export async function baixarRelatorio(opts: {
+  periodo: PeriodoRelatorio
+  de?: string
+  ate?: string
+  todos: boolean
+}): Promise<void> {
+  const p = new URLSearchParams({ periodo: opts.periodo })
+  if (opts.periodo === "personalizado") {
+    p.set("de", opts.de ?? "")
+    p.set("ate", opts.ate ?? "")
+  }
+  if (opts.todos) p.set("todos", "1")
+  const res = await fetch(`/api/atividade/relatorio?${p}`, { credentials: "same-origin" })
+  if (!res.ok) {
+    const corpo = (await res.json().catch(() => ({}))) as { erro?: string }
+    throw new AtividadeApiError(res.status, corpo.erro ?? `erro_${res.status}`)
+  }
+  const blob = await res.blob()
+  const nome =
+    /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1] ??
+    "relatorio-atividade.pdf"
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = nome
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  // revoke adiado: revogar síncrono cancela o download em WebView de celular.
+  setTimeout(() => URL.revokeObjectURL(url), 10_000)
+}

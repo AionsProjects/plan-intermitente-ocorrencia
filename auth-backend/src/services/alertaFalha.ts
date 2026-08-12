@@ -14,6 +14,7 @@ import { config } from "../config.js"
 import { query } from "../db.js"
 import { enviarTexto } from "../clients/evolution.js"
 import { limparTexto } from "../domain/sanitizar.js"
+import { rotuloAcao, rotuloEtapa } from "../domain/rotulosAtividade.js"
 import {
   mensagemFalha, mensagemFalhaAgrupada, normalizarErro,
   type DadosFalha, type OrigemAlerta,
@@ -180,42 +181,7 @@ async function marcar(id: string, erro: string | null): Promise<void> {
   )
 }
 
-// Rótulos duplicam os do front de propósito: o corpo da mensagem é montado no
-// SERVIDOR e não pode depender de bundle do browser.
-const LABEL_ACAO: Record<string, string> = {
-  convocacao: "Convocação",
-  registro: "Registro de ocorrência",
-  cancelamento: "Cancelamento",
-  split: "Divisão de convocação",
-  atestado: "Atestado / Declaração",
-  ponto_facultativo: "Ponto facultativo",
-  desconto: "Registro de desconto",
-  mensal: "Pagamento mensal",
-  mensal_fechamento: "Pagamento mensal",
-}
-const LABEL_ETAPA: Record<string, string> = {
-  antifraude: "Checando conflito de período",
-  criar_item_monday: "Criando item no Plano",
-  convocacao_rm: "Convocação no RM (eSocial)",
-  upload_termo: "Anexando termos",
-  arquivar_drive: "Arquivando no Drive",
-  validacao: "Validando dados",
-  caju_pessoas: "Buscando pessoas no Caju",
-  caju_credito: "Pedido de crédito Caju",
-  caju_pix: "Pedido PIX Caju",
-  rm_gerar: "Gerando lançamento no RM",
-  rm_integrar: "Integrando no RM",
-  monday_plano: "Atualizando o Plano",
-  monday_solicitacao: "Criando Solicitação de Pagamento",
-  monday_status_ok: "Marcando AUTOMAÇÃO - OK",
-  drive: "Arquivando no Drive",
-  contrato: "Contrato",
-  convocacao_rm_pontual: "Convocação no RM (fila)",
-  convocacao_rm_remover: "Removendo convocação do RM",
-  convocacao_rm_substituir: "Substituindo convocação no RM",
-}
-const rotuloAcao = (a: string): string => LABEL_ACAO[a] ?? a.replaceAll("_", " ")
-const rotuloEtapa = (e: string): string => LABEL_ETAPA[e] ?? e.replaceAll("_", " ")
+// Rótulos em domain/rotulosAtividade.ts — compartilhados com o relatório XLSX.
 
 /**
  * Varredura de execuções ABANDONADAS: abriram e nunca fecharam.

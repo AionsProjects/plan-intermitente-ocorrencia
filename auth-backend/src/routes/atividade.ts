@@ -3,6 +3,8 @@ import { config } from "../config.js"
 import { query, type Papel } from "../db.js"
 import { usuarioDaSessao } from "../session.js"
 import { abrirExecucao, type EstadoEtapa, type EstadoFinal, type MotorExecucao, type TipoArtefato } from "../services/execucao.js"
+import { nomeLimpo } from "../domain/mensagemAlteracao.js"
+import { gerarRelatorioPdf } from "../services/relatorioAtividade.js"
 
 // Histórico de execuções (Postgres). Uma linha por ação em audit_lancamentos
 // (o CABEÇALHO), as fases em atividade_evento e o que foi gerado em
@@ -234,6 +236,109 @@ export async function rotasAtividade(app: FastifyInstance): Promise<void> {
         // A busca client-side só alcança o que veio. Sem isto a UI mentiria.
         truncado: rows.length >= limite,
       }
+    },
+  )
+
+  // Relatório PDF do histórico por período.
+  //
+  // `periodo`: diario (hoje em Manaus) | semanal (7 dias) | mensal (30 dias) |
+  // personalizado (`de`/`ate`, ambos YYYY-MM-DD, inclusive nas duas pontas).
+  //
+  // Escopo espelha a lista: OP sai sempre com as PRÓPRIAS execuções; `todos=1` só é
+  // honrado pra DP/admin — o gate é aqui no servidor, nunca só na tela.
+  //
+  // Rota estática convive com GET /api/atividade/:id porque o roteador do Fastify
+  // (find-my-way) prefere estática sobre paramétrica — "relatorio" nunca cai no :id.
+  app.get(
+    "/api/atividade/relatorio",
+    async (
+      req: FastifyRequest<{
+        Querystring: { periodo?: string; de?: string; ate?: string; todos?: string }
+      }>,
+      reply: FastifyReply,
+    ) => {
+      const u = await usuarioDaSessao(req)
+      if (!u) return reply.code(401).send({ erro: "nao_autenticado" })
+      const todos = req.query.todos === "1" && podeVerTodos(u.papel)
+
+      // Bordas do período no fuso de MANAUS (UTC-4 fixo, sem horário de verão). O
+      // servidor roda em UTC na Vercel: "diário" calculado em UTC incluiria a noite
+      // anterior e o relatório não bateria com o que o operador viu na tela.
+      const hojeManaus = new Date().toLocaleDateString("en-CA", { timeZone: "America/Manaus" })
+      const ISO_DIA = /^\d{4}-\d{2}-\d{2}$/
+      const periodo = String(req.query.periodo ?? "diario")
+      let deIso: string
+      let ateIso: string
+      let deDia: string
+      let ateDia: string = hojeManaus
+      if (periodo === "diario") {
+        deDia = hojeManaus
+        deIso = `${hojeManaus}T00:00:00-04:00`
+        ateIso = new Date().toISOString()
+      } else if (periodo === "semanal" || periodo === "mensal") {
+        const dias = periodo === "semanal" ? 7 : 30
+        const de = new Date(Date.now() - dias * 86_400_000)
+        deDia = de.toLocaleDateString("en-CA", { timeZone: "America/Manaus" })
+        deIso = de.toISOString()
+        ateIso = new Date().toISOString()
+      } else if (periodo === "personalizado") {
+        const de = String(req.query.de ?? "")
+        const ate = String(req.query.ate ?? "")
+        if (!ISO_DIA.test(de) || !ISO_DIA.test(ate))
+          return reply.code(400).send({ erro: "datas_invalidas" })
+        if (de > ate) return reply.code(400).send({ erro: "de_maior_que_ate" })
+        // Teto de 1 ano: range aberto viraria um SELECT do histórico inteiro.
+        const dias = (Date.parse(ate) - Date.parse(de)) / 86_400_000
+        if (dias > 366) return reply.code(400).send({ erro: "periodo_maior_que_um_ano" })
+        deDia = de
+        ateDia = ate
+        deIso = `${de}T00:00:00-04:00`
+        // Fim INCLUSIVE: "até dia tal" no pedido do usuário inclui o dia tal inteiro.
+        ateIso = `${ate}T23:59:59.999-04:00`
+      } else {
+        return reply.code(400).send({ erro: "periodo_invalido" })
+      }
+
+      // Teto de linhas: relatório é serverless e o PDF é montado em memória. Acima
+      // disso o corte é AVISADO no rodapé da tabela — truncar calado leria como "isso é tudo".
+      const TETO = 5000
+      const { rows } = await query<{
+        id: string
+        acao: string
+        estado: string
+        pessoa_nome: string | null
+        contrato: string | null
+        operador_nome: string | null
+        operador_email: string | null
+        erro_etapa: string | null
+        erro_msg: string | null
+        criado_em: Date
+      }>(
+        `SELECT a.id, a.acao, a.estado, a.pessoa_nome, a.contrato,
+                a.operador_nome, a.operador_email, a.erro_etapa, a.erro_msg, a.criado_em
+           FROM audit_lancamentos a
+          WHERE a.criado_em >= $1::timestamptz AND a.criado_em <= $2::timestamptz
+            ${todos ? "" : "AND a.user_id = $4"}
+          ORDER BY a.criado_em DESC
+          LIMIT $3`,
+        todos ? [deIso, ateIso, TETO] : [deIso, ateIso, TETO, u.id],
+      )
+
+      const br = (dia: string): string => dia.split("-").reverse().join("/")
+      const buf = gerarRelatorioPdf({
+        escopo: todos
+          ? "todas as pessoas"
+          : (nomeLimpo([u.nome, u.sobrenome].filter(Boolean).join(" ")) ?? u.email),
+        periodoLabel: deDia === ateDia ? br(deDia) : `${br(deDia)} a ${br(ateDia)}`,
+        geradoPor: u.email,
+        linhas: rows,
+        truncadoEm: rows.length >= TETO ? TETO : null,
+      })
+      const arquivo = `relatorio-atividade-${deDia}-a-${ateDia}.pdf`
+      return reply
+        .header("Content-Type", "application/pdf")
+        .header("Content-Disposition", `attachment; filename="${arquivo}"`)
+        .send(buf)
     },
   )
 

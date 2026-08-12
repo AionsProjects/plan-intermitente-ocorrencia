@@ -23,6 +23,12 @@ export type ComboboxFiltravelProps = {
   noMatchMessage?: string
   /** Quando true, desabilita o trigger e mostra opacidade reduzida. */
   disabled?: boolean
+  /**
+   * Trigger em formato de PÍLULA compacta (32px), pra viver em barra de filtros ao
+   * lado de seg-pills e chips. O default (retângulo 46px de canto 16) destoava ali —
+   * mesma fileira com três formas de controle diferentes.
+   */
+  compacto?: boolean
   /** Acento de cor (hex). Default âmbar (rgb(var(--accent-rgb))). */
   accent?: string
   /** Ícone à esquerda de cada opção. Default Building2. */
@@ -49,6 +55,7 @@ export function ComboboxFiltravel({
   emptyMessage = "Nenhuma opção disponível.",
   noMatchMessage = "Nenhuma unidade encontrada para esse termo",
   disabled = false,
+  compacto = false,
   accent = "rgb(var(--accent-rgb))",
   iconeOpcao: IconeOpcao = Building2,
   extraInfo,
@@ -111,14 +118,15 @@ export function ComboboxFiltravel({
           if (!disabled) setAberto((v) => !v)
         }}
         disabled={disabled}
-        className={`liquid-field liquid-field-trigger flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm transition ${
-          aberto ? "border-[rgb(var(--ink)/0.3)]" : ""
-        } ${disabled ? "cursor-not-allowed opacity-55" : ""}`}
-        style={
-          aberto && valor
-            ? { borderColor: accentBorder }
-            : undefined
-        }
+        className={`liquid-field liquid-field-trigger flex w-full items-center justify-between text-left transition ${
+          compacto ? "gap-2 px-3.5 py-[6px] text-[13px]" : "gap-3 px-4 py-3 text-sm"
+        } ${aberto ? "border-[rgb(var(--ink)/0.3)]" : ""} ${disabled ? "cursor-not-allowed opacity-55" : ""}`}
+        style={{
+          // Pílula via style, não utility: .liquid-field vive no @layer components do
+          // index.css e ganharia de uma classe rounded-full em algumas cascatas.
+          ...(compacto ? { borderRadius: 9999 } : {}),
+          ...(aberto && valor ? { borderColor: accentBorder } : {}),
+        }}
       >
         <span className={`truncate ${valor ? "text-foreground" : "text-foreground/40"}`}>
           {valor || placeholder}
