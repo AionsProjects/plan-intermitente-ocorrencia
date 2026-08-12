@@ -1,27 +1,13 @@
 import type { PoolClient } from "pg"
 import { pool, query } from "../db.js"
+// Redação de segredo/PII vive em domain/sanitizar.ts desde que o log detalhado deixou
+// de ser exclusivo do mensal. A versão de lá é RECURSIVA — a que morava aqui limpava
+// só string de primeiro nível, e `referencias` tem pessoas aninhadas.
+import { limparMetadados, limparTexto } from "../domain/sanitizar.js"
 import type { EventoMensalInput, SnapshotPreviaMensal, StatusRunMensal } from "./types.js"
 
 const STATUS_ATIVOS = ["aguardando_aprovacao", "fila", "rodando", "recuperando"] as const
 const CHAVE_LOCK_GLOBAL = 74839211
-
-function limparTexto(v: unknown, limite = 500): string | null {
-  if (v == null) return null
-  return String(v)
-    .replace(/Bearer\s+[A-Za-z0-9._~+/-]+/gi, "Bearer [redigido]")
-    .replace(/(token|secret|password|authorization)\s*[:=]\s*[^\s,;}]+/gi, "$1=[redigido]")
-    .slice(0, limite)
-}
-
-function limparMetadados(v: Record<string, unknown> | undefined): Record<string, unknown> {
-  if (!v) return {}
-  const proibidas = /token|secret|password|authorization|cpf|access[_-]?token/i
-  return Object.fromEntries(
-    Object.entries(v)
-      .filter(([k]) => !proibidas.test(k))
-      .map(([k, valor]) => [k, typeof valor === "string" ? limparTexto(valor, 300) : valor]),
-  )
-}
 
 export async function criarRunPrevia(
   snapshot: SnapshotPreviaMensal,
