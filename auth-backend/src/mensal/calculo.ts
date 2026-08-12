@@ -79,7 +79,21 @@ export interface DescontoUpdateMensal {
 export interface ContratoCalculadoMensal {
   contrato: string
   codSecao: string
+  /** Só quem TEM saldo a pagar (`liquido > 0`) — é quem entra na rodada de pagamento. */
   pessoas: PessoaCalculadaMensal[]
+  /**
+   * Quem o FIFO zerou: o desconto pendente consumiu o benefício inteiro.
+   *
+   * Não é erro nem lista vazia — é desfecho de negócio conhecido (o `If2#false` do WF5
+   * Pontual, ajustado em 30/07/2026): o board ainda recebe dias, valor unitário,
+   * `CRÉDITO = 0` e o `DESCONTO - VR/VT` mostrando para onde o benefício foi, e **nada**
+   * de Caju/RM/Solicitação acontece.
+   *
+   * O mensal ignora esta lista (`pessoas` já é o filtro que ele quer). Existe porque o
+   * PONTUAL precisa distinguir "dívida comeu tudo" de "não há dias elegíveis" — dois
+   * motivos com tratamento oposto na felipeta.
+   */
+  pessoasSemSaldo: PessoaCalculadaMensal[]
   planUpdates: PlanUpdateMensal[]
   descontoUpdates: DescontoUpdateMensal[]
   totais: { vr: number; vt: number; credito: number; pix: number }
@@ -170,8 +184,28 @@ function diasElegiveis(
   })
 }
 
+/**
+ * Teto de crédito em conta Caju, em DIAS de benefício.
+ *
+ * Parametrizado porque os dois fluxos divergem por decisão de negócio, não por acidente:
+ * no MENSAL o DP credita os 3 primeiros dias à mão na Caju (conferido contra o pedido
+ * oficial `622cd7d3`), então o cálculo espelha isso; no PONTUAL não há crédito manual, e a
+ * regra segue 2 dias de VR + 2 de VT (decisão do Isaac, 12/08/2026).
+ *
+ * ⚠️ `calcularPontual` NÃO pode chamar `calcularMensal` sem passar isto: herdar 3/0 em
+ * silêncio é erro de dinheiro em toda convocação, e contamina `pixVR`/`pixVT`, que derivam
+ * do crédito.
+ */
+export interface TetoCreditoDias {
+  vr: number
+  vt: number
+}
+export const TETO_CREDITO_MENSAL: TetoCreditoDias = { vr: 3, vt: 0 }
+export const TETO_CREDITO_PONTUAL: TetoCreditoDias = { vr: 2, vt: 2 }
+
 export function calcularMensal(
   convocacoes: ConvocacaoMensal[], regras: RegraBeneficioMensal[], feriados: FeriadoMensal[], descontosOriginais: DescontoMensal[],
+  tetoCredito: TetoCreditoDias = TETO_CREDITO_MENSAL,
 ): ResultadoCalculoMensal {
   const descontos = descontosOriginais.map((d) => ({ ...d }))
   const grupos = new Map<string, ConvocacaoMensal[]>()
@@ -219,14 +253,21 @@ export function calcularMensal(
         d.descontadoVR = r2(d.descontadoVR + tiraVR); d.descontadoVT = r2(d.descontadoVT + tiraVT)
         descontosTocados.add(d)
       }
-      // Crédito em conta Caju: até 3 dias de VR, e VT NENHUM — o VT vai 100% no boleto.
-      // Confirmado pelo DP em 01/08/2026 contra o pagamento oficial do SEMSA (pedido Caju
-      // 622cd7d3): 73,50/pessoa em alimentação (3 × 24,50) e VT zerado nas 29 linhas.
-      // Antes eram 2 dias de VR + 2 de VT ("estilo pontual"), o que dava 69,00/pessoa e
-      // divergia do oficial em 4,50 por pessoa (130,50 no contrato).
+      // Crédito em conta Caju, em DIAS de benefício — vem de `tetoCredito` (ver
+      // TETO_CREDITO_MENSAL / TETO_CREDITO_PONTUAL no topo).
+      //
+      // MENSAL = 3 dias de VR e VT NENHUM (o VT vai 100% no boleto). Confirmado pelo DP em
+      // 01/08/2026 contra o pagamento oficial do SEMSA (pedido Caju 622cd7d3): 73,50/pessoa
+      // em alimentação (3 × 24,50) e VT zerado nas 29 linhas. Antes eram 2+2 ("estilo
+      // pontual"), o que dava 69,00/pessoa e divergia do oficial em 4,50 por pessoa
+      // (130,50 no contrato).
+      //
+      // PONTUAL = 2 dias de VR + 2 de VT: lá o DP não credita nada à mão, então não há o
+      // que espelhar (decisão do Isaac, 12/08/2026).
+      //
       // É TETO, não valor fixo: quem tem menos dias recebe o que tem direito (Math.min abaixo).
-      const tetoVR = r2(vrDia * 3)
-      const tetoVT = 0
+      const tetoVR = r2(vrDia * tetoCredito.vr)
+      const tetoVT = r2(vtDia * tetoCredito.vt)
       const creditoVR = r2(Math.min(brutoVR, tetoVR)), creditoVT = r2(Math.min(brutoVT, tetoVT))
       // Alocação do crédito por linha (ordem: inicio, itemId) — espelha o n8n.
       let remVR = creditoVR, remVT = creditoVT
@@ -267,9 +308,18 @@ export function calcularMensal(
       status: d.residualVR <= 0 && d.residualVT <= 0 ? "FINALIZADO" : "PARCIAL",
     }))
     contratos.push({ contrato: convocacoesContrato[0]!.contrato, codSecao: codigoSecaoContrato(convocacoesContrato[0]!.contrato), pessoas: ativas,
+      pessoasSemSaldo: pessoas.filter((p) => p.liquidoVR + p.liquidoVT <= 0),
       planUpdates, descontoUpdates,
       totais: ativas.reduce((t, p) => ({ vr: r2(t.vr + p.liquidoVR), vt: r2(t.vt + p.liquidoVT),
         credito: r2(t.credito + p.creditoVR + p.creditoVT), pix: r2(t.pix + p.pixVR + p.pixVT) }), { vr: 0, vt: 0, credito: 0, pix: 0 }) })
   }
-  return { contratos: contratos.filter((c) => c.pessoas.length), descontos: descontos.map((d) => ({ ...d, status: d.residualVR <= 0 && d.residualVT <= 0 ? "FINALIZADO" : "PARCIAL" })) }
+  // Contrato sem NINGUÉM sai do resultado — o mensal não abre rodada pra contrato vazio.
+  // Mas "todo mundo com líquido zero" NÃO é contrato vazio: o desconto consumiu o benefício,
+  // e o board + o ledger ainda têm que ser gravados (o `If2#false` do WF5). Por isso o filtro
+  // olha as DUAS listas. Sem `pessoasSemSaldo` aqui, o pontual perdia o caso inteiro e
+  // lançava "sem dias elegíveis", que é motivo errado — e a reserva ia embora com ele.
+  return {
+    contratos: contratos.filter((c) => c.pessoas.length || c.pessoasSemSaldo.length),
+    descontos: descontos.map((d) => ({ ...d, status: d.residualVR <= 0 && d.residualVT <= 0 ? "FINALIZADO" : "PARCIAL" })),
+  }
 }
