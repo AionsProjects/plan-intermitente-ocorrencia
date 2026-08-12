@@ -81,6 +81,16 @@ export interface Execucao {
 }
 
 /**
+ * Contexto guardado no handle pro alerta poder dizer DE QUEM foi a falha sem uma query
+ * extra. Mensagem que diz "convocação falhou" sem nome não deixa ninguém agir.
+ */
+interface ContextoExecucao {
+  acao: string
+  pessoa: string | null
+  contrato: string | null
+}
+
+/**
  * Teto de eventos por execução. Laço de retry incrementa `eventos_truncados` em vez
  * de escrever um milhão de linhas no log de uma convocação.
  */
@@ -113,9 +123,15 @@ function textoDeErro(e: unknown): string | null {
 class ExecucaoViva implements Execucao {
   #eventos = 0
   #fechada = false
+  #ultimaEtapa: string | null = null
   readonly #inicio = Date.now()
+  readonly id: string
+  readonly #ctx: ContextoExecucao
 
-  constructor(readonly id: string) {}
+  constructor(id: string, ctx: ContextoExecucao) {
+    this.id = id
+    this.#ctx = ctx
+  }
 
   async etapa(etapa: string, estado: EstadoEtapa, det: DetalheEtapa = {}): Promise<number> {
     try {
@@ -150,6 +166,7 @@ class ExecucaoViva implements Execucao {
         ],
       )
       this.#eventos++
+      this.#ultimaEtapa = etapa
       return Number(rows[0]?.id ?? 0)
     } catch (e) {
       aviso(e, `etapa(${etapa})`)
@@ -204,6 +221,27 @@ class ExecucaoViva implements Execucao {
     } catch (e) {
       aviso(e, "fechar")
     }
+    // ESCAPE DE ERRO. Fora do try acima de propósito: se o UPDATE do desfecho falhar, o
+    // alerta é a última chance de alguém saber que quebrou.
+    //
+    // Só em 'erro'. 'parcial' NÃO alerta: é o caso de Drive ou RM pendente numa
+    // convocação que existe, e a fila já cuida — alertar ali faria o grupo receber
+    // mensagem de coisa que se resolve sozinha, que é o ruído que mata a feature.
+    if (estado !== "erro") return
+    try {
+      const { alertarFalha } = await import("./alertaFalha.js")
+      await alertarFalha({
+        execucaoId: this.id,
+        origem: "execucao",
+        acao: this.#ctx.acao,
+        etapa: det.etapaErro ?? this.#ultimaEtapa,
+        erro: det.erro,
+        pessoa: this.#ctx.pessoa,
+        contrato: this.#ctx.contrato,
+      })
+    } catch (e) {
+      aviso(e, "alertarFalha")
+    }
   }
 }
 
@@ -222,16 +260,30 @@ export async function abrirExecucao(inp: AberturaExecucao): Promise<Execucao> {
     const correlacao = Object.fromEntries(
       Object.entries(inp.correlacao ?? {}).filter(([, v]) => v != null),
     )
-    const { rows } = await query<{ id: string }>(
+    // RETURNING traz acao/pessoa/contrato PERSISTIDOS, não os da entrada: num reatache
+    // (`/fechar`, `/etapa`) o chamador não conhece a ação, e sem isto o contexto ficaria
+    // vazio — o filtro de relevância do alerta rejeitaria a falha em silêncio.
+    // `ON CONFLICT DO UPDATE` não toca nessas colunas, então o valor original sobrevive.
+    const { rows } = await query<{
+      id: string; acao: string; pessoa_nome: string | null; contrato: string | null
+    }>(
       `INSERT INTO audit_lancamentos
          (id, user_id, operador_email, operador_nome, acao, uuid_alvo, pessoa_nome,
           contrato, payload_resumo, estado, motor, correlacao)
        VALUES (COALESCE($1::uuid, gen_random_uuid()),
-               $2,$3,$4,$5,$6,$7,$8,$9,'aberta',$10,$11)
+               -- acao e NOT NULL: um reatache manda string vazia e, se a linha ainda
+               -- nao existir, precisa de algo. 'desconhecida' nao casa o filtro de
+               -- relevancia do alerta, que e o comportamento certo -- reportar fase de
+               -- execucao que ninguem abriu nao e falha de negocio conhecida.
+               $2,$3,$4,COALESCE(NULLIF($5,''),'desconhecida'),$6,$7,$8,$9,'aberta',$10,$11)
        ON CONFLICT (id) DO UPDATE
          SET motor = EXCLUDED.motor,
-             correlacao = audit_lancamentos.correlacao || EXCLUDED.correlacao
-       RETURNING id`,
+             correlacao = audit_lancamentos.correlacao || EXCLUDED.correlacao,
+             -- Preenche o que faltava sem sobrescrever o que já havia: um reatache pode
+             -- saber a pessoa que a abertura não sabia, e vice-versa.
+             pessoa_nome = COALESCE(audit_lancamentos.pessoa_nome, EXCLUDED.pessoa_nome),
+             contrato = COALESCE(audit_lancamentos.contrato, EXCLUDED.contrato)
+       RETURNING id, acao, pessoa_nome, contrato`,
       [
         inp.id || null,
         inp.operador?.userId ?? null,
@@ -246,8 +298,14 @@ export async function abrirExecucao(inp: AberturaExecucao): Promise<Execucao> {
         JSON.stringify(correlacao),
       ],
     )
-    const id = rows[0]?.id
-    return id ? new ExecucaoViva(id) : EXECUCAO_MUDA
+    const linha = rows[0]
+    return linha
+      ? new ExecucaoViva(linha.id, {
+          acao: linha.acao,
+          pessoa: linha.pessoa_nome,
+          contrato: linha.contrato,
+        })
+      : EXECUCAO_MUDA
   } catch (e) {
     aviso(e, "abrirExecucao")
     return EXECUCAO_MUDA

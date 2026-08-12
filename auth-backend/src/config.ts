@@ -115,6 +115,15 @@ export const config = {
     url: opt("EVOLUTION_URL", ""),
     apiKey: opt("EVOLUTION_API_KEY", ""),
     instance: opt("EVOLUTION_INSTANCE", "check-intermitente"),
+    // Destino do ESCAPE DE ERRO (fase de automação que não concluiu). Separado do
+    // `monitor.destinoWhatsapp` de propósito: são públicos e cadências diferentes — o
+    // do monitor hoje é o grupo "Operacional" (3 pessoas), e o de erro é o grupo de
+    // erros que já recebe falha da virada.
+    destinoErros: opt("EVOLUTION_DESTINO_ERROS", "120363400013959285@g.us"),
+    // Fusível: mais apertado que os 20/h do monitor de board. Alerta de erro deve ser
+    // raro; se passar disso, algo sistêmico está acontecendo e uma mensagem agrupada
+    // diz mais que trinta iguais.
+    tetoErrosHora: Number(opt("EVOLUTION_TETO_ERROS_HORA", "10")),
   },
   // Google Drive (arquivamento). Use service account compartilhada na pasta raiz.
   googleDrive: {

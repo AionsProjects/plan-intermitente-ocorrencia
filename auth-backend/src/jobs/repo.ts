@@ -88,15 +88,64 @@ export async function avancar(
   await query(`UPDATE jobs SET ${sets.join(", ")} WHERE id=$1`, params)
 }
 
+/**
+ * Marca a falha de um job e, quando ele MORRE (esgotou as 5 tentativas), avisa.
+ *
+ * Antes disto um job morto era 100% silencioso: ficava `estado='falhou'` em pi.jobs e
+ * ninguém sabia. E job é a rede de retry da convocação no RM — o caminho literal do
+ * "o funcionário não recebeu o benefício".
+ *
+ * O alerta sai só no esgotamento porque o desenho de 5 tentativas com backoff de 30s
+ * existe justamente porque blip da ponte AIONS se autocura; avisar na 1ª faria o grupo
+ * virar ruído.
+ */
 export async function falhar(id: string, erro: string): Promise<void> {
-  await query(
+  const { rows } = await query<{
+    tipo: string; estado: string; tentativas: number; execucao_id: string | null
+  }>(
     `UPDATE jobs SET tentativas=tentativas+1,
         estado = CASE WHEN tentativas+1 >= 5 THEN 'falhou' ELSE 'pendente' END,
         proximo_em = now() + ((tentativas+1)*30 || ' seconds')::interval,
         erro=$2, atualizado_em=now()
-      WHERE id=$1`,
+      WHERE id=$1
+      RETURNING tipo, estado, tentativas, execucao_id`,
     [id, erro.slice(0, 500)],
   )
+  const job = rows[0]
+  if (!job || job.estado !== "falhou") return
+  // Import dinâmico: jobs/repo.ts é importado por todo handler, e alertaFalha puxa
+  // config + cliente HTTP. Carregar só no caminho de morte evita ciclo de import.
+  try {
+    const { alertarFalha } = await import("../services/alertaFalha.js")
+    // Contexto da execução amarrada: sem isto a mensagem diz "falhou a fila" e não DE
+    // QUEM — que é a primeira coisa que o DP precisa saber pra agir. É uma query num
+    // caminho que só roda quando um job morre.
+    let ctx: { acao: string; pessoa: string | null; contrato: string | null } | null = null
+    if (job.execucao_id) {
+      const { rows: ex } = await query<{ acao: string; pessoa_nome: string | null; contrato: string | null }>(
+        `SELECT acao, pessoa_nome, contrato FROM audit_lancamentos WHERE id = $1`,
+        [job.execucao_id],
+      )
+      if (ex[0]) ctx = { acao: ex[0].acao, pessoa: ex[0].pessoa_nome, contrato: ex[0].contrato }
+    }
+    await alertarFalha({
+      execucaoId: job.execucao_id,
+      origem: "job",
+      acao: ctx?.acao ?? job.tipo,
+      // O tipo do job É a fase, do ponto de vista de quem lê ("convocacao_rm_pontual").
+      etapa: job.tipo,
+      erro,
+      pessoa: ctx?.pessoa ?? null,
+      contrato: ctx?.contrato ?? null,
+      tentativa: job.tentativas,
+      maxTentativas: 5,
+      // Job é sempre trabalho de negócio — não passa pelo filtro de relevância, que
+      // existe pra descartar leitura que deu 502.
+      sempre: true,
+    })
+  } catch (e) {
+    console.warn("[jobs] alerta de job morto falhou:", (e as Error)?.message ?? e)
+  }
 }
 
 // ---- Idempotência de efeitos externos ----

@@ -1,6 +1,16 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
 import { tick } from "../jobs/runner.js"
 import { varrerTodos } from "../services/sweepBloqueio.js"
+import { varrerAbandonadas } from "../services/alertaFalha.js"
+
+/**
+ * Piso da varredura de abandonadas: nada antes da migration 018 é considerado.
+ *
+ * As 413 linhas anteriores foram marcadas 'ok' pelo backfill, mas isto é a segunda
+ * trava: qualquer defeito futuro que deixe linha antiga em 'aberta' faria a varredura
+ * alertar sobre o passado inteiro de uma vez.
+ */
+const PISO_ABANDONADAS = "2026-08-12T00:00:00Z"
 
 // Tick da fila de jobs. Avança jobs devidos 1 passo cada (serverless-safe).
 //
@@ -46,7 +56,16 @@ export async function rotasJobs(app: FastifyInstance): Promise<void> {
       req.log.warn(e, "varredura de bloqueio falhou no tick de jobs")
       bloqueio = { erro: (e as Error).message.slice(0, 160) }
     }
-    return { ok: true, ...resultado, bloqueio }
+    // Execuções que abriram e nunca fecharam (aba fechada no meio, função encerrada
+    // antes do fim). Também de carona: Hobby só dá dois crons.
+    let abandonadas: { marcadas: number; alertadas: number } | { erro: string }
+    try {
+      abandonadas = await varrerAbandonadas(PISO_ABANDONADAS)
+    } catch (e) {
+      req.log.warn(e, "varredura de abandonadas falhou")
+      abandonadas = { erro: (e as Error).message.slice(0, 160) }
+    }
+    return { ok: true, ...resultado, bloqueio, abandonadas }
   }
 
   app.get("/api/jobs/tick", executar)

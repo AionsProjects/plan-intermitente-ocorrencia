@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react"
 import type { MouseEvent } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 
 import { useAuth } from "@/components/AuthContext"
 import { formatarCpf } from "@/lib/cpf"
+import { proximaUrlSegura } from "@/lib/proximaUrl"
 import { GoogleIcon } from "@/features/auth/GoogleIcon"
 
 type Modo = "email" | "cpf"
@@ -53,17 +54,29 @@ function tiltLeave(e: MouseEvent<HTMLButtonElement>) {
 export function LoginPage() {
   const { usuario, carregando, login, erroGoogle } = useAuth()
   const navigate = useNavigate()
+  const [params] = useSearchParams()
   const qc = useQueryClient()
 
   const [modo, setModo] = useState<Modo>("email")
   const [identificador, setIdentificador] = useState("")
   const [senha, setSenha] = useState("")
 
-  // Ja logado: perfil completo -> hub; incompleto -> onboarding.
+  // Ja logado: perfil completo -> destino (`?next=`, default hub); incompleto -> onboarding.
+  //
+  // O `next` vem do RequireAuth e é o que faz o link do alerta de erro sobreviver a
+  // sessão expirada — sem ele a pessoa cai no hub e perde a execução que ia investigar.
+  // `proximaUrlSegura` recusa URL absoluta e `//host`: sem essa validação o `?next=`
+  // seria um open redirect em cima da tela de login.
+  const proximo = proximaUrlSegura(params.get("next"))
   useEffect(() => {
     if (carregando || !usuario) return
-    navigate(usuario.perfilCompleto ? "/" : "/completar-cadastro", { replace: true })
-  }, [carregando, usuario, navigate])
+    if (!usuario.perfilCompleto) {
+      // Onboarding primeiro; o destino é preservado pra depois dele.
+      navigate(proximo ? `/completar-cadastro?next=${encodeURIComponent(proximo)}` : "/completar-cadastro", { replace: true })
+      return
+    }
+    navigate(proximo ?? "/", { replace: true })
+  }, [carregando, usuario, navigate, proximo])
 
   const mut = useMutation({
     mutationFn: loginLocal,

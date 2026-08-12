@@ -9,6 +9,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { setOperadorProvider } from "@/lib/http"
+import { proximaUrlSegura } from "@/lib/proximaUrl"
 import { temNivel, type Papel, type Usuario } from "@/features/auth/types"
 
 type AuthValue = {
@@ -35,14 +36,20 @@ function abrirLoginGoogle(aoConcluir: (resultado?: string) => void) {
   const altura = 640
   const esq = window.screenX + (window.outerWidth - largura) / 2
   const topo = window.screenY + (window.outerHeight - altura) / 2
+  // Repassa o `?next=` da tela de login ao backend, que o guarda num cookie httpOnly
+  // pelo round-trip do Google. No caminho de POPUP isto é redundante (a janela-mãe
+  // continua em /login?next=… e navega quando o /auth/me atualiza); é o caminho de
+  // PÁGINA INTEIRA que precisa — e é o do celular, onde o link do alerta é aberto.
+  const next = proximaUrlSegura(new URLSearchParams(window.location.search).get("next"))
+  const url = `/auth/google/login${next ? `?next=${encodeURIComponent(next)}` : ""}`
   const popup = window.open(
-    "/auth/google/login",
+    url,
     "pi-google-login",
     `popup=yes,width=${largura},height=${altura},left=${esq},top=${topo}`,
   )
   // Popup bloqueada -> cai no fluxo de pagina inteira.
   if (!popup) {
-    window.location.assign("/auth/google/login")
+    window.location.assign(url)
     return
   }
   const onMsg = (e: MessageEvent) => {

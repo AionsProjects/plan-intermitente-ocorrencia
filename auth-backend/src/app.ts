@@ -60,6 +60,42 @@ export async function construirApp(): Promise<FastifyInstance> {
   await app.register(rotasRotas)
   await app.register(rotasContingencia)
 
+  // Rede do escape de erro: 5xx não tratado em rota de ESCRITA.
+  //
+  // Um lugar só, em vez de mexer no catch de ~12 arquivos de rota. Rota instrumentada
+  // com `comExecucao` já alerta pelo desfecho da execução, então o dedupe por assinatura
+  // absorve a sobreposição — o que este hook pega é o que escapou de tudo.
+  //
+  // GET fica de fora de propósito: leitura que falha é problema de disponibilidade, não
+  // de automação que não concluiu, e alertar sobre isso enche o grupo de ruído.
+  app.setErrorHandler(async (erroBruto: unknown, req, reply) => {
+    // O handler recebe `unknown` nesta versão do Fastify; `statusCode`/`code` são
+    // convenção de FastifyError, não garantia de tipo.
+    const erro = erroBruto as Error & { statusCode?: number; code?: string }
+    const status = reply.statusCode >= 400 ? reply.statusCode : (erro.statusCode ?? 500)
+    const escrita = req.method !== "GET" && req.method !== "HEAD"
+    if (status >= 500 && escrita) {
+      req.log.error(erro, "erro nao tratado em rota de escrita")
+      try {
+        const { alertarFalha } = await import("./services/alertaFalha.js")
+        await alertarFalha({
+          origem: "execucao",
+          // Sem execução amarrada não há ação de negócio conhecida; `sempre` fura o
+          // filtro de relevância porque um 5xx em escrita é sempre digno de olhar.
+          acao: "rota",
+          etapa: `${req.method} ${req.url.split("?")[0]}`,
+          erro,
+          sempre: true,
+        })
+      } catch { /* alerta é secundário */ }
+    } else {
+      req.log.error(erro)
+    }
+    // Preserva o corpo que as rotas já devolvem quando elas mesmas responderam.
+    if (reply.sent) return
+    return reply.code(status).send({ erro: status >= 500 ? "erro_interno" : (erro.code ?? "erro") })
+  })
+
   app.get("/auth/health", async () => ({ ok: true }))
 
   // Raiz do backend: ninguem deveria abrir isso no browser. Da uma dica em vez de 404.

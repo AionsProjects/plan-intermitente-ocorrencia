@@ -1,10 +1,12 @@
-import { Navigate, Outlet } from "react-router-dom"
+import { Navigate, Outlet, useLocation } from "react-router-dom"
 import { useAuth } from "@/components/AuthContext"
+import { loginCom } from "@/lib/proximaUrl"
 
 // Guarda rotas de operador. Carregando -> tela neutra; sem usuario -> /login;
 // logado mas perfil incompleto (1o acesso) -> onboarding.
 export function RequireAuth() {
   const { usuario, carregando } = useAuth()
+  const location = useLocation()
 
   if (carregando) {
     return (
@@ -13,7 +15,12 @@ export function RequireAuth() {
       </div>
     )
   }
-  if (!usuario) return <Navigate to="/login" replace />
+  // Guarda o destino: o link do alerta de erro chega por WhatsApp e é aberto no
+  // celular, onde a sessão costuma estar expirada. Sem o `next` a URL era descartada e
+  // a pessoa caía no hub, perdendo a execução que ia investigar.
+  if (!usuario) {
+    return <Navigate to={loginCom(location.pathname + location.search + location.hash)} replace />
+  }
   if (!usuario.perfilCompleto) return <Navigate to="/completar-cadastro" replace />
   return (
     <>

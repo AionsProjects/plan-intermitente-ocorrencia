@@ -8,14 +8,43 @@ import { ErroOAuth, trocarCodePorPerfil, urlConsentimento } from "../oauth.js"
 import { criarSessao, destruirSessao, usuarioDaSessao } from "../session.js"
 
 const STATE_COOKIE = "pi_oauth_state"
+/**
+ * Destino pós-login, atravessando o round-trip do Google.
+ *
+ * Em popup o `next` sobrevive sozinho (a janela-mãe fica em `/login?next=…` e navega
+ * quando o `/auth/me` atualiza). Este cookie é pro caminho de REDIRECT INTEIRO — que é
+ * justamente o do celular, onde o link do alerta de erro é aberto.
+ *
+ * Cookie httpOnly e não query param: o valor não aparece em log de servidor nem em
+ * Referer, e não dá pra um terceiro montar uma URL de callback com destino próprio.
+ */
+const NEXT_COOKIE = "pi_oauth_next"
+
+/**
+ * Só caminho relativo do próprio app. Espelha `src/lib/proximaUrl.ts`.
+ *
+ * ⚠️ Validado AQUI TAMBÉM, não só no front: sem isto o cookie viraria um open redirect
+ * server-side, e validação que só existe no cliente não é validação.
+ */
+export function destinoSeguro(bruto: string | null | undefined): string | null {
+  const v = String(bruto ?? "")
+  if (!v.startsWith("/") || v.startsWith("//") || v.startsWith("/\\")) return null
+  if (/^\/[a-z][a-z0-9+.-]*:/i.test(v)) return null
+  return v.slice(0, 512)
+}
 
 // HTML servido no fim do fluxo Google. Em popup: fecha (a janela-mae vigia popup.closed
 // e revalida a sessao). NAO depende de window.opener — o Google seta COOP e corta o
 // opener no retorno, entao postMessage e best-effort. Se nao for popup (close falha),
 // redireciona a propria pagina.
-function htmlFimOauth(appBaseUrl: string, erro?: string): string {
+function htmlFimOauth(appBaseUrl: string, erro?: string, proximo?: string | null): string {
   const msg = erro ? `{ tipo: "pi-auth", erro: ${JSON.stringify(erro)} }` : `{ tipo: "pi-auth", ok: true }`
-  const destino = erro ? "/login" : appBaseUrl
+  // `proximo` é caminho relativo já validado por `destinoSeguro` — nunca vem cru do
+  // request. No erro volta pro login preservando o destino, pra a pessoa não perder a
+  // execução que ia ver só porque o Google recusou uma vez.
+  const destino = erro
+    ? (proximo ? `/login?next=${encodeURIComponent(proximo)}` : "/login")
+    : (proximo ?? appBaseUrl)
   return `<!doctype html><meta charset="utf-8"><body style="background:#0a0a0a">
 <script>
 (function(){
@@ -75,17 +104,26 @@ async function vincularPorEmail(
 
 export async function rotasAuth(app: FastifyInstance): Promise<void> {
   // Inicio do fluxo: redireciona o NAVEGADOR pro consentimento Google (nao e fetch).
-  app.get("/auth/google/login", async (_req: FastifyRequest, reply: FastifyReply) => {
-    const state = randomUUID()
-    reply.setCookie(STATE_COOKIE, state, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: config.cookieSecure,
-      path: "/",
-      maxAge: 600, // 10 min
-    })
-    return reply.redirect(urlConsentimento(state))
-  })
+  app.get(
+    "/auth/google/login",
+    async (req: FastifyRequest<{ Querystring: { next?: string } }>, reply: FastifyReply) => {
+      const state = randomUUID()
+      const opcoes = {
+        httpOnly: true,
+        sameSite: "lax" as const,
+        secure: config.cookieSecure,
+        path: "/",
+        maxAge: 600, // 10 min
+      }
+      reply.setCookie(STATE_COOKIE, state, opcoes)
+      const proximo = destinoSeguro(req.query.next)
+      // Só grava quando há destino: cookie velho de um login anterior levaria a pessoa
+      // pra um lugar que ela não pediu.
+      if (proximo) reply.setCookie(NEXT_COOKIE, proximo, opcoes)
+      else reply.clearCookie(NEXT_COOKIE, { path: "/" })
+      return reply.redirect(urlConsentimento(state))
+    },
+  )
 
   // Retorno do Google.
   app.get(
@@ -96,10 +134,14 @@ export async function rotasAuth(app: FastifyInstance): Promise<void> {
     ) => {
       const { code, state } = req.query
       const stateCookie = req.cookies[STATE_COOKIE]
+      // Revalida o cookie na leitura: ele é httpOnly, mas validar de novo custa nada e
+      // fecha a porta pra um valor que tenha entrado por outro caminho.
+      const proximo = destinoSeguro(req.cookies[NEXT_COOKIE])
       reply.clearCookie(STATE_COOKIE, { path: "/" })
+      reply.clearCookie(NEXT_COOKIE, { path: "/" })
 
       const responderHtml = (erro?: string) =>
-        reply.type("text/html").send(htmlFimOauth(config.appBaseUrl, erro))
+        reply.type("text/html").send(htmlFimOauth(config.appBaseUrl, erro, proximo))
 
       if (!code || !state || !stateCookie || state !== stateCookie) {
         return responderHtml("state_invalido")
