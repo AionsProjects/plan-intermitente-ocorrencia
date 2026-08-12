@@ -9,6 +9,7 @@ import type {
 } from "./types.js"
 import { calcularMensal, normMensal, type ConvocacaoMensal, type DescontoMensal,
   type FeriadoMensal, type RegraBeneficioMensal } from "./calculo.js"
+import { lerReservasVivas, type ReservasVivas } from "../pontual/repo.js"
 
 const BOARD_SOLICITACOES = "18393673859"
 const BOARD_PARAMETROS = "18413870370"
@@ -87,6 +88,8 @@ async function lerApoio(competencia: string, caixa: string): Promise<{
   valoresItems: RawItem[]
   feriadosItems: RawItem[]
   descontosItems: RawItem[]
+  /** Reserva de FIFO prometida a pré-pagamentos pontuais vivos, por item de desconto. */
+  reservasVivas: ReservasVivas
 }> {
   // A competência em si não resolve gaveta nenhuma aqui — ela vive na COLUNA "Competência" do
   // item (gravada em mondayEfeitos) e na chave do ledger. Aqui só interessa o mês de CAIXA.
@@ -140,6 +143,10 @@ async function lerApoio(competencia: string, caixa: string): Promise<{
   for (const contrato of await contratosMensalJaExecutados(competencia)) {
     processadas.add(norm(contrato))
   }
+  // Reserva prometida a pré-pagamentos pontuais que ainda não pagaram. Subtraída do
+  // residual em `desconto()` — é o que impede a mesma dívida de ser abatida duas vezes,
+  // uma pelo mensal e outra pela felipeta de uma convocação já calculada.
+  const reservasVivas = await lerReservasVivas()
   const descontos = (solicit.descontos?.[0]?.groups?.[0]?.items_page.items ?? []).filter((it) => {
     const status = norm(valor(it, "Status do Desconto"))
     return status === "PENDENTE" || status === "PARCIAL"
@@ -159,6 +166,7 @@ async function lerApoio(competencia: string, caixa: string): Promise<{
     valoresItems: solicit.parametros?.[0]?.items_page.items ?? [],
     feriadosItems: solicit.feriados?.[0]?.items_page.items ?? [],
     descontosItems: solicit.descontos?.[0]?.groups?.[0]?.items_page.items ?? [],
+    reservasVivas,
   }
 }
 
@@ -166,6 +174,7 @@ const numero = (v: string): number => {
   const s = v.replace(/[R$\s]/g, "")
   return Number(s.includes(",") ? s.replace(/\./g, "").replace(",", ".") : s) || 0
 }
+const r2 = (v: number): number => Math.round((Number(v) || 0) * 100) / 100
 const sim = (v: string): boolean => ["SIM", "SIM*"].includes(norm(v))
 function regraBeneficio(item: RawItem): RegraBeneficioMensal {
   const nome = norm(item.name)
@@ -180,11 +189,30 @@ function feriado(item: RawItem): FeriadoMensal | null {
   return { data, tipo: valor(item, "Tipo") || valor(item, "color_mm3t72h3"),
     contratos: (valor(item, "Contratos") || valor(item, "dropdown_mm3t4wjp")).split(",").map((x) => x.trim()).filter(Boolean) }
 }
-function desconto(item: RawItem): DescontoMensal | null {
+/**
+ * Item do board de Desconto → `DescontoMensal`, com o residual LÍQUIDO DE RESERVA.
+ *
+ * `reservas` é a soma do que já está prometido a pré-pagamentos pontuais vivos, por item
+ * (ver `pontual/repo.ts`). Subtrair aqui é o que faz a reserva existir de verdade: sem
+ * isso, o mensal (e a próxima convocação) leem o residual cru do board e abatem uma dívida
+ * que já foi prometida a uma convocação esperando a felipeta — a dívida seria consumida
+ * duas vezes, e um dos dois pagamentos sairia menor do que devia.
+ *
+ * `Math.max(0, ...)`: reserva maior que o residual não deveria acontecer (o CHECK da 019
+ * barra o espelho), mas se acontecer o certo é "não há nada a abater", nunca residual
+ * negativo — que viraria um desconto NEGATIVO, ou seja, dinheiro a mais.
+ */
+export function desconto(item: RawItem, reservas?: ReservasVivas): DescontoMensal | null {
   const cpf = valor(item, "CPF").replace(/\D/g, ""), chapa = valor(item, "Matrícula") || valor(item, "Matricula")
   if (!cpf && !chapa) return null
+  const reservado = reservas?.get(item.id)
+  const bruto = {
+    vr: numero(valor(item, "VR - Valor Residual")),
+    vt: numero(valor(item, "VT - Valor Residual")),
+  }
   return { id: item.id, pessoaKey: cpf || chapa.trim(), inicio: dataIso(valor(item, "Data Início") || valor(item, "Dt Inicio")) || "9999-12-31",
-    residualVR: numero(valor(item, "VR - Valor Residual")), residualVT: numero(valor(item, "VT - Valor Residual")),
+    residualVR: r2(Math.max(0, bruto.vr - (reservado?.vr ?? 0))),
+    residualVT: r2(Math.max(0, bruto.vt - (reservado?.vt ?? 0))),
     descontadoVR: numero(valor(item, "VR - Valor Descontado")), descontadoVT: numero(valor(item, "VT - Valor Descontado")) }
 }
 
@@ -242,7 +270,10 @@ export async function calcularPreviaMensal(
   })
   const calculo = calcularMensal(convocacoes, apoio.valoresItems.map(regraBeneficio),
     apoio.feriadosItems.map(feriado).filter((x): x is FeriadoMensal => !!x),
-    apoio.descontosItems.map(desconto).filter((x): x is DescontoMensal => !!x))
+    // Residual LÍQUIDO de reserva: dívida prometida a um pré-pagamento pontual vivo não
+    // pode ser abatida aqui também. `.map(desconto)` sem o 2º argumento voltaria a ler o
+    // residual cru — foi por isso que virou parâmetro explícito e não default.
+    apoio.descontosItems.map((it) => desconto(it, apoio.reservasVivas)).filter((x): x is DescontoMensal => !!x))
   const contratos: ContratoPreviaMensal[] = calculo.contratos.map((calc, index) => {
     const chave = normMensal(calc.contrato)
     const bloqueado = !opts.bypassAntifraude && apoio.solicitacoesProcessadas.includes(chave)

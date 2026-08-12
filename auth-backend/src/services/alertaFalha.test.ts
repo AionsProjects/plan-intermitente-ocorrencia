@@ -171,6 +171,41 @@ test("varrerAbandonadas NAO toca execucao recem-aberta", async () => {
   } finally { await limpar() }
 })
 
+// O caso REAL de 12/08 20:08 (KETLEM, item 12788484122): a rota gravou a convocação com 5
+// fases e 4 artefatos e fechou 'ok', e sobrou uma linha fantasma do front que ninguém
+// fechou. A varredura marcou 'abandonada' e disparou alerta de algo que DEU CERTO. A causa
+// (Promise.race que não cancelava o fetch) foi corrigida no front; este é o cinto.
+test("abandonada NAO alerta quando outra execucao do mesmo alvo fechou ok", async () => {
+  try {
+    const alvo = "12788484122"
+    // A execução que funcionou.
+    const boa = await abrir({ alvo })
+    await boa.fechar("ok")
+    // A fantasma: mesmo alvo, aberta e nunca fechada.
+    const fantasma = await abrir({ alvo })
+    await query("UPDATE audit_lancamentos SET criado_em = now() - interval '30 minutes' WHERE id=$1", [fantasma.id])
+
+    const r = await varrerAbandonadas(PISO, 15)
+    assert.ok(r.marcadas >= 1, "nao marcou a fantasma")
+    assert.equal(r.alertadas, 0, "alertou sobre uma convocacao que deu certo")
+
+    // Marcada como abandonada (é história), mas sem alerta.
+    const { rows } = await query<{ estado: string }>("SELECT estado FROM audit_lancamentos WHERE id=$1", [fantasma.id])
+    assert.equal(rows[0]!.estado, "abandonada")
+    const al = await query<{ n: number }>("SELECT count(*)::int n FROM alerta_falha WHERE execucao_id=$1", [fantasma.id])
+    assert.equal(al.rows[0]!.n, 0)
+  } finally { await limpar() }
+})
+
+test("abandonada SEM irma ok ainda alerta (o caso legitimo)", async () => {
+  try {
+    const ex = await abrir({ alvo: "sozinha-999" })
+    await query("UPDATE audit_lancamentos SET criado_em = now() - interval '30 minutes' WHERE id=$1", [ex.id])
+    const r = await varrerAbandonadas(PISO, 15)
+    assert.ok(r.alertadas >= 1, "deixou de alertar uma abandonada legitima")
+  } finally { await limpar() }
+})
+
 // A trava que impede a primeira passada de alertar sobre o histórico inteiro.
 test("varrerAbandonadas respeita o piso e ignora o passado", async () => {
   try {

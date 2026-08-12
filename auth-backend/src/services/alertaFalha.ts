@@ -201,20 +201,38 @@ export async function varrerAbandonadas(
 ): Promise<{ marcadas: number; alertadas: number }> {
   const { rows } = await query<{
     id: string; acao: string; etapa_atual: string | null
-    pessoa_nome: string | null; contrato: string | null
+    pessoa_nome: string | null; contrato: string | null; irma_ok: boolean
   }>(
-    `UPDATE audit_lancamentos
+    `UPDATE audit_lancamentos a
         SET estado = 'abandonada', finalizado_em = now(),
             erro_etapa = COALESCE(erro_etapa, etapa_atual),
             erro_msg = COALESCE(erro_msg, 'execucao_abandonada: aberta sem fechar')
-      WHERE estado = 'aberta'
-        AND criado_em < now() - ($2 || ' minutes')::interval
-        AND criado_em > $1::timestamptz
-      RETURNING id, acao, etapa_atual, pessoa_nome, contrato`,
+      WHERE a.estado = 'aberta'
+        AND a.criado_em < now() - ($2 || ' minutes')::interval
+        AND a.criado_em > $1::timestamptz
+      RETURNING a.id, a.acao, a.etapa_atual, a.pessoa_nome, a.contrato,
+        -- O trabalho foi feito por OUTRA execução do mesmo alvo? Então marca como
+        -- abandonada (é história) mas NÃO alerta.
+        --
+        -- Dois casos reais: (1) o front abre a execucao, o teto de tempo cancela tarde e a
+        -- rota abre a propria — sobra uma linha fantasma pra uma convocacao que deu certo
+        -- (aconteceu em 12/08 20:08, item 12788484122); (2) o operador tenta, falha, tenta
+        -- de novo e funciona. Nos dois o alerta seria mentira.
+        EXISTS (
+          SELECT 1 FROM audit_lancamentos irma
+           WHERE irma.id <> a.id
+             AND irma.acao = a.acao
+             AND irma.uuid_alvo IS NOT NULL
+             AND irma.uuid_alvo = a.uuid_alvo
+             AND irma.estado IN ('ok', 'parcial')
+             AND irma.criado_em BETWEEN a.criado_em - interval '1 hour'
+                                    AND a.criado_em + interval '1 hour'
+        ) AS irma_ok`,
     [pisoIso, String(minutos)],
   )
   let alertadas = 0
   for (const r of rows) {
+    if (r.irma_ok) continue
     const res = await alertarFalha({
       execucaoId: r.id,
       origem: "abandonada",

@@ -34,31 +34,43 @@ export interface MetaAtividade {
  */
 const TETO_ABERTURA_MS = 1500
 
-/** Abre a execução e devolve o id, ou null se não deu (nunca lança, nunca trava). */
+/**
+ * Abre a execução e devolve o id, ou null se não deu (nunca lança, nunca trava).
+ *
+ * ⚠️ O teto usa `AbortSignal.timeout`, NÃO `Promise.race` com um setTimeout. A primeira
+ * versão usava race, e isso produziu linha órfã em produção: `Promise.race` desiste de
+ * ESPERAR mas não CANCELA o fetch — a requisição chegava mesmo assim, o servidor criava a
+ * execução, e o front já tinha descartado o id. Ninguém fechava, e 15 min depois a
+ * varredura marcava `abandonada` e disparava alerta de uma convocação que deu certo.
+ *
+ * Aconteceu de verdade em 12/08 20:08 (KETLEM RAMOS MATOS, item 12788484122): a rota
+ * gravou tudo — 5 fases, 4 artefatos, `estado='ok'` — e a linha fantasma do front nasceu
+ * 1 segundo DEPOIS de a rota terminar. Abortar fecha a porta: requisição cancelada não
+ * chega, e nada é criado.
+ */
 export async function abrirAtividade(
   acao: TipoAtividade,
   meta: MetaAtividade = {},
 ): Promise<string | null> {
   try {
-    const res = await Promise.race([
-      fetch("/api/atividade", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          acao,
-          alvo: meta.alvo ?? null,
-          pessoa: meta.pessoa ?? null,
-          contrato: meta.contrato ?? null,
-          resumo: meta.resumo ?? null,
-        }),
+    const res = await fetch("/api/atividade", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(TETO_ABERTURA_MS),
+      body: JSON.stringify({
+        acao,
+        alvo: meta.alvo ?? null,
+        pessoa: meta.pessoa ?? null,
+        contrato: meta.contrato ?? null,
+        resumo: meta.resumo ?? null,
       }),
-      new Promise<null>((r) => setTimeout(() => r(null), TETO_ABERTURA_MS)),
-    ])
-    if (!res || !res.ok) return null
+    })
+    if (!res.ok) return null
     const j = (await res.json()) as { id?: string }
     return j.id ?? null
   } catch {
+    // Inclui o AbortError do teto. Sem id, a rota abre a própria execução — uma linha só.
     return null
   }
 }
