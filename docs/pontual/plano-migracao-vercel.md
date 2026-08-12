@@ -219,7 +219,16 @@ e é decisão de negócio:
 
 ---
 
-# P3 — Log de histórico detalhado (todas as funções)
+# P3 — Log de histórico detalhado — ✅ FEITO em 12/08/2026
+
+> Entregue e **deployado** (commits `9f1e07d`, `60b4d77`, `85175bd`, `abbdd35`, `1079593`,
+> `06b055b`). A migration saiu como **018**, não 019, e a FK chama `execucao_id` em vez de
+> `atividade_id` — o resto é o que está descrito abaixo. Veio de brinde o que o plano não previa:
+> página `/atividade` própria (a aba de 32rem não aguentava), escape de erro no WhatsApp com deep
+> link `?exec=`, e relatório em PDF por período. Detalhes e gotchas no vault:
+> *Log de Execuções e Escape de Erro*.
+>
+> O texto abaixo fica como registro do desenho original.
 
 ## Estado hoje
 
@@ -355,15 +364,19 @@ continueRegularOutput` como os irmãos, e a falha silenciosa deles fica registra
   limpar a chave em `pi.efeitos_externos`.
 - Reserva presa: `estado='liberado'` + zerar `reservado_*`.
 
-# Decisões abertas (precisam do Isaac / do DP)
+# Decisões FECHADAS (Isaac, 12/08/2026)
 
-1. **Feriado no pontual** — passa a filtrar (regra do mensal) ou mantém o comportamento do WF5? Muda
-   valor pago.
-2. **Crédito: 3 dias VR / 0 VT (mensal) ou 2+2 (WF5)?** Recomendação: 3/0, que é o conferido contra
-   pagamento oficial.
-3. **Nota de débito** — confirmar o crédito na Caju (a) ou relatório próprio (b)?
-4. **Reserva de FIFO** — aceita a reserva com expiração, ou prefere simulação simples (mais barato,
-   mas o valor pode mudar entre convocação e felipeta)?
-5. **Prazo de expiração da reserva** — sugestão: `data_fim + 15 dias`.
-6. **Rótulo da felipeta** — `OP - Compareceu?` com `SIM`/`NÃO`, ou nome/labels que o operacional já
-   usa na planilha dele?
+| # | decisão | consequência registrada |
+|---|---|---|
+| 1 | **Feriado: FILTRA** | "o Vercel é o principal" — e o código (`calculo.ts:166`) já filtra pela regra do board FERIADOS (NACIONAL bloqueia todos; ESTADUAL/MUNICIPAL só a lista; `SEDUC*`/DETRAN RECEBEM). `calcularPontual()` herda de graça. ⚠️ Convocação que cruza feriado passa a pagar **1 dia menos que o WF5 paga hoje** — avisar a Thifany ANTES do cutover, senão é lido como erro da automação. |
+| 2 | **Crédito: 2 VR + 2 VT** (regra atual do pontual, não a do mensal) | O DP credita os 3 primeiros dias à mão **só no fechamento mensal**; no pontual não há crédito manual, então não há o risco de o boleto cobrar dia já creditado. Implementar como constante NOMEADA por fluxo — não reusar o teto do mensal (`3 VR / 0 VT`, ver [[Crédito Caju 3 dias e VT no boleto]]), senão uma mudança num muda o outro em silêncio. |
+| 3 | **Reserva de FIFO: SIM, com expiração** | O número mostrado na convocação é o número pago na felipeta. Preço aceito: soltar em 3 gatilhos (cancelamento, recálculo, expiração). |
+| 4 | **Expiração: `data_fim + 15 dias`** | Constante configurável `PONTUAL_RESERVA_EXPIRA_DIAS` (troca sem deploy). 15 devolve dentro da MESMA competência, então o fechamento do mês abate a dívida certa. Felipeta marcada após a expiração recalcula do zero, e a tela avisa que recalculou. |
+| 5 | **Rótulo da felipeta: `OP - Compareceu?` / `SIM`·`NÃO`** | Default assumido (não foi contestado). Se o operacional usa outro nome na planilha dele, é só renomear a label — o `column_id` é resolvido por NOME via registry, nunca chumbado. |
+
+## Ainda aberto (não bloqueia P0/P1)
+
+**Nota de débito (ponto 3 dos ajustes)** — confirmar o crédito na Caju **(a)** ou gerar relatório
+próprio **(b)**. Só bloqueia a `etapaDrive` do P2. Recomendação registrada: **(b)**, que comprova o
+pagamento sem mexer em regra de dinheiro; fica explícito no arquivo que NÃO é a nota de débito da
+Caju.

@@ -149,8 +149,10 @@ function resolverRegra(regras: RegraBeneficioMensal[], pessoa: ConvocacaoMensal)
 // 588,00. Com o dia 31 fora, mês cheio fecha EXATAMENTE o mensal e período parcial segue
 // proporcional (03–31/08 = 28 dias, não 29). Regra do DP, apurada na correção manual do DETRAN
 // de 03/08/2026 (Thifany, board 08/26): pagamos 149,45 a mais em 8 pessoas — 1 dia cada — e o
-// TRE PB 22,00. Mês de 30 dias ou menos não é afetado. ⚠️ O WF5 Pontual NÃO tem esse teto:
-// convocação pontual que cruze o dia 31 diverge do mensal até o nó ser ajustado.
+// TRE PB 22,00. Mês de 30 dias ou menos não é afetado. ✅ O WF5 Pontual TAMBÉM tem o teto desde
+// 07/08/2026 (`__vrForaDoTeto`, no mesmo `Code in JavaScript1`, aplicado via UPDATE na coluna
+// `nodes` do Postgres do n8n) — sem ele os 3 pontuais DETRAN de 08/2026 saíam com 28 dias em vez
+// de 27. Então nesta regra as duas pontas concordam; a divergência que sobra é o feriado (acima).
 function diasElegiveis(
   p: ConvocacaoMensal,
   feriados: FeriadoMensal[],
