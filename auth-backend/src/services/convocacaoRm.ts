@@ -207,7 +207,6 @@ export async function gravarConvocacaoRm(
   } = {},
 ): Promise<ResultadoGravacaoRm> {
   const coligada = alvo.coligada ?? RM_COLIGADA_CONVOCACAO
-  const contexto = contextoDataServer(coligada)
 
   // 1) Monta e valida antes de qualquer I/O — entrada ruim não merece round-trip.
   let montada: ReturnType<typeof montarConvocacaoRm>
@@ -286,7 +285,47 @@ export async function gravarConvocacaoRm(
       detalhe: dono.codigo ?? dono.erro ?? undefined,
     }
   }
-  const lancamentoId = reserva.lancamento.id
+  return executarGravacaoRm(reserva.lancamento, montada, {
+    contrato: alvo.contrato,
+    itemOrigemId: alvo.itemOrigemId,
+    coligada,
+    gravarNoMonday: opts.gravarNoMonday,
+    timeoutMs: opts.timeoutMs,
+  })
+}
+
+/**
+ * Passos 4–6 a partir de uma linha JÁ RESERVADA: ledger → SaveRecord → confirma → eco.
+ *
+ * Existe separado por causa da bifurcação: `planejarSubstituicaoRm` reserva as peças novas dentro
+ * da transação que marca a antiga `a_remover` (é o que deixa a peça 1 herdar o início sem bater no
+ * índice parcial). Chamar `gravarConvocacaoRm` depois disso reservaria de novo e voltaria
+ * `ocupado` — apontando pra linha que o próprio plano acabou de criar.
+ */
+export async function executarGravacaoRm(
+  lancamento: LancamentoRm,
+  montada: ReturnType<typeof montarConvocacaoRm>,
+  ctx: {
+    contrato: string
+    itemOrigemId: string | number
+    coligada?: number
+    gravarNoMonday?: (r: { codConvocacao: string; pk: string }) => Promise<void>
+    timeoutMs?: number
+  },
+): Promise<ResultadoGravacaoRm> {
+  const coligada = ctx.coligada ?? RM_COLIGADA_CONVOCACAO
+  const contexto = contextoDataServer(coligada)
+  const base = {
+    chapa: montada.chapa,
+    dataInicio: montada.dataInicio,
+    dataFim: montada.dataFim,
+    dataConvocacao: montada.dataConvocacao,
+    antecedenciaDias: montada.antecedenciaDias,
+    exigeConfirmacaoRm: montada.exigeConfirmacaoRm,
+  }
+  const opts = { gravarNoMonday: ctx.gravarNoMonday, timeoutMs: ctx.timeoutMs }
+  const alvo = { contrato: ctx.contrato, itemOrigemId: ctx.itemOrigemId }
+  const lancamentoId = lancamento.id
 
   // 4) Ledger transversal. A chave é o id da linha: uuid fresco, então nunca colide — e é por
   // isso que ela pode ser a mesma para uma segunda gravação legítima do mesmo período.

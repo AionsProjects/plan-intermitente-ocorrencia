@@ -107,6 +107,26 @@ export async function ecoAcumulado(
   deps: DepsPontual,
   destaPassada: string[],
 ): Promise<string[]> {
+  return ecoCodigosDoItem(
+    { itemId: d.itemId, boardId: d.boardId, colCodRm: d.colCodRm },
+    { mudarColunas: deps.mudarColunas },
+    destaPassada,
+  )
+}
+
+/**
+ * A mesma coisa sem o resto do contexto do pontual — é o que a bifurcação usa depois de trocar um
+ * registro por dois: o rastro passa a ter dois vivos e a célula tem que passar a mostrar os dois,
+ * senão o board segue exibindo o C03S###### que acabou de ser apagado.
+ *
+ * Só escreve quando há algo a escrever: lista vazia manteria o valor antigo em vez de limpar, e
+ * limpar é responsabilidade de quem apagou tudo (o cancelamento total).
+ */
+export async function ecoCodigosDoItem(
+  d: { itemId: string; boardId: string; colCodRm?: string | null },
+  deps: { mudarColunas: typeof changeColumnValues },
+  destaPassada: string[] = [],
+): Promise<string[]> {
   const doRastro = (await lancamentosDoItem(d.itemId).catch(() => []))
     .filter((l) => l.estado === "no_rm" && l.codigo)
     .sort((a, b) => String(a.data_inicio).localeCompare(String(b.data_inicio)))

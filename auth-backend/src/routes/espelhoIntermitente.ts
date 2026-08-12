@@ -28,12 +28,21 @@ import {
   gravarDescontoBoard,
 } from "../repo/boardDescontos.js"
 import { lerItem, mudarColunas, moverParaGrupo } from "../clients/monday.js"
+import { changeColumnValues } from "../monday.js"
 import { config } from "../config.js"
 import { temRmSoap } from "../clients/rmSoap.js"
 import { somarDias } from "../domain/convocacaoRm.js"
 import { encurtarConvocacoesDoItem, removerConvocacoesDoItem, TIMEOUT_REMOCAO_MS } from "../services/convocacaoRemover.js"
+import {
+  bifurcacaoRmHabilitada,
+  bifurcarConvocacoesDoItem,
+  reverterBifurcacaoDoItem,
+  type ResultadoBifurcacao,
+} from "../services/convocacaoBifurcar.js"
+import { ecoCodigosDoItem } from "../services/convocacaoPontual.js"
 import { enfileirar } from "../jobs/repo.js"
 import { TIPO_JOB_CONVOCACAO_RM_REMOVER } from "../jobs/convocacaoRmRemover.js"
+import { TIPO_JOB_CONVOCACAO_RM_SUBSTITUIR } from "../jobs/convocacaoRmSubstituir.js"
 
 // Colunas do board ENTRADA (ids preservados na duplicação mensal — WF Cancelar).
 const COL_ENTRADA_STATUS = "color_mm3a8ana"
@@ -169,6 +178,72 @@ async function colunaCodigoRm(boardId: string): Promise<string | null> {
     [boardId],
   )
   return rows[0]?.column_id ?? null
+}
+
+/**
+ * Efeito do split no RM (G3): apaga o registro que cruza o corte e grava dois. `split=null` =
+ * reverter, que volta as peças pra um.
+ *
+ * Roda DEPOIS da escrita no Monday e ANTES do espelho PG, mesma ordem do cancelamento: se o RM
+ * cair, o board já mostra o split (que é o que o operador vê) e a pendência vai pra fila. Nunca
+ * derruba a resposta — `.catch` próprio.
+ *
+ * ⚠️ Que o split precise mexer no RM é decisão registrada, não consequência técnica: o
+ * `FopConvocacaoData` não guarda contrato, então o S-2260 continua correto sem isto. Ver o
+ * cabeçalho de `services/convocacaoBifurcar.ts` e `docs/rm/plano-bifurcacao.md`.
+ */
+async function efeitoSplitNoRm(
+  req: FastifyRequest,
+  item: Parameters<typeof parseItemOrigem>[0],
+  split: { data_inicio_parte2: string; contrato_parte1: string; contrato_parte2: string } | null,
+  operador: string,
+): Promise<Record<string, unknown> | undefined> {
+  const origem = parseItemOrigem(item)
+  if (!bifurcacaoRmHabilitada() || !temRmSoap() || !origem.itemId) return undefined
+
+  const r: ResultadoBifurcacao = await (split
+    ? bifurcarConvocacoesDoItem(origem.itemId, {
+        corte: split.data_inicio_parte2,
+        contratoParte1: split.contrato_parte1,
+        contratoParte2: split.contrato_parte2,
+        operador,
+        timeoutMs: TIMEOUT_REMOCAO_MS,
+      })
+    : reverterBifurcacaoDoItem(origem.itemId, { operador, timeoutMs: TIMEOUT_REMOCAO_MS })
+  ).catch((e) => {
+    req.log.warn(e, "split: bifurcacao no RM falhou")
+    return { remocoes: [], gravacoes: [], intactos: [], temPendencia: true } as ResultadoBifurcacao
+  })
+
+  // A célula do board mostrava o código que acabou de ser apagado — reescreve com o que vive.
+  const colCodRm = origem.boardId ? await colunaCodigoRm(String(origem.boardId)) : null
+  if (colCodRm && origem.boardId) {
+    await ecoCodigosDoItem(
+      { itemId: String(origem.itemId), boardId: String(origem.boardId), colCodRm },
+      { mudarColunas: changeColumnValues },
+    ).catch((e) => req.log.warn(e, "split: eco do codigo RM falhou"))
+  }
+
+  if (r.temPendencia) {
+    await enfileirar(TIPO_JOB_CONVOCACAO_RM_SUBSTITUIR, {
+      item_id: String(origem.itemId),
+      tipo: split ? "aplicar" : "reverter",
+      corte: split?.data_inicio_parte2 ?? null,
+      contrato_parte1: split?.contrato_parte1 ?? null,
+      contrato_parte2: split?.contrato_parte2 ?? null,
+      board_id: origem.boardId ? String(origem.boardId) : null,
+      operador,
+    }).catch((e) => req.log.warn(e, "split: enfileirar substituicao RM falhou"))
+  }
+
+  return {
+    removidos: r.remocoes.filter((x) => x.estado === "removido" || x.estado === "ja_ausente").length,
+    criados: r.gravacoes.filter((g) => g.estado === "gravado").length,
+    intactos: r.intactos.length,
+    pendencia: r.temPendencia,
+    nota: r.nota,
+    detalhe: [...r.remocoes, ...r.gravacoes].filter((x) => x.erro).map((x) => `${x.lancamentoId ?? "?"}: ${x.erro}`),
+  }
 }
 
 export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<void> {
@@ -348,11 +423,14 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
       const item = await buscarHistoricoPorUuid(uuid)
       if (!item) return reply.code(404).send({ ok: false, erro: "nao_encontrado" })
 
+      const operador = String((b as { operador?: { email?: string } })?.operador?.email ?? "split")
+
       if (tipo === "reverter") {
         await mudarColunaSimples(BOARD_HISTORICO, item.id, COL_HIST.split, "")
+        const rmRev = await efeitoSplitNoRm(req, item, null, operador)
         await query(`UPDATE convocacoes SET split=NULL, atualizado_em=now() WHERE uuid=$1`, [uuid])
           .catch((e) => req.log.warn(e, "split: espelho PG falhou"))
-        return { ok: true, split: null }
+        return { ok: true, split: null, rm: rmRev }
       }
       const data = String(b.data_inicio_parte2 || "").trim()
       const c1 = String(b.contrato_parte1 || "").trim()
@@ -361,14 +439,27 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
         return reply.code(400).send({ ok: false, erro: "split_invalido" })
       if (c1 === c2) return reply.code(400).send({ ok: false, erro: "contratos_iguais" })
 
+      // Corte fora do período não é split: uma das partes nasceria vazia. O WF não validava e
+      // gravava o JSON assim mesmo — agora que isso vira efeito no RM (G3), recusa.
+      const di = textoCol(item, COL_HIST.dataInicio)
+      const df = textoCol(item, COL_HIST.dataFim)
+      if (di && df && !(data > di && data <= df))
+        return reply.code(400).send({
+          ok: false,
+          erro: "corte_fora_periodo",
+          mensagem: `O corte precisa cair depois de ${di} e até ${df}.`,
+        })
+
       // Board: snake_case (contrato do WF; o WF3 finalizar parseia esse formato).
       const splitBoard = { data_inicio_parte2: data, contrato_parte1: c1, contrato_parte2: c2 }
       await mudarColunaSimples(BOARD_HISTORICO, item.id, COL_HIST.split, JSON.stringify(splitBoard))
 
+      const rm = await efeitoSplitNoRm(req, item, splitBoard, operador)
+
       const split = { dataInicioParte2: data, contratoParte1: c1, contratoParte2: c2 }
       await query(`UPDATE convocacoes SET split=$2::jsonb, atualizado_em=now() WHERE uuid=$1`, [uuid, JSON.stringify(split)])
         .catch((e) => req.log.warn(e, "split: espelho PG falhou"))
-      return { ok: true, split }
+      return { ok: true, split, rm }
     },
   )
 
@@ -660,4 +751,5 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
       }
     },
   )
+
 }

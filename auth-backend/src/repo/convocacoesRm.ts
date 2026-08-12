@@ -193,6 +193,37 @@ export async function lancamentosVivosPorItens(
 }
 
 /**
+ * Peças VIVAS que nasceram de uma bifurcação, agrupadas pelo lançamento que substituíram.
+ *
+ * É o que o `reverter` do split consome. Filtrar pelo `motivo_saida` do PAI é o que impede o
+ * revert de engolir peças de outra origem — quebra por atestado usa a mesma mecânica de
+ * substituição, e desfazer split não pode desfazer atestado.
+ */
+export async function pecasDeBifurcacaoDoItem(
+  itemOrigemId: string | number,
+): Promise<Map<string, { pai: LancamentoRm; pecas: LancamentoRm[] }>> {
+  const { rows } = await query<LancamentoRm & { pai_json: LancamentoRm }>(
+    `SELECT f.*, to_jsonb(p.*) AS pai_json
+       FROM convocacoes_rm f
+       JOIN convocacoes_rm p ON p.id = f.origem_lancamento_id
+      WHERE (f.item_origem_id=$1::bigint OR f.item_espelho_id=$1::bigint)
+        AND f.estado IN ('reservado','no_rm')
+        AND p.motivo_saida = 'bifurcacao'
+      ORDER BY f.data_inicio, f.criado_em`,
+    [String(itemOrigemId)],
+  )
+  const mapa = new Map<string, { pai: LancamentoRm; pecas: LancamentoRm[] }>()
+  for (const r of rows) {
+    const { pai_json, ...peca } = r
+    const k = String(peca.origem_lancamento_id)
+    const g = mapa.get(k)
+    if (g) g.pecas.push(peca as LancamentoRm)
+    else mapa.set(k, { pai: pai_json, pecas: [peca as LancamentoRm] })
+  }
+  return mapa
+}
+
+/**
  * Tudo de um item, inclusive histórico — é a resposta pra "por que o código sumiu?".
  *
  * Casa pelo item original E pelo espelho da virada: depois do dia 14 o cancelamento pode chegar
@@ -259,11 +290,17 @@ export async function vincularUuidConvocacao(
  * `a_remover` está fora do índice único de propósito — libera o slot pro pedaço que herda o mesmo
  * início (o 05→09 da quebra por atestado).
  *
- * SÓ aceita `no_rm`. Antes aceitava `reservado` também, e isso NUNCA funcionou: linha reservada
- * tem `codigo` NULL e o CHECK `ck_convocacoes_rm_codigo` exige código para `a_remover` — dava
- * 23514 justamente no caso "gravou e morreu no meio", o que mais se precisa remover. E o remédio
- * certo ali não é remover: sem código não há registro no RM pra apagar. Esse caso é
- * `falharLancamentoRm` (libera o slot) ou conciliação por leitura, se for indeterminado.
+ * NÃO aceita `reservado`. Antes aceitava, e isso NUNCA funcionou: linha reservada tem `codigo`
+ * NULL e o CHECK `ck_convocacoes_rm_codigo` exige código para `a_remover` — dava 23514 justamente
+ * no caso "gravou e morreu no meio", o que mais se precisa remover. E o remédio certo ali não é
+ * remover: sem código não há registro no RM pra apagar. Esse caso é `falharLancamentoRm` (libera
+ * o slot) ou conciliação por leitura, se for indeterminado.
+ *
+ * ACEITA `a_remover` (re-marcação). A bifurcação marca dentro da transação de
+ * `planejarSubstituicaoRm` — tem que marcar lá, senão a peça que herda o início bate no índice
+ * parcial — e só depois chama `removerLancamentoRm`, que remarca. Recusar aqui fazia o removedor
+ * devolver `sem_rastro` e **pular o DeleteRecordByKey**: o registro original sobreviveria no RM
+ * enquanto as duas peças novas eram criadas. Registro triplo, calado.
  */
 export async function marcarParaRemocaoRm(
   id: string,
@@ -273,7 +310,7 @@ export async function marcarParaRemocaoRm(
     `UPDATE convocacoes_rm
         SET estado='a_remover', motivo_saida=$2, removido_por=$3,
             observacao=coalesce($4, observacao), atualizado_em=now()
-      WHERE id=$1 AND estado='no_rm' RETURNING *`,
+      WHERE id=$1 AND estado IN ('no_rm','a_remover') RETURNING *`,
     [id, p.motivo, p.removidoPor ?? null, p.observacao ?? null],
   )
   return rows[0] ?? null

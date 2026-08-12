@@ -90,6 +90,24 @@ test("confirmar atrasado NÃO ressuscita linha já removida", async () => {
   assert.equal(l!.estado, "removido")
 })
 
+test("marcar re-marca linha JÁ `a_remover` — senão a bifurcação pula o delete", async () => {
+  await limpar()
+  const r = await reservarLancamentoRm(base())
+  await confirmarLancamentoRm(r.lancamento.id, { codigo: "C03S999003", pkRm: "3;x;C03S999003" })
+  // `planejarSubstituicaoRm` marca dentro da transação (obrigatório: é o que libera o índice
+  // parcial pra peça que herda o início). Depois `removerLancamentoRm` marca de novo — se isto
+  // recusar, ele devolve `sem_rastro` e NÃO chama o DeleteRecordByKey: o registro original
+  // sobrevive no RM enquanto as duas peças novas são criadas. Registro triplo, em silêncio.
+  assert.ok(await marcarParaRemocaoRm(r.lancamento.id, { motivo: "bifurcacao" }))
+  assert.ok(
+    await marcarParaRemocaoRm(r.lancamento.id, { motivo: "bifurcacao" }),
+    "re-marcação tem que casar",
+  )
+  // `reservado` continua fora: código NULL + CHECK = 23514 (o bug do G0).
+  const s = await reservarLancamentoRm(base({ dataInicio: "2099-04-05", dataFim: "2099-04-20" }))
+  assert.equal(await marcarParaRemocaoRm(s.lancamento.id, { motivo: "bifurcacao" }), null)
+})
+
 test("falhar com Fault LIBERA o slot; indeterminado MANTÉM travado", async () => {
   await limpar()
   // Fault = o RM respondeu e recusou, com rollback -> pode tentar de novo.
