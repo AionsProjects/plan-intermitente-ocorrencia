@@ -260,6 +260,29 @@ export async function marcarParaRemocaoRm(
   return rows[0] ?? null
 }
 
+/**
+ * Encurta o período de um lançamento vivo — é o cancelamento parcial.
+ *
+ * Só `data_fim` muda: `data_inicio` é parte do índice único, e mexer nele transformaria a edição
+ * numa convocação diferente. O registro no RM continua sendo O MESMO (mesmo C03S######), então o
+ * estado segue `no_rm` — não há transição de estado aqui, só correção do que o rastro afirma.
+ */
+export async function atualizarPeriodoLancamentoRm(
+  id: string,
+  p: { dataFim: string; payload?: unknown },
+): Promise<LancamentoRm | null> {
+  const { rows } = await query<LancamentoRm>(
+    `UPDATE convocacoes_rm
+        SET data_fim = $2::date,
+            payload = CASE WHEN $3::jsonb IS NULL THEN payload
+                           ELSE coalesce(payload,'{}'::jsonb) || $3::jsonb END,
+            atualizado_em = now()
+      WHERE id = $1 AND estado = 'no_rm' RETURNING *`,
+    [id, p.dataFim, p.payload != null ? JSON.stringify(p.payload) : null],
+  )
+  return rows[0] ?? null
+}
+
 /** Pós-DeleteRecordByKey CONFIRMADO por releitura (o rm-delete.ts faz isso; fazer igual aqui). */
 export async function confirmarRemocaoRm(id: string, payload?: unknown): Promise<void> {
   await query(

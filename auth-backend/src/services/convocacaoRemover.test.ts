@@ -103,4 +103,56 @@ test("o ledger NÃO fica com chave pendente quando o registro já estava ausente
   assert.equal(await estadoEfeito(`convocacao_rm_remover:${l.id}`), "ausente")
 })
 
+
+// ── EDIÇÃO (cancelamento parcial) ──────────────────────────────────────────
+
+test("encurtar: pedaço que termina ANTES do corte fica intacto", async () => {
+  await limpar()
+  const { encurtarConvocacoesDoItem } = await import("./convocacaoRemover.js")
+  await lancamentoNoRm("C03S999710", "2099-07-01", "2099-07-05")
+  // Corte em 10: o pedaço 01→05 já acabou antes, não se toca nele.
+  const r = await encurtarConvocacoesDoItem(ITEM, { novoFim: "2099-07-10" })
+  assert.deepEqual(r.edicoes, [])
+  assert.deepEqual(r.remocoes, [])
+  assert.equal(r.temPendencia, false)
+  const [l] = await lancamentosDoItem(ITEM, { apenasVivos: true })
+  assert.equal(String(l!.data_fim).slice(0, 10), "2099-07-05", "período não pode ter mudado")
+})
+
+test("encurtar: pedaço que COMEÇA depois do corte é REMOVIDO, não editado", async () => {
+  await limpar()
+  const { encurtarConvocacoesDoItem } = await import("./convocacaoRemover.js")
+  // Editar aqui deixaria fim (10) < início (15) — período impossível, e o CHECK do banco recusa.
+  await lancamentoNoRm("C03S999711", "2099-07-15", "2099-07-20")
+  const r = await encurtarConvocacoesDoItem(ITEM, { novoFim: "2099-07-10" })
+  assert.equal(r.edicoes.length, 0)
+  assert.equal(r.remocoes.length, 1)
+  // PK inventada não existe no RM -> `ja_ausente`, e o rastro fecha.
+  assert.equal(r.remocoes[0]!.estado, "ja_ausente")
+  assert.equal(r.temPendencia, false)
+  const vivos = await lancamentosDoItem(ITEM, { apenasVivos: true })
+  assert.equal(vivos.length, 0)
+})
+
+test("editar lançamento que não está no RM não tenta nada", async () => {
+  await limpar()
+  const { editarFimLancamentoRm } = await import("./convocacaoRemover.js")
+  const r = await reservarLancamentoRm({
+    itemOrigemId: ITEM, chapa: CHAPA, contrato: "TESTE",
+    dataInicio: "2099-07-01", dataFim: "2099-07-20", origemAcao: "teste",
+  })
+  const out = await editarFimLancamentoRm(r.lancamento, { dataFim: "2099-07-10" })
+  assert.equal(out.estado, "sem_rastro")
+  assert.match(out.erro!, /estado_nao_editavel/)
+})
+
+test("editar pro MESMO fim é no-op — retry não vira chamada ao RM", async () => {
+  await limpar()
+  const { editarFimLancamentoRm } = await import("./convocacaoRemover.js")
+  const l = await lancamentoNoRm("C03S999712", "2099-07-01", "2099-07-20")
+  const out = await editarFimLancamentoRm(l, { dataFim: "2099-07-20" })
+  assert.equal(out.estado, "ja_no_periodo")
+  assert.equal(await estadoEfeito(`convocacao_rm_editar:${l.id}:2099-07-20`), "ausente")
+})
+
 test("teardown", limpar)

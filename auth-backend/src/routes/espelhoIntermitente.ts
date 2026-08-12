@@ -30,7 +30,8 @@ import {
 import { lerItem, mudarColunas, moverParaGrupo } from "../clients/monday.js"
 import { config } from "../config.js"
 import { temRmSoap } from "../clients/rmSoap.js"
-import { removerConvocacoesDoItem, TIMEOUT_REMOCAO_MS } from "../services/convocacaoRemover.js"
+import { somarDias } from "../domain/convocacaoRm.js"
+import { encurtarConvocacoesDoItem, removerConvocacoesDoItem, TIMEOUT_REMOCAO_MS } from "../services/convocacaoRemover.js"
 import { enfileirar } from "../jobs/repo.js"
 import { TIPO_JOB_CONVOCACAO_RM_REMOVER } from "../jobs/convocacaoRmRemover.js"
 
@@ -556,6 +557,31 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
       // derruba o cancelamento — `.catch` próprio: o item já foi movido de grupo, e falhar aqui
       // faria o operador tentar de novo e bater no 409 da própria antifraude.
       let rmRemocao: Awaited<ReturnType<typeof removerConvocacoesDoItem>> | null = null
+      let rmEncurta: Awaited<ReturnType<typeof encurtarConvocacoesDoItem>> | null = null
+
+      // PARCIAL: a convocação continua existindo, com o fim em `dataCancel - 1`. Editar (e não
+      // apagar+recriar) preserva o C03S###### e o ato — recriar emitiria um segundo S-2260.
+      if (tipo === "parcial" && config.convocacaoRmHabilitada && temRmSoap() && origem.itemId && dataCancel) {
+        const novoFim = somarDias(String(dataCancel), -1)
+        rmEncurta = await encurtarConvocacoesDoItem(origem.itemId, {
+          novoFim,
+          removidoPor: String((b as { operador?: { email?: string } })?.operador?.email ?? "cancelamento"),
+          timeoutMs: TIMEOUT_REMOCAO_MS,
+        }).catch((e) => {
+          req.log.warn(e, "cancelar parcial: encurtar no RM falhou")
+          return { edicoes: [], remocoes: [], temPendencia: true }
+        })
+        if (rmEncurta.temPendencia) {
+          // Mesma fila da remoção: o job relê o rastro e conclui o que ficou. Aqui ele resolve
+          // os pedaços que viraram remoção; a edição pendente fica visível na resposta.
+          await enfileirar(TIPO_JOB_CONVOCACAO_RM_REMOVER, {
+            item_id: String(origem.itemId),
+            motivo: "cancelamento_parcial",
+            removido_por: String((b as { operador?: { email?: string } })?.operador?.email ?? "cancelamento"),
+          }).catch((e) => req.log.warn(e, "cancelar parcial: enfileirar RM falhou"))
+        }
+      }
+
       if (tipo === "total" && config.convocacaoRmHabilitada && temRmSoap() && origem.itemId) {
         rmRemocao = await removerConvocacoesDoItem(origem.itemId, {
           motivo: "cancelamento_total",
@@ -612,7 +638,16 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
               pendencia: rmRemocao.temPendencia,
               detalhe: rmRemocao.removidos.filter((r) => r.erro).map((r) => `${r.pk ?? r.lancamentoId}: ${r.erro}`),
             }
-          : undefined,
+          : rmEncurta
+            ? {
+                editados: rmEncurta.edicoes.filter((e) => e.estado === "editado").length,
+                removidos: rmEncurta.remocoes.filter((r) => r.estado === "removido").length,
+                pendencia: rmEncurta.temPendencia,
+                detalhe: [...rmEncurta.edicoes, ...rmEncurta.remocoes]
+                  .filter((r) => r.erro)
+                  .map((r) => `${r.pk ?? r.lancamentoId}: ${r.erro}`),
+              }
+            : undefined,
         dias_cancelados: range.dias,
         dias_ignorados_duplicidade: calc.diasIgnoradosDuplicidade,
         desconto: {

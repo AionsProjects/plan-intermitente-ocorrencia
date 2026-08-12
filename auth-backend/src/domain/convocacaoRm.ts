@@ -332,6 +332,49 @@ export function chaveEfeitoRemocaoConvocacaoRm(lancamentoId: string): string {
   return `convocacao_rm_remover:${lancamentoId}`
 }
 
+/**
+ * Chave da EDIÇÃO de período (cancelamento parcial encurta a data fim).
+ *
+ * Inclui o novo fim de propósito, e aqui isso é seguro — diferente da criação, onde chave
+ * derivada de atributo de negócio quebrou. Editar duas vezes para o MESMO fim é idempotente por
+ * natureza: o registro acaba igual. Chaves diferentes para fins diferentes é o comportamento
+ * desejado — é outra operação.
+ */
+export function chaveEfeitoEdicaoConvocacaoRm(lancamentoId: string, novoFim: string): string {
+  return `convocacao_rm_editar:${lancamentoId}:${novoFim}`
+}
+
+/**
+ * XML de EDIÇÃO do fim da prestação — só a chave + o campo que muda.
+ *
+ * Mínimo de propósito. Medido em 2099 (11/08): o RM faz MERGE, não substituição — um SaveRecord
+ * com `CODCONVOCACAO` preenchido e só `DTFIMPRESTSERV` preservou os outros 8 campos, incluindo
+ * `DTCONVOCACAO` e `DTRESPOSTA`. Mandar o registro inteiro seria pior: reescreveria a data do
+ * ato (o convite, que não mudou) e apagaria campos que não emitimos, como o `DTPREVPGTO` que
+ * aparece nos registros lançados à mão pelo DP.
+ */
+export function montarEdicaoFimConvocacaoRm(p: {
+  coligada?: number
+  chapa: string
+  codConvocacao: string
+  dataFim: string
+}): { dadosXml: string; dataFim: string } {
+  const fim = paraDataIso(p.dataFim)
+  if (!fim) throw new Error(`convocacao_rm_invalida: data_fim_invalida (${p.dataFim})`)
+  if (!p.codConvocacao) throw new Error("convocacao_rm_invalida: codigo_ausente")
+  const dadosXml = [
+    "<FopConvocacao>",
+    "  <PFCONVOCACAO>",
+    `    <CODCOLIGADA>${p.coligada ?? RM_COLIGADA_CONVOCACAO}</CODCOLIGADA>`,
+    `    <CHAPA>${chapaRm(p.chapa)}</CHAPA>`,
+    `    <CODCONVOCACAO>${p.codConvocacao}</CODCONVOCACAO>`,
+    `    <DTFIMPRESTSERV>${fim}T00:00:00</DTFIMPRESTSERV>`,
+    "  </PFCONVOCACAO>",
+    "</FopConvocacao>",
+  ].join("\n")
+  return { dadosXml, dataFim: fim }
+}
+
 
 // ---------------------------------------------------------------------------
 // Pré-voo: o que já existe no RM.
