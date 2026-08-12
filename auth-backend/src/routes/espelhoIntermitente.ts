@@ -28,6 +28,11 @@ import {
   gravarDescontoBoard,
 } from "../repo/boardDescontos.js"
 import { lerItem, mudarColunas, moverParaGrupo } from "../clients/monday.js"
+import { config } from "../config.js"
+import { temRmSoap } from "../clients/rmSoap.js"
+import { removerConvocacoesDoItem, TIMEOUT_REMOCAO_MS } from "../services/convocacaoRemover.js"
+import { enfileirar } from "../jobs/repo.js"
+import { TIPO_JOB_CONVOCACAO_RM_REMOVER } from "../jobs/convocacaoRmRemover.js"
 
 // Colunas do board ENTRADA (ids preservados na duplicação mensal — WF Cancelar).
 const COL_ENTRADA_STATUS = "color_mm3a8ana"
@@ -153,6 +158,16 @@ export async function convocacoesEmpregadoPg(
     optante_vt: c.optante_vt === true,
     documentos_existentes: arr(c.atestados),
   }))
+}
+
+/** `Código Convocação RM` no board da vez. Resolvido por TÍTULO: o board do mês é cópia. */
+async function colunaCodigoRm(boardId: string): Promise<string | null> {
+  const { rows } = await query<{ column_id: string }>(
+    `SELECT column_id FROM board_colunas
+      WHERE monday_board_id = $1 AND nome = 'Código Convocação RM' LIMIT 1`,
+    [boardId],
+  )
+  return rows[0]?.column_id ?? null
 }
 
 export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<void> {
@@ -531,6 +546,44 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
         )
       }
 
+      // ── RM: apagar a convocação (S-2260) ──
+      //
+      // Só no cancelamento TOTAL. No parcial a convocação continua existindo com período menor —
+      // isso é edição (G2), não remoção, e o RM já provou aceitar UPDATE (11/08, chapa 006534).
+      //
+      // Depois das escritas Monday e ANTES do espelho PG de propósito: se o RM cair, o board já
+      // reflete o cancelamento (que é o que o operador vê) e a pendência fica registrada. Nunca
+      // derruba o cancelamento — `.catch` próprio: o item já foi movido de grupo, e falhar aqui
+      // faria o operador tentar de novo e bater no 409 da própria antifraude.
+      let rmRemocao: Awaited<ReturnType<typeof removerConvocacoesDoItem>> | null = null
+      if (tipo === "total" && config.convocacaoRmHabilitada && temRmSoap() && origem.itemId) {
+        rmRemocao = await removerConvocacoesDoItem(origem.itemId, {
+          motivo: "cancelamento_total",
+          removidoPor: String((b as { operador?: { email?: string } })?.operador?.email ?? "cancelamento"),
+          timeoutMs: TIMEOUT_REMOCAO_MS,
+        }).catch((e) => {
+          req.log.warn(e, "cancelar: remocao no RM falhou")
+          return { removidos: [], temPendencia: true }
+        })
+        // Pendência (RM mudo ou erro) vai pra fila: registro vivo no RM com board cancelado é o
+        // desfecho mais caro, então insiste até sumir. Enfileirar não pode derrubar a resposta.
+        if (rmRemocao.temPendencia) {
+          await enfileirar(TIPO_JOB_CONVOCACAO_RM_REMOVER, {
+            item_id: String(origem.itemId),
+            motivo: "cancelamento_total",
+            removido_por: String((b as { operador?: { email?: string } })?.operador?.email ?? "cancelamento"),
+          }).catch((e) => req.log.warn(e, "cancelar: enfileirar remocao RM falhou"))
+        }
+        // Código de convocação apagada não pode continuar no board afirmando um registro que não
+        // existe mais. Só limpa se TODOS saíram — com pendência, o que sobrou ainda está no RM.
+        const colCodRm = boardOrigem ? await colunaCodigoRm(String(boardOrigem)) : null
+        if (colCodRm && !rmRemocao.temPendencia && rmRemocao.removidos.length) {
+          await mudarColunas(boardOrigem, Number(origem.itemId), { [colCodRm]: "" }).catch((e) =>
+            req.log.warn(e, "cancelar: limpar codigo RM no board falhou"),
+          )
+        }
+      }
+
       // ── Espelho PG ──
       await query(
         `UPDATE convocacoes SET status_cancelamento = $2, data_inicio_cancelamento = $3,
@@ -550,6 +603,16 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
         ok: true,
         tipo,
         data_inicio_cancelamento: tipo === "parcial" ? dataCancel : null,
+        // Visível na resposta pra quem cancelou saber que o RM ficou pendente — sem isso, "ok"
+        // esconderia convocação viva no RM com o board já cancelado.
+        rm: rmRemocao
+          ? {
+              removidos: rmRemocao.removidos.filter((r) => r.estado === "removido").length,
+              ja_ausentes: rmRemocao.removidos.filter((r) => r.estado === "ja_ausente").length,
+              pendencia: rmRemocao.temPendencia,
+              detalhe: rmRemocao.removidos.filter((r) => r.erro).map((r) => `${r.pk ?? r.lancamentoId}: ${r.erro}`),
+            }
+          : undefined,
         dias_cancelados: range.dias,
         dias_ignorados_duplicidade: calc.diasIgnoradosDuplicidade,
         desconto: {

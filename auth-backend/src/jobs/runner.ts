@@ -4,6 +4,7 @@
 import { query } from "../db.js"
 import { pegarDevidos, avancar, falhar, retomarPresos, type Job } from "./repo.js"
 import { handlerConvocacaoRmPontual, TIPO_JOB_CONVOCACAO_RM } from "./convocacaoRmPontual.js"
+import { handlerConvocacaoRmRemover, TIPO_JOB_CONVOCACAO_RM_REMOVER } from "./convocacaoRmRemover.js"
 
 type Handler = (job: Job) => Promise<void>
 
@@ -30,6 +31,9 @@ const HANDLERS: Record<string, Handler> = {
   expiracao,
   // Tipo PRÓPRIO: reusar `pontual` cairia no handler `gated` abaixo e o job morreria calado.
   [TIPO_JOB_CONVOCACAO_RM]: handlerConvocacaoRmPontual,
+  // Rede da REMOÇÃO (cancelamento total). Sem registrar aqui, o tipo cai em "tipo desconhecido"
+  // e o job só acumula tentativa sem nunca rodar.
+  [TIPO_JOB_CONVOCACAO_RM_REMOVER]: handlerConvocacaoRmRemover,
   sync_monday: syncMonday,
   pontual: gated,
   mensal: gated,
