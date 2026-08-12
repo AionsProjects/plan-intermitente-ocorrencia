@@ -67,6 +67,16 @@ export interface ConsultaParams {
   solicitante?: string
   codigoSistema?: string // default P
   codigoColigada?: number // default 3
+  /**
+   * Proíbe a queda pra ponte AIONS: direto ou erro.
+   *
+   * Para quem trata LISTA VAZIA como fato de negócio, a ponte é perigosa — ela responde 200 com
+   * shape que o parser não reconhece e vira `[]` (ver `consultar`), e aí "o RM está instável"
+   * fica indistinguível de "não há nada". Na leitura de atestado isso significa gravar um S-2260
+   * por cima de dia coberto, em silêncio. Não adiciona dependência nova: quem lê atestado pra
+   * convocar já precisa do RM direto pra gravar.
+   */
+  semPonte?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -124,9 +134,13 @@ async function consultar<T>(p: ConsultaParams, parametros: Record<string, unknow
     try {
       return await consultarDireto<T>(p.codigoSql, coligada, sistema, parametros)
     } catch (e) {
+      // `semPonte` propaga o erro: pra quem lê lista vazia como fato de negócio, cair pra ponte
+      // troca uma falha visível por um `[]` que mente.
+      if (p.semPonte) throw e
       console.warn(`[rm] direto falhou (${(e as Error).message}) — caindo pra ponte AIONS`)
     }
   }
+  if (p.semPonte) throw new Error(`rm: ${p.codigoSql} exige RM direto (RM_DIRETO_* nao configurado)`)
   const r = await post<unknown>("/consultar-rm", {
     ambiente: p.ambiente ?? "producao",
     solicitante: p.solicitante ?? "backend-pi",

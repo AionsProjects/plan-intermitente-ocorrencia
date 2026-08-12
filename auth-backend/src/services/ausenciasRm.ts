@@ -42,6 +42,11 @@ export const consultaPadrao: ConsultaAtestados = async ({ chapa, dataInicial, da
   consultarSql<LinhaAtestadoRm>({
     codigoSql: config.rmSqlAtestados,
     parametros: { CHAPA: chapa, DATA_INICIAL: dataInicial, DATA_FINAL: dataFinal },
+    // Sem ponte, e isto é o que sustenta o "falha fechado" que este módulo promete. A queda
+    // automática pra ponte AIONS devolve `[]` quando ela responde com shape inesperado (ver
+    // `consultar` em clients/rm.ts), e `[]` aqui não é "sem atestado" — é convocação gravada por
+    // cima de dia coberto, calada. Direto ou erro.
+    semPonte: true,
   })
 
 /** Ordem esperada dos parâmetros. Exportada só pro teste — ver o aviso acima. */
