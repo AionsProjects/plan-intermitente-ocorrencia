@@ -1,131 +1,46 @@
-import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { format, parseISO } from "date-fns"
-import { ptBR } from "date-fns/locale"
+import { useNavigate } from "react-router-dom"
+import { ArrowUpRight } from "lucide-react"
 
-import { useAuth } from "@/components/AuthContext"
+import { useNav } from "@/components/NavContext"
+import { listarAtividade } from "@/features/atividade/api"
+import { horaManaus, rotuloEtapa } from "@/features/atividade/etapas"
+import { COR_ACAO, ehFalha, lampDoEstado, rotuloAcao } from "@/features/atividade/types"
 
-interface Atividade {
-  id: string
-  acao: string
-  uuid_alvo: string | null
-  pessoa_nome: string | null
-  contrato: string | null
-  payload_resumo: unknown
-  criado_em: string
-  operador_email: string | null
-  operador_nome: string | null
-}
+/**
+ * Atalho pro histórico, dentro do overlay de configuração.
+ *
+ * O log completo mora em `/atividade`. Aqui ficam só as últimas linhas, somente
+ * leitura: o Dialog é `sm:max-w-lg` (~32rem) e desmonta na troca de aba
+ * (`{aba === "atividade" && <AtividadeTab />}`), então filtro e busca morreriam a
+ * cada abertura — e a expansão dentro de `max-h-[70vh] overflow-y-auto` empurraria o
+ * alvo pra fora da viewport interna. Esta aba existe pra manter o caminho de
+ * descoberta que o operador já conhece.
+ */
 
-const LABEL_ACAO: Record<string, string> = {
-  convocacao: "Convocação",
-  registro: "Registro de ocorrência",
-  cancelamento: "Cancelamento",
-  split: "Divisão de convocação",
-  atestado: "Atestado / Declaração",
-  ponto_facultativo: "Ponto facultativo",
-  desconto: "Registro de desconto",
-  mensal: "Pagamento mensal",
-}
-
-const MESES_LABEL = ["janeiro", "fevereiro", "março", "abril", "maio", "junho",
-  "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"]
-
-const ESCOPO_LABEL: Record<string, string> = {
-  todos: "todos os contratos",
-  conjunto: "contratos selecionados",
-  contrato: "1 contrato",
-}
-
-function competenciaLegivel(v: unknown): string {
-  const m = String(v ?? "").match(/^(\d{4})-(\d{2})$/)
-  if (!m) return String(v ?? "")
-  return `${MESES_LABEL[Number(m[2]) - 1] ?? m[2]}/${m[1]}`
-}
-
-/** Chips de detalhe a partir do payload_resumo. Rico no mensal (ação de dinheiro), genérico no resto. */
-function detalhes(a: Atividade): string[] {
-  const r = (a.payload_resumo ?? {}) as Record<string, unknown>
-  if (a.acao === "mensal") {
-    const contratos = Array.isArray(r.contratos) ? (r.contratos as string[]) : []
-    const total = Number(r.contratos_total ?? contratos.length)
-    const chips = [
-      competenciaLegivel(r.competencia),
-      `${contratos.length}${total && total !== contratos.length ? `/${total}` : ""} contrato${contratos.length === 1 ? "" : "s"}`,
-      `${r.pessoas ?? "?"} pessoas`,
-      ESCOPO_LABEL[String(r.escopo)] ?? String(r.escopo ?? ""),
-      // O modo decide se saiu dinheiro — é o dado mais importante da linha.
-      r.modo === "producao" ? "PRODUÇÃO (efeitos reais)" : "homologação (simulado)",
-    ]
-    if (r.papel === "teste") chips.push("board de teste")
-    if (contratos.length) chips.push(contratos.join(", "))
-    return chips.filter(Boolean)
-  }
-  // Genérico: mostra os escalares do resumo como "chave: valor".
-  return Object.entries(r)
-    .filter(([, v]) => v != null && typeof v !== "object")
-    .map(([k, v]) => `${k.replaceAll("_", " ")}: ${v}`)
-}
-
-const COR_ACAO: Record<string, string> = {
-  convocacao: "text-sky-400",
-  registro: "text-emerald-400",
-  cancelamento: "text-red-400",
-  split: "text-violet-400",
-  atestado: "text-amber-400",
-  ponto_facultativo: "text-cyan-400",
-  desconto: "text-blue-400",
-  mensal: "text-fuchsia-400",
-}
-
-async function listar(todos: boolean): Promise<Atividade[]> {
-  const res = await fetch(`/api/atividade${todos ? "?todos=1" : ""}`, {
-    credentials: "same-origin",
-  })
-  if (!res.ok) throw new Error(`Erro ${res.status}`)
-  const data = (await res.json()) as { atividades: Atividade[] }
-  return data.atividades ?? []
-}
-
-function dataCurta(iso: string): string {
-  try {
-    return format(parseISO(iso), "dd/MM/yy HH:mm", { locale: ptBR })
-  } catch {
-    return iso
-  }
-}
+const QUANTAS = 5
 
 export function AtividadeTab() {
-  const { podeVer } = useAuth()
-  const podeVerTodos = podeVer("dp") // DP + Admin
-  const [todos, setTodos] = useState(false)
+  const navigate = useNavigate()
+  const { fecharConfig } = useNav()
 
-  const { data: atividades, isLoading, isError } = useQuery({
-    queryKey: ["atividade", todos],
-    queryFn: () => listar(todos && podeVerTodos),
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["atividade", false],
+    queryFn: () => listarAtividade(false),
     staleTime: 15_000,
   })
 
+  const ultimas = (data?.atividades ?? []).slice(0, QUANTAS)
+  const erros = (data?.atividades ?? []).filter((a) => ehFalha(a.estado)).length
+
+  const irParaHistorico = (query = "") => {
+    fecharConfig()
+    navigate(`/atividade${query}`)
+  }
+
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-foreground/55">
-          {todos ? "Atividade de todos os usuários." : "Suas ações registradas."}
-        </p>
-        {podeVerTodos && (
-          <button
-            type="button"
-            onClick={() => setTodos((v) => !v)}
-            className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-medium transition ${
-              todos
-                ? "bg-[rgb(var(--accent-rgb)/0.16)] text-foreground ring-1 ring-[rgb(var(--accent-rgb)/0.5)]"
-                : "border border-border text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {todos ? "Vendo: todos" : "Ver todos"}
-          </button>
-        )}
-      </div>
+      <p className="text-xs text-foreground/55">Suas últimas ações.</p>
 
       {isLoading && <p className="text-sm text-foreground/60">Carregando…</p>}
       {isError && (
@@ -133,56 +48,59 @@ export function AtividadeTab() {
           Erro ao carregar atividade.
         </p>
       )}
-      {atividades && atividades.length === 0 && (
+      {data && ultimas.length === 0 && (
         <p className="rounded-lg border border-border bg-[rgb(var(--ink)/0.04)] px-3 py-6 text-center text-sm text-foreground/50">
           Nenhuma atividade ainda. As ações aparecem aqui conforme acontecem.
         </p>
       )}
 
+      {erros > 0 && (
+        <button
+          type="button"
+          onClick={() => irParaHistorico("?st=erro")}
+          className="flex w-full items-center justify-between gap-2 rounded-xl bg-[rgb(var(--status-red-rgb)/0.08)] px-3 py-2 text-left text-[12px] text-[var(--status-red)] shadow-[inset_0_0_0_1px_rgb(239_102_102/0.3)]"
+        >
+          <span>
+            <span className="lamp lamp--red mr-2 align-middle" aria-hidden />
+            {erros} {erros === 1 ? "execução" : "execuções"} com erro
+          </span>
+          <ArrowUpRight className="size-3.5 shrink-0" aria-hidden />
+        </button>
+      )}
+
       <div className="space-y-2">
-        {atividades?.map((a) => (
-          <div
+        {ultimas.map((a) => (
+          <button
             key={a.id}
-            className="rounded-xl border border-border bg-[rgb(var(--ink)/0.04)] p-3"
+            type="button"
+            onClick={() => irParaHistorico(`?exec=${a.id}`)}
+            className="flex w-full flex-col gap-0.5 rounded-xl border border-border bg-[rgb(var(--ink)/0.04)] p-3 text-left transition hover:bg-[rgb(var(--ink)/0.07)]"
           >
-            <div className="flex items-center justify-between gap-2">
-              <span className={`text-sm font-medium ${COR_ACAO[a.acao] ?? "text-foreground"}`}>
-                {LABEL_ACAO[a.acao] ?? a.acao}
+            <span className="flex items-baseline justify-between gap-2">
+              <span className={`truncate text-sm font-medium ${COR_ACAO[a.acao] ?? "text-foreground"}`}>
+                <span className={`lamp ${lampDoEstado(a.estado)} mr-2 align-middle`} aria-hidden />
+                {rotuloAcao(a.acao)}
               </span>
-              <span className="shrink-0 text-[11px] text-foreground/40">
-                {dataCurta(a.criado_em)}
+              <span className="shrink-0 font-mono text-[11px] tabular-nums text-foreground/40">
+                {horaManaus(a.criado_em)}
               </span>
-            </div>
-            {(a.pessoa_nome || a.contrato) && (
-              <p className="mt-0.5 text-sm text-foreground/75">
-                {a.pessoa_nome ?? "—"}
-                {a.contrato && <span className="text-foreground/45"> · {a.contrato}</span>}
-              </p>
-            )}
-            {detalhes(a).length > 0 && (
-              <div className="mt-1.5 flex flex-wrap gap-1">
-                {detalhes(a).map((d, i) => (
-                  <span
-                    key={i}
-                    className={`rounded-md px-1.5 py-0.5 text-[11px] ${
-                      d.startsWith("PRODUÇÃO")
-                        ? "bg-[rgb(var(--status-red)/0.14)] text-[var(--status-red)]"
-                        : "bg-[rgb(var(--ink)/0.06)] text-foreground/55"
-                    }`}
-                  >
-                    {d}
-                  </span>
-                ))}
-              </div>
-            )}
-            {todos && (
-              <p className="mt-1 text-[11px] text-foreground/45">
-                por {a.operador_nome ?? a.operador_email ?? "—"}
-              </p>
-            )}
-          </div>
+            </span>
+            <span
+              className={`truncate text-[12px] ${
+                ehFalha(a.estado) ? "text-[var(--status-red)]" : "text-foreground/65"
+              }`}
+            >
+              {ehFalha(a.estado)
+                ? `${rotuloEtapa(a.erro_etapa)}${a.erro_msg ? ` — ${a.erro_msg}` : ""}`
+                : [a.pessoa_nome, a.contrato].filter(Boolean).join(" · ") || "—"}
+            </span>
+          </button>
         ))}
       </div>
+
+      <button type="button" onClick={() => irParaHistorico()} className="glass-cta glass-cta--mini w-full">
+        Abrir histórico completo ↗
+      </button>
     </div>
   )
 }

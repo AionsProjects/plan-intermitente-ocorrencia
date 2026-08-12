@@ -44,6 +44,14 @@
   --status-red: #ef6666;
   --status-yellow: #e4bd43;
   --status-green: #3fcf79;
+  /* Mesmas cores como TRIPLET, pra uso com alpha: `rgb(var(--status-red-rgb)/0.08)`.
+     As de cima são hex e por isso NÃO funcionam dentro de rgb() — `rgb(#ef6666/0.08)`
+     é inválido e o navegador descarta a declaração, deixando o fundo transparente sem
+     erro visível. Há vários `bg-[rgb(var(--status-red)/0.08)]` no app (MensalPage,
+     Acompanhamento) que estão nessa condição desde que foram escritos. */
+  --status-red-rgb: 239 102 102;
+  --status-yellow-rgb: 228 189 67;
+  --status-green-rgb: 63 207 121;
 
   /* Glass tokens */
   --glass-bg: rgba(13, 13, 16, 0.66);

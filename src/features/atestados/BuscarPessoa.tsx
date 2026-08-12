@@ -8,6 +8,7 @@ import {
   UserSearch,
 } from "lucide-react"
 
+import { HighlightedText } from "@/components/HighlightedText"
 import { useBuscarEmpregado } from "@/features/convocar/useConvocacao"
 import { useBuscarCeletista } from "./useAtestados"
 import type { EmpregadoRM, TipoTrabalhador } from "./types"
@@ -19,46 +20,6 @@ type Props = {
   onSelecionar: (empregado: EmpregadoRM) => void
 }
 
-function semAcento(s: string): string {
-  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
-}
-
-function HighlightedText({ text, query }: { text: string; query: string }) {
-  const q = semAcento(query.trim())
-  if (!q) return <>{text}</>
-  const normalizedText = semAcento(text)
-  const parts: Array<{ text: string; match: boolean }> = []
-  let i = 0
-  while (i < text.length) {
-    const idx = normalizedText.indexOf(q, i)
-    if (idx === -1) {
-      parts.push({ text: text.slice(i), match: false })
-      break
-    }
-    if (idx > i) parts.push({ text: text.slice(i, idx), match: false })
-    parts.push({ text: text.slice(idx, idx + q.length), match: true })
-    i = idx + q.length
-  }
-  return (
-    <>
-      {parts.map((p, j) =>
-        p.match ? (
-          <mark
-            key={j}
-            className="rounded-sm bg-[rgb(var(--accent-rgb)/0.3)] px-0.5 text-[rgb(var(--accent-rgb))]"
-            style={{ backgroundColor: "transparent" }}
-          >
-            <span className="font-semibold text-[rgb(var(--accent-rgb))] underline decoration-[rgb(var(--accent-rgb))] decoration-2 underline-offset-[3px]">
-              {p.text}
-            </span>
-          </mark>
-        ) : (
-          <span key={j}>{p.text}</span>
-        ),
-      )}
-    </>
-  )
-}
 
 export function BuscarPessoa({ tipoTrabalhador, onSelecionar }: Props) {
   const [valor, setValor] = useState("")

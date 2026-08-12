@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 
+import { useDebounce } from "@/lib/useDebounce"
 import {
   buscarEmpregado,
   buscarOpcoesConvocacao,
@@ -23,15 +23,6 @@ const FALLBACK_OPCOES_MUTABLE = {
     ),
   ),
   unidadeColumnId: OPCOES_CONVOCACAO_FALLBACK.unidadeColumnId,
-}
-
-function useDebounce<T>(value: T, delay = 250): T {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), delay)
-    return () => clearTimeout(t)
-  }, [value, delay])
-  return debounced
 }
 
 export function useBuscarEmpregado(query: string) {

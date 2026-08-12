@@ -11,6 +11,9 @@ import { RequireRole } from "@/components/RequireRole"
 import { LoginPage } from "@/features/auth/LoginPage"
 import { CompletarCadastroPage } from "@/features/auth/CompletarCadastroPage"
 import { ConfigOverlay } from "@/features/config/ConfigOverlay"
+import { AtividadePage } from "@/features/atividade/AtividadePage"
+import { RedirParaExec } from "@/features/atividade/RedirParaExec"
+import { NaoEncontradaPage } from "@/features/hub/NaoEncontradaPage"
 import { AtestadosPage } from "@/features/atestados/AtestadosPage"
 import { ConvocarPage } from "@/features/convocar/ConvocarPage"
 import { CorrecaoPage } from "@/features/correcao/CorrecaoPage"
@@ -43,6 +46,12 @@ function App() {
               <Route path="/corrigir" element={<CorrecaoPage />} />
               <Route path="/convocar" element={<ConvocarPage />} />
               <Route path="/atestados" element={<AtestadosPage />} />
+              {/* Histórico de execuções. RequireAuth e NÃO RequireRole "dp":
+                  operacional/RH precisa do próprio histórico, e o 403 por linha vem
+                  do servidor, que é o único lugar que não se contorna.
+                  `/atividade/:id` é só alias do deep link -> ?exec= */}
+              <Route path="/atividade" element={<AtividadePage />} />
+              <Route path="/atividade/:id" element={<RedirParaExec />} />
               {/* Ponto facultativo — só DP + Admin */}
               <Route element={<RequireRole nivelMinimo="dp" />}>
                 <Route path="/ponto-facultativo" element={<PontoFacultativoPage />} />
@@ -50,6 +59,9 @@ function App() {
                 <Route path="/mensal" element={<MensalPage />} />
               </Route>
             </Route>
+            {/* Coringa: sem isto, URL inexistente renderizava área em branco e — pior —
+                sem redirect de login, porque RequireAuth só vale em rota declarada. */}
+            <Route path="*" element={<NaoEncontradaPage />} />
           </Routes>
         )}
       />
