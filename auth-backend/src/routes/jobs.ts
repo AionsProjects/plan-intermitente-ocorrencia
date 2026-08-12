@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
 import { tick } from "../jobs/runner.js"
+import { varrerTodos } from "../services/sweepBloqueio.js"
 
 // Tick da fila de jobs. Avança jobs devidos 1 passo cada (serverless-safe).
 //
@@ -14,6 +15,12 @@ import { tick } from "../jobs/runner.js"
 // ⚠️ E não tente documentar isso no vercel.json: propriedade extra ali NÃO é ignorada, o deploy
 // falha — sem log de build, o que faz parecer problema de infra. Aconteceu duas vezes (commits
 // 85f8f895 e o `_comment_crons` deste trabalho, que derrubou 6 deploys seguidos).
+//
+// ⚠️ Este tick também roda a varredura do monitor de alteração de board. Não é acoplamento
+// gratuito: Hobby só dá DOIS crons, e ao juntar as branches a união pedia três
+// (retenção + este + /api/bloqueio/varrer). O sweep é o que tinha o cron mais dispensável, porque
+// a cadência real dele vem do n8n a cada 15 min (WF `Uue6DferTufop3rs`, 374 execuções, ativo) —
+// mas cadência de terceiro não é rede de segurança, então ele pega carona aqui em vez de sumir.
 export async function rotasJobs(app: FastifyInstance): Promise<void> {
   const autorizado = (req: FastifyRequest): boolean => {
     const secret = process.env.CRON_SECRET
@@ -29,7 +36,17 @@ export async function rotasJobs(app: FastifyInstance): Promise<void> {
     if (!autorizado(req)) return reply.code(401).send({ erro: "nao_autorizado" })
     const limite = Math.min(20, Math.max(1, Number(req.query.limite) || 5))
     const tipo = (req.query.tipo || "").trim() || undefined
-    return { ok: true, ...(await tick(limite, tipo)) }
+    const resultado = await tick(limite, tipo)
+    // Carona do sweep (ver nota no topo). Isolado: janela de bloqueio que explode não pode
+    // derrubar a fila de jobs, que é a rede de retry da convocação no RM.
+    let bloqueio: { janelas: number } | { erro: string }
+    try {
+      bloqueio = { janelas: (await varrerTodos()).length }
+    } catch (e) {
+      req.log.warn(e, "varredura de bloqueio falhou no tick de jobs")
+      bloqueio = { erro: (e as Error).message.slice(0, 160) }
+    }
+    return { ok: true, ...resultado, bloqueio }
   }
 
   app.get("/api/jobs/tick", executar)

@@ -84,6 +84,38 @@ export const config = {
   rmSoapTimeoutProcessoMs: Number(opt("RM_SOAP_TIMEOUT_PROCESSO_MS", "120000")),
   // Nexti (validação de atestado — OAuth client_credentials, Basic base64).
   nextiBasicAuth: opt("NEXTI_BASIC_AUTH", ""),
+  // Verificação de alteração do board (monitor do fechamento). Ver routes/bloqueio.ts.
+  monitor: {
+    // user_id do Monday por trás do token que o app E os WFs usam. Medido: Isaac 98663994
+    // (`me{}` do MONDAY_TOKEN). Enquanto não houver conta de serviço dedicada, tudo que a
+    // automação escreve aparece com esse id — a autoria real vem de pi.audit_lancamentos.
+    autorAutomacao: opt("MONITOR_AUTOR_AUTOMACAO", "98663994"),
+    // Quem é do DP. O DP é o DESTINATÁRIO do alerta: o que ele mesmo edita entra no
+    // relatório mas não pinga o WhatsApp dele. Medido: Thifany Castro 41622430.
+    autoresDp: opt("MONITOR_AUTORES_DP", "41622430").split(",").map((s) => s.trim()).filter(Boolean),
+    // Janela máxima de uma varredura. Sem teto, uma janela esquecida aberta há semanas
+    // pediria milhares de páginas ao Monday num tick só.
+    maxDiasPorVarredura: Number(opt("MONITOR_MAX_DIAS_VARREDURA", "7")),
+    destinoWhatsapp: opt("MONITOR_DESTINO_WHATSAPP", "120363424978312590@g.us"),
+    // Debounce do webhook: o Monday dispara um POST por coluna, então uma convocação
+    // vira ~12 webhooks em segundos. Sem isso seriam 12 varreduras do mesmo intervalo.
+    debounceWebhookSeg: Number(opt("MONITOR_DEBOUNCE_WEBHOOK_SEG", "45")),
+    // ⚠️ O `activity_logs` do Monday NÃO é imediato: medido em 08/08/2026, uma escrita
+    // só aparece na consulta ~4 s depois. Como o cursor avança até o fim da fatia, varrer
+    // até "agora" pula em silêncio tudo que ainda não indexou. A varredura para nesta
+    // margem atrás do relógio; o que é mais novo fica pro próximo tick.
+    lagSegundos: Number(opt("MONITOR_LAG_SEG", "60")),
+  },
+  // Evolution API (WhatsApp). Instância `check-intermitente` — dedicada a este monitor;
+  // `AIONS-MIKE` é compartilhada com o WF "Notificar Advertência 4 em 3 meses".
+  // ⚠️ `habilitado` DESLIGADO por default: mandar mensagem é irreversível. Sem o flag a
+  // notificação é montada e gravada, mas não sai — dá pra conferir antes de soltar.
+  evolution: {
+    habilitado: process.env.MONITOR_ENVIO_HABILITADO === "1",
+    url: opt("EVOLUTION_URL", ""),
+    apiKey: opt("EVOLUTION_API_KEY", ""),
+    instance: opt("EVOLUTION_INSTANCE", "check-intermitente"),
+  },
   // Google Drive (arquivamento). Use service account compartilhada na pasta raiz.
   googleDrive: {
     serviceAccountJson: opt("GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON", ""),
