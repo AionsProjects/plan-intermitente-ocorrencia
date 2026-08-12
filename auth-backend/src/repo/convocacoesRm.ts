@@ -20,6 +20,13 @@ export type MotivoSaidaRm =
 export interface LancamentoRm {
   id: string
   item_origem_id: string // bigint -> string no node-pg
+  /**
+   * Item equivalente na CÓPIA da virada de mês (mesmo `Código Convocação RM`). Preenchido por
+   * `/api/boards/virada`. Existe porque a convocação que atravessa o dia 14 passa a ter dois
+   * itens: o original arquivado (pra onde o `Item Origem` do Histórico continua apontando) e a
+   * cópia ativa (onde o DP trabalha). As buscas casam pelos dois.
+   */
+  item_espelho_id: string | null
   monday_board_id: string | null
   uuid_convocacao: string | null
   coligada: number
@@ -167,27 +174,39 @@ export async function lancamentosVivosPorItens(
   if (!ids.length) return mapa
   const { rows } = await query<LancamentoRm>(
     `SELECT * FROM convocacoes_rm
-      WHERE item_origem_id = ANY($1::bigint[]) AND estado IN ('reservado','no_rm')
+      WHERE (item_origem_id = ANY($1::bigint[]) OR item_espelho_id = ANY($1::bigint[]))
+        AND estado IN ('reservado','no_rm')
       ORDER BY item_origem_id, data_inicio`,
     [ids],
   )
+  const pedidos = new Set(ids)
   for (const r of rows) {
-    const k = String(r.item_origem_id)
-    const lista = mapa.get(k)
-    if (lista) lista.push(r)
-    else mapa.set(k, [r])
+    // Indexa pelo id que o CALLER pediu — ele conhece o item da cópia OU o original, nunca os
+    // dois. Se ambos foram pedidos (varredura do board inteiro), a linha entra nas duas chaves.
+    for (const k of [String(r.item_origem_id), r.item_espelho_id ? String(r.item_espelho_id) : null]) {
+      if (!k || !pedidos.has(k)) continue
+      const lista = mapa.get(k)
+      if (lista) { if (!lista.includes(r)) lista.push(r) } else mapa.set(k, [r])
+    }
   }
   return mapa
 }
 
-/** Tudo de um item, inclusive histórico — é a resposta pra "por que o código sumiu?". */
+/**
+ * Tudo de um item, inclusive histórico — é a resposta pra "por que o código sumiu?".
+ *
+ * Casa pelo item original E pelo espelho da virada: depois do dia 14 o cancelamento pode chegar
+ * com qualquer um dos dois ids (o Histórico guarda o original; o DP reativa pela cópia), e achar
+ * "nada" nesse momento deixaria o S-2260 de pé com o board cancelado.
+ */
 export async function lancamentosDoItem(
   itemOrigemId: string | number,
   opts: { apenasVivos?: boolean } = {},
 ): Promise<LancamentoRm[]> {
   const { rows } = await query<LancamentoRm>(
     `SELECT * FROM convocacoes_rm
-      WHERE item_origem_id=$1 ${opts.apenasVivos ? "AND estado IN ('reservado','no_rm')" : ""}
+      WHERE (item_origem_id=$1::bigint OR item_espelho_id=$1::bigint)
+        ${opts.apenasVivos ? "AND estado IN ('reservado','no_rm')" : ""}
       ORDER BY data_inicio, criado_em`,
     [String(itemOrigemId)],
   )

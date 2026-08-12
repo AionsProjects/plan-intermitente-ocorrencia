@@ -59,19 +59,34 @@ const norm = (s: string): string =>
   s.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().trim()
 
 /**
- * Itens do contrato nos grupos MENSAL e CANCELADOS PARCIAL do board ATUAL (registry).
+ * Board do run. O snapshot da prévia já resolveu qual board é (o run carrega `papel`, e desde
+ * 03/08 o mensal roda com `papel='proximo'`) — resolver `atual` aqui de novo faria o passo do RM
+ * ler um board DIFERENTE do resto do mensal. Depois da virada de 14/08 isso deixa de ser
+ * teórico: `atual` passa a ser a cópia do mês fechado.
+ */
+async function boardDoRun(boardId?: string): Promise<string> {
+  if (boardId) return boardId
+  const { rows } = await query<{ monday_board_id: string }>(
+    `SELECT monday_board_id FROM boards WHERE papel='atual' AND ativo=true
+      ORDER BY atualizado_em DESC LIMIT 1`,
+  )
+  const b = rows[0]?.monday_board_id
+  if (!b) throw new Error("board_atual_nao_registrado")
+  return b
+}
+
+/**
+ * Itens do contrato nos grupos MENSAL e CANCELADOS PARCIAL do board do run.
  *
  * CANCELADOS PARCIAL entra por decisão de negócio: o DP MOVE o item de grupo ao cancelar
  * parcialmente, e essa pessoa trabalhou até `Cancelamento Início - 1` — dias que precisam de
  * S-2260 como quaisquer outros. Era um dos "invisíveis" apontados na análise (2 itens reais).
  */
-export async function lerItensConvocacaoMensal(contrato: string): Promise<ItemConvocacaoMensal[]> {
-  const { rows: br } = await query<{ monday_board_id: string }>(
-    `SELECT monday_board_id FROM boards WHERE papel='atual' AND ativo=true
-      ORDER BY atualizado_em DESC LIMIT 1`,
-  )
-  const boardId = br[0]?.monday_board_id
-  if (!boardId) throw new Error("board_atual_nao_registrado")
+export async function lerItensConvocacaoMensal(
+  contrato: string,
+  boardIdDoRun?: string,
+): Promise<ItemConvocacaoMensal[]> {
+  const boardId = await boardDoRun(boardIdDoRun)
 
   const { rows: grupos } = await query<{ group_id: string; titulo: string }>(
     `SELECT group_id, titulo FROM board_grupos
@@ -274,14 +289,17 @@ export function mesclarRelatorios(
   }
 }
 
-/** Board atual + coluna do eco (`Código Convocação RM`) — resolvidos pelo registry. */
-export async function resolverEcoConvocacaoRm(): Promise<{ boardId: string; colCodRm: string | null }> {
-  const { rows: br } = await query<{ monday_board_id: string }>(
-    `SELECT monday_board_id FROM boards WHERE papel='atual' AND ativo=true
-      ORDER BY atualizado_em DESC LIMIT 1`,
-  )
-  const boardId = br[0]?.monday_board_id
-  if (!boardId) throw new Error("board_atual_nao_registrado")
+/**
+ * Board do run + coluna do eco (`Código Convocação RM`), resolvidos pelo registry.
+ *
+ * `colCodRm` nulo NÃO é erro: o eco é opcional (a fonte de verdade é `pi.convocacoes_rm`). Mas o
+ * step registra `eco_coluna: "AUSENTE"` na timeline de propósito — coluna renomeada no board faz
+ * o lookup por título devolver null, e sem esse rastro o C03S###### sumiria do board em silêncio.
+ */
+export async function resolverEcoConvocacaoRm(
+  boardIdDoRun?: string,
+): Promise<{ boardId: string; colCodRm: string | null }> {
+  const boardId = await boardDoRun(boardIdDoRun)
   const { rows: cols } = await query<{ column_id: string }>(
     `SELECT column_id FROM board_colunas
       WHERE monday_board_id=$1 AND nome='Código Convocação RM' LIMIT 1`,

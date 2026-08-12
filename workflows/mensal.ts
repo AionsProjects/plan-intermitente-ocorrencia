@@ -399,6 +399,7 @@ const TAMANHO_LOTE_CONVOCACAO_RM = 10
 async function etapaConvocacaoRmPlano(
   runId: string,
   contrato: string,
+  boardIdDoRun: string,
 ): Promise<{
   alvos: AlvoConvocacaoMensal[]
   previa: RelatorioConvocacaoMensal
@@ -418,9 +419,11 @@ async function etapaConvocacaoRmPlano(
   await registrarEvento({ runId, contrato, etapa, estado: "rodando", tentativa: metadata.attempt })
   const { lerItensConvocacaoMensal, planejarAlvosMensal, resolverEcoConvocacaoRm } =
     await import("../auth-backend/src/services/convocacaoMensal.js")
-  const itens = await lerItensConvocacaoMensal(contrato)
+  // Board vem do snapshot do run, não de `papel='atual'`: o mensal roda com `papel='proximo'` e
+  // depois da virada `atual` é a cópia do mês fechado.
+  const itens = await lerItensConvocacaoMensal(contrato, boardIdDoRun)
   const { alvos, previa } = planejarAlvosMensal(contrato, itens)
-  const eco = await resolverEcoConvocacaoRm()
+  const eco = await resolverEcoConvocacaoRm(boardIdDoRun)
   await registrarEvento({
     runId, contrato, etapa, estado: "rodando", tentativa: metadata.attempt,
     metadados: {
@@ -558,8 +561,9 @@ async function executarConvocacaoRmContrato(
   modo: ModoExec,
   competencia: string,
   contrato: string,
+  boardIdDoRun: string,
 ): Promise<void> {
-  const plano = await etapaConvocacaoRmPlano(runId, contrato)
+  const plano = await etapaConvocacaoRmPlano(runId, contrato, boardIdDoRun)
   if (!plano) return
   let agregado = plano.previa
   for (let i = 0; i * TAMANHO_LOTE_CONVOCACAO_RM < plano.alvos.length; i++) {
@@ -866,7 +870,7 @@ async function processarContrato(
     // Convocação no RM (S-2260) ANTES do financeiro — decisão 2 do Isaac: a convocação precede o
     // pagamento na ordem do eSocial. Pendência humana lança FatalError e o contrato marca erro
     // (decisão 4): o pagamento deste contrato só roda depois que o DP resolver e retomar.
-    await executarConvocacaoRmContrato(runId, modo, competencia, contrato.contrato)
+    await executarConvocacaoRmContrato(runId, modo, competencia, contrato.contrato, snapshot.boardId)
 
     // RM via ponte AIONS — SERIAL com esperas (a ponte não aguenta volume).
     // Histórico ZMDHSTBENFUNC em lotes de 50 (contagem determinística a partir do snapshot).

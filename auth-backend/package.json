@@ -12,6 +12,7 @@
     "migrate": "node --env-file=.env --import tsx src/scripts/migrate.ts",
     "seed": "node --env-file=.env --import tsx src/scripts/seed.ts",
     "registrar-boards": "node --env-file=.env --import tsx src/scripts/registrar-boards.ts",
+    "virada:remapear": "node --env-file=.env --import tsx src/scripts/virada-remapear-rm.ts",
     "token:servico": "node --env-file=.env --import tsx src/scripts/token-servico.ts",
     "rm:schema": "node --env-file=.env --import tsx src/scripts/rm-schema.ts",
     "rm:readview": "node --env-file=.env --import tsx src/scripts/rm-readview.ts",

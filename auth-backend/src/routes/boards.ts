@@ -8,10 +8,14 @@ import {
   lerGrupos,
   listarWebhooks,
 } from "../monday.js"
+import { remapearConvocacoesRmParaBoard } from "../services/viradaConvocacoesRm.js"
 
 // Registry de boards Monday (virada de mês). Resolve column_id por TÍTULO (estável).
 // `ativar` = coluna que dispara o webhook do WF1 (gera link de registro).
 const COLUNA_ATIVAR = "ativar"
+// Coluna que carrega o C03S###### de volta pro board. É o eco do RM e, na virada, a chave que
+// reancora `pi.convocacoes_rm` nos itens da cópia.
+const COLUNA_CODIGO_RM = "Código Convocação RM"
 
 interface BoardRow {
   monday_board_id: string
@@ -154,7 +158,27 @@ export async function rotasBoards(app: FastifyInstance): Promise<void> {
         // 2) cópia = atual (mês corrente); central = proximo (mês seguinte).
         const c = await registrarBoard(copiaId, req.body?.copia_competencia ?? null, "atual")
         const k = await registrarBoard(centralId, req.body?.central_competencia ?? null, "proximo")
-        return { ok: true, copia: { board_id: copiaId, ...c }, central: { board_id: centralId, ...k } }
+        // 3) reancorar o rastro do RM nos itens da cópia. Os itens do central foram ARQUIVADOS
+        //    e reeditados com ids novos; sem isto um cancelamento pós-virada não acha rastro e
+        //    o S-2260 fica de pé com o board cancelado. Best-effort: falhar aqui não pode
+        //    desfazer o registry, que é o que o resto do app depende.
+        let rm: unknown = { pulado: "coluna_codigo_rm_ausente" }
+        try {
+          const { rows: cc } = await query<{ column_id: string }>(
+            `SELECT column_id FROM board_colunas
+              WHERE monday_board_id = $1 AND nome = $2 LIMIT 1`,
+            [copiaId, COLUNA_CODIGO_RM],
+          )
+          if (cc[0]?.column_id) {
+            rm = await remapearConvocacoesRmParaBoard(copiaId, cc[0].column_id)
+          } else {
+            req.log.error({ copiaId }, "virada: cópia sem coluna 'Código Convocação RM'")
+          }
+        } catch (e) {
+          req.log.error(e, "virada: remapeamento do rastro RM falhou")
+          rm = { erro: e instanceof Error ? e.message : "desconhecido" }
+        }
+        return { ok: true, copia: { board_id: copiaId, ...c }, central: { board_id: centralId, ...k }, rm }
       } catch (e) {
         req.log.error(e, "erro virada")
         return reply.code(502).send({ erro: "virada_falhou" })
