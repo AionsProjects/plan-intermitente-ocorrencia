@@ -1,5 +1,6 @@
-import type { FastifyInstance, FastifyRequest } from "fastify"
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
 import { query } from "../db.js"
+import { abrirExecucao, comEtapa, type Execucao } from "../services/execucao.js"
 import { diasUteis } from "../domain/diasUteis.js"
 import { calcularDesconto, jaConsumido, norm as normTxt, type DiaDesconto } from "../domain/desconto.js"
 import { resolverValores } from "../domain/desconto.js"
@@ -47,6 +48,54 @@ import { TIPO_JOB_CONVOCACAO_RM_SUBSTITUIR } from "../jobs/convocacaoRmSubstitui
 // Colunas do board ENTRADA (ids preservados na duplicação mensal — WF Cancelar).
 const COL_ENTRADA_STATUS = "color_mm3a8ana"
 const COL_ENTRADA_DATA_CANCEL = "date_mm3b88ta"
+
+/**
+ * Campos que o frontend injeta em toda escrita: `operador` (src/lib/http.ts
+ * `comOperador`) e `execucao_id` (o id que ele cunhou ao abrir a execução).
+ *
+ * Estas rotas NÃO exigem sessão — `/preencher/:uuid` é pública por UUID —, então o
+ * operador vem do corpo, não de `usuarioDaSessao`.
+ */
+interface CorpoInstrumentado {
+  execucao_id?: string
+  operador?: { email?: string; nome?: string }
+}
+
+function operadorDoCorpo(b: unknown): { userId: null; email: string | null; nome: string | null } {
+  const o = (b as CorpoInstrumentado | undefined)?.operador
+  return { userId: null, email: o?.email ?? null, nome: o?.nome ?? null }
+}
+
+/**
+ * Recusa de negócio: fecha a execução como erro E devolve a resposta.
+ *
+ * Os dois passos sempre andam juntos, e separá-los é como se perde metade dos casos —
+ * um `return reply.code(409)` sem o `fechar` deixaria a execução 'aberta' até a
+ * varredura de abandonadas alcançá-la, com o motivo real perdido.
+ */
+async function recusar(
+  ex: Execucao,
+  reply: FastifyReply,
+  status: number,
+  corpo: { erro: string } & Record<string, unknown>,
+  etapa?: string,
+): Promise<never> {
+  await ex.fechar("erro", { erro: corpo.erro, etapaErro: etapa })
+  return reply.code(status).send({ ok: false, ...corpo }) as never
+}
+
+/**
+ * Amarra um job à execução que o enfileirou.
+ *
+ * É o que faz o alerta de job morto (jobs/repo.ts `falhar`) linkar pro log DESTE
+ * cancelamento, com pessoa e contrato, em vez de um uuid opaco de job — que é a
+ * diferença entre uma mensagem em que o DP age e uma que ele ignora.
+ */
+async function amarrarJob(ex: Execucao, jobId: string, req: FastifyRequest): Promise<void> {
+  await ex.artefato({ tipo: "job", chave: jobId, rotulo: "Fila do RM" })
+  await query(`UPDATE jobs SET execucao_id = $2 WHERE id = $1`, [jobId, ex.id])
+    .catch((e) => req.log.warn(e, "amarrar job a execucao falhou"))
+}
 
 // Rotas de leitura do fluxo intermitente — substituem os webhooks n8n
 // (WF2 Ler, WF4 Buscar Protocolo, Buscar Convocações). Servidas sob /api/*
@@ -324,16 +373,40 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
       const { rows } = await query<LinhaConvocacao>(`SELECT * FROM convocacoes WHERE uuid = $1`, [uuid])
       const c = rows[0]
       if (!c) return reply.code(404).send({ ok: false, erro: "nao_encontrado" })
+
+      // Execução aberta com a ficha já em mão (pessoa/contrato preenchem o cabeçalho) e
+      // ANTES de qualquer gravação. `uuid_alvo` = UUID da convocação, que é a semântica
+      // que a cascata resolverItemDoPlano do monitor de board espera pra `registro`.
+      const ex = await abrirExecucao({
+        id: (b as CorpoInstrumentado).execucao_id || null,
+        acao: "registro",
+        motor: "backend",
+        operador: operadorDoCorpo(b),
+        alvo: uuid,
+        pessoa: c.nome,
+        contrato: c.contrato,
+        resumo: {
+          protocolo,
+          chapa: c.chapa,
+          data_inicio: soData(c.data_inicio),
+          data_fim: soData(c.data_fim),
+          eh_correcao: ehCorrecao,
+          respostas: respostas.length,
+        },
+      })
+      await ex.artefato({ tipo: "convocacao_uuid", chave: uuid, rotulo: "Convocação" })
+      await ex.artefato({ tipo: "protocolo", chave: protocolo })
+
       if (String(c.status_cancelamento ?? "").toLowerCase().includes("cancelad"))
-        return reply.code(409).send({ ok: false, erro: "convocacao_cancelada" })
+        return recusar(ex, reply, 409, { erro: "convocacao_cancelada" }, "validacao")
       const jaConcluido = statusFront(c.status) === "concluido"
       if (jaConcluido && !ehCorrecao)
-        return reply.code(409).send({ ok: false, erro: "ja_concluido" })
+        return recusar(ex, reply, 409, { erro: "ja_concluido" }, "validacao")
 
       // bloqueio desconto_em_consumo (correção sobre desconto já abatido)
       const exist = await descontoExistente(uuid)
       if (exist && jaConsumido(exist) && !ehCorrecao)
-        return reply.code(409).send({ ok: false, erro: "desconto_em_consumo" })
+        return recusar(ex, reply, 409, { erro: "desconto_em_consumo" }, "validacao")
 
       const di = soData(c.data_inicio)!
       const df = soData(c.data_fim)!
@@ -343,6 +416,12 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
         diasDesativados: b.dias_desativados ?? [], respostas,
       })
       const ag = agregados(respostas, ledger)
+      await ex.etapa("ledger", "ok", {
+        metadados: {
+          qtd_faltas: ag.qtd_faltas, qtd_atrasos: ag.qtd_atrasos,
+          total_minutos: ag.total_minutos, dias_no_ledger: ledger.length,
+        },
+      })
 
       const linhas = await lerValores()
       const v = resolverValores(linhas, { contrato: c.contrato ?? "", funcao: "" })
@@ -369,7 +448,7 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
       }
       const agoraIso = new Date().toISOString()
       const editado = jaConcluido || ehCorrecao
-      await query(
+      await comEtapa(ex, "gravar_convocacao", () => query(
         `UPDATE convocacoes SET
            status='Concluido', protocolo=$2, respostas=$3::jsonb,
            ledger_beneficios=$4::jsonb,
@@ -384,15 +463,26 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
           JSON.stringify(diasDesc), ag.qtd_faltas, ag.qtd_atrasos, ag.total_minutos,
           ag.dias_perde_vr, ag.dias_perde_vt, agoraIso, editado,
         ],
-      )
+      ))
       if (desc.descontoVR > 0 || desc.descontoVT > 0) {
-        await upsertDesconto({
+        await comEtapa(ex, "desconto", () => upsertDesconto({
           uuid_convocacao: uuid, protocolo, nome: c.nome, chapa: c.chapa, contrato: c.contrato,
           data_inicio: di, data_fim: df, dias_perde_vr: ag.dias_perde_vr, dias_perde_vt: ag.dias_perde_vt,
           qtd_atrasos: ag.total_minutos, desconto_vr: desc.descontoVR, desconto_vt: desc.descontoVT,
           status: "PENDENTE",
-        })
+        }), { metadados: { desconto_vr: desc.descontoVR, desconto_vt: desc.descontoVT } })
+      } else {
+        // 'pulado' e não silêncio: "não gerou desconto" é informação, e a ausência da
+        // fase faria parecer que a etapa foi esquecida.
+        await ex.etapa("desconto", "pulado", { mensagem: "sem falta nem atraso a descontar" })
       }
+      await ex.fechar("ok", {
+        resumo: {
+          protocolo, chapa: c.chapa, eh_correcao: ehCorrecao,
+          qtd_faltas: ag.qtd_faltas, qtd_atrasos: ag.qtd_atrasos,
+          desconto_vr: desc.descontoVR, desconto_vt: desc.descontoVT,
+        },
+      })
       return {
         ok: true, uuid, protocolo, editado, concluido_em: c.concluido_em ?? agoraIso,
         descontoVR: desc.descontoVR, descontoVT: desc.descontoVT, dias_perde_vr: ag.dias_perde_vr,
@@ -425,40 +515,69 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
 
       const operador = String((b as { operador?: { email?: string } })?.operador?.email ?? "split")
 
+      const ex = await abrirExecucao({
+        id: (b as CorpoInstrumentado).execucao_id || null,
+        acao: "split",
+        motor: "backend",
+        operador: operadorDoCorpo(b),
+        alvo: uuid,
+        pessoa: item.name,
+        contrato: textoCol(item, COL_HIST.contrato),
+        resumo: {
+          tipo,
+          data_inicio_parte2: b.data_inicio_parte2 ?? null,
+          contrato_parte1: b.contrato_parte1 ?? null,
+          contrato_parte2: b.contrato_parte2 ?? null,
+        },
+      })
+      await ex.artefato({ tipo: "convocacao_uuid", chave: uuid, rotulo: "Convocação" })
+      await ex.artefato({ tipo: "monday_item", chave: item.id, rotulo: "Item no Histórico" })
+
       if (tipo === "reverter") {
-        await mudarColunaSimples(BOARD_HISTORICO, item.id, COL_HIST.split, "")
-        const rmRev = await efeitoSplitNoRm(req, item, null, operador)
-        await query(`UPDATE convocacoes SET split=NULL, atualizado_em=now() WHERE uuid=$1`, [uuid])
+        await comEtapa(ex, "split_board", () =>
+          mudarColunaSimples(BOARD_HISTORICO, item.id, COL_HIST.split, ""))
+        const rmRev = await comEtapa(ex, "split_rm", () => efeitoSplitNoRm(req, item, null, operador))
+        await comEtapa(ex, "espelho_pg", () =>
+          query(`UPDATE convocacoes SET split=NULL, atualizado_em=now() WHERE uuid=$1`, [uuid]))
           .catch((e) => req.log.warn(e, "split: espelho PG falhou"))
+        // `pendencia` do RM = job na fila, não conclusão limpa: 'parcial' evita dizer
+        // "ok" pra algo que ainda vai ser reconciliado.
+        await ex.fechar(rmRev?.pendencia ? "parcial" : "ok")
         return { ok: true, split: null, rm: rmRev }
       }
       const data = String(b.data_inicio_parte2 || "").trim()
       const c1 = String(b.contrato_parte1 || "").trim()
       const c2 = String(b.contrato_parte2 || "").trim()
       if (!/^\d{4}-\d{2}-\d{2}$/.test(data) || !c1 || !c2)
-        return reply.code(400).send({ ok: false, erro: "split_invalido" })
-      if (c1 === c2) return reply.code(400).send({ ok: false, erro: "contratos_iguais" })
+        return recusar(ex, reply, 400, { erro: "split_invalido" }, "validacao")
+      if (c1 === c2) return recusar(ex, reply, 400, { erro: "contratos_iguais" }, "validacao")
 
       // Corte fora do período não é split: uma das partes nasceria vazia. O WF não validava e
       // gravava o JSON assim mesmo — agora que isso vira efeito no RM (G3), recusa.
       const di = textoCol(item, COL_HIST.dataInicio)
       const df = textoCol(item, COL_HIST.dataFim)
       if (di && df && !(data > di && data <= df))
-        return reply.code(400).send({
-          ok: false,
-          erro: "corte_fora_periodo",
-          mensagem: `O corte precisa cair depois de ${di} e até ${df}.`,
-        })
+        return recusar(
+          ex, reply, 400,
+          { erro: "corte_fora_periodo", mensagem: `O corte precisa cair depois de ${di} e até ${df}.` },
+          "validacao",
+        )
 
       // Board: snake_case (contrato do WF; o WF3 finalizar parseia esse formato).
       const splitBoard = { data_inicio_parte2: data, contrato_parte1: c1, contrato_parte2: c2 }
-      await mudarColunaSimples(BOARD_HISTORICO, item.id, COL_HIST.split, JSON.stringify(splitBoard))
+      await comEtapa(ex, "split_board", () =>
+        mudarColunaSimples(BOARD_HISTORICO, item.id, COL_HIST.split, JSON.stringify(splitBoard)))
 
-      const rm = await efeitoSplitNoRm(req, item, splitBoard, operador)
+      const rm = await comEtapa(ex, "split_rm", () => efeitoSplitNoRm(req, item, splitBoard, operador),
+        { metadados: { corte: data, contrato_parte1: c1, contrato_parte2: c2 } })
 
       const split = { dataInicioParte2: data, contratoParte1: c1, contratoParte2: c2 }
-      await query(`UPDATE convocacoes SET split=$2::jsonb, atualizado_em=now() WHERE uuid=$1`, [uuid, JSON.stringify(split)])
+      await comEtapa(ex, "espelho_pg", () =>
+        query(`UPDATE convocacoes SET split=$2::jsonb, atualizado_em=now() WHERE uuid=$1`, [uuid, JSON.stringify(split)]))
         .catch((e) => req.log.warn(e, "split: espelho PG falhou"))
+      await ex.fechar(rm?.pendencia ? "parcial" : "ok", {
+        resumo: { tipo, corte: data, contrato_parte1: c1, contrato_parte2: c2 },
+      })
       return { ok: true, split, rm }
     },
   )
@@ -504,14 +623,33 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
       const item = await buscarHistoricoPorUuid(uuid)
       if (!item) return reply.code(404).send({ ok: false, erro: "nao_encontrado" })
 
+      // Cancelamento é IRREVERSÍVEL (apaga o S-2260 no RM). A execução abre antes de
+      // qualquer escrita justamente pra que uma falha no meio deixe rastro de onde parou.
+      const ex = await abrirExecucao({
+        id: (b as CorpoInstrumentado).execucao_id || null,
+        acao: "cancelamento",
+        motor: "backend",
+        operador: operadorDoCorpo(b),
+        alvo: uuid,
+        pessoa: item.name,
+        contrato: textoCol(item, COL_HIST.contrato),
+        resumo: {
+          tipo,
+          data_inicio_cancelamento: dataCancel,
+          chapa: (textoCol(item, COL_HIST.chapa) || "").trim() || null,
+        },
+      })
+      await ex.artefato({ tipo: "convocacao_uuid", chave: uuid, rotulo: "Convocação" })
+      await ex.artefato({ tipo: "monday_item", chave: item.id, rotulo: "Item no Histórico" })
+
       const di = textoCol(item, COL_HIST.dataInicio)
       const df = textoCol(item, COL_HIST.dataFim)
-      if (!di || !df) return reply.code(400).send({ ok: false, erro: "periodo_invalido" })
+      if (!di || !df) return recusar(ex, reply, 400, { erro: "periodo_invalido" }, "validacao")
       if (tipo === "parcial") {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dataCancel || "")))
-          return reply.code(400).send({ ok: false, erro: "data_cancelamento_invalida" })
+          return recusar(ex, reply, 400, { erro: "data_cancelamento_invalida" }, "validacao")
         if (dataCancel! < di || dataCancel! > df)
-          return reply.code(400).send({ ok: false, erro: "data_fora_periodo" })
+          return recusar(ex, reply, 400, { erro: "data_fora_periodo" }, "validacao")
       }
 
       // Bloqueios (paridade com o WF pós-fix 30/06): CANCELADA total bloqueia
@@ -520,13 +658,13 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
       const statusCancelAtual = normTxt(textoCol(item, COL_HIST.statusCancel))
       const eraParcial = statusCancelAtual === "CANCELADA PARCIALMENTE"
       if (statusCancelAtual === "CANCELADA")
-        return reply.code(409).send({ ok: false, erro: "convocacao_ja_cancelada" })
+        return recusar(ex, reply, 409, { erro: "convocacao_ja_cancelada" }, "validacao")
       if (eraParcial && tipo === "parcial")
-        return reply.code(409).send({ ok: false, erro: "convocacao_ja_cancelada" })
+        return recusar(ex, reply, 409, { erro: "convocacao_ja_cancelada" }, "validacao")
 
       const origem = parseItemOrigem(item)
       if (!origem.itemId)
-        return reply.code(400).send({ ok: false, erro: "item_origem_ausente" })
+        return recusar(ex, reply, 400, { erro: "item_origem_ausente" }, "validacao")
 
       const trabalhaSabado = normTxt(textoCol(item, COL_HIST.trabalhaSabado)) === "SIM"
       const sabadosExtras = (textoCol(item, COL_HIST.sabadosExtras) || "")
@@ -570,7 +708,8 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
       // Valores do board (por contrato+função) — mesma resolução do WF.
       const linhas = await lerValores()
       const v = resolverValores(linhas, { contrato, funcao })
-      if ("erro" in v) return reply.code(502).send({ ok: false, erro: v.erro, mensagem: v.mensagem })
+      if ("erro" in v)
+        return recusar(ex, reply, 502, { erro: v.erro, mensagem: v.mensagem }, "valores")
       const vrDia = v.vrDia
       let vtDia = optanteVT ? v.vtDia : 0
       if (vtSoVolta && vtDia > 0) vtDia = Math.round((vtDia / 2) * 100) / 100
@@ -578,10 +717,10 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
       // Antifraude: desconto do MESMO período já em consumo bloqueia (board + PG).
       const existenteBoard = await buscarDescontoPorPeriodo(chapa, range.inicio, range.fim)
       if (existenteBoard && ["PARCIAL", "FINALIZADO"].includes(existenteBoard.status))
-        return reply.code(409).send({ ok: false, erro: "desconto_em_consumo" })
+        return recusar(ex, reply, 409, { erro: "desconto_em_consumo" }, "antifraude")
       const existPg = await descontoExistente(uuid)
       if (existPg && jaConsumido(existPg))
-        return reply.code(409).send({ ok: false, erro: "desconto_em_consumo" })
+        return recusar(ex, reply, 409, { erro: "desconto_em_consumo" }, "antifraude")
 
       const calc = aplicarCancelamento({
         ledger,
@@ -595,19 +734,32 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
       })
 
       const label = tipo === "total" ? "Cancelada" : "Cancelada parcialmente"
+      await ex.etapa("calculo", "ok", {
+        metadados: {
+          dias_cancelados: range.dias.length,
+          desconto_vr: calc.descontoVR, desconto_vt: calc.descontoVT,
+          vr_dia: vrDia, vt_dia: vtDia,
+        },
+      })
 
       // ── Escritas Monday (na ordem do WF) ──
-      await atualizarHistorico(item.id, {
+      await comEtapa(ex, "monday_historico", () => atualizarHistorico(item.id, {
         [COL_HIST.statusCancel]: { label },
         [COL_HIST.ledgerBeneficios]: { text: JSON.stringify(calc.ledger) },
-      })
+      }))
       const updateEntrada: Record<string, unknown> = { [COL_ENTRADA_STATUS]: { label } }
       if (tipo === "parcial") updateEntrada[COL_ENTRADA_DATA_CANCEL] = { date: dataCancel }
       const boardOrigem = Number(origem.boardId || 0)
       if (boardOrigem) {
-        await mudarColunas(boardOrigem, Number(origem.itemId), updateEntrada).catch((e) =>
-          req.log.warn(e, "cancelar: update entrada falhou"),
-        )
+        await ex.artefato({
+          tipo: "monday_item",
+          chave: String(origem.itemId),
+          rotulo: "Item no Plano",
+          url: `https://contato-serv.monday.com/boards/${boardOrigem}/pulses/${origem.itemId}`,
+        })
+        await comEtapa(ex, "monday_entrada", () =>
+          mudarColunas(boardOrigem, Number(origem.itemId), updateEntrada),
+        ).catch((e) => req.log.warn(e, "cancelar: update entrada falhou"))
         // Move o item da Entrada pro grupo CANCELADOS / CANCELADOS PARCIAL do board de origem.
         const { rows: grps } = await query<{ titulo: string; group_id: string }>(
           `SELECT titulo, group_id FROM board_grupos WHERE monday_board_id = $1`,
@@ -621,7 +773,7 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
           )
       }
       if (calc.descontoVR > 0 || calc.descontoVT > 0) {
-        await gravarDescontoBoard(
+        await comEtapa(ex, "desconto_board", () => gravarDescontoBoard(
           {
             nome: item.name,
             chapa,
@@ -635,7 +787,9 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
             descontoVT: calc.descontoVT,
           },
           existenteBoard,
-        )
+        ), { metadados: { acao: existenteBoard ? "update" : "create" } })
+      } else {
+        await ex.etapa("desconto_board", "pulado", { mensagem: "nada a descontar no período cancelado" })
       }
 
       // ── RM: apagar a convocação (S-2260) ──
@@ -662,14 +816,27 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
           req.log.warn(e, "cancelar parcial: encurtar no RM falhou")
           return { edicoes: [], remocoes: [], temPendencia: true }
         })
+        // 'aviso' e não 'erro' quando há pendência: o job vai reconciliar, então não é
+        // falha — mas também não é 'ok', e o operador precisa ver a diferença.
+        await ex.etapa("encurtar_rm", rmEncurta.temPendencia ? "aviso" : "ok", {
+          metadados: {
+            novo_fim: novoFim,
+            editados: rmEncurta.edicoes.filter((e) => e.estado === "editado").length,
+            pendencia: rmEncurta.temPendencia,
+          },
+        })
         if (rmEncurta.temPendencia) {
           // Mesma fila da remoção: o job relê o rastro e conclui o que ficou. Aqui ele resolve
           // os pedaços que viraram remoção; a edição pendente fica visível na resposta.
-          await enfileirar(TIPO_JOB_CONVOCACAO_RM_REMOVER, {
+          const jobId = await enfileirar(TIPO_JOB_CONVOCACAO_RM_REMOVER, {
             item_id: String(origem.itemId),
             motivo: "cancelamento_parcial",
             removido_por: String((b as { operador?: { email?: string } })?.operador?.email ?? "cancelamento"),
-          }).catch((e) => req.log.warn(e, "cancelar parcial: enfileirar RM falhou"))
+          }).catch((e) => {
+            req.log.warn(e, "cancelar parcial: enfileirar RM falhou")
+            return null
+          })
+          if (jobId) await amarrarJob(ex, jobId, req)
         }
       }
 
@@ -684,12 +851,28 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
         })
         // Pendência (RM mudo ou erro) vai pra fila: registro vivo no RM com board cancelado é o
         // desfecho mais caro, então insiste até sumir. Enfileirar não pode derrubar a resposta.
+        await ex.etapa("cancelar_rm", rmRemocao.temPendencia ? "aviso" : "ok", {
+          metadados: {
+            removidos: rmRemocao.removidos.filter((r) => r.estado === "removido").length,
+            ja_ausentes: rmRemocao.removidos.filter((r) => r.estado === "ja_ausente").length,
+            pendencia: rmRemocao.temPendencia,
+          },
+        })
+        for (const r of rmRemocao.removidos) {
+          // O código apagado vira artefato: é o rastro de qual S-2260 saiu do RM, e é a
+          // pergunta que ninguém consegue responder depois se não ficar gravado.
+          if (r.pk) await ex.artefato({ tipo: "rm_convocacao", chave: String(r.pk), rotulo: `removido (${r.estado})` })
+        }
         if (rmRemocao.temPendencia) {
-          await enfileirar(TIPO_JOB_CONVOCACAO_RM_REMOVER, {
+          const jobId = await enfileirar(TIPO_JOB_CONVOCACAO_RM_REMOVER, {
             item_id: String(origem.itemId),
             motivo: "cancelamento_total",
             removido_por: String((b as { operador?: { email?: string } })?.operador?.email ?? "cancelamento"),
-          }).catch((e) => req.log.warn(e, "cancelar: enfileirar remocao RM falhou"))
+          }).catch((e) => {
+            req.log.warn(e, "cancelar: enfileirar remocao RM falhou")
+            return null
+          })
+          if (jobId) await amarrarJob(ex, jobId, req)
         }
         // Código de convocação apagada não pode continuar no board afirmando um registro que não
         // existe mais. Só limpa se TODOS saíram — com pendência, o que sobrou ainda está no RM.
@@ -702,11 +885,11 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
       }
 
       // ── Espelho PG ──
-      await query(
+      await comEtapa(ex, "espelho_pg", () => query(
         `UPDATE convocacoes SET status_cancelamento = $2, data_inicio_cancelamento = $3,
            ledger_beneficios = $4::jsonb, atualizado_em = now() WHERE uuid = $1`,
         [uuid, label, tipo === "parcial" ? dataCancel : null, JSON.stringify(calc.ledger)],
-      ).catch((e) => req.log.warn(e, "cancelar: espelho PG falhou"))
+      )).catch((e) => req.log.warn(e, "cancelar: espelho PG falhou"))
       if (calc.descontoVR > 0 || calc.descontoVT > 0) {
         await upsertDesconto({
           uuid_convocacao: uuid, protocolo: null, nome: item.name, chapa,
@@ -715,6 +898,21 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
           desconto_vr: calc.descontoVR, desconto_vt: calc.descontoVT, status: "PENDENTE",
         }).catch((e) => req.log.warn(e, "cancelar: desconto PG falhou"))
       }
+
+      // 'parcial' quando o RM ficou pendente: o board já mostra cancelado, mas pode
+      // haver convocação viva no RM até o job reconciliar. Chamar isso de 'ok' esconderia
+      // exatamente o desfecho mais caro — e é o que a resposta já expõe em `rm.pendencia`.
+      const rmPendente = !!rmRemocao?.temPendencia || !!rmEncurta?.temPendencia
+      await ex.fechar(rmPendente ? "parcial" : "ok", {
+        resumo: {
+          tipo,
+          data_inicio_cancelamento: tipo === "parcial" ? dataCancel : null,
+          dias_cancelados: range.dias.length,
+          desconto_vr: calc.descontoVR,
+          desconto_vt: calc.descontoVT,
+          rm_pendencia: rmPendente,
+        },
+      })
 
       return {
         ok: true,

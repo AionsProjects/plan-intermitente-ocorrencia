@@ -27,13 +27,23 @@ export function operadorAtual(): OperadorInfo | null {
 // Anexa `operador` a um corpo JSON sem mutar o original.
 export function comOperador<T extends object>(
   body: T,
+  /**
+   * Id da execução que o front abriu (lib/atividade.ts). A rota que executar se ANEXA a
+   * ele em vez de abrir outra — sem isso a ação gera DUAS linhas no histórico, uma do
+   * front e uma da rota. O n8n ignora chave desconhecida, então mandar sempre é seguro.
+   */
+  execucaoId?: string | null,
 ): T & { operador: OperadorInfo | null } {
-  return { ...body, operador: operadorAtual() }
+  const extra = execucaoId ? { execucao_id: execucaoId } : {}
+  return { ...body, ...extra, operador: operadorAtual() }
 }
 
 // Anexa `operador` a um FormData (multipart) como campo JSON.
-export function anexarOperador(fd: FormData): FormData {
+export function anexarOperador(fd: FormData, execucaoId?: string | null): FormData {
   fd.append("operador", JSON.stringify(operadorAtual()))
+  // Campo, não chave de JSON: convocar e atestados vão por multipart. Mesmo papel do
+  // `execucao_id` em `comOperador` — a rota se anexa à execução que o front abriu.
+  if (execucaoId) fd.append("execucao_id", execucaoId)
   return fd
 }
 

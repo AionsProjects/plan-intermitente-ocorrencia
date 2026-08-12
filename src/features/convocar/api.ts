@@ -255,6 +255,7 @@ export async function buscarEmpregado(
 
 export async function criarConvocacao(
   payload: ConvocacaoPayload,
+  execucaoId?: string | null,
 ): Promise<ConvocacaoResposta> {
   if (USE_MOCK) {
     await new Promise((r) => setTimeout(r, 700))
@@ -293,7 +294,7 @@ export async function criarConvocacao(
     fd.append("termo_insalubridade", payload.termoInsalubridade)
   }
   fd.append("papel", payload.papel ?? "atual")
-  anexarOperador(fd)
+  anexarOperador(fd, execucaoId)
 
   // Escrita: n8n continua primario. Em contingencia, admin muda `convocar=api`
   // e este mesmo path cai no backend espelho (/api/intermitente-convocar).

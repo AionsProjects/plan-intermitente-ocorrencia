@@ -8,7 +8,7 @@ import {
 } from "./api"
 import { OPCOES_CONVOCACAO_FALLBACK } from "./types"
 import type { ConvocacaoPayload } from "./types"
-import { registrarAtividade } from "@/lib/atividade"
+import { comAtividade } from "@/lib/atividade"
 
 const FALLBACK_OPCOES_MUTABLE = {
   solicitantes: [...OPCOES_CONVOCACAO_FALLBACK.solicitantes],
@@ -76,14 +76,26 @@ export function useMesesConvocacao() {
 
 export function useCriarConvocacao() {
   return useMutation({
-    mutationFn: (payload: ConvocacaoPayload) => criarConvocacao(payload),
-    onSuccess: (resp, payload) => {
-      registrarAtividade("convocacao", {
-        alvo: resp?.itemId ? String(resp.itemId) : payload.empregado.chapa,
-        pessoa: payload.empregado.nome,
-        contrato: payload.contrato,
-        resumo: { data_inicio: payload.dataInicio, data_fim: payload.dataFim },
-      })
-    },
+    // Abre a execução ANTES de criar: convocação que falha (409 de conflito, RM fora do
+    // ar) precisa deixar rastro, e antes disso o log só existia no `onSuccess`.
+    //
+    // ⚠️ `alvo` fica NULO aqui de propósito: `uuid_alvo` de `acao='convocacao'` é o
+    // item_id do Monday, que só existe depois do create. A rota preenche (COALESCE) —
+    // mandar a chapa no lugar quebraria a cascata resolverItemDoPlano do monitor de board.
+    mutationFn: (payload: ConvocacaoPayload) =>
+      comAtividade(
+        "convocacao",
+        {
+          pessoa: payload.empregado.nome,
+          contrato: payload.contrato,
+          resumo: {
+            chapa: payload.empregado.chapa,
+            data_inicio: payload.dataInicio,
+            data_fim: payload.dataFim,
+            unidade: payload.localUnidade,
+          },
+        },
+        (execucaoId) => criarConvocacao(payload, execucaoId),
+      ),
   })
 }

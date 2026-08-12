@@ -134,6 +134,47 @@ export async function vincularWorkflowRun(runId: string, workflowRunId: string):
   )
 }
 
+/**
+ * Estados que o log genérico (/atividade) recebe do mensal.
+ *
+ * ESPELHO FILTRADO, não integral, por dois motivos independentes. (1) O log genérico é a
+ * visão humana "o que aconteceu"; `mensal_run_event` continua o microscópio, com a
+ * timeline e o anel de progresso próprios. (2) Espelhar tudo acrescentaria ~500 INSERTs
+ * no caminho crítico de um workflow de DINHEIRO, dentro de steps com retry — o filtro é
+ * segurança, não otimização.
+ */
+const ESTADOS_ESPELHADOS = new Set(["erro", "bloqueado", "pulado_idempotencia"])
+/** Abre/fecha de contrato: dá o esqueleto da execução sem o detalhe de cada passo. */
+const ETAPAS_ESPELHADAS = new Set(["contrato", "finalizado"])
+
+/**
+ * Cache da amarra run -> execução, pra não consultar a cada evento.
+ *
+ * ⚠️ Só o positivo é cacheado. Os eventos da PRÉVIA rodam antes da aprovação, quando
+ * `execucao_id` ainda é nulo — cachear o nulo faria o run nunca espelhar, mesmo depois
+ * de amarrado. O custo é uma consulta por evento enquanto não há amarra, e são poucos.
+ */
+const execucaoPorRun = new Map<string, string>()
+
+async function execucaoDoRun(runId: string): Promise<string | null> {
+  const cacheado = execucaoPorRun.get(runId)
+  if (cacheado) return cacheado
+  const { rows } = await query<{ execucao_id: string | null }>(
+    `SELECT execucao_id FROM mensal_run WHERE run_id=$1`, [runId],
+  )
+  const id = rows[0]?.execucao_id ?? null
+  if (id) execucaoPorRun.set(runId, id)
+  return id
+}
+
+/** Traduz estado do workflow pro vocabulário do log genérico. */
+function estadoParaAtividade(estado: string): "erro" | "aviso" | "ok" | "pulado" {
+  if (estado === "erro") return "erro"
+  if (estado === "bloqueado") return "aviso"
+  if (estado === "pulado_idempotencia") return "pulado"
+  return "ok"
+}
+
 export async function registrarEvento(e: EventoMensalInput): Promise<number> {
   const { rows } = await query<{ id: string }>(
     `INSERT INTO mensal_run_event (run_id,contrato,etapa,estado,tentativa,mensagem,metadados)
@@ -147,6 +188,26 @@ export async function registrarEvento(e: EventoMensalInput): Promise<number> {
       `UPDATE mensal_run_item SET etapa_atual=$3,tentativas=GREATEST(tentativas,$4),atualizado_em=now()
        WHERE run_id=$1 AND contrato=$2`, [e.runId, e.contrato, e.etapa, e.tentativa ?? 1],
     )
+  }
+  // Espelho no log genérico. Fora do caminho de retorno e engolindo a própria exceção:
+  // esta função roda dentro de steps de dinheiro, e log nunca pode derrubá-los.
+  if (ESTADOS_ESPELHADOS.has(e.estado) || ETAPAS_ESPELHADAS.has(e.etapa)) {
+    try {
+      const execucaoId = await execucaoDoRun(e.runId)
+      if (execucaoId) {
+        const { abrirExecucao } = await import("../services/execucao.js")
+        const ex = await abrirExecucao({ id: execucaoId, acao: "", motor: "workflow" })
+        await ex.etapa(e.etapa, estadoParaAtividade(e.estado), {
+          tentativa: e.tentativa,
+          // O contrato entra na mensagem porque a fase é a mesma em todos eles — sem
+          // isso a timeline do log viraria uma lista de etapas sem dono.
+          mensagem: [e.contrato, e.mensagem].filter(Boolean).join(" — ") || null,
+          metadados: e.metadados,
+        })
+      }
+    } catch (err) {
+      console.warn("[mensal] espelho no log de atividade falhou:", (err as Error)?.message ?? err)
+    }
   }
   return Number(rows[0]!.id)
 }
@@ -166,6 +227,47 @@ export async function atualizarContrato(
        atualizado_em=now() WHERE run_id=$1 AND contrato=$2`,
     [runId, contrato, status, limparTexto(erro), JSON.stringify(limparMetadados(referencias))],
   )
+  // Artefatos do mensal saem de graça: `referencias` já traz os ids dos pedidos Caju, os
+  // IDFINANC do RM e o item da Solicitação. Mapear aqui evita tocar em qualquer etapa de
+  // dinheiro no workflow.
+  if (referencias) await gravarArtefatosDoContrato(runId, contrato, referencias)
+}
+
+/** Chave de `referencias` -> tipo de artefato. O que não estiver aqui é ignorado. */
+const ARTEFATO_POR_REFERENCIA: Record<string, { tipo: string; rotulo: string }> = {
+  pedidoCreditoVR: { tipo: "caju_pedido", rotulo: "Pedido de crédito VR" },
+  pedidoCreditoVT: { tipo: "caju_pedido", rotulo: "Pedido de crédito VT" },
+  pedidoPixVR: { tipo: "caju_boleto", rotulo: "Boleto PIX VR" },
+  pedidoPixVT: { tipo: "caju_boleto", rotulo: "Boleto PIX VT" },
+  idVR: { tipo: "rm_idfinanc", rotulo: "IDFINANC VR" },
+  idVT: { tipo: "rm_idfinanc", rotulo: "IDFINANC VT" },
+  solicitacaoId: { tipo: "solicitacao", rotulo: "Solicitação de Pagamento" },
+}
+
+async function gravarArtefatosDoContrato(
+  runId: string,
+  contrato: string,
+  referencias: Record<string, unknown>,
+): Promise<void> {
+  try {
+    const execucaoId = await execucaoDoRun(runId)
+    if (!execucaoId) return
+    const { abrirExecucao } = await import("../services/execucao.js")
+    const ex = await abrirExecucao({ id: execucaoId, acao: "", motor: "workflow" })
+    for (const [chave, meta] of Object.entries(ARTEFATO_POR_REFERENCIA)) {
+      const valor = referencias[chave]
+      if (!valor) continue
+      // O contrato entra no rótulo porque um run tem vários, e sem isso a lista de
+      // artefatos viraria quatro "Boleto PIX VR" sem dono.
+      await ex.artefato({
+        tipo: meta.tipo as Parameters<typeof ex.artefato>[0]["tipo"],
+        chave: String(valor),
+        rotulo: `${meta.rotulo} — ${contrato}`,
+      })
+    }
+  } catch (e) {
+    console.warn("[mensal] artefatos do contrato falharam:", (e as Error)?.message ?? e)
+  }
 }
 
 export async function finalizarRun(runId: string): Promise<StatusRunMensal> {

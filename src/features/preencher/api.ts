@@ -526,6 +526,7 @@ function normalizaStatusCancelamento(
 export async function finalizarProcessamento(
   uuid: string,
   payload: PayloadFinalizar,
+  execucaoId?: string | null,
 ): Promise<{ protocolo: string; editado: boolean }> {
   if (USE_MOCK || isMockUuid(uuid)) {
     await new Promise((r) => setTimeout(r, 600))
@@ -561,7 +562,7 @@ export async function finalizarProcessamento(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(comOperador(bodyJson)),
+      body: JSON.stringify(comOperador(bodyJson, execucaoId)),
     },
     { tipo: "escrita" },
   )
@@ -592,6 +593,7 @@ export class CancelarConvocacaoApiError extends Error {
 export async function cancelarConvocacao(
   uuid: string,
   payload: PayloadCancelarConvocacao,
+  execucaoId?: string | null,
 ): Promise<ResultadoCancelarConvocacao> {
   if (USE_MOCK || isMockUuid(uuid)) {
     await new Promise((r) => setTimeout(r, 500))
@@ -637,11 +639,14 @@ export async function cancelarConvocacao(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(
-        comOperador({
-          uuid,
-          tipo: payload.tipo,
-          data_inicio_cancelamento: payload.dataInicioCancelamento,
-        }),
+        comOperador(
+          {
+            uuid,
+            tipo: payload.tipo,
+            data_inicio_cancelamento: payload.dataInicioCancelamento,
+          },
+          execucaoId,
+        ),
       ),
     },
     { tipo: "escrita" },
@@ -679,7 +684,8 @@ export class AplicarSplitApiError extends Error {
 export async function aplicarSplit(
   uuid: string,
   payload: PayloadAplicarSplit,
-): Promise<ResultadoAplicarSplit> {
+  execucaoId?: string | null,
+):Promise<ResultadoAplicarSplit> {
   if (USE_MOCK || isMockUuid(uuid)) {
     await new Promise((r) => setTimeout(r, 500))
     const mock = MOCK_PROCESSAMENTOS[uuid]
@@ -719,7 +725,7 @@ export async function aplicarSplit(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(comOperador(body)),
+      body: JSON.stringify(comOperador(body, execucaoId)),
     },
     { tipo: "escrita" },
   )

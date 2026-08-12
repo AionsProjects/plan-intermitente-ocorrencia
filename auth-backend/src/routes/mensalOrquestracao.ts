@@ -174,7 +174,7 @@ export async function rotasMensalOrquestracao(app: FastifyInstance): Promise<voi
           const run = await obterSnapshotRun(req.params.runId)
           const todos = run.snapshot.contratos.map((c) => c.contrato)
           const alvos = somenteContratos ?? todos
-          await registrarAtividadeServidor({
+          const execucaoId = await registrarAtividadeServidor({
             userId: u.id,
             email: u.email,
             nome: [u.nome, u.sobrenome].filter(Boolean).join(" ").trim() || u.email,
@@ -196,7 +196,18 @@ export async function rotasMensalOrquestracao(app: FastifyInstance): Promise<voi
                 .reduce((n, c) => n + c.pessoas.length, 0),
               workflow_run_id: workflowRunId,
             },
-          }).catch((e) => req.log.error(e, "mensal audit"))
+          }).catch((e) => {
+            req.log.error(e, "mensal audit")
+            return ""
+          })
+          // Amarra o run à execução: é o que faz `registrarEvento` espelhar as fases do
+          // workflow no log genérico (e o alerta de erro sair com o contrato certo).
+          // Best-effort: sem a amarra o run continua com a timeline própria, só não
+          // aparece no /atividade.
+          if (execucaoId) {
+            await query(`UPDATE mensal_run SET execucao_id=$2 WHERE run_id=$1`, [req.params.runId, execucaoId])
+              .catch((e) => req.log.warn(e, "mensal: amarrar execucao ao run falhou"))
+          }
           return { ok: true, run_id: req.params.runId, workflow_run_id: workflowRunId }
         } catch (e) {
           await query(

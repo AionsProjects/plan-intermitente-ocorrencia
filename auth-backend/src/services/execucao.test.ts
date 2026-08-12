@@ -8,7 +8,15 @@ import { abrirExecucao, comEtapa, comExecucao, type Execucao } from "./execucao.
 const MARCA = "execucao.test@local"
 
 async function limpar(): Promise<void> {
-  // CASCADE leva evento e artefato; alerta_falha usa SET NULL e não é criado aqui.
+  // ⚠️ alerta_falha PRIMEIRO e por fora: fechar 'erro' dispara o escape, e aquela tabela
+  // é `ON DELETE SET NULL` de propósito (o alerta sobrevive à poda da execução) — logo o
+  // CASCADE do cabeçalho NÃO a alcança, e o resíduo ficaria.
+  await query(
+    `DELETE FROM alerta_falha
+      WHERE execucao_id IN (SELECT id FROM audit_lancamentos WHERE operador_email = $1)`,
+    [MARCA],
+  )
+  // CASCADE leva evento e artefato.
   await query("DELETE FROM audit_lancamentos WHERE operador_email = $1", [MARCA])
 }
 
