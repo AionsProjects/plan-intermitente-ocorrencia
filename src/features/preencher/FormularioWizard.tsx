@@ -693,29 +693,23 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
     setDataInicioCancelamento(null)
   }
 
-  async function executarReverter() {
+  /**
+   * Reverter existe SÓ enquanto o cancelamento é pendente local — antes de enviar.
+   *
+   * Cancelamento REGISTRADO é irreversível, por decisão do Isaac (11/08) e porque o sistema não
+   * consegue honrar o contrário: cancelar apaga a convocação no RM, e delete não se desfaz —
+   * "reverter" significaria criar outra, com C03S###### novo e um SEGUNDO evento eSocial S-2260
+   * pro mesmo período. Melhor não oferecer do que oferecer e mentir.
+   */
+  function executarReverter() {
     setReverterErro(null)
-    // Pendente local — só limpa state, sem API. UX imediato.
-    if (cancelamentoParcialPendente) {
-      setCancelamentoParcialLocal(null)
-      setReverterAberto(false)
+    if (!cancelamentoParcialPendente) {
+      // Não deveria ser alcançável (o dialog não abre nesse caso), mas se for, não chama nada.
+      setReverterErro("Cancelamento já registrado é irreversível.")
       return
     }
-    // Backend persistido (raro hoje — fluxo novo só persiste no Finalizar).
-    // Tenta chamar WF reverter; pode falhar se backend não suporta ainda.
-    try {
-      await cancelarConvocacao.mutateAsync({
-        tipo: "reverter",
-        dataInicioCancelamento: null,
-      })
-      setReverterAberto(false)
-    } catch (err) {
-      setReverterErro(
-        err instanceof Error
-          ? err.message
-          : "Erro ao reverter cancelamento. Tente novamente.",
-      )
-    }
+    setCancelamentoParcialLocal(null)
+    setReverterAberto(false)
   }
 
   function abrirSplit() {
@@ -891,20 +885,33 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
                   type="button"
                   className="btn-action-expand btn-cancel-convocacao"
                   onClick={() => {
-                    if (jaCanceladoParcial) setReverterAberto(true)
-                    else abrirCancelamento()
+                    // Reverter só antes do envio; registrado não volta.
+                    if (cancelamentoParcialPendente) setReverterAberto(true)
+                    else if (!jaCanceladoParcial) abrirCancelamento()
                   }}
+                  // Registrado: botão inerte. Deixar clicável abriria um caminho que o sistema
+                  // não honra (o RM já foi tocado e delete não se desfaz).
+                  disabled={jaCanceladoParcial && !cancelamentoParcialPendente}
+                  title={
+                    jaCanceladoParcial && !cancelamentoParcialPendente
+                      ? "Cancelamento registrado é irreversível"
+                      : undefined
+                  }
                   aria-label={
-                    jaCanceladoParcial
+                    cancelamentoParcialPendente
                       ? "Reverter cancelamento"
-                      : "Cancelar convocação"
+                      : jaCanceladoParcial
+                        ? "Cancelamento irreversível"
+                        : "Cancelar convocação"
                   }
                 >
                   <CancelXIcon />
                   <span className="btn-label text-red-700 dark:text-red-200">
-                    {jaCanceladoParcial
+                    {cancelamentoParcialPendente
                       ? "Reverter cancelamento"
-                      : "Cancelar convocação"}
+                      : jaCanceladoParcial
+                        ? "Cancelamento irreversível"
+                        : "Cancelar convocação"}
                   </span>
                 </button>
                 {!dados.trabalhaSabado && (
@@ -978,8 +985,8 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
                 </p>
                 <p className="mt-1 text-xs text-amber-700/70 dark:text-amber-100/70">
                   {cancelamentoParcialPendente
-                    ? "Será enviado quando você clicar em Finalizar e enviar. Toque em um dia cancelado para reverter antes do envio."
-                    : "Os dias a partir dessa data ficam bloqueados. Toque em um dia cancelado para reverter o cancelamento."}
+                    ? "Será enviado quando você clicar em Finalizar e enviar. Toque em um dia cancelado para reverter — depois do envio não dá mais."
+                    : "Os dias a partir dessa data ficam bloqueados. Cancelamento registrado é irreversível."}
                 </p>
               </div>
             </div>
@@ -1750,10 +1757,23 @@ function DialogCancelamento({
               : etapa === "confirmar_total"
                 ? "Você selecionou todo o período da convocação."
                 : etapa === "confirmar_parcial"
-                  ? "Revise a data antes de prosseguir. A ação não pode ser desfeita."
+                  ? "Revise a data antes de prosseguir."
                   : "Escolha se o cancelamento será total ou parcial."}
           </DialogDescription>
         </DialogHeader>
+
+        {/* O aviso fica na CONFIRMAÇÃO, que é onde a informação ainda muda a decisão. Cancelar
+            apaga a convocação no RM (evento eSocial S-2260) e delete não se desfaz: "reverter"
+            significaria criar outra, com código novo e um segundo evento pro mesmo período. */}
+        {(etapa === "confirmar_total" || etapa === "confirmar_parcial") && (
+          <div className="mt-3 flex items-start gap-2 rounded-xl border border-rose-300/35 bg-rose-300/10 px-3 py-2.5 text-left text-[12px] text-rose-700 dark:text-rose-100">
+            <CancelXIcon />
+            <span>
+              <strong>Cancelamento é irreversível.</strong> Depois de enviado não há como desfazer
+              — nem aqui, nem no RM. Para voltar atrás só criando uma convocação nova.
+            </span>
+          </div>
+        )}
 
         <div className="my-2 h-px bg-[rgb(var(--ink)/0.12)]" />
 

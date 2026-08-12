@@ -12,7 +12,7 @@ import {
 } from "../domain/ledgerBeneficios.js"
 import { lerValores } from "../repo/valores.js"
 import { lerFeriados } from "../repo/feriados.js"
-import { upsertDesconto, removerDescontoConvocacao, descontoExistente } from "../repo/descontos.js"
+import { upsertDesconto, descontoExistente } from "../repo/descontos.js"
 import {
   BOARD_HISTORICO,
   buscarHistoricoPorUuid,
@@ -377,34 +377,25 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
       if (!["total", "parcial", "reverter"].includes(tipo))
         return reply.code(400).send({ ok: false, erro: "tipo_invalido" })
 
+      // REVERTER NÃO EXISTE mais como operação persistida (decisão do Isaac, 11/08).
+      //
+      // Reverter só faz sentido enquanto o cancelamento é rascunho na tela — e isso o frontend
+      // resolve sozinho, sem rede. Depois de enviado não há volta possível: cancelar apaga a
+      // convocação no RM (evento eSocial S-2260) e delete não se desfaz. O que o app conseguiria
+      // fazer é criar OUTRA convocação, com C03S###### novo e um segundo evento pro mesmo
+      // período — o oposto de "reverter". A trava fica aqui e não só na tela porque o board, o
+      // ledger e o RM ficariam divergentes se alguém chamasse a rota direto.
+      if (tipo === "reverter") {
+        return reply.code(400).send({
+          ok: false,
+          erro: "cancelamento_irreversivel",
+          mensagem:
+            "Cancelamento registrado não pode ser revertido. Para retomar o período, crie uma nova convocação.",
+        })
+      }
+
       const item = await buscarHistoricoPorUuid(uuid)
       if (!item) return reply.code(404).send({ ok: false, erro: "nao_encontrado" })
-
-      // Reverter: limpa status no board + PG e apaga desconto PENDENTE.
-      // (o WF nunca implementou reverter persistido; regra: só limpa o que o
-      // cancelamento criou — entradas do ledger só-cancelamento saem; mistas
-      // mantêm percentuais [conservador: nunca desconta duas vezes].)
-      if (tipo === "reverter") {
-        const ledger = jsonCol<Ledger>(item, COL_HIST.ledgerBeneficios, {})
-        const limpo: Ledger = {}
-        for (const [d, e] of Object.entries(ledger)) {
-          const origens = Array.isArray(e?.origens) ? e.origens : []
-          const soCancel = origens.length > 0 && origens.every((o) => String(o).startsWith("cancelamento"))
-          if (soCancel) continue
-          limpo[d] = { ...e, origens: origens.filter((o) => !String(o).startsWith("cancelamento")) }
-        }
-        await atualizarHistorico(item.id, {
-          [COL_HIST.statusCancel]: { label: "" },
-          [COL_HIST.ledgerBeneficios]: { text: JSON.stringify(limpo) },
-        })
-        await query(
-          `UPDATE convocacoes SET status_cancelamento = NULL, data_inicio_cancelamento = NULL,
-             ledger_beneficios = $2::jsonb, atualizado_em = now() WHERE uuid = $1`,
-          [uuid, JSON.stringify(limpo)],
-        )
-        await removerDescontoConvocacao(uuid)
-        return { ok: true, tipo, data_inicio_cancelamento: null, desconto: { acao: "reverter", descontoVR: 0, descontoVT: 0 } }
-      }
 
       const di = textoCol(item, COL_HIST.dataInicio)
       const df = textoCol(item, COL_HIST.dataFim)
