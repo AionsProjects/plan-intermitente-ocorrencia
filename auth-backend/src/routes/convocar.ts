@@ -10,7 +10,7 @@ import { usuarioDaSessao } from "../session.js"
 import { config } from "../config.js"
 import { chapaAceitavelNoFiltro } from "../domain/convocacaoRm.js"
 import { temRmSoap } from "../clients/rmSoap.js"
-import { enfileirar } from "../jobs/repo.js"
+import { confirmarEfeito, enfileirar, liberarEfeito, reservarEfeito } from "../jobs/repo.js"
 import { TIPO_JOB_CONVOCACAO_RM, type PayloadConvocacaoRmPontual } from "../jobs/convocacaoRmPontual.js"
 import { processarConvocacaoPontual, TIMEOUT_INLINE_MS } from "../services/convocacaoPontual.js"
 import { unidadesRm } from "./rmLookups.js"
@@ -350,6 +350,54 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
     const papel = campos.papel === "proximo" ? "proximo"
       : campos.papel === "passado" ? "passado"
       : "atual"
+
+    // IDEMPOTÊNCIA — chave sobre a INTENÇÃO (pessoa+período), não sobre o item.
+    //
+    // O furo que fecha é o duplo-clique: o form é multipart com upload, demora, e o operador
+    // clica de novo. A antifraude não pega — ela pergunta ao Monday, e o item criado 300ms
+    // antes ainda não está indexado. Dois itens = duas reservas da mesma dívida (o
+    // uq_prepag_item_vivo não ajuda, porque cada item é "vivo" por conta própria).
+    //
+    // Chave por execucao_id não resolveria: cobre só o mesmo formulário; um retry com id novo
+    // passa. Fica ANTES de abrirExecucao de propósito — os dois cliques compartilham o mesmo
+    // execucao_id, e fechar a execução do 2º clique com "erro" marcaria de erro o log do 1º,
+    // que ainda está rodando (fechar é first-wins).
+    const identidade = normCode(campos.empregado_chapa ?? "")
+      || (campos.empregado_cpf ?? "").replace(/\D/g, "")
+      || normName(campos.empregado_nome)
+    const chaveIdem = `pontual:convocacao:${identidade}:${dataInicio}:${dataFim}`
+    const estadoIdem = await reservarEfeito(chaveIdem, "convocacao_pontual", {
+      chapa: campos.empregado_chapa ?? null, nome: campos.empregado_nome, papel,
+    })
+    if (estadoIdem === "pendente") {
+      // 1ª chamada ainda em curso (ou morreu antes do create — o catch libera a chave; se
+      // morreu SEM liberar, o retry destrava sozinho quando o operador reabrir o form, e o
+      // caso é visível no /atividade).
+      return reply.code(409).send({
+        ok: false, erro: "convocacao_em_curso",
+        mensagem: "Esta convocação já está sendo criada. Aguarde alguns segundos.",
+      })
+    }
+    if (estadoIdem === "confirmado") {
+      // Já criada antes — devolve o item existente em vez de erro seco: o front renderiza o
+      // conflito com link, e o operador vê que o clique anterior funcionou.
+      const ref = await query<{ ref_externa: string | null }>(
+        `SELECT ref_externa FROM efeitos_externos WHERE chave = $1`, [chaveIdem],
+      ).then((r) => r.rows[0]?.ref_externa ?? null).catch(() => null)
+      const bIdem = await resolverBoard(papel).catch(() => null)
+      return reply.code(409).send({
+        ok: false, erro: "convocacao_conflitante",
+        mensagem: "Convocação já criada para esta pessoa neste período.",
+        conflito: ref
+          ? {
+              item_id: ref,
+              item_url: bIdem ? `https://contato-serv.monday.com/boards/${bIdem.boardId}/pulses/${ref}` : undefined,
+              nome: campos.empregado_nome, chapa: campos.empregado_chapa,
+              data_inicio: dataInicio, data_fim: dataFim,
+            }
+          : undefined,
+      })
+    }
     // Fora do try grande: entra na resposta mesmo se algo depois falhar.
     let rm: EstadoRmResposta = { estado: "nao_enfileirado", motivo: "nao_avaliado" }
 
@@ -383,6 +431,7 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
 
     const b = await resolverBoard(papel)
     if (!b) {
+      await liberarEfeito(chaveIdem)
       await ex.fechar("erro", { erro: "board_nao_registrado", etapaErro: "resolver_board" })
       return reply.code(404).send({ ok: false, erro: "board_nao_registrado" })
     }
@@ -421,6 +470,7 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
             // Conflito é desfecho de negócio, não crash — mas a convocação NÃO
             // aconteceu, então fecha 'erro'. `fechar` é first-wins, então o
             // 'ok' do fim do handler não sobrescreve isto.
+            await liberarEfeito(chaveIdem)
             await ex.fechar("erro", {
               erro: `convocacao_conflitante: item ${it.id} (${eIni} a ${eFim})`,
               etapaErro: "antifraude",
@@ -517,6 +567,10 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
         cv,
         b.grupoPontual,
       ))
+      // Confirma a chave IMEDIATAMENTE: a partir daqui o item existe, e liberar a chave num
+      // erro posterior seria convite pra duplicar. (`liberarEfeito` não deleta confirmado,
+      // então o catch lá embaixo pode liberar sem medo — vira no-op neste ponto.)
+      await confirmarEfeito(chaveIdem, item.id)
       // `uuid_alvo` de acao='convocacao' é o item_id do Monday — semântica que o
       // monitor de alteração de board depende (cascata resolverItemDoPlano). O front
       // pode ter aberto a execução antes de o item existir, então preenche aqui.
@@ -723,6 +777,9 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
       }
     } catch (e) {
       req.log.error(e, "erro criar convocacao")
+      // Solta a chave de idempotência pro retry passar limpo. No-op se o item já foi criado
+      // (chave confirmada) — nesse caso o retry toma 409 devolvendo o item, que é o certo.
+      await liberarEfeito(chaveIdem).catch(() => {})
       await ex.fechar("erro", { erro: e })
       return reply.code(502).send({ ok: false, erro: "erro_monday" })
     }
