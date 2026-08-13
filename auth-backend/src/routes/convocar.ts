@@ -8,7 +8,7 @@ import {
 } from "../monday.js"
 import { usuarioDaSessao } from "../session.js"
 import { config } from "../config.js"
-import { chapaAceitavelNoFiltro } from "../domain/convocacaoRm.js"
+import { chapaAceitavelNoFiltro, paraDataIso } from "../domain/convocacaoRm.js"
 import { temRmSoap } from "../clients/rmSoap.js"
 import { confirmarEfeito, enfileirar, liberarEfeito, reservarEfeito } from "../jobs/repo.js"
 import { TIPO_JOB_CONVOCACAO_RM, type PayloadConvocacaoRmPontual } from "../jobs/convocacaoRmPontual.js"
@@ -507,7 +507,11 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
       setTexto(COL.cpf, campos.empregado_cpf)
       setTexto(COL.chapa, campos.empregado_chapa)
       setTexto(COL.funcao, campos.empregado_funcao)
-      setTexto(COL.admissao, campos.empregado_admissao)
+      // Normaliza na ESCRITA também, não só na busca: o valor chega do navegador, e o board
+      // guarda `Admissão` como TEXT — o que entrar aqui é o que a convocação RM vai ler depois
+      // como piso da data do ato. Payload antigo em cache ou chamada fora do form não passa
+      // dateTime com fuso pra dentro do board.
+      setTexto(COL.admissao, paraDataIso(campos.empregado_admissao) || campos.empregado_admissao)
       setTexto(COL.escala, campos.escala)
       setStatus(COL.solicitante, campos.solicitante)
       setStatus(COL.contrato, campos.contrato)

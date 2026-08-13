@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
 import { config } from "../config.js"
 import { consultarSql } from "../clients/rm.js"
 import { checkServiceActivity, contextoDataServer, readRecordDireto, temRmSoap } from "../clients/rmSoap.js"
+import { paraDataIso } from "../domain/convocacaoRm.js"
 import { parseCodigoContrato } from "../domain/mobilidade.js"
 import { RM_DATA_SERVER_HISTORICO } from "../mensal/rmEfeitos.js"
 import { usuarioDaAutorizacao } from "../session.js"
@@ -12,6 +13,41 @@ import { usuarioDaAutorizacao } from "../session.js"
 
 function s(v: unknown): string {
   return v == null ? "" : String(v).trim()
+}
+
+/**
+ * Uma linha da `BEN 2` no formato que o front consome.
+ *
+ * Função pura e exportada porque foi exatamente aqui que um valor passou CRU: a `Data de Admissão`
+ * do RM vem como dateTime com fuso (`2026-08-06T00:00:00-03:00`) e ia inteira até a coluna
+ * `Admissão` do board, que é text — metade das linhas em `06/08/2026` (legado, à mão) e metade com
+ * o carimbo. Mapeamento dentro do handler não tem teste; separado, tem.
+ */
+export function mapearEmpregadoBen2(r: Record<string, unknown>): Record<string, unknown> {
+  const secao = s(r["Seção"])
+  const { nomeContrato } = parseCodigoContrato(secao)
+  return {
+    nome: s(r["Nome do Intermitente"]),
+    chapa: s(r["Matrícula/Chapa"]),
+    cpf: s(r["CPF"]),
+    funcao: s(r["Função"]),
+    // Corte por STRING, nunca `new Date()`: converter meia-noite -03:00 pro fuso da máquina troca
+    // o dia — e a admissão é o piso do cálculo da data do ato no S-2260.
+    admissao: paraDataIso(r["Data de Admissão"]),
+    secao,
+    secaoDescricao: s(r["Descrição Seção"]),
+    // Mesma descrição sob a chave que o front lê (`localUnidade`/`local_unidade`).
+    // Só `secaoDescricao` nunca casava: `/atestados` pré-seleciona a unidade
+    // comparando `localUnidade ?? secao`, e `secao` é o CÓDIGO da seção.
+    localUnidade: s(r["Descrição Seção"]),
+    contrato: nomeContrato,
+    // Contrato do WF8: a chave é `optante_vt` (snake) com o label do RM ("SIM"/"NÃO"/"SIM*").
+    // O front testa `o.optante_vt`; mandar só `optanteVT` como string fazia todo mundo virar
+    // não-optante (o teste lá é `optanteVT === true`, boolean) e zerava o VT no WF5.
+    optante_vt: s(r["Vale Transporte"]),
+    optanteVT: s(r["Vale Transporte"]),
+    codcoligada: 3,
+  }
 }
 
 export async function rotasRm(app: FastifyInstance): Promise<void> {
@@ -30,31 +66,7 @@ export async function rotasRm(app: FastifyInstance): Promise<void> {
       } catch (e) {
         return reply.code(502).send({ erro: "rm_indisponivel", mensagem: (e as Error).message, resultados: [] })
       }
-      const resultados = linhas.map((r) => {
-        const secao = s(r["Seção"])
-        const { nomeContrato } = parseCodigoContrato(secao)
-        return {
-          nome: s(r["Nome do Intermitente"]),
-          chapa: s(r["Matrícula/Chapa"]),
-          cpf: s(r["CPF"]),
-          funcao: s(r["Função"]),
-          admissao: s(r["Data de Admissão"]),
-          secao,
-          secaoDescricao: s(r["Descrição Seção"]),
-          // Mesma descrição sob a chave que o front lê (`localUnidade`/`local_unidade`).
-          // Só `secaoDescricao` nunca casava: `/atestados` pré-seleciona a unidade
-          // comparando `localUnidade ?? secao`, e `secao` é o CÓDIGO da seção.
-          localUnidade: s(r["Descrição Seção"]),
-          contrato: nomeContrato,
-          // Contrato do WF8: a chave é `optante_vt` (snake) com o label do RM ("SIM"/"NÃO"/"SIM*").
-          // O front testa `o.optante_vt`; mandar só `optanteVT` como string fazia todo mundo virar
-          // não-optante (o teste lá é `optanteVT === true`, boolean) e zerava o VT no WF5.
-          optante_vt: s(r["Vale Transporte"]),
-          optanteVT: s(r["Vale Transporte"]),
-          codcoligada: 3,
-        }
-      })
-      return { resultados }
+      return { resultados: linhas.map(mapearEmpregadoBen2) }
     },
   )
 
