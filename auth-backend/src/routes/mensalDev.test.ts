@@ -8,11 +8,20 @@ process.env.AUTH_DEV_BYPASS = "1"
 process.env.MENSAL_WORKFLOW_ENABLED = "1"
 
 const { construirApp } = await import("../app.js")
+const { query } = await import("../db.js")
 
 const RUN_FANTASMA = "00000000-0000-4000-8000-00000000d1de"
 let app: Awaited<ReturnType<typeof construirApp>>
 
-/** Loga via dev-bypass e devolve o cookie de sessão. */
+/**
+ * Loga via dev-bypass e devolve o cookie de sessão.
+ *
+ * O papel é garantido por UPDATE, não pelo `payload.papel`: o dev-login só aplica papel a
+ * usuário NOVO desde 13/08 — ele reescrevia o papel de quem já existia, e como o
+ * DATABASE_URL de dev aponta pro banco de produção, isso promovia/rebaixava gente real
+ * (aconteceu com a Mayra). O teste passa a declarar o que precisa em vez de depender de um
+ * efeito colateral do login.
+ */
 async function cookieDe(email: string, papel: string): Promise<string> {
   const r = await app.inject({
     method: "POST",
@@ -20,6 +29,7 @@ async function cookieDe(email: string, papel: string): Promise<string> {
     headers: { "content-type": "application/json" },
     payload: { email, papel },
   })
+  await query(`UPDATE users SET papel = $2::papel WHERE email = $1`, [email, papel])
   const c = r.headers["set-cookie"]
   const bruto = Array.isArray(c) ? c[0] : c
   assert.ok(bruto, `dev-login falhou (${r.statusCode}): ${r.body.slice(0, 120)}`)

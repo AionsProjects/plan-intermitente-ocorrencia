@@ -35,6 +35,27 @@ export function buscarDetalheExecucao(id: string): Promise<DetalheExecucao> {
   return pegar<DetalheExecucao>(`/api/atividade/${encodeURIComponent(id)}`)
 }
 
+/**
+ * Marca (ou desmarca) um erro como visto/tratado. Não conserta nem apaga nada — só tira da
+ * contagem que pede atenção, pra falha antiga já resolvida não empatar com quebra nova.
+ */
+export async function reconhecerErro(
+  id: string,
+  opts: { nota?: string; desfazer?: boolean } = {},
+): Promise<{ reconhecido_em: string | null; por: string | null }> {
+  const res = await fetch(`/api/atividade/${encodeURIComponent(id)}/reconhecer`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(opts),
+  })
+  if (!res.ok) {
+    const corpo = (await res.json().catch(() => ({}))) as { erro?: string }
+    throw new AtividadeApiError(res.status, corpo.erro ?? `erro_${res.status}`)
+  }
+  return (await res.json()) as { reconhecido_em: string | null; por: string | null }
+}
+
 export type PeriodoRelatorio = "diario" | "semanal" | "mensal" | "personalizado"
 
 /**

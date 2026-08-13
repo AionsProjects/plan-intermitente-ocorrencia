@@ -69,7 +69,10 @@ export function corDaFase(estado: string): string {
   if (estado === "rodando") return "animate-pulse bg-[rgb(var(--accent-rgb)/0.75)]"
   if (estado === "pulado") return "bg-[rgb(var(--ink)/0.14)]"
   if (estado === "aviso") return "bg-[rgb(var(--status-yellow-rgb)/0.8)]"
-  return "bg-[rgb(var(--accent-rgb))]"
+  // Concluída = VERDE, não o âmbar do accent. Um trilho de 17 barras douradas lia como
+  // "17 avisos" — e a lâmpada da linha já diz sucesso em verde; o trilho tem que concordar
+  // com ela, senão a mesma execução aparece bem em um lugar e suspeita no outro.
+  return "bg-[rgb(var(--status-green-rgb)/0.75)]"
 }
 
 export const LABEL_ESTADO_FASE: Record<string, string> = {
@@ -138,16 +141,20 @@ export function diaManaus(iso: string): string {
   }
 }
 
+/**
+ * Rótulo do separador de dia. Hoje e ontem dizem só isso — a data completa ao lado era
+ * redundante ("HOJE · QUINTA-FEIRA, 13 DE AGOSTO" ocupava a largura da lista pra informar
+ * o que "Hoje" já informou).
+ */
 export function rotuloDia(dia: string): string {
   const hoje = new Date().toLocaleDateString("en-CA", { timeZone: FUSO })
   const ontem = new Date(Date.now() - 86_400_000).toLocaleDateString("en-CA", { timeZone: FUSO })
+  if (dia === hoje) return "Hoje"
+  if (dia === ontem) return "Ontem"
   const [ano, mes, d] = dia.split("-").map(Number)
   // Meio-dia UTC evita o dia virar pra trás na formatação.
   const data = new Date(Date.UTC(ano!, (mes ?? 1) - 1, d ?? 1, 12))
-  const longo = data.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })
-  if (dia === hoje) return `Hoje · ${longo}`
-  if (dia === ontem) return `Ontem · ${longo}`
-  return longo
+  return data.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })
 }
 
 export function duracaoCurta(ms: number | null | undefined): string {

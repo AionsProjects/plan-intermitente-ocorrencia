@@ -374,10 +374,11 @@
   background: var(--status-green);
   box-shadow: 0 0 8px 2px rgb(63 207 121 / 0.5);
 }
+/* Sem piscar: numa LISTA a lâmpada é status, não sinal de alarme — várias piscando ao
+   mesmo tempo puxam o olho pra fora do conteúdo e nunca param. Cor e texto bastam. */
 .lamp--yellow {
   background: var(--status-yellow);
   box-shadow: 0 0 8px 2px rgb(228 189 67 / 0.5);
-  animation: lamp-flicker 2.6s linear infinite;
 }
 .lamp--red {
   background: var(--status-red);

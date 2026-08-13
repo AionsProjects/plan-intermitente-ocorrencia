@@ -154,7 +154,12 @@ export function AtividadePage() {
     })
   }, [noPeriodo, buscaDebounced, filtros.soErro, filtros.tipos, filtros.quem])
 
-  const qtdErros = useMemo(() => noPeriodo.filter((e) => ehFalha(e.estado)).length, [noPeriodo])
+  // Só o que AINDA pede atenção: erro marcado como tratado sai da contagem e do banner.
+  // Ele continua na lista e no filtro "só com erro" — reconhecer não apaga história.
+  const qtdErros = useMemo(
+    () => noPeriodo.filter((e) => ehFalha(e.estado) && !e.erro_reconhecido_em).length,
+    [noPeriodo],
+  )
 
   // A execução do deep link pode ser mais antiga que as 200 carregadas, ou estar fora
   // dos filtros ativos. Busca o detalhe dela por fora pra o link NUNCA falhar.
@@ -200,15 +205,15 @@ export function AtividadePage() {
     <div className="relative z-10 min-h-svh">
       <div className="flex justify-center px-4 py-8 sm:px-6 sm:py-12">
         <div className="glass-panel relative w-full max-w-[980px] p-5 sm:p-8 lg:p-10">
-          <p className="eyebrow flex items-center gap-2">
-            <History className="size-3" aria-hidden /> Histórico de execuções
-          </p>
-          <h1 className="text-display mt-2 text-4xl leading-[1.05] text-foreground sm:text-5xl">
+          {/* Sem eyebrow: o título carrega o próprio peso, e "Histórico de execuções" acima
+              de "Atividade" eram dois nomes pra mesma coisa. */}
+          <h1 className="text-display flex items-center gap-3 text-4xl leading-[1.05] text-foreground sm:text-5xl">
+            <History className="size-7 shrink-0 text-foreground/30 sm:size-8" aria-hidden />
             Atividade
           </h1>
           <p className="mt-2 text-sm text-foreground/55">
-            {escopoTodos ? "Tudo que o app executou." : "O que você lançou pelo app."} Abra uma linha
-            pra ver fase a fase e o que foi gerado.
+            {escopoTodos ? "Tudo que o app lançou." : "O que você lançou pelo app."} Clique numa
+            linha para ver o que aconteceu.
           </p>
 
           <div ref={refBusca} className="mt-6">
@@ -231,7 +236,7 @@ export function AtividadePage() {
             <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-[16px] bg-[rgb(var(--status-red-rgb)/0.08)] px-4 py-3 shadow-[inset_0_0_0_1px_rgb(239_102_102/0.3)]">
               <span className="text-[13px] text-[var(--status-red)]">
                 <span className="lamp lamp--red mr-2 align-middle" aria-hidden />
-                {qtdErros} {qtdErros === 1 ? "execução" : "execuções"} com erro
+                {qtdErros === 1 ? "1 lançamento não concluiu" : `${qtdErros} lançamentos não concluíram`}
               </span>
               <button type="button" onClick={() => mudar({ soErro: true })} className="pill-soft px-3 py-1.5 text-xs">
                 ver só erros
@@ -243,8 +248,8 @@ export function AtividadePage() {
             {/* aria-live: é o único retorno de que um filtro fez efeito pra quem não
                 enxerga a lista mudar. */}
             <p className="text-[12px] text-foreground/45" aria-live="polite">
-              {isLoading ? "carregando…" : `${filtradas.length} ${filtradas.length === 1 ? "execução" : "execuções"}`}
-              {qtdErros > 0 && !filtros.soErro ? ` · ${qtdErros} com erro` : ""}
+              {isLoading ? "carregando…" : `${filtradas.length} ${filtradas.length === 1 ? "lançamento" : "lançamentos"}`}
+              {qtdErros > 0 && !filtros.soErro ? ` · ${qtdErros} sem concluir` : ""}
             </p>
             {data?.truncado && (
               // Honestidade obrigatória: a busca é local, então só alcança o que veio.
@@ -256,12 +261,12 @@ export function AtividadePage() {
 
           {isLoading && (
             <p className="mt-6 flex items-center gap-2 text-sm text-foreground/60">
-              <Loader2 className="size-4 animate-spin" /> Carregando histórico…
+              <Loader2 className="size-4 animate-spin" /> Carregando…
             </p>
           )}
           {isError && (
             <p className="mt-6 rounded-[16px] px-4 py-3 text-sm text-[var(--status-red)] shadow-[inset_0_0_0_1px_rgb(239_102_102/0.3)]">
-              Erro ao carregar o histórico.
+              Não foi possível carregar a lista. Recarregue a página.
             </p>
           )}
 
@@ -269,7 +274,7 @@ export function AtividadePage() {
               É o que faz o link do alerta nunca cair em "não encontrado". */}
           {fixada && !naLista && (
             <div className="mt-6">
-              <p className="eyebrow mb-2">Aberta pelo link</p>
+              <p className="mb-2 text-[12px] font-medium text-foreground/70">Aberto pelo link que você recebeu</p>
               <ul className="space-y-2">
                 <LinhaExecucao
                   exec={fixada.execucao}
@@ -286,7 +291,7 @@ export function AtividadePage() {
                   onClick={() => setParams(escreverFiltros({ ...VAZIO, todos: filtros.todos }, execAberta), { replace: true })}
                   className="pill-soft mt-2 px-3 py-1.5 text-xs"
                 >
-                  Limpar filtros pra ver no histórico
+                  Limpar filtros para ver na lista
                 </button>
               )}
             </div>
@@ -298,7 +303,7 @@ export function AtividadePage() {
                   explicação é lido como bug. */}
               {temFiltro ? (
                 <>
-                  <p className="text-sm text-foreground/55">Nenhuma execução com esses filtros.</p>
+                  <p className="text-sm text-foreground/55">Nada encontrado com esses filtros.</p>
                   <button
                     type="button"
                     onClick={() => setParams(escreverFiltros({ ...VAZIO, todos: filtros.todos }, execAberta), { replace: true })}
@@ -309,7 +314,7 @@ export function AtividadePage() {
                 </>
               ) : (
                 <p className="text-sm text-foreground/50">
-                  Nada registrado ainda. As execuções aparecem aqui conforme acontecem.
+                  Nada por aqui ainda. O que for lançado no app aparece nesta lista.
                 </p>
               )}
             </div>
@@ -317,7 +322,9 @@ export function AtividadePage() {
 
           {grupos.map(([dia, linhas]) => (
             <section key={dia} className="mt-6">
-              <p className="eyebrow sticky top-0 z-10 -mx-1 rounded-md px-1 py-1.5 backdrop-blur-md [background:var(--panel)]">
+              {/* Separador de dia: caixa normal e discreto. Em caixa alta com a data
+                  inteira ele competia com os nomes das pessoas, que são o conteúdo. */}
+              <p className="sticky top-0 z-10 -mx-1 rounded-md px-1 py-1.5 text-[12px] font-medium capitalize text-foreground/45 backdrop-blur-md [background:var(--panel)]">
                 {rotuloDia(dia)}
               </p>
               <ul className="mt-1.5 space-y-2">

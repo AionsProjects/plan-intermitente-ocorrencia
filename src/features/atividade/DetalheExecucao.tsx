@@ -1,17 +1,19 @@
 import { useEffect, useRef, useState } from "react"
-import { useQuery } from "@tanstack/react-query"
-import { Check, Copy, ExternalLink, Loader2 } from "lucide-react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { Check, Copy, ExternalLink, EyeOff, Loader2 } from "lucide-react"
 
+import { useAuth } from "@/components/AuthContext"
 import { copiarTexto } from "@/lib/copiar"
 import { reduzirMotion } from "@/lib/motion"
 import { nomeLimpo } from "@/lib/texto"
-import { buscarDetalheExecucao } from "./api"
+import { buscarDetalheExecucao, reconhecerErro } from "./api"
 import { linkArtefato, rotuloTipoArtefato } from "./artefatos"
 import {
   corDaFase, dataHoraManaus, duracaoCurta, fasesDobradas,
   horaComSegundosManaus, LABEL_ESTADO_FASE, rotuloEtapa,
 } from "./etapas"
-import { LABEL_ESTADO, rotuloAcao, type ArtefatoExecucao, type Execucao } from "./types"
+import { ehFalha, LABEL_ESTADO, rotuloAcao, type ArtefatoExecucao, type Execucao } from "./types"
+import { fraseDesfecho } from "./resumoHumano"
 
 /**
  * Painel de detalhe da linha expandida: trilho de fases, resumo, artefatos gerados e
@@ -48,12 +50,8 @@ const LABEL_RESUMO: Record<string, string> = {
   tipo: "Tipo",
   qtd_faltas: "Faltas",
   qtd_atrasos: "Atrasos",
-  // pagamento pontual (felipeta)
-  vr: "VR a pagar",
-  vt: "VT a pagar",
-  desconto: "Desconto abatido",
-  credito: "Crédito no cartão",
-  boleto: "Boleto PIX",
+  // pagamento pontual (felipeta) — os valores viram a tabela VR/VT/Total; aqui ficam
+  // só as marcas que não são dinheiro.
   sem_saldo: "Desconto consumiu tudo",
   recalculado: "Recalculado na confirmação",
 }
@@ -61,8 +59,53 @@ const LABEL_RESUMO: Record<string, string> = {
 const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho",
   "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"]
 
+/** Chaves de dinheiro: saem da lista e viram a tabela de valores. */
+const CHAVES_DINHEIRO = [
+  "vr", "vt", "credito", "boleto", "desconto",
+  "credito_vr", "credito_vt", "boleto_vr", "boleto_vt", "desconto_vr", "desconto_vt",
+] as const
+
+/**
+ * Tabela de dinheiro por benefício. VR e VT em colunas porque é assim que a Caju (pedidos
+ * separados) e o RM (eventos 100/110) tratam — o DP confere um contra o outro.
+ *
+ * As chaves `credito`/`boleto`/`desconto` sem sufixo são o formato ANTIGO (totais); as
+ * execuções gravadas antes de 13/08 só têm elas, e aí a coluna de total é a única com valor.
+ */
+function linhasDinheiro(r: Record<string, unknown>): Array<{ rotulo: string; vr: number | null; vt: number | null; total: number }> {
+  const n = (k: string): number => Number(r[k]) || 0
+  const par = (base: string): { vr: number | null; vt: number | null; total: number } => {
+    const temSeparado = r[`${base}_vr`] != null || r[`${base}_vt`] != null
+    if (temSeparado) {
+      const vr = n(`${base}_vr`), vt = n(`${base}_vt`)
+      return { vr, vt, total: vr + vt }
+    }
+    return { vr: null, vt: null, total: n(base) }
+  }
+  const aPagar = { vr: r.vr != null ? n("vr") : null, vt: r.vt != null ? n("vt") : null, total: n("vr") + n("vt") }
+  return [
+    { rotulo: "A pagar", ...aPagar },
+    { rotulo: "Crédito no cartão", ...par("credito") },
+    { rotulo: "Boleto PIX", ...par("boleto") },
+    { rotulo: "Desconto abatido", ...par("desconto") },
+  ].filter((l) => l.total > 0)
+}
+
+/** Chaves puramente técnicas: só aparecem com o detalhe técnico aberto. */
+const CHAVES_TECNICAS = new Set(["item_origem_id", "modo", "execucao_id", "run_id", "board_id"])
+
+const brl = (v: unknown): string =>
+  `R$ ${(Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+/** "2026-08-13" → "13/08". Data ISO na cara do usuário é dado de banco. */
+const dataBr = (v: unknown): string => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v ?? ""))
+  return m ? `${m[3]}/${m[2]}` : String(v ?? "")
+}
+
 function valorLegivel(chave: string, v: unknown): string {
   if (v == null) return "—"
+  if (chave === "data_inicio" || chave === "data_fim") return dataBr(v)
   if (chave === "competencia") {
     const m = String(v).match(/^(\d{4})-(\d{2})$/)
     if (m) return `${MESES[Number(m[2]) - 1] ?? m[2]}/${m[1]}`
@@ -101,15 +144,23 @@ function BotaoCopiar({ texto, rotulo }: { texto: string; rotulo: string }) {
   )
 }
 
-function LinhaArtefato({ a }: { a: ArtefatoExecucao }) {
+/**
+ * Um artefato. `mostrarId` fecha o problema de densidade: 8 pedidos Caju viram 8 UUIDs de
+ * 36 caracteres, que ocupavam metade do painel e não dizem nada a quem lê. Fechado, a linha
+ * é o rótulo + "abrir"; com o técnico aberto, o id aparece pra conferência.
+ */
+function LinhaArtefato({ a, mostrarId }: { a: ArtefatoExecucao; mostrarId: boolean }) {
   const url = linkArtefato(a)
   return (
     <div className="flex items-baseline justify-between gap-3 py-1">
-      <span className="shrink-0 text-[12px] text-foreground/45">{rotuloTipoArtefato(a.tipo)}</span>
-      <span className="min-w-0 flex-1 truncate text-right font-mono text-[12px] text-foreground/85">
-        {a.rotulo && a.rotulo !== a.chave ? `${a.rotulo} · ` : ""}
-        {a.chave}
+      <span className="min-w-0 flex-1 truncate text-[12px] text-foreground/70">
+        {a.rotulo && a.rotulo !== a.chave ? a.rotulo : rotuloTipoArtefato(a.tipo)}
       </span>
+      {mostrarId && (
+        <span className="min-w-0 max-w-[55%] truncate text-right font-mono text-[11px] text-foreground/50">
+          {a.chave}
+        </span>
+      )}
       {url ? (
         <a
           href={url}
@@ -121,8 +172,11 @@ function LinhaArtefato({ a }: { a: ArtefatoExecucao }) {
         </a>
       ) : (
         // rm_idfinanc e afins não têm URL — link falso faria quem clica concluir que
-        // a automação gravou errado.
-        <BotaoCopiar texto={a.chave} rotulo={rotuloTipoArtefato(a.tipo)} />
+        // a automação gravou errado. Sem id à vista, o valor vai no rótulo.
+        <span className="inline-flex shrink-0 items-center gap-2">
+          {!mostrarId && <span className="font-mono text-[11px] text-foreground/70">{a.chave}</span>}
+          <BotaoCopiar texto={a.chave} rotulo={rotuloTipoArtefato(a.tipo)} />
+        </span>
       )}
     </div>
   )
@@ -169,6 +223,23 @@ export function DetalheExecucao({ exec, aoVivo }: { exec: Execucao; aoVivo: bool
     staleTime: aoVivo ? 0 : 30_000,
   })
   const [soErros, setSoErros] = useState(exec.estado === "erro")
+  // Abre sozinho quando quebrou: aí o técnico É a informação de rotina, e quem chegou pelo
+  // link do alerta veio justamente ler isso.
+  const [tecnicoAberto, setTecnicoAberto] = useState(ehFalha(exec.estado))
+  const [faseSobCursor, setFaseSobCursor] = useState<{ etapa: string; estado: string } | null>(null)
+
+  // Reconhecer erro: DP/admin. Invalida a lista pra o banner e o contador recalcularem na
+  // hora — sem isso o botão parece não ter feito nada.
+  const { podeVer } = useAuth()
+  const podeReconhecer = podeVer("dp")
+  const qc = useQueryClient()
+  const { mutate: reconhecer, isPending: reconhecendo } = useMutation({
+    mutationFn: (opts: { nota?: string; desfazer?: boolean }) => reconhecerErro(exec.id, opts),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["atividade"] })
+      void qc.invalidateQueries({ queryKey: ["atividade-fixada"] })
+    },
+  })
   const refErro = useRef<HTMLDivElement | null>(null)
 
   const etapas = data?.etapas ?? []
@@ -189,7 +260,17 @@ export function DetalheExecucao({ exec, aoVivo }: { exec: Execucao; aoVivo: bool
   // Ordem de LABEL_RESUMO primeiro; o que não tem rótulo vai depois, em ordem alfabética.
   const ordem = Object.keys(LABEL_RESUMO)
   const camposResumo = Object.entries(resumo)
-    .filter(([, v]) => exibivel(v))
+    .filter(([k, v]) => {
+      if (!exibivel(v)) return false
+      // Dinheiro sai da lista: vira o grid de valores acima.
+      if ((CHAVES_DINHEIRO as readonly string[]).includes(k)) return false
+      // Técnico só com o painel técnico aberto.
+      if (CHAVES_TECNICAS.has(k) && !tecnicoAberto) return false
+      // Booleano FALSE não é informação — "Desconto consumiu tudo: não" e "Recalculado:
+      // não" eram duas linhas dizendo que nada de especial aconteceu.
+      if (typeof v === "boolean" && !v) return false
+      return true
+    })
     .sort(([a], [b]) => {
       const ia = ordem.indexOf(a), ib = ordem.indexOf(b)
       if (ia !== -1 && ib !== -1) return ia - ib
@@ -197,6 +278,10 @@ export function DetalheExecucao({ exec, aoVivo }: { exec: Execucao; aoVivo: bool
       if (ib !== -1) return 1
       return a.localeCompare(b)
     })
+
+  // Só o que ESTA execução tem, e só se tem valor > 0.
+  const valores = linhasDinheiro(resumo)
+  const temColunas = valores.some((l) => l.vr != null || l.vt != null)
   const visiveis = soErros ? etapas.filter((e) => e.estado === "erro" || e.estado === "aviso") : etapas
 
   return (
@@ -220,66 +305,191 @@ export function DetalheExecucao({ exec, aoVivo }: { exec: Execucao; aoVivo: bool
 
       {data && (
         <>
-          {/* Trilho de fases — data-driven: vem do que ESTA execução emitiu. */}
+          {/* DESFECHO em português, no topo: responde "e aí, o que aconteceu?" sem obrigar
+              ninguém a interpretar nome de etapa do RM. É o que a Thifany lê. */}
+          <p
+            className={`mb-3 text-[13px] leading-relaxed ${
+              exec.estado === "erro" ? "text-[var(--status-red)]"
+              : exec.estado === "parcial" || exec.estado === "abandonada" ? "text-[var(--status-yellow)]"
+              : "text-foreground/85"
+            }`}
+          >
+            {fraseDesfecho(exec)}
+          </p>
+
+          {/* "Já vi isso" — só em quem falhou, e só pra DP/admin. Um erro antigo parado no
+              banner vermelho ensina a ignorar o banner; aí a quebra nova passa batida. */}
+          {ehFalha(exec.estado) && podeReconhecer && (
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              {exec.erro_reconhecido_em ? (
+                <>
+                  <span className="text-[12px] text-foreground/55">
+                    Marcado como tratado
+                    {exec.erro_reconhecido_por ? ` por ${exec.erro_reconhecido_por}` : ""}
+                    {exec.erro_reconhecido_nota ? ` — ${exec.erro_reconhecido_nota}` : ""}
+                  </span>
+                  <button
+                    type="button"
+                    className="pill-soft px-3 py-1.5 text-[11px]"
+                    disabled={reconhecendo}
+                    onClick={() => reconhecer({ desfazer: true })}
+                  >
+                    reabrir
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="pill-soft inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px]"
+                  disabled={reconhecendo}
+                  onClick={() => {
+                    const nota = window.prompt("O que foi feito? (opcional)") ?? undefined
+                    reconhecer({ nota })
+                  }}
+                >
+                  <EyeOff className="size-3" aria-hidden />
+                  {reconhecendo ? "marcando…" : "já vi, está tratado"}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Trilho de fases: uma barra por fase, sem rótulo técnico. Serve como sinal de
+              progresso/quebra — o nome de cada uma vive no title e no detalhe técnico. */}
           {fases.length > 0 && (
             <div className="mb-4">
-              <div className="flex gap-1">
+              {/* Cada barra é focável e nomeia a própria fase na linha de baixo — o `title`
+                  nativo obriga a parar 1s em cima e não existe no toque. Aqui o nome troca
+                  no hover/foco, e some pro texto de progresso quando o cursor sai. */}
+              <div className="flex gap-1" onMouseLeave={() => setFaseSobCursor(null)}>
                 {fases.map((f) => (
-                  <span
+                  <button
                     key={f.etapa}
-                    title={`${rotuloEtapa(f.etapa)} — ${LABEL_ESTADO_FASE[f.estado] ?? f.estado}`}
-                    className={`h-[5px] flex-1 rounded-full ${corDaFase(f.estado)}`}
+                    type="button"
+                    onMouseEnter={() => setFaseSobCursor(f)}
+                    onFocus={() => setFaseSobCursor(f)}
+                    onBlur={() => setFaseSobCursor(null)}
+                    aria-label={`${rotuloEtapa(f.etapa)} — ${LABEL_ESTADO_FASE[f.estado] ?? f.estado}`}
+                    className={`h-[7px] flex-1 rounded-full transition-[transform,opacity] duration-150 hover:scale-y-150 focus-visible:scale-y-150 focus-visible:outline-none ${corDaFase(f.estado)} ${
+                      faseSobCursor && faseSobCursor.etapa !== f.etapa ? "opacity-40" : ""
+                    }`}
                   />
                 ))}
               </div>
               <div className="mt-1.5 flex items-baseline justify-between gap-3">
                 <span className="truncate text-[11px] text-foreground/70">
-                  {rotuloEtapa(exec.erro_etapa ?? exec.etapa_atual ?? fases[fases.length - 1]?.etapa)}
+                  {faseSobCursor ? (
+                    <>
+                      {rotuloEtapa(faseSobCursor.etapa)}
+                      <span
+                        className={
+                          faseSobCursor.estado === "erro" ? "text-[var(--status-red)]"
+                          : faseSobCursor.estado === "aviso" ? "text-[var(--status-yellow)]"
+                          : "text-foreground/45"
+                        }
+                      >
+                        {" · "}{LABEL_ESTADO_FASE[faseSobCursor.estado] ?? faseSobCursor.estado}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-foreground/55">
+                      {fases.filter((f) => f.estado === "ok").length} de {fases.length} etapas concluídas
+                    </span>
+                  )}
                 </span>
-                <span className="shrink-0 font-mono text-[10px] text-foreground/35">
-                  {fases.length} {fases.length === 1 ? "fase" : "fases"}
-                  {exec.duracao_ms != null ? ` · ${duracaoCurta(exec.duracao_ms)}` : ""}
+                <span className="shrink-0 font-mono text-[10px] tabular-nums text-foreground/35">
+                  {exec.duracao_ms != null ? duracaoCurta(exec.duracao_ms) : ""}
                 </span>
               </div>
             </div>
           )}
 
-          {camposResumo.length > 0 && (
-            <div className="mb-4">
-              <p className="eyebrow mb-2">Resumo</p>
-              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[12px]">
-                {camposResumo.map(([k, v]) => (
-                  <div key={k} className="col-span-2 grid grid-cols-subgrid">
-                    <dt className="text-foreground/45">{LABEL_RESUMO[k] ?? k.replaceAll("_", " ")}</dt>
-                    <dd
-                      className={
-                        k === "modo" && v === "producao"
-                          ? "rounded-md bg-[rgb(var(--status-red-rgb)/0.14)] px-1.5 text-[var(--status-red)]"
-                          : "text-foreground/85"
-                      }
-                    >
-                      {valorLegivel(k, v)}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
+          {/* DINHEIRO em tabela VR / VT / Total. Em lista chave-valor saía "VR a pagar 122.5"
+              — dado de banco; e só com o total, conferir contra a Caju (pedidos separados por
+              benefício) ou o RM (eventos 100/110) exigia fazer a conta de cabeça. */}
+          {valores.length > 0 && (
+            <div className="mb-4 rounded-[14px] px-4 py-3" style={{ background: "var(--glass-inset)" }}>
+              <table className="w-full text-[13px]">
+                {temColunas && (
+                  <thead>
+                    <tr className="text-[10px] uppercase tracking-wider text-foreground/40">
+                      <th className="pb-1.5 text-left font-medium">&nbsp;</th>
+                      <th className="pb-1.5 text-right font-medium">VR</th>
+                      <th className="pb-1.5 text-right font-medium">VT</th>
+                      <th className="pb-1.5 text-right font-medium">Total</th>
+                    </tr>
+                  </thead>
+                )}
+                <tbody>
+                  {valores.map((l) => (
+                    <tr key={l.rotulo} className="border-t border-[rgb(var(--ink)/0.06)] first:border-t-0">
+                      <td className="py-1.5 pr-3 text-foreground/55">{l.rotulo}</td>
+                      {temColunas && (
+                        <>
+                          <td className="py-1.5 text-right tabular-nums text-foreground/80">
+                            {l.vr == null ? "—" : l.vr > 0 ? brl(l.vr) : "—"}
+                          </td>
+                          <td className="py-1.5 text-right tabular-nums text-foreground/80">
+                            {l.vt == null ? "—" : l.vt > 0 ? brl(l.vt) : "—"}
+                          </td>
+                        </>
+                      )}
+                      <td className="py-1.5 pl-3 text-right font-medium tabular-nums text-foreground">
+                        {brl(l.total)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
+          )}
+
+          {/* Contexto restante — o que não é dinheiro nem técnico. */}
+          {camposResumo.length > 0 && (
+            <dl className="mb-4 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[12px]">
+              {camposResumo.map(([k, v]) => (
+                <div key={k} className="col-span-2 grid grid-cols-subgrid">
+                  <dt className="text-foreground/45">{LABEL_RESUMO[k] ?? k.replaceAll("_", " ")}</dt>
+                  <dd
+                    className={
+                      k === "modo" && v === "producao"
+                        ? "rounded-md bg-[rgb(var(--status-red-rgb)/0.14)] px-1.5 text-[var(--status-red)]"
+                        : "tabular-nums text-foreground/85"
+                    }
+                  >
+                    {valorLegivel(k, v)}
+                  </dd>
+                </div>
+              ))}
+            </dl>
           )}
 
           {artefatos.length > 0 && (
             <div className="mb-4">
-              <p className="eyebrow mb-1.5">O que foi gerado</p>
+              <p className="mb-1.5 text-[12px] font-medium text-foreground/70">
+                {artefatos.length === 1 ? "Onde isso foi registrado" : `Onde isso foi registrado (${artefatos.length})`}
+              </p>
               <div className="divide-y divide-[rgb(var(--ink)/0.06)]">
-                {artefatos.map((a) => <LinhaArtefato key={a.id} a={a} />)}
+                {artefatos.map((a) => <LinhaArtefato key={a.id} a={a} mostrarId={tecnicoAberto} />)}
               </div>
             </div>
           )}
 
+          {/* TÉCNICO — fechado por padrão, aberto sozinho quando quebrou. Fases com
+              timestamp, nome de etapa e id são ferramenta de diagnóstico, não informação
+              de rotina: na frente, ensinavam a Thifany a ignorar o painel inteiro. */}
           {etapas.length > 0 && (
             <div className="mb-3">
               <div className="mb-1.5 flex items-center justify-between gap-3">
-                <p className="eyebrow">Fases</p>
-                {etapas.some((e) => e.estado === "erro" || e.estado === "aviso") && (
+                <button
+                  type="button"
+                  className="glass-chip px-2.5 py-1 text-[11px]"
+                  aria-expanded={tecnicoAberto}
+                  onClick={() => setTecnicoAberto((v) => !v)}
+                >
+                  {tecnicoAberto ? "ocultar detalhe técnico" : "ver detalhe técnico"}
+                </button>
+                {tecnicoAberto && etapas.some((e) => e.estado === "erro" || e.estado === "aviso") && (
                   <button
                     type="button"
                     className="glass-chip px-2.5 py-1 text-[11px]"
@@ -292,6 +502,7 @@ export function DetalheExecucao({ exec, aoVivo }: { exec: Execucao; aoVivo: bool
                 )}
               </div>
               <div
+                hidden={!tecnicoAberto}
                 className="max-h-52 space-y-1 overflow-y-auto rounded-[16px] px-4 py-3"
                 style={{ background: "var(--glass-inset)", boxShadow: "inset 0 1px 3px rgb(var(--shadow) / 0.3)" }}
               >
@@ -336,10 +547,17 @@ export function DetalheExecucao({ exec, aoVivo }: { exec: Execucao; aoVivo: bool
             </p>
           )}
 
+          {/* Rodapé: "copiar link" fica SEMPRE (é como a Thifany manda um caso pra mim);
+              o id cru e o diagnóstico só quando o técnico está aberto — eram a última coisa
+              do painel e a primeira que ninguém entendia. */}
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[rgb(var(--ink)/0.07)] pt-3">
-            <BotaoCopiar texto={textoDiagnostico(exec, etapas, artefatos)} rotulo="diagnóstico" />
+            {tecnicoAberto ? (
+              <BotaoCopiar texto={textoDiagnostico(exec, etapas, artefatos)} rotulo="diagnóstico" />
+            ) : (
+              <span />
+            )}
             <span className="flex items-center gap-2 font-mono text-[10px] text-foreground/30">
-              {exec.id}
+              {tecnicoAberto && exec.id}
               <BotaoCopiar texto={`${window.location.origin}/atividade?exec=${exec.id}`} rotulo="link" />
             </span>
           </div>

@@ -1,3 +1,8 @@
+import {
+  Banknote, CalendarOff, CalendarPlus, CalendarX, CircleMinus, ClipboardCheck, FileText, Split,
+  type LucideIcon,
+} from "lucide-react"
+
 /** Espelha as colunas de pi.audit_lancamentos + contadores dos filhos. */
 export interface Execucao {
   id: string
@@ -16,6 +21,10 @@ export interface Execucao {
   erro_msg: string | null
   duracao_ms: number | null
   finalizado_em: string | null
+  /** Preenchido = alguém do DP já viu e tratou. Sai da contagem que pede atenção. */
+  erro_reconhecido_em: string | null
+  erro_reconhecido_por: string | null
+  erro_reconhecido_nota: string | null
   qtd_etapas: number
   qtd_artefatos: number
 }
@@ -72,6 +81,26 @@ export const LABEL_ACAO: Record<string, string> = {
   // gravava `mensal`. Os dois entram pra lista não filtrar errado no histórico antigo.
   mensal_fechamento: "Pagamento mensal",
   pontual_pagamento: "Pagamento pontual",
+}
+
+/**
+ * Ícone por tipo de ação.
+ *
+ * Carrega o TIPO sem gastar texto na linha: o nome do tipo ("Convocação", "Pagamento
+ * pontual") ocupava a linha secundária inteira e empurrava contrato e período pra fora.
+ * Um glifo de 14px na frente do nome resolve, e o rótulo escrito continua no detalhe.
+ */
+export const ICONE_ACAO: Record<string, LucideIcon> = {
+  convocacao: CalendarPlus,
+  registro: ClipboardCheck,
+  cancelamento: CalendarX,
+  split: Split,
+  atestado: FileText,
+  ponto_facultativo: CalendarOff,
+  desconto: CircleMinus,
+  mensal: Banknote,
+  mensal_fechamento: Banknote,
+  pontual_pagamento: Banknote,
 }
 
 export const COR_ACAO: Record<string, string> = {

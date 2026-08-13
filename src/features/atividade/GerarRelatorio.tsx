@@ -54,7 +54,7 @@ export function GerarRelatorio({ todos }: { todos: boolean }) {
   return (
     <div className="mt-5 rounded-[16px] px-4 py-3.5" style={{ background: "var(--glass-inset)", boxShadow: "inset 0 1px 3px rgb(var(--shadow) / 0.3)" }}>
       <div className="flex flex-wrap items-center gap-2.5">
-        <p className="eyebrow mr-1">Relatório</p>
+        <p className="mr-1 text-[12px] font-medium text-foreground/70">Relatório</p>
 
         <div className="seg-pill seg-pill--sm">
           {PERIODOS.map((p) => (
@@ -102,7 +102,7 @@ export function GerarRelatorio({ todos }: { todos: boolean }) {
         </button>
 
         <span className="text-[11px] text-foreground/35">
-          {todos ? "todas as pessoas" : "só as suas execuções"}
+          {todos ? "todas as pessoas" : "só o que você lançou"}
         </span>
       </div>
       {erro && (

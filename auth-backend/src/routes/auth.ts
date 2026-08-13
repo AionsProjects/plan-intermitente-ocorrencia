@@ -306,11 +306,18 @@ export async function rotasAuth(app: FastifyInstance): Promise<void> {
       reply: FastifyReply,
       userAgent: string | undefined,
     ): Promise<Usuario> {
+      // ⚠️ O papel do `?papel=` só vale pra usuário NOVO (o INSERT). Usuário que já existe
+      // conserva o dele.
+      //
+      // Antes era `SET papel = EXCLUDED.papel`, e como o DATABASE_URL de dev aponta pro banco
+      // de PRODUÇÃO, um `/auth/dev-login?email=<pessoa real>&papel=admin` promovia a pessoa de
+      // verdade — foi o que aconteceu com a Mayra (operacional → admin) em 13/08, revertido na
+      // hora. Login de conveniência não tem por que reescrever permissão de ninguém.
       const { rows } = await query<Usuario>(
         `INSERT INTO users (google_sub, email, nome, papel, ultimo_login)
            VALUES ($1, $2, $3, $4, now())
          ON CONFLICT (email) DO UPDATE
-           SET papel = EXCLUDED.papel, ultimo_login = now()
+           SET ultimo_login = now()
          RETURNING *`,
         [`dev:${email}`, email, "Dev User", papel],
       )

@@ -36,6 +36,9 @@ interface LinhaAtividade {
   erro_msg: string | null
   duracao_ms: number | null
   finalizado_em: string | null
+  erro_reconhecido_em: string | null
+  erro_reconhecido_por: string | null
+  erro_reconhecido_nota: string | null
   qtd_etapas: number
   qtd_artefatos: number
 }
@@ -221,6 +224,7 @@ export async function rotasAtividade(app: FastifyInstance): Promise<void> {
                 a.criado_em, a.operador_email, a.operador_nome,
                 a.estado, a.motor, a.etapa_atual, a.erro_etapa, a.erro_msg,
                 a.duracao_ms, a.finalizado_em,
+                a.erro_reconhecido_em, a.erro_reconhecido_por, a.erro_reconhecido_nota,
                 (SELECT count(*)::int FROM atividade_evento e WHERE e.execucao_id = a.id)   AS qtd_etapas,
                 (SELECT count(*)::int FROM atividade_artefato f WHERE f.execucao_id = a.id) AS qtd_artefatos
            FROM audit_lancamentos a
@@ -236,6 +240,47 @@ export async function rotasAtividade(app: FastifyInstance): Promise<void> {
         // A busca client-side só alcança o que veio. Sem isto a UI mentiria.
         truncado: rows.length >= limite,
       }
+    },
+  )
+
+  /**
+   * Reconhecer (ou desfazer) um erro: "eu vi, está tratado".
+   *
+   * NÃO muda `estado` — o erro continua erro no log, no filtro e no relatório. Sai só da
+   * contagem que pede atenção, pra falha antiga já resolvida não empatar com quebra nova.
+   * Quem reconheceu e por quê ficam gravados: sem isso, o "ok" perde a memória e ninguém
+   * sabe se foi resolvido, se era falso alarme ou se ficou pendente.
+   *
+   * DP/admin apenas: reconhecer é decisão sobre o que o time deixa de vigiar.
+   */
+  app.post(
+    "/api/atividade/:id/reconhecer",
+    async (
+      req: FastifyRequest<{ Params: { id: string }; Body: { nota?: string; desfazer?: boolean } }>,
+      reply: FastifyReply,
+    ) => {
+      const u = await usuarioDaSessao(req)
+      if (!u) return reply.code(401).send({ erro: "nao_autenticado" })
+      if (!podeVerTodos(u.papel)) return reply.code(403).send({ erro: "sem_permissao" })
+      const desfazer = req.body?.desfazer === true
+      const nota = (req.body?.nota ?? "").trim().slice(0, 300) || null
+      const { rows } = await query<{ id: string; erro_reconhecido_em: Date | null }>(
+        desfazer
+          ? `UPDATE audit_lancamentos
+                SET erro_reconhecido_em = NULL, erro_reconhecido_por = NULL, erro_reconhecido_nota = NULL
+              WHERE id = $1 RETURNING id, erro_reconhecido_em`
+          : `UPDATE audit_lancamentos
+                SET erro_reconhecido_em = now(), erro_reconhecido_por = $2, erro_reconhecido_nota = $3
+              WHERE id = $1 AND estado IN ('erro', 'abandonada')
+              RETURNING id, erro_reconhecido_em`,
+        desfazer ? [req.params.id] : [req.params.id, u.email, nota],
+      )
+      if (!rows.length) {
+        // Sem linha: id inexistente OU execução que não falhou. Reconhecer algo que deu
+        // certo não é erro do usuário, mas também não é operação com sentido.
+        return reply.code(404).send({ erro: "execucao_sem_erro_para_reconhecer" })
+      }
+      return { ok: true, reconhecido_em: rows[0]!.erro_reconhecido_em, por: desfazer ? null : u.email }
     },
   )
 
