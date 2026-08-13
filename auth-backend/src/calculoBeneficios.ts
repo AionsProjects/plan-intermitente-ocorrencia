@@ -59,6 +59,8 @@ export interface LinhaValor {
   regra: string // título "Regra/Função"
   vr: number
   vt: number
+  /** VR de regra MENSAL (DETRAN/TRE PB). Quando > 0, o valor-dia é vrMensal/30. */
+  vrMensal?: number
   ativo: boolean
 }
 export function resolverValores(
@@ -83,8 +85,16 @@ export function resolverValores(
   if (matches.length === 0) return { erro: "valores_beneficios_sem_regra" }
   matches.sort((a, b) => b.esp - a.esp)
   const e = matches[0].l
-  if (!e.vr && !e.vt) return { erro: "valores_beneficios_sem_valor" }
-  return { vrDia: e.vr, vtDia: e.vt, regraAplicada: `${e.contrato}/${e.regra}` }
+  // Regra de VR MENSAL (DETRAN/TRE PB): valor-dia = mensal/30 — "(514,50/30) × dias não
+  // trabalhados". A coluna VR diária fica vazia nessas linhas; sem isto o desconto saía 0.
+  const vrMensal = round2(e.vrMensal ?? 0)
+  const vrDia = vrMensal > 0 ? round2(vrMensal / 30) : e.vr
+  if (!vrDia && !e.vt) return { erro: "valores_beneficios_sem_valor" }
+  return {
+    vrDia,
+    vtDia: e.vt,
+    regraAplicada: `${e.contrato}/${e.regra}` + (vrMensal > 0 ? ` + VR mensal (${vrMensal}/30)` : ""),
+  }
 }
 
 // --- Cálculo do desconto (réplica de "Validar e preparar1" + "Decidir Desconto1")

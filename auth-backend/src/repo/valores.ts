@@ -26,9 +26,15 @@ interface RawItem {
 
 function valorPorTitulo(cols: RawCol[], candidatos: string[]): string {
   const alvo = candidatos.map(norm)
+  // Duas passadas: título EXATO ganha de substring. Sem isso, buscar "VR" pode devolver a
+  // coluna "VR MENSAL" (includes casa) dependendo da ordem das colunas no board — e aí o
+  // desconto do DETRAN sairia 514,50 POR DIA em vez de 17,15.
+  for (const cv of cols) {
+    if (alvo.includes(norm(cv.column?.title || cv.id))) return cv.text || ""
+  }
   for (const cv of cols) {
     const t = norm(cv.column?.title || cv.id)
-    if (alvo.some((a) => t === a || t.includes(a))) return cv.text || ""
+    if (alvo.some((a) => t.includes(a))) return cv.text || ""
   }
   return ""
 }
@@ -62,6 +68,7 @@ export async function lerValores(): Promise<LinhaValores[]> {
         regra: valorPorTitulo(cols, ["Regra/Função", "Regra", "Funcao", "Função", "Cargo"]),
         vrDia: num(valorPorTitulo(cols, ["VR", "Valor VR", "Vale Refeição", "Vale Refeicao"])),
         vtDia: num(valorPorTitulo(cols, ["VT", "Valor VT", "Vale Transporte"])),
+        vrMensal: num(valorPorTitulo(cols, ["VR Mensal"])),
         prioridade: num(valorPorTitulo(cols, ["Prioridade", "Ordem"])) || 0,
         ativo: true,
       })

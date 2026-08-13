@@ -65,7 +65,7 @@ const D = {
   residualVT: "numeric_mm0rtwwg",
 } as const
 // Valores
-const V = { contrato: "text_mm3gn84d", regra: "text_mm3g467p", vr: "numeric_mm3gyypd", vt: "numeric_mm3gqnde", ativo: "color_mm3gqqdk" }
+const V = { contrato: "text_mm3gn84d", regra: "text_mm3g467p", vr: "numeric_mm3gyypd", vt: "numeric_mm3gqnde", vrMensal: "numeric_mm3ttgxr", ativo: "color_mm3gqqdk" }
 
 let cacheValores: { em: number; linhas: LinhaValor[] } | null = null
 async function carregarValores(): Promise<LinhaValor[]> {
@@ -79,6 +79,7 @@ async function carregarValores(): Promise<LinhaValor[]> {
       regra: m.get(V.regra) ?? "",
       vr: num(m.get(V.vr)),
       vt: num(m.get(V.vt)),
+      vrMensal: num(m.get(V.vrMensal)),
       ativo: true,
     }
   })

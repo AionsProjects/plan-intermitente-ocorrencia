@@ -11,6 +11,7 @@
     "start": "node dist/server.js",
     "migrate": "node --env-file=.env --import tsx src/scripts/migrate.ts",
     "limpar:teste": "node --env-file=.env --import tsx src/scripts/limpar-teste-convocacao.ts",
+    "conferir:prepag": "node --env-file=.env --import tsx src/scripts/conferir-prepagamento.ts",
     "seed": "node --env-file=.env --import tsx src/scripts/seed.ts",
     "registrar-boards": "node --env-file=.env --import tsx src/scripts/registrar-boards.ts",
     "virada:remapear": "node --env-file=.env --import tsx src/scripts/virada-remapear-rm.ts",

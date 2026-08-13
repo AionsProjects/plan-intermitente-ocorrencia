@@ -22,7 +22,12 @@ export function norm(v: unknown): string {
 /** Contratos que declaram a falta mas NÃO geram desconto VR/VT.
  *  SEDUC (3 subgrupos, por prefixo) entrou em 03/07/2026 — só cancelamento
  *  desconta pra eles (cancelar chama com aplicarRegraNaoDesconta: false). */
-export const CONTRATOS_NAO_DESCONTAM = ["DETRAN", "TRE PB"]
+// DETRAN e TRE PB SAÍRAM desta lista em 12/08/2026, por decisão do Isaac: dia não trabalhado
+// nesses contratos passa a descontar (VR Mensal / 30) por dia — 17,15 portaria, 19,60 técnico,
+// 22,00 TRE PB. Antes o desconto era zerado e a pessoa recebia o mensal cheio mesmo faltando
+// (zero itens DETRAN/TRE no board Desconto provavam isso). SEDUC* continua sem desconto —
+// não entrou na decisão.
+export const CONTRATOS_NAO_DESCONTAM: string[] = []
 export function naoDesconta(contrato: string): boolean {
   const c = norm(contrato)
   return CONTRATOS_NAO_DESCONTAM.includes(c) || c.startsWith("SEDUC")
@@ -35,6 +40,8 @@ export interface LinhaValores {
   regra: string // Regra/Função (ou vazio/PADRAO = geral)
   vrDia: number
   vtDia: number
+  /** VR de regra MENSAL (DETRAN 514,50/588, TRE PB 660). Quando > 0, o valor-dia é isto /30. */
+  vrMensal?: number
   prioridade?: number
   ativo?: boolean // default true
 }
@@ -85,12 +92,19 @@ export function resolverValores(
     }
   matches.sort((a, b) => b.esp - a.esp)
   const e = matches[0]!.l
-  if (!e.vrDia && !e.vtDia)
-    return { erro: "valores_beneficios_sem_valor", mensagem: "Regra achada mas VR e VT zerados." }
+  // Regra de VR MENSAL (DETRAN, TRE PB): o valor-dia do desconto é mensal/30 — a fórmula do
+  // Isaac, "(514,50/30) × dias não trabalhados". A coluna VR diária dessas linhas fica vazia,
+  // então sem esta derivação o desconto sairia 0 (ou 24,50 da linha errada), que era o bug.
+  const vrMensal = round2(e.vrMensal ?? 0)
+  const vrDia = vrMensal > 0 ? round2(vrMensal / 30) : round2(e.vrDia)
+  if (!vrDia && !e.vtDia)
+    return { erro: "valores_beneficios_sem_valor", mensagem: "Regra achada mas VR, VT e VR Mensal zerados." }
   return {
-    vrDia: round2(e.vrDia),
+    vrDia,
     vtDia: round2(e.vtDia),
-    regraAplicada: `Board valores - ${e.contrato || contrato}${e.regra ? " / " + e.regra : ""}`,
+    regraAplicada:
+      `Board valores - ${e.contrato || contrato}${e.regra ? " / " + e.regra : ""}` +
+      (vrMensal > 0 ? ` + VR mensal (${vrMensal}/30)` : ""),
   }
 }
 

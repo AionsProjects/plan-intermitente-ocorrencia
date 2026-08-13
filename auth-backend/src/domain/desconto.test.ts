@@ -13,7 +13,32 @@ const LINHAS: LinhaValores[] = [
   { contrato: "PADRAO", regra: "", vrDia: 20, vtDia: 8 },
   { contrato: "CETAM", regra: "", vrDia: 30, vtDia: 10 },
   { contrato: "CETAM", regra: "MOTORISTA", vrDia: 30, vtDia: 15 },
+  // Regras de VR MENSAL — espelham o board real (12/08/2026): coluna VR diária VAZIA.
+  { contrato: "DETRAN", regra: "AGENTE DE PORTARIA", vrDia: 0, vtDia: 10, vrMensal: 514.5 },
+  { contrato: "DETRAN", regra: "TECNICO DE NIVEL MEDIO", vrDia: 0, vtDia: 10, vrMensal: 588 },
+  { contrato: "TRE PB", regra: "", vrDia: 0, vtDia: 10.9, vrMensal: 660 },
 ]
+
+// A fórmula do desconto DETRAN/TRE PB: (VR Mensal / 30) por dia não trabalhado.
+// 514,50/30 = 17,15 · 588/30 = 19,60 · 660/30 = 22,00. Sem a derivação, essas linhas
+// (VR diário vazio) devolviam vrDia 0 — e o desconto sumia calado.
+test("resolverValores: VR Mensal vira valor-dia (mensal/30)", () => {
+  const portaria = resolverValores(LINHAS, { contrato: "DETRAN", funcao: "AGENTE DE PORTARIA" })
+  assert.equal("vrDia" in portaria && portaria.vrDia, 17.15)
+  const tecnico = resolverValores(LINHAS, { contrato: "DETRAN", funcao: "TECNICO DE NIVEL MEDIO" })
+  assert.equal("vrDia" in tecnico && tecnico.vrDia, 19.6)
+  const tre = resolverValores(LINHAS, { contrato: "TRE PB", funcao: "AUXILIAR" })
+  assert.equal("vrDia" in tre && tre.vrDia, 22)
+  assert.ok("regraAplicada" in tre && tre.regraAplicada.includes("VR mensal (660/30)"))
+})
+
+test("resolverValores: linha só com VR Mensal não é 'sem valor'", () => {
+  const r = resolverValores(
+    [{ contrato: "TRE PB", regra: "", vrDia: 0, vtDia: 0, vrMensal: 660 }],
+    { contrato: "TRE PB", funcao: "X" },
+  )
+  assert.equal("vrDia" in r && r.vrDia, 22)
+})
 
 test("resolverValores: contrato exato vence padrão", () => {
   const r = resolverValores(LINHAS, { contrato: "CETAM", funcao: "AUXILIAR" })
@@ -81,16 +106,19 @@ test("calcularDesconto: vtSoVolta corta VT pela metade", () => {
   assert.equal(r.descontoVT, 4)
 })
 
-test("calcularDesconto: DETRAN/TRE PB nunca descontam", () => {
-  assert.equal(naoDesconta("DETRAN"), true)
-  assert.equal(naoDesconta("TRE PB"), true)
+// Decisão do Isaac, 12/08/2026: DETRAN/TRE PB VOLTARAM a descontar — dia não trabalhado
+// tira (VR Mensal/30) por dia. A regra de "nunca desconta" ficou só pro SEDUC.
+test("calcularDesconto: DETRAN/TRE PB descontam por falta (12/08/2026)", () => {
+  assert.equal(naoDesconta("DETRAN"), false)
+  assert.equal(naoDesconta("TRE PB"), false)
   assert.equal(naoDesconta("CETAM"), false)
   const r = calcularDesconto({
-    vrDia: 20, vtDia: 8, optanteVT: true, contrato: "DETRAN",
+    // 17,15 = 514,50/30 — o valor-dia que resolverValores deriva do VR Mensal.
+    vrDia: 17.15, vtDia: 10, optanteVT: true, contrato: "DETRAN",
     descontosPorDia: [{ vr: true, vt: true, vr_percentual: 100 }],
   })
-  assert.equal(r.descontoVR, 0)
-  assert.equal(r.descontoVT, 0)
+  assert.equal(r.descontoVR, 17.15)
+  assert.equal(r.descontoVT, 10)
 })
 
 test("calcularDesconto: SEDUC (3 subgrupos) não desconta por falta/atraso (03/07/2026)", () => {
