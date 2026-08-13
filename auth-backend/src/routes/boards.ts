@@ -178,7 +178,16 @@ export async function rotasBoards(app: FastifyInstance): Promise<void> {
           req.log.error(e, "virada: remapeamento do rastro RM falhou")
           rm = { erro: e instanceof Error ? e.message : "desconhecido" }
         }
-        return { ok: true, copia: { board_id: copiaId, ...c }, central: { board_id: centralId, ...k }, rm }
+        // 4) webhook da felipeta na CÓPIA (o board que fica atual). Best-effort — a virada
+        //    não pode falhar por isso; o admin re-garante via rota se apitar no log.
+        let felipeta: unknown = { pulado: "erro" }
+        try {
+          felipeta = await garantirWebhookComparecimento(copiaId)
+        } catch (e) {
+          req.log.error(e, "virada: garantir webhook do comparecimento falhou")
+          felipeta = { erro: e instanceof Error ? e.message : "desconhecido" }
+        }
+        return { ok: true, copia: { board_id: copiaId, ...c }, central: { board_id: centralId, ...k }, rm, felipeta }
       } catch (e) {
         req.log.error(e, "erro virada")
         return reply.code(502).send({ erro: "virada_falhou" })
@@ -261,4 +270,49 @@ export async function rotasBoards(app: FastifyInstance): Promise<void> {
       }
     },
   )
+
+  // Garante o webhook da FELIPETA ("OP - Compareceu?" -> /api/monday/comparecimento).
+  // Idempotente; admin OU service token (a virada chama sem sessão).
+  app.post(
+    "/api/boards/garantir-webhook-comparecimento",
+    async (
+      req: FastifyRequest<{ Body: { monday_board_id?: string } }>,
+      reply: FastifyReply,
+    ) => {
+      if (!temServiceToken(req) && !(await exigirAdmin(req, reply))) return
+      const boardId = String(req.body?.monday_board_id ?? "").trim()
+      if (!boardId) return reply.code(400).send({ erro: "board_id_obrigatorio" })
+      try {
+        const r = await garantirWebhookComparecimento(boardId)
+        if ("erro" in r) return reply.code(409).send(r)
+        return { ok: true, ...r }
+      } catch (e) {
+        req.log.error(e, "erro garantir-webhook-comparecimento")
+        return reply.code(502).send({ erro: "monday_falhou" })
+      }
+    },
+  )
+}
+
+/**
+ * Cria (se faltar) o webhook Monday→Vercel da coluna "OP - Compareceu?" num board.
+ *
+ * Ciclo de vida é do BACKEND (decisão do Isaac, 13/08): a virada duplica colunas mas NÃO
+ * duplica webhooks de API — sem esta função na virada, o board novo nasce surdo e a
+ * felipeta para de pagar no dia 15 sem nenhum erro visível.
+ */
+export async function garantirWebhookComparecimento(
+  boardId: string,
+): Promise<{ criado: boolean; webhook_id?: string } | { erro: string }> {
+  const { rows } = await query<{ column_id: string }>(
+    `SELECT column_id FROM board_colunas WHERE monday_board_id = $1 AND nome = $2`,
+    [boardId, "OP - Compareceu?"],
+  )
+  const columnId = rows[0]?.column_id
+  if (!columnId) return { erro: "coluna_compareceu_nao_registrada" }
+  const existentes = await listarWebhooks(boardId)
+  if (existentes.some((w) => (w.config ?? "").includes(columnId))) return { criado: false }
+  const url = `${config.publicBaseUrl.replace(/\/$/, "")}/api/monday/comparecimento`
+  const wh = await criarWebhook(boardId, url, columnId)
+  return { criado: true, webhook_id: wh.id }
 }

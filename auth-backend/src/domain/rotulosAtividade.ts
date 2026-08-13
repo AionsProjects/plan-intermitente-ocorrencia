@@ -15,6 +15,7 @@ export const LABEL_ACAO: Record<string, string> = {
   desconto: "Registro de desconto",
   mensal: "Pagamento mensal",
   mensal_fechamento: "Pagamento mensal",
+  pontual_pagamento: "Pagamento pontual (felipeta)",
 }
 
 export const LABEL_ETAPA: Record<string, string> = {

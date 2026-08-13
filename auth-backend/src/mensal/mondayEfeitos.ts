@@ -24,7 +24,7 @@ import type { DescontoUpdatePrevia, PessoaPreviaMensal, PlanUpdatePrevia } from 
  * caso contrário a API retorna 403 UserUnauthorized (visto em 11/07/2026 com token
  * de usuário não-membro). O pontual contorna usando o token de um owner do board.
  */
-async function criarItemComValores(
+export async function criarItemComValores(
   boardId: string,
   groupId: string,
   itemName: string,
@@ -359,6 +359,8 @@ export async function registrarDebitoControleCaju(inp: {
   totalCredito: number
   pedidoCreditoId?: string | null
   dataIso: string
+  /** Nome COMPLETO do item — o pontual usa "INTERMITENTE - {nome} ({data})" (WF5-fiel). */
+  nomeItem?: string
 }): Promise<{ id: string; saldoAnterior: number } | { pulado: true; motivo: string }> {
   if (r2(inp.totalCredito) <= 0) return { pulado: true, motivo: "sem_credito_contrato" }
   const d = await mondayGraphql<{ boards: Array<{ groups: Array<{ items_page: { items: ItemSaldoCaju[] } }> }> }>(
@@ -372,7 +374,7 @@ export async function registrarDebitoControleCaju(inp: {
   const cr = await criarItemComValores(
     BOARD_CONTROLE_CAJU,
     inp.grupoControleCaju,
-    `${inp.nomePrefixo ?? ""}${montarNomeDebitoControle(inp.contrato, inp.competenciaLabel, inp.anoComp, inp.pedidoCreditoId)}`,
+    inp.nomeItem ?? `${inp.nomePrefixo ?? ""}${montarNomeDebitoControle(inp.contrato, inp.competenciaLabel, inp.anoComp, inp.pedidoCreditoId)}`,
     montarValuesDebitoControle(inp.contrato, saldoAnterior, inp.totalCredito, inp.dataIso),
   )
   return { id: cr.id, saldoAnterior }

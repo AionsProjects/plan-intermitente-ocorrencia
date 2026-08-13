@@ -162,6 +162,9 @@ export const config = {
   // que permite comparar os números na MESMA convocação durante a homologação — mas só faz
   // sentido depois de o DP saber que o feriado passa a filtrar (1 dia menos que hoje).
   pontualPrePagamentoHabilitado: process.env.PONTUAL_PREPAGAMENTO_HABILITADO === "1",
+  // Fase 2 (felipeta): marcar "OP - Compareceu?" = SIM dispara o pagamento. Desligada, a
+  // rota do webhook responde {ignorado} — o webhook pode existir no Monday sem risco.
+  pontualPagamentoHabilitado: process.env.PONTUAL_PAGAMENTO_HABILITADO === "1",
   // Dias após `data_fim` em que a reserva expira e devolve a dívida ao FIFO. Sem expiração,
   // felipeta esquecida trava a dívida pra sempre e o mensal abate menos, sem ninguém notar.
   pontualReservaExpiraDias: Number(opt("PONTUAL_RESERVA_EXPIRA_DIAS", "15")),

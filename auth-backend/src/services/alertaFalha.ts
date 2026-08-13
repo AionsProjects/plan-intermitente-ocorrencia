@@ -24,6 +24,8 @@ import {
 const ACOES_RELEVANTES = new Set([
   "convocacao", "registro", "cancelamento", "split",
   "atestado", "ponto_facultativo", "desconto", "mensal", "mensal_fechamento",
+  // Felipeta (fase 2 do pontual): é O caminho do dinheiro — erro aqui TEM que apitar.
+  "pontual_pagamento",
 ])
 
 export interface EntradaAlerta {
