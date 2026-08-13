@@ -78,6 +78,22 @@ export interface ArquivarInput {
    * os do pontual.
    */
   natureza?: string
+  /**
+   * Pastas JÁ resolvidas (do pré-pagamento pontual, gravadas em `pi.pontual_prepagamento`).
+   *
+   * Quando vêm, `ensurePath` + `ensureFolder(periodo)` são PULADOS. Fecha duas coisas:
+   *
+   *  - custo: derivar a árvore são ~7 `findFolder` sequenciais por chamada, repetidos em
+   *    cada upload da fase 2 (boleto, QR, comprovante);
+   *  - correção: o nome da pasta é derivado das DATAS. Se o período mudou e a pasta foi
+   *    renomeada no recálculo, derivar de novo pelas datas do board criaria uma SEGUNDA
+   *    pasta e os arquivos do pagamento cairiam separados dos termos. Passar o id é o que
+   *    torna isso impossível.
+   *
+   * ⚠️ As duas juntas ou nenhuma: as subpastas (`CAJU/BOLETOS`, `TERMOS`) penduram na
+   * convocação, e `ATESTADOS` pendura na pessoa.
+   */
+  pastas_resolvidas?: { pastaPessoaId: string; pastaConvocacaoId: string }
 }
 
 /** Natureza default — mantém intacto o caminho que o pontual já usa em produção. */
@@ -89,6 +105,16 @@ export interface ArquivarResultado {
   pasta_pessoa_drive_url: string
   pasta_convocacao_drive_id: string
   pasta_convocacao_drive_url: string
+  /**
+   * Nome APLICADO na pasta do período ("01 A 05/08/2026") e o caminho completo resolvido.
+   *
+   * Guardados no snapshot do pré-pagamento pra o recálculo decidir "preciso renomear?" com
+   * uma comparação de string, sem ida ao Drive. E o caminho é o único registro de QUAL
+   * mapeamento de contrato/natureza foi aplicado — `CONTRATO_DRIVE_MAP` muda, e a pasta de
+   * dezembro não pode ser reinterpretada com o mapa de março.
+   */
+  pasta_convocacao_nome: string
+  pasta_caminho: string
   uploads: Array<{ id: string; name: string; url?: string }>
   planilha?: { id: string; name: string; url?: string }
 }
@@ -173,8 +199,15 @@ export async function arquivarDrive(input: ArquivarInput): Promise<ArquivarResul
   const tipo = normDrive(input.tipo || "convocacao").toLowerCase()
 
   const natureza = sanitizeName(input.natureza || NATUREZA_PADRAO)
-  const pastaPessoa = await ensurePath(root, [ano, mes, "CONTATO", contrato, natureza, pessoa])
-  const pastaConvocacao = await ensureFolder(pastaPessoa.id, periodo)
+  // Pastas já resolvidas pelo pré-pagamento: usa os ids e pula as ~7 idas ao Drive. O nome
+  // fica só pra url de fallback — a real vem do `webViewLink` quando o Drive devolve.
+  const reaproveita = input.pastas_resolvidas
+  const pastaPessoa: DriveFile = reaproveita
+    ? { id: reaproveita.pastaPessoaId, name: pessoa }
+    : await ensurePath(root, [ano, mes, "CONTATO", contrato, natureza, pessoa])
+  const pastaConvocacao: DriveFile = reaproveita
+    ? { id: reaproveita.pastaConvocacaoId, name: periodo }
+    : await ensureFolder(pastaPessoa.id, periodo)
 
   let pastaUpload = pastaConvocacao
   let pastaAtestados: DriveFile | undefined
@@ -240,6 +273,8 @@ export async function arquivarDrive(input: ArquivarInput): Promise<ArquivarResul
     pasta_pessoa_drive_url: pastaPessoaUrl,
     pasta_convocacao_drive_id: pastaConvocacao.id,
     pasta_convocacao_drive_url: pastaConvUrl,
+    pasta_convocacao_nome: periodo,
+    pasta_caminho: [ano, mes, "CONTATO", contrato, natureza, pessoa, periodo].join("/"),
     uploads: uploads.map((u) => ({ id: u.id, name: u.name, url: u.webViewLink })),
     planilha: planilha ? { id: planilha.id, name: planilha.name, url: planilha.webViewLink } : undefined,
   }

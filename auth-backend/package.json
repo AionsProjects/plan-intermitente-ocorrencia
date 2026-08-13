@@ -10,6 +10,7 @@
     "test": "node --env-file=.env --import tsx --test src/**/*.test.ts",
     "start": "node dist/server.js",
     "migrate": "node --env-file=.env --import tsx src/scripts/migrate.ts",
+    "limpar:teste": "node --env-file=.env --import tsx src/scripts/limpar-teste-convocacao.ts",
     "seed": "node --env-file=.env --import tsx src/scripts/seed.ts",
     "registrar-boards": "node --env-file=.env --import tsx src/scripts/registrar-boards.ts",
     "virada:remapear": "node --env-file=.env --import tsx src/scripts/virada-remapear-rm.ts",

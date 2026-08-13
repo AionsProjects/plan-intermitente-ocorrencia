@@ -37,7 +37,9 @@ type Props = {
   competencia: string // YYYY-MM do mês escolhido (trava o calendário)
   onTrocarEmpregado: () => void
   onVoltarMes: () => void
-  onSucesso: (itemId: string, itemUrl: string, rm?: ConvocacaoResposta["rm"]) => void
+  // A resposta inteira, não campos posicionais: ela cresce a cada fase da migração do pontual
+  // (rm, pré-pagamento, felipeta), e cada campo novo era uma posição nova pra errar.
+  onSucesso: (resposta: ConvocacaoResposta) => void
 }
 
 type FormState = {
@@ -194,7 +196,7 @@ export function FormularioConvocacao({
     }
     try {
       const res = await mutation.mutateAsync(payload)
-      onSucesso(res.itemId, res.itemUrl, res.rm)
+      onSucesso(res)
     } catch (err) {
       if (
         err instanceof ConvocacaoApiError &&

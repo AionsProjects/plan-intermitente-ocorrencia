@@ -2,6 +2,7 @@ import type {
   ConvocacaoConflito,
   ConvocacaoPayload,
   ConvocacaoOpcoes,
+  ConvocacaoPrePagamento,
   ConvocacaoResposta,
   EmpregadoRM,
 } from "./types"
@@ -327,5 +328,35 @@ export async function criarConvocacao(
     itemUrl: String(data.item_url ?? ""),
     // Ausente = respondeu o n8n, não o backend — logo o RM não foi acionado. A tela avisa.
     rm: data.rm as ConvocacaoResposta["rm"],
+    prepagamento: prepagamento(data.prepagamento),
+  }
+}
+
+/** snake_case do backend → camelCase da tela. `null` quando o pré-pagamento está desligado. */
+function prepagamento(raw: unknown): ConvocacaoPrePagamento | null {
+  if (!raw || typeof raw !== "object") return null
+  const d = raw as Record<string, unknown>
+  // Dinheiro chega como number no JSON, mas `0` e `null` significam coisas diferentes na tela
+  // ("nada a pagar" × "não calculado"), então `??` — nunca `||`.
+  const n = (k: string): number | null => (typeof d[k] === "number" ? (d[k] as number) : null)
+  return {
+    estado: (d.estado as ConvocacaoPrePagamento["estado"]) ?? "nao_gravado",
+    motivoInvalido: d.motivo_invalido ? String(d.motivo_invalido) : null,
+    semSaldo: d.sem_saldo === true,
+    diasVR: n("dias_vr"),
+    diasVT: n("dias_vt"),
+    vrDia: n("vr_dia"),
+    vtDia: n("vt_dia"),
+    brutoVR: n("bruto_vr"),
+    brutoVT: n("bruto_vt"),
+    descontoVR: n("desconto_vr"),
+    descontoVT: n("desconto_vt"),
+    liquidoVR: n("liquido_vr"),
+    liquidoVT: n("liquido_vt"),
+    creditoVR: n("credito_vr"),
+    creditoVT: n("credito_vt"),
+    pixVR: n("pix_vr"),
+    pixVT: n("pix_vt"),
+    pastaUrl: d.pasta_url ? String(d.pasta_url) : null,
   }
 }

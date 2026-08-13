@@ -18,7 +18,7 @@ const BOARD_DESCONTOS = "18400981023"
 const BOARD_CONTROLE_CAJU = "7833600425"
 
 interface BoardRegistry { monday_board_id: string; competencia: string | null }
-interface RawItem {
+export interface RawItem {
   id: string
   name: string
   column_values: Array<{ id: string; text: string | null; column?: { title: string } }>
@@ -176,14 +176,14 @@ const numero = (v: string): number => {
 }
 const r2 = (v: number): number => Math.round((Number(v) || 0) * 100) / 100
 const sim = (v: string): boolean => ["SIM", "SIM*"].includes(norm(v))
-function regraBeneficio(item: RawItem): RegraBeneficioMensal {
+export function regraBeneficio(item: RawItem): RegraBeneficioMensal {
   const nome = norm(item.name)
   return { id: item.id, contrato: valor(item, "Contrato"), regra: valor(item, "Regra/Função") || valor(item, "Regra"),
     vrDia: numero(valor(item, "VR")), vtDia: numero(valor(item, "VT")), vrMensal: numero(valor(item, "VR Mensal")),
     vtMensal: numero(valor(item, "VT Mensal")), prioridade: numero(valor(item, "Prioridade")),
     escala12x36: nome.includes("12X36") || nome.includes("12 X 36") }
 }
-function feriado(item: RawItem): FeriadoMensal | null {
+export function feriado(item: RawItem): FeriadoMensal | null {
   const data = dataIso(valor(item, "Data") || valor(item, "date_mm3t5bgd"))
   if (!data) return null
   return { data, tipo: valor(item, "Tipo") || valor(item, "color_mm3t72h3"),

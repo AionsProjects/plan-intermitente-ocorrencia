@@ -14,7 +14,7 @@ type Etapa =
   | { tipo: "busca" }
   | { tipo: "mes"; empregado: EmpregadoRM }
   | { tipo: "form"; empregado: EmpregadoRM; papel: "passado" | "atual" | "proximo"; competencia: string }
-  | { tipo: "sucesso"; itemId: string; itemUrl: string; rm?: ConvocacaoResposta["rm"] }
+  | { tipo: "sucesso"; resposta: ConvocacaoResposta }
 
 const ORDEM: Record<Etapa["tipo"], number> = {
   busca: 0,
@@ -27,7 +27,7 @@ function etapaKey(e: Etapa): string {
   if (e.tipo === "mes") return `mes-${e.empregado.chapa || e.empregado.nome}`
   if (e.tipo === "form")
     return `form-${e.empregado.chapa || e.empregado.nome}-${e.papel}`
-  if (e.tipo === "sucesso") return `sucesso-${e.itemId}`
+  if (e.tipo === "sucesso") return `sucesso-${e.resposta.itemId}`
   return "busca"
 }
 
@@ -79,17 +79,16 @@ export function ConvocarPage() {
           competencia={etapa.competencia}
           onTrocarEmpregado={() => ir({ tipo: "busca" })}
           onVoltarMes={() => ir({ tipo: "mes", empregado: etapa.empregado })}
-          onSucesso={(itemId, itemUrl, rm) =>
-            ir({ tipo: "sucesso", itemId, itemUrl, rm })
-          }
+          onSucesso={(resposta) => ir({ tipo: "sucesso", resposta })}
         />
       )
     }
     return (
       <TelaSucesso
-        itemId={etapa.itemId}
-        itemUrl={etapa.itemUrl}
-        rm={etapa.rm}
+        itemId={etapa.resposta.itemId}
+        itemUrl={etapa.resposta.itemUrl}
+        rm={etapa.resposta.rm}
+        prepagamento={etapa.resposta.prepagamento}
         onNovaConvocacao={() => ir({ tipo: "busca" })}
       />
     )

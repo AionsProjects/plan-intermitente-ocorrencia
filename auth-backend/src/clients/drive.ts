@@ -73,9 +73,20 @@ async function token(): Promise<string> {
   return t.token
 }
 
+/**
+ * Teto por chamada ao Drive.
+ *
+ * `arquivarDrive` faz de 10 a 20 chamadas sequenciais (`ensurePath` resolve um segmento por
+ * vez). Sem teto, um Drive lento come o request inteiro do `/convocar` — e agora que o
+ * pré-pagamento grava ANTES do Drive, come também a janela em que o snapshot seria escrito
+ * se a ordem invertesse. Cada chamada é curta por natureza; 12s é folga generosa.
+ */
+const TIMEOUT_DRIVE_MS = 12_000
+
 async function driveFetch<T>(url: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(url, {
     ...init,
+    signal: init.signal ?? AbortSignal.timeout(TIMEOUT_DRIVE_MS),
     headers: {
       Authorization: `Bearer ${await token()}`,
       ...(init.headers ?? {}),
@@ -132,6 +143,72 @@ export async function ensurePath(rootId: string, parts: string[]): Promise<Drive
     cur = await ensureFolder(cur.id, p)
   }
   return cur
+}
+
+/**
+ * Renomeia (e opcionalmente MOVE) uma pasta pelo id.
+ *
+ * Existe pro recálculo do pré-pagamento pontual: quando o período muda (cancelamento
+ * parcial), a pasta `01 A 05/08/2026` tem que virar `01 A 03/08/2026`. O identificador é o
+ * ID; o nome é dado derivado. Renomear preserva id, url, os termos já subidos e o link já
+ * gravado no item do Monday — recriar deixaria uma pasta órfã com arquivos dentro, e
+ * `findFolder` usa `pageSize: 1`, então a próxima busca pegaria uma das duas homônimas ao
+ * acaso. Corrupção silenciosa.
+ *
+ * `novoPaiId` cobre o caso de a data de início mudar de mês/ano: o caminho tem `<ano>/<mês>`
+ * derivados do início, então a pasta precisa MOVER, não ser copiada. Uma chamada faz as
+ * duas coisas.
+ */
+export async function renomearPasta(
+  id: string,
+  novoNome: string,
+  mover?: { novoPaiId: string; paiAtualId: string },
+): Promise<DriveFile> {
+  const params = new URLSearchParams({ fields: "id,name,webViewLink", supportsAllDrives: "true" })
+  if (mover && mover.novoPaiId !== mover.paiAtualId) {
+    params.set("addParents", mover.novoPaiId)
+    params.set("removeParents", mover.paiAtualId)
+  }
+  return driveFetch<DriveFile>(`${DRIVE}/files/${encodeURIComponent(id)}?${params}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: sanitizeName(novoNome) }),
+  })
+}
+
+/** Metadados de uma pasta — usado pra conferir nome/pai antes de renomear. */
+export async function lerPasta(id: string): Promise<(DriveFile & { parents?: string[] }) | null> {
+  try {
+    return await driveFetch<DriveFile & { parents?: string[] }>(
+      `${DRIVE}/files/${encodeURIComponent(id)}?fields=id,name,webViewLink,parents&supportsAllDrives=true`,
+    )
+  } catch {
+    // Pasta apagada à mão ou id inválido: quem chama trata como "resolver de novo".
+    return null
+  }
+}
+
+/**
+ * Manda a pasta (e o que tem dentro) pra lixeira do Drive.
+ *
+ * Lixeira, não `DELETE`: fica 30 dias recuperável. Só existe pra limpar sobra de teste
+ * controlado — nenhum fluxo automático chama isto, porque apagar pasta de convocação real é
+ * perder o único registro dos termos assinados.
+ */
+export async function pastaParaLixeira(id: string): Promise<boolean> {
+  try {
+    await driveFetch<DriveFile>(
+      `${DRIVE}/files/${encodeURIComponent(id)}?fields=id&supportsAllDrives=true`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trashed: true }),
+      },
+    )
+    return true
+  } catch {
+    return false
+  }
 }
 
 export function sanitizeName(s: unknown): string {

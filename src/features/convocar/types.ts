@@ -111,11 +111,45 @@ export type ConvocacaoRmEstado =
   | { estado: "desligado" | "sem_chapa" | "rm_nao_configurado" }
   | { estado: "nao_enfileirado"; motivo?: string }
 
+/**
+ * Pré-pagamento calculado junto da convocação (fase 1 do pontual).
+ *
+ * `estado` diz se o número vale:
+ * - `reservado` — calculado e a dívida abatida está guardada pra esta convocação. É o caso bom.
+ * - `invalido` — cálculo recusado (`motivoInvalido` nomeia o porquê). A convocação existe; quem
+ *   recalcula é a felipeta.
+ * - `nao_gravado` — calculou mas não conseguiu gravar o snapshot. Os valores estão no item do
+ *   monday, mas a reserva não existe: outra convocação da mesma pessoa pode abater a mesma dívida.
+ *
+ * `semSaldo` não é erro: o desconto comeu o benefício inteiro e não há nada a pagar.
+ */
+export type ConvocacaoPrePagamento = {
+  estado: "reservado" | "invalido" | "nao_gravado"
+  motivoInvalido: string | null
+  semSaldo: boolean
+  diasVR: number | null
+  diasVT: number | null
+  vrDia: number | null
+  vtDia: number | null
+  brutoVR: number | null
+  brutoVT: number | null
+  descontoVR: number | null
+  descontoVT: number | null
+  liquidoVR: number | null
+  liquidoVT: number | null
+  creditoVR: number | null
+  creditoVT: number | null
+  pixVR: number | null
+  pixVT: number | null
+  pastaUrl: string | null
+}
+
 export type ConvocacaoResposta = {
   ok: true
   itemId: string
   itemUrl: string
   rm?: ConvocacaoRmEstado
+  prepagamento?: ConvocacaoPrePagamento | null
 }
 
 export type ConvocacaoConflito = {

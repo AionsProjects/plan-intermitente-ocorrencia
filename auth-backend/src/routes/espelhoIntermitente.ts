@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
 import { query } from "../db.js"
 import { abrirExecucao, comEtapa, type Execucao } from "../services/execucao.js"
+import { liberarPrePagamento } from "../pontual/prepagamento.js"
 import { diasUteis } from "../domain/diasUteis.js"
 import { calcularDesconto, jaConsumido, norm as normTxt, type DiaDesconto } from "../domain/desconto.js"
 import { resolverValores } from "../domain/desconto.js"
@@ -897,6 +898,27 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
           dias_perde_vr: calc.diasPerdeVR, dias_perde_vt: calc.diasPerdeVT,
           desconto_vr: calc.descontoVR, desconto_vt: calc.descontoVT, status: "PENDENTE",
         }).catch((e) => req.log.warn(e, "cancelar: desconto PG falhou"))
+      }
+
+      // Solta a reserva do pré-pagamento pontual, se houver.
+      //
+      // Convocação cancelada não vai pagar, então a dívida que ela prendeu tem que voltar ao
+      // FIFO na hora — senão o fechamento mensal abate menos do que devia e ninguém percebe,
+      // que é o modo de falha silencioso que a reserva introduz se não for soltada.
+      //
+      // No cancelamento PARCIAL a dívida também volta inteira: o período encurtou, então o
+      // benefício mudou, e o número velho não vale mais. A felipeta recalcula.
+      if (origem.itemId) {
+        const soltas = await liberarPrePagamento(String(origem.itemId), `cancelamento_${tipo}`)
+          .catch((e) => {
+            req.log.warn(e, "cancelar: liberar pre-pagamento falhou")
+            return 0
+          })
+        if (soltas > 0) {
+          await ex.etapa("liberar_prepagamento", "ok", {
+            mensagem: "reserva de desconto devolvida ao FIFO",
+          })
+        }
       }
 
       // 'parcial' quando o RM ficou pendente: o board já mostra cancelado, mas pode

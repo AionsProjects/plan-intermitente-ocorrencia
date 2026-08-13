@@ -151,6 +151,20 @@ export const config = {
   },
   // Orquestração mensal nova. O default é deliberadamente seguro: homologação
   // e workflow desligado até migration/env/deploy serem validados.
+  // Pré-pagamento do pontual junto da convocação (fase 1 da bifurcação).
+  //
+  // DESLIGADO por default de propósito: enquanto o WF5 do n8n é quem paga, o pré-pagamento
+  // é só sombra — calcula, grava e RESERVA. A reserva é o que tem efeito colateral real
+  // (prende dívida do FIFO), então ligar é decisão consciente, não default silencioso.
+  //
+  // ⚠️ Escrever os 7 valores no item do Monday também depende desta flag: com o WF5 ainda
+  // pagando, ele reescreve as mesmas colunas no fim do fluxo dele. Os dois escrevendo é o
+  // que permite comparar os números na MESMA convocação durante a homologação — mas só faz
+  // sentido depois de o DP saber que o feriado passa a filtrar (1 dia menos que hoje).
+  pontualPrePagamentoHabilitado: process.env.PONTUAL_PREPAGAMENTO_HABILITADO === "1",
+  // Dias após `data_fim` em que a reserva expira e devolve a dívida ao FIFO. Sem expiração,
+  // felipeta esquecida trava a dívida pra sempre e o mensal abate menos, sem ninguém notar.
+  pontualReservaExpiraDias: Number(opt("PONTUAL_RESERVA_EXPIRA_DIAS", "15")),
   mensalWorkflowEnabled: process.env.MENSAL_WORKFLOW_ENABLED === "1",
   mensalModo: opt("MENSAL_MODO", "homologacao") === "producao" ? "producao" : "homologacao",
   mensalProductionEnabled: process.env.MENSAL_PRODUCTION_ENABLED === "1",

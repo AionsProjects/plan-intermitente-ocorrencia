@@ -16,6 +16,8 @@ import { processarConvocacaoPontual, TIMEOUT_INLINE_MS } from "../services/convo
 import { unidadesRm } from "./rmLookups.js"
 import { arquivarDrive } from "../services/driveArquivar.js"
 import { abrirExecucao, comEtapa, type EstadoEtapa, type Execucao } from "../services/execucao.js"
+import { calcularPrePagamentoConvocacao } from "../pontual/prePagamentoConvocacao.js"
+import { anotarPastaDrive, reservarPrePagamento } from "../pontual/prepagamento.js"
 
 // Opções do form de convocação: labels das colunas status do board Entrada ATUAL
 // (resolvido pelo registry, por nome — robusto à virada). unidadesPorContrato vem do RM
@@ -472,6 +474,43 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
       setStatus(COL.optanteVT, optanteVt)
       setStatus(COL.vtSoVolta, optanteVt === "SIM*" ? "SIM" : "NÃO")
 
+      // PRÉ-PAGAMENTO (fase 1 da bifurcação). Calcula e devolve os 7 valores prontos, que
+      // são fundidos no `cv` ANTES do create — o item nasce já calculado, e a felipeta só
+      // paga. Nunca lança: falha volta em `motivoInvalido`, e convocar não pode ser
+      // bloqueado por regra de valor ausente no board.
+      //
+      // ⚠️ `itemId: "novo"` porque o item ainda não existe. Nada no cálculo usa esse campo —
+      // ele só viaja até o `planUpdate`, e o que importa dali são os valores.
+      const prepag = config.pontualPrePagamentoHabilitado
+        ? await comEtapa(ex, "pre_pagamento", () => calcularPrePagamentoConvocacao(
+            {
+              itemId: "novo",
+              nome: campos.empregado_nome,
+              chapa: campos.empregado_chapa ?? "",
+              cpf: campos.empregado_cpf ?? "",
+              contrato: campos.contrato,
+              // A função importa: `resolverRegra` casa contrato+função no board de Valores
+              // (é o que separa SEDUC ESCOLA de SEDUC INTERIOR).
+              funcao: campos.empregado_funcao ?? "",
+              interior: campos.interior ?? "NAO",
+              inicio: dataInicio,
+              fim: dataFim,
+              trabalhaSabado: semAcento(String(campos.sabado ?? "")).trim().toUpperCase() === "SIM",
+              optanteVT: optanteVt === "SIM" || optanteVt === "SIM*",
+              vtSoVolta: optanteVt === "SIM*",
+            },
+            b.idPorNome,
+          ))
+        : null
+      if (prepag?.motivoInvalido) {
+        // 'aviso' e não 'erro': a convocação segue, e o motivo fica visível no log pra o DP
+        // corrigir o board de Valores antes de a felipeta chegar.
+        await ex.etapa("pre_pagamento", "aviso", { mensagem: prepag.motivoInvalido })
+      }
+      // Funde os valores calculados no payload do create. `Object.assign` e não spread pra
+      // deixar explícito que o `cv` montado acima é a base e o cálculo só ACRESCENTA.
+      if (prepag) Object.assign(cv, prepag.valoresColunas)
+
       const item = await comEtapa(ex, "criar_item_monday", () => createItem(
         b.boardId,
         campos.name || `INTERMITENTE - ${campos.empregado_nome}`,
@@ -486,6 +525,45 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
         [ex.id, item.id],
       ).catch((e) => req.log.warn(e, "gravar uuid_alvo da execucao falhou"))
       await ex.artefato({ tipo: "monday_item", chave: item.id, rotulo: "Item no Plano", url: item.url })
+
+      // SNAPSHOT + RESERVA, e vêm ANTES do RM e do Drive de propósito.
+      //
+      // É a escrita mais barata (Postgres local, ms) e a única SEM rede de recuperação: o RM
+      // tem `pi.jobs`, o Drive tem `ensurePath` idempotente, o snapshot não tem nada. Se a
+      // função morrer no meio, o que sobra tem que ser o número que a felipeta vai pagar.
+      //
+      // E a RESERVA é o que tem corrida — duas convocações da mesma pessoa no mesmo minuto.
+      // Tomá-la o quanto antes depois de o item existir é a diferença entre a corrida ser
+      // vencida e ser empatada.
+      let prepagId: string | null = null
+      if (prepag) {
+        const gravado = await comEtapa(ex, "reservar_prepagamento", () => reservarPrePagamento({
+          itemOrigemId: item.id,
+          mondayBoardId: b.boardId,
+          chapa: campos.empregado_chapa ?? "",
+          cpf: campos.empregado_cpf ?? null,
+          nome: campos.empregado_nome,
+          contrato: campos.contrato,
+          dataInicio,
+          dataFim,
+          pessoa: prepag.pessoa,
+          reservas: prepag.reservas,
+          calculo: prepag.calculo,
+          motivoInvalido: prepag.motivoInvalido ?? null,
+        }))
+        prepagId = gravado?.id ?? null
+        if (gravado) {
+          await ex.artefato({ tipo: "convocacao_uuid", chave: gravado.id, rotulo: "Pré-pagamento" })
+          if (prepag.semSaldo) {
+            // O FIFO consumiu o benefício inteiro. Registrado como aviso porque muda o que a
+            // fase 2 faz: grava board e desconto, e NÃO chama Caju/RM.
+            await ex.etapa("pre_pagamento", "aviso", {
+              mensagem: "desconto consumiu o benefício inteiro — nada a pagar",
+              metadados: { desconto_vr: prepag.pessoa?.descontoVR, desconto_vt: prepag.pessoa?.descontoVT },
+            })
+          }
+        }
+      }
 
       // Convocação no RM — enfileirada, nunca inline.
       //
@@ -585,6 +663,17 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
           rotulo: "Pasta da convocação",
           url: drive.pasta_convocacao_drive_url,
         })
+        // Anota a pasta no snapshot — é o "caminho completo e o link pra pegar no pagamento".
+        // Segunda escrita, minúscula: se falhar, o board já tem o link e a fase 2 re-resolve
+        // (idempotente); o custo é ~7 `findFolder` desperdiçados lá.
+        if (prepagId) {
+          await anotarPastaDrive(prepagId, {
+            pastaPessoaId: drive.pasta_pessoa_drive_id,
+            pastaConvocacaoId: drive.pasta_convocacao_drive_id,
+            nome: drive.pasta_convocacao_nome,
+            caminho: drive.pasta_caminho,
+          })
+        }
         if (drive.planilha) {
           await ex.artefato({
             tipo: "drive_arquivo",
@@ -598,8 +687,40 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
       // 'parcial' e não 'ok' quando algo best-effort ficou pendente: a convocação
       // existe, mas o operador precisa saber que o Drive ou o RM não fecharam.
       const pendenteRm = rm.estado === "enfileirado" || rm.estado === "conciliando" || rm.estado === "nao_enfileirado"
-      await ex.fechar(!drive || pendenteRm ? "parcial" : "ok")
-      return { ok: true, item_id: item.id, item_url: item.url, rm }
+      // `invalido` também fecha parcial: o item existe, mas sem número a felipeta vai ter que
+      // recalcular — e isso precisa ficar visível, não escondido atrás de "ok".
+      const prepagPendente = !!prepag && (!prepagId || !!prepag.motivoInvalido)
+      await ex.fechar(!drive || pendenteRm || prepagPendente ? "parcial" : "ok")
+      return {
+        ok: true,
+        item_id: item.id,
+        item_url: item.url,
+        rm,
+        // O cálculo volta na resposta pra a tela de sucesso mostrar o que vai ser pago —
+        // é o que substitui a conferência manual item a item que o DP faz hoje.
+        prepagamento: prepag
+          ? {
+              estado: prepag.motivoInvalido ? "invalido" : prepagId ? "reservado" : "nao_gravado",
+              motivo_invalido: prepag.motivoInvalido ?? null,
+              sem_saldo: prepag.semSaldo,
+              dias_vr: prepag.pessoa?.diasVR ?? null,
+              dias_vt: prepag.pessoa?.diasVT ?? null,
+              vr_dia: prepag.pessoa?.vrDia ?? null,
+              vt_dia: prepag.pessoa?.vtDia ?? null,
+              bruto_vr: prepag.pessoa?.brutoVR ?? null,
+              bruto_vt: prepag.pessoa?.brutoVT ?? null,
+              desconto_vr: prepag.pessoa?.descontoVR ?? null,
+              desconto_vt: prepag.pessoa?.descontoVT ?? null,
+              liquido_vr: prepag.pessoa?.liquidoVR ?? null,
+              liquido_vt: prepag.pessoa?.liquidoVT ?? null,
+              credito_vr: prepag.pessoa?.creditoVR ?? null,
+              credito_vt: prepag.pessoa?.creditoVT ?? null,
+              pix_vr: prepag.pessoa?.pixVR ?? null,
+              pix_vt: prepag.pessoa?.pixVT ?? null,
+              pasta_url: drive?.pasta_convocacao_drive_url ?? null,
+            }
+          : null,
+      }
     } catch (e) {
       req.log.error(e, "erro criar convocacao")
       await ex.fechar("erro", { erro: e })

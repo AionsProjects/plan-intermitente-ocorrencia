@@ -1,11 +1,151 @@
-import { CheckCircle2, ExternalLink, RotateCcw } from "lucide-react"
-import type { ConvocacaoRmEstado } from "./types"
+import { CheckCircle2, ExternalLink, FolderOpen, RotateCcw } from "lucide-react"
+import { formatarReal } from "@/features/descontos/shared"
+import type { ConvocacaoPrePagamento, ConvocacaoRmEstado } from "./types"
 
 type Props = {
   itemId: string
   itemUrl: string
   rm?: ConvocacaoRmEstado
+  prepagamento?: ConvocacaoPrePagamento | null
   onNovaConvocacao: () => void
+}
+
+/**
+ * O cálculo do pré-pagamento — o que a felipeta vai pagar quando o operacional confirmar
+ * que a pessoa apareceu.
+ *
+ * Isto está aqui porque é o único momento em que alguém olha o número ANTES de o dinheiro
+ * sair. Depois da felipeta o pagamento é automático, então erro de contrato/período visto
+ * agora custa um clique em "Nova convocação"; visto depois, custa estorno na Caju.
+ *
+ * As linhas seguem a ordem da conta (bruto → desconto → líquido → como sai), porque a
+ * pergunta que o DP faz nesta tela é sempre "por que esse valor?", não "quanto".
+ */
+function BlocoPrePagamento({ p }: { p: ConvocacaoPrePagamento }) {
+  if (p.estado === "invalido") {
+    return (
+      <div className="mt-6 rounded-2xl border border-amber-400/30 bg-amber-300/[0.07] px-5 py-4 text-left">
+        <p className="eyebrow text-amber-700 dark:text-amber-200">Valores não calculados</p>
+        <p className="mt-1.5 text-xs leading-relaxed text-foreground/70">
+          A convocação foi criada, mas o cálculo do benefício não fechou
+          {p.motivoInvalido ? (
+            <>
+              {" — "}
+              <code className="text-amber-700 dark:text-amber-200">{p.motivoInvalido}</code>
+            </>
+          ) : null}
+          . O pagamento vai recalcular na confirmação de comparecimento; avise o DP se repetir.
+        </p>
+      </div>
+    )
+  }
+
+  const linhas = [
+    { rotulo: "Benefício bruto", vr: p.brutoVR, vt: p.brutoVT, tom: "normal" as const },
+    { rotulo: "Desconto abatido", vr: p.descontoVR, vt: p.descontoVT, tom: "desconto" as const },
+    { rotulo: "A pagar", vr: p.liquidoVR, vt: p.liquidoVT, tom: "destaque" as const },
+  ]
+  const temDesconto = (p.descontoVR ?? 0) > 0 || (p.descontoVT ?? 0) > 0
+
+  return (
+    <div className="mt-6 rounded-2xl border border-[rgb(var(--ink)/0.12)] bg-[rgb(var(--ink)/0.04)] px-5 py-4 text-left backdrop-blur">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <p className="eyebrow text-foreground/55">Pré-pagamento calculado</p>
+        <p className="text-[11px] text-foreground/45">
+          {p.diasVR ?? 0} {p.diasVR === 1 ? "dia" : "dias"} VR · {p.diasVT ?? 0}{" "}
+          {p.diasVT === 1 ? "dia" : "dias"} VT
+        </p>
+      </div>
+
+      <table className="mt-3 w-full text-xs">
+        <thead>
+          <tr className="text-[10px] uppercase tracking-wider text-foreground/40">
+            <th className="pb-1 text-left font-medium">&nbsp;</th>
+            <th className="pb-1 text-right font-medium">VR</th>
+            <th className="pb-1 text-right font-medium">VT</th>
+          </tr>
+        </thead>
+        <tbody>
+          {linhas.map((l) => (
+            <tr
+              key={l.rotulo}
+              className={
+                l.tom === "destaque"
+                  ? "border-t border-[rgb(var(--ink)/0.12)] font-medium text-foreground/90"
+                  : "text-foreground/65"
+              }
+            >
+              <td className="py-1 pr-3">{l.rotulo}</td>
+              <td
+                className={`py-1 text-right tabular-nums ${
+                  l.tom === "desconto" && (l.vr ?? 0) > 0 ? "text-amber-700 dark:text-amber-200" : ""
+                }`}
+              >
+                {l.tom === "desconto" && (l.vr ?? 0) > 0 ? "− " : ""}
+                {formatarReal(l.vr ?? 0)}
+              </td>
+              <td
+                className={`py-1 text-right tabular-nums ${
+                  l.tom === "desconto" && (l.vt ?? 0) > 0 ? "text-amber-700 dark:text-amber-200" : ""
+                }`}
+              >
+                {l.tom === "desconto" && (l.vt ?? 0) > 0 ? "− " : ""}
+                {formatarReal(l.vt ?? 0)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* Crédito × boleto: o crédito entra no cartão na hora, o boleto é PIX pra o DP pagar.
+          Quem confere pagamento precisa dos dois separados — na Caju eles aparecem em telas
+          diferentes. */}
+      {((p.creditoVR ?? 0) > 0 || (p.creditoVT ?? 0) > 0 || (p.pixVR ?? 0) > 0 || (p.pixVT ?? 0) > 0) && (
+        <p className="mt-3 border-t border-[rgb(var(--ink)/0.08)] pt-2.5 text-[11px] leading-relaxed text-foreground/50">
+          Sai como crédito no cartão{" "}
+          <span className="tabular-nums text-foreground/75">
+            {formatarReal((p.creditoVR ?? 0) + (p.creditoVT ?? 0))}
+          </span>{" "}
+          + boleto PIX{" "}
+          <span className="tabular-nums text-foreground/75">
+            {formatarReal((p.pixVR ?? 0) + (p.pixVT ?? 0))}
+          </span>
+          .
+        </p>
+      )}
+
+      {p.semSaldo && (
+        <p className="mt-3 rounded-xl border border-amber-400/25 bg-amber-300/[0.07] px-3 py-2 text-[11px] leading-relaxed text-amber-700 dark:text-amber-200">
+          O desconto pendente consumiu o benefício inteiro — nada a pagar nesta convocação.
+        </p>
+      )}
+
+      {temDesconto && !p.semSaldo && (
+        <p className="mt-2 text-[11px] text-foreground/45">
+          Desconto reservado para esta convocação — não vai ser abatido duas vezes.
+        </p>
+      )}
+
+      {p.estado === "nao_gravado" && (
+        <p className="mt-3 rounded-xl border border-amber-400/25 bg-amber-300/[0.07] px-3 py-2 text-[11px] leading-relaxed text-amber-700 dark:text-amber-200">
+          Os valores estão no item, mas não foi possível reservar o desconto. Avise o DP antes de
+          criar outra convocação para a mesma pessoa.
+        </p>
+      )}
+
+      {p.pastaUrl && (
+        <a
+          href={p.pastaUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 inline-flex items-center gap-1.5 text-[11px] text-foreground/55 transition hover:text-[rgb(var(--accent-rgb))]"
+        >
+          <FolderOpen className="size-3.5" />
+          Pasta da convocação no Drive
+        </a>
+      )}
+    </div>
+  )
 }
 
 /**
@@ -68,7 +208,7 @@ function LinhaRm({ rm }: { rm?: ConvocacaoRmEstado }) {
   )
 }
 
-export function TelaSucesso({ itemId, itemUrl, rm, onNovaConvocacao }: Props) {
+export function TelaSucesso({ itemId, itemUrl, rm, prepagamento, onNovaConvocacao }: Props) {
   const ehMock = itemId.startsWith("mock-")
   return (
     <div className="text-center">
@@ -95,6 +235,8 @@ export function TelaSucesso({ itemId, itemUrl, rm, onNovaConvocacao }: Props) {
       </div>
 
       {!ehMock && <LinhaRm rm={rm} />}
+
+      {!ehMock && prepagamento && <BlocoPrePagamento p={prepagamento} />}
 
       <div className="mt-8 flex flex-col items-stretch gap-3 sm:flex-row sm:justify-center">
         {!ehMock && itemUrl && (
