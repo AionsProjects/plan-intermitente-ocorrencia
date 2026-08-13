@@ -183,6 +183,94 @@ export async function lerPrePagamentoVivo(itemOrigemId: string): Promise<PrePaga
   return rows[0] ?? null
 }
 
+export interface ReservaDoSnapshot {
+  descontoMondayItemId: string
+  vr: number
+  vt: number
+}
+
+export interface PrePagamentoCompleto extends PrePagamentoVivo {
+  monday_board_id: string | null
+  cpf: string | null
+  cod_secao: string | null
+  bruto_vr: number | null
+  bruto_vt: number | null
+  vr_dia: number | null
+  vt_dia: number | null
+  regra_aplicada: string | null
+  /** Entrada + saída do cálculo da fase 1 — `calculo->entrada` guarda interior/funcao/optanteVT. */
+  calculo: Record<string, unknown>
+  reservas: ReservaDoSnapshot[]
+}
+
+/**
+ * O snapshot INTEIRO + reservas — o que a fase 2 (felipeta) consome.
+ *
+ * Leitor separado do `lerPrePagamentoVivo` de propósito: o vivo serve consultas leves
+ * (cancelamento, tela), este carrega `calculo` jsonb e faz um segundo SELECT. `null` tem o
+ * mesmo contrato do vivo: a felipeta recalcula e avisa.
+ */
+export async function lerPrePagamentoCompleto(itemOrigemId: string): Promise<PrePagamentoCompleto | null> {
+  const { rows } = await query<Omit<PrePagamentoCompleto, "reservas">>(
+    `SELECT id, item_origem_id::text, monday_board_id::text, chapa, cpf, nome, contrato,
+            cod_secao, data_inicio, data_fim, dias_vr, dias_vt, vr_dia, vt_dia,
+            bruto_vr, bruto_vt, liquido_vr, liquido_vt, credito_vr, credito_vt,
+            pix_vr, pix_vt, desconto_vr, desconto_vt, regra_aplicada, calculo,
+            estado, motivo_invalido,
+            pasta_convocacao_drive_id, pasta_pessoa_drive_id, pasta_convocacao_nome, pasta_estado
+       FROM pontual_prepagamento
+      WHERE item_origem_id = $1 AND estado IN ('reservado', 'consumido')
+      LIMIT 1`,
+    [itemOrigemId],
+  )
+  const s = rows[0]
+  if (!s) return null
+  const { rows: reservas } = await query<{ desconto_monday_item_id: string; vr: string; vt: string }>(
+    `SELECT desconto_monday_item_id, vr, vt FROM pontual_reserva_desconto
+      WHERE prepagamento_id = $1 ORDER BY id`,
+    [s.id],
+  )
+  return {
+    ...s,
+    reservas: reservas.map((r) => ({
+      descontoMondayItemId: r.desconto_monday_item_id,
+      vr: Number(r.vr) || 0,
+      vt: Number(r.vt) || 0,
+    })),
+  }
+}
+
+/**
+ * Marca o snapshot como consumido e APAGA as reservas — uma transação.
+ *
+ * O DELETE não é limpeza: é correção de dupla contagem. Depois que a felipeta decrementa o
+ * residual no board Desconto, manter a reserva "viva" faria `lerReservasVivas` subtrair a
+ * MESMA dívida de novo do pool do mensal. Os deltas sobrevivem em `calculo->reservas` (fase 1
+ * grava lá) pra auditoria e pro balãozinho.
+ *
+ * `consumido` significa "FIFO consumido", não "pagamento concluído" — a conclusão é a chave
+ * `pontual:{item}:fechamento` + o estado da execução.
+ */
+export async function marcarConsumido(prepagamentoId: string): Promise<boolean> {
+  const c = await pool.connect()
+  try {
+    await c.query("BEGIN")
+    const { rows } = await c.query<{ id: string }>(
+      `UPDATE pontual_prepagamento SET estado = 'consumido', atualizado_em = now()
+        WHERE id = $1 AND estado = 'reservado' RETURNING id`,
+      [prepagamentoId],
+    )
+    await c.query(`DELETE FROM pontual_reserva_desconto WHERE prepagamento_id = $1`, [prepagamentoId])
+    await c.query("COMMIT")
+    return rows.length > 0
+  } catch (e) {
+    await c.query("ROLLBACK").catch(() => {})
+    throw e
+  } finally {
+    c.release()
+  }
+}
+
 /**
  * Solta a reserva e marca o snapshot como liberado.
  *

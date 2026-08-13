@@ -65,7 +65,19 @@ export async function rotasJobs(app: FastifyInstance): Promise<void> {
       req.log.warn(e, "varredura de abandonadas falhou")
       abandonadas = { erro: (e as Error).message.slice(0, 160) }
     }
-    return { ok: true, ...resultado, bloqueio, abandonadas }
+    // Pontual, também de carona: reserva de pré-pagamento esquecida volta ao FIFO
+    // (senão o mensal abate menos, calado) e pasta de Drive pendente ganha back-fill.
+    let pontual: { liberadas: number; puladas: number; pastas: number } | { erro: string }
+    try {
+      const { expirarReservasPontual, backfillPastasPontual } = await import("../services/pontualSweeps.js")
+      const exp = await expirarReservasPontual(new Date())
+      const pastas = await backfillPastasPontual()
+      pontual = { ...exp, pastas: pastas.resolvidas }
+    } catch (e) {
+      req.log.warn(e, "varredura do pontual falhou")
+      pontual = { erro: (e as Error).message.slice(0, 160) }
+    }
+    return { ok: true, ...resultado, bloqueio, abandonadas, pontual }
   }
 
   app.get("/api/jobs/tick", executar)

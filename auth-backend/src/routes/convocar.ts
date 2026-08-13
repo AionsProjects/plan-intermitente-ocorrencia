@@ -18,6 +18,7 @@ import { arquivarDrive } from "../services/driveArquivar.js"
 import { abrirExecucao, comEtapa, type EstadoEtapa, type Execucao } from "../services/execucao.js"
 import { calcularPrePagamentoConvocacao } from "../pontual/prePagamentoConvocacao.js"
 import { anotarPastaDrive, reservarPrePagamento } from "../pontual/prepagamento.js"
+import { codigoSecaoContrato } from "../mensal/calculo.js"
 
 // Opções do form de convocação: labels das colunas status do board Entrada ATUAL
 // (resolvido pelo registry, por nome — robusto à virada). unidadesPorContrato vem do RM
@@ -598,6 +599,10 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
           cpf: campos.empregado_cpf ?? null,
           nome: campos.empregado_nome,
           contrato: campos.contrato,
+          // Seção da PESSOA vinda do RM (ex: 01.01.0085.01.0112); fallback = seção-base do
+          // contrato. Sem isto a felipeta valida `codsecao_ausente` e recusa — foi a ausência
+          // deste campo que produziu o pedido órfão da execução 157795 (MARIA AUGUSTA).
+          codSecao: campos.empregado_secao?.trim() || codigoSecaoContrato(campos.contrato),
           dataInicio,
           dataFim,
           pessoa: prepag.pessoa,
