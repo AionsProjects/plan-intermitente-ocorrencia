@@ -220,6 +220,10 @@ export async function arquivarDrive(input: ArquivarInput): Promise<ArquivarResul
   } else if (tipo === "caju_comprovante") {
     const caju = await ensureFolder(pastaConvocacao.id, "CAJU")
     pastaUpload = await ensureFolder(caju.id, "COMPROVANTES")
+  } else if (tipo === "relatorio") {
+    // Pasta própria: o relatório é o documento que o financeiro procura, e enterrá-lo junto do
+    // QR code e do TXT técnico em CAJU/ é o mesmo que não gerar.
+    pastaUpload = await ensureFolder(pastaConvocacao.id, "RELATORIOS")
   } else if (tipo === "termo") {
     pastaUpload = await ensureFolder(pastaConvocacao.id, "TERMOS")
   } else if (tipo === "outro") {

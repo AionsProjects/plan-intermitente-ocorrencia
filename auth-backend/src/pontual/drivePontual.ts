@@ -6,6 +6,11 @@ import { arquivarDrive, type ArquivarResultado } from "../services/driveArquivar
 import { safeNomeArquivo, type ArquivoDriveMensal } from "../mensal/driveEfeitos.js"
 import { summaryUrlCaju, type PedidosCajuIds } from "../clients/caju.js"
 import type { PessoaPreviaMensal } from "../mensal/types.js"
+import {
+  gerarRelatorioPagamentoPdf,
+  nomeArquivoRelatorio,
+  type DadosRelatorioPagamento,
+} from "../services/relatorioPagamento.js"
 import { anotarPastaDrive, type PrePagamentoCompleto } from "./prepagamento.js"
 
 const r2 = (v: number): number => Math.round((Number(v) || 0) * 100) / 100
@@ -15,8 +20,12 @@ export interface RefsDrivePontual extends PedidosCajuIds {
   idVT?: string | null
   qrBoletoVRBase64?: string
   qrBoletoVTBase64?: string
+  /** PIX copia-e-cola do boleto (`pixCode.emv`) — quem paga pelo celular não lê QR de PNG. */
+  pixCopiaECola?: string
   resumoSolicitacao?: string
   solicitacaoId?: string | null
+  /** Dados do relatório. Presente = o PDF vai junto, em RELATORIOS/. */
+  relatorio?: DadosRelatorioPagamento
 }
 
 export function montarArquivosDrivePontual(
@@ -42,6 +51,7 @@ export function montarArquivosDrivePontual(
       `Summary PIX VR: ${summaryUrlCaju(refs.pedidoPixVR ?? null) || "-"}`,
       `Pedido PIX VT: ${refs.pedidoPixVT || "-"}`,
       `Summary PIX VT: ${summaryUrlCaju(refs.pedidoPixVT ?? null) || "-"}`,
+      refs.pixCopiaECola ? `\nPIX copia e cola:\n${refs.pixCopiaECola}` : "",
     ].join("\n")
     arquivos.push({
       tipo: "caju_boleto",
@@ -79,6 +89,17 @@ export function montarArquivosDrivePontual(
     mime: "text/plain",
     conteudoBase64: Buffer.from(comprovanteTxt, "utf8").toString("base64"),
   })
+
+  // O relatório é o documento; o TXT acima continua sendo o rastro técnico. Os dois convivem:
+  // um serve a pessoa que confere, o outro a quem debuga.
+  if (refs.relatorio) {
+    arquivos.push({
+      tipo: "relatorio",
+      nome_arquivo: nomeArquivoRelatorio(refs.relatorio),
+      mime: "application/pdf",
+      conteudoBase64: gerarRelatorioPagamentoPdf(refs.relatorio).toString("base64"),
+    })
+  }
 
   return arquivos
 }
@@ -131,4 +152,22 @@ export async function arquivarDrivePontual(
     }
   }
   return out
+}
+
+/**
+ * Link do PDF recém-subido, casando pelo NOME do arquivo.
+ *
+ * Pelo nome e não pela ordem: `arquivarDrive` é chamado uma vez por tipo, e um grupo pode ter
+ * vários uploads (boleto TXT + QR PNG). Pegar "o último" acertaria por acidente.
+ */
+export function urlDoRelatorio(
+  resultados: Array<{ tipo: string; resultado: ArquivarResultado }>,
+  dados: DadosRelatorioPagamento,
+): string | null {
+  const nome = nomeArquivoRelatorio(dados)
+  for (const r of resultados) {
+    const u = r.resultado.uploads.find((x) => x.name === nome)
+    if (u?.url) return u.url
+  }
+  return null
 }

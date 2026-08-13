@@ -9,10 +9,13 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
 import { start } from "workflow/api"
 import { config } from "../config.js"
 import { query } from "../db.js"
-import { estadoEfeito, liberarEfeito, reservarEfeito } from "../jobs/repo.js"
+import { confirmarEfeito, detalheEfeito, estadoEfeito, liberarEfeito, reservarEfeito } from "../jobs/repo.js"
 import { abrirExecucao } from "../services/execucao.js"
 import { executarPontualWorkflowClient } from "../pontual/workflowClient.js"
-import { lerPrePagamentoVivo } from "../pontual/prepagamento.js"
+import { lerPrePagamentoCompleto, lerPrePagamentoVivo } from "../pontual/prepagamento.js"
+import { arquivarRelatorioPontual, lerDadosRelatorioPontual } from "../pontual/relatorioPontual.js"
+import { linhasNotaDeRelatorio, registrarNotasCaju } from "../services/notasCaju.js"
+import { gerarRelatorioPagamentoPdf, nomeArquivoRelatorio } from "../services/relatorioPagamento.js"
 import { usuarioDaSessao } from "../session.js"
 
 export const COLUNA_COMPARECEU = "OP - Compareceu?"
@@ -135,6 +138,94 @@ export async function rotasComparecimento(app: FastifyInstance): Promise<void> {
         userId: u.id, email: u.email, nome: [u.nome, u.sobrenome].filter(Boolean).join(" ").trim() || u.email,
       })
       return { ok: true, ...r, simulacao: simular }
+    },
+  )
+
+  // Relatório de pagamento em PDF, reconstruído do snapshot + artefatos. SÓ LEITURA — nada de
+  // Monday, Drive ou Caju. É como se confere o layout (e o valor) de um pagamento já feito
+  // antes de o documento começar a ser arquivado automaticamente.
+  app.get(
+    "/api/pontual/relatorio/:itemId",
+    async (req: FastifyRequest<{ Params: { itemId: string } }>, reply: FastifyReply) => {
+      const u = await usuarioDaSessao(req)
+      if (!u) return reply.code(401).send({ erro: "nao_autenticado" })
+      if (u.papel !== "admin" && u.papel !== "dp") return reply.code(403).send({ erro: "sem_permissao" })
+      // Aceita ".pdf" no fim pro navegador nomear o download decentemente.
+      const itemId = String(req.params.itemId ?? "").trim().replace(/\.pdf$/i, "")
+      if (!/^\d+$/.test(itemId)) return reply.code(400).send({ erro: "item_invalido" })
+
+      const r = await lerDadosRelatorioPontual(
+        itemId,
+        [u.nome, u.sobrenome].filter(Boolean).join(" ").trim() || u.email,
+        new Date(),
+      )
+      if (!r) return reply.code(404).send({ erro: "sem_prepagamento", item_id: itemId })
+      const pdf = gerarRelatorioPagamentoPdf(r.dados)
+      return reply
+        .header("Content-Type", "application/pdf")
+        .header("Content-Disposition", `inline; filename="${nomeArquivoRelatorio(r.dados)}"`)
+        .send(pdf)
+    },
+  )
+
+  // Back-fill de um pagamento que já saiu: sobe o relatório no Drive e cria as linhas no board
+  // de notas. Existe porque os primeiros pagamentos da felipeta (13/08) nasceram antes disto —
+  // e porque board registrado depois do pagamento deixa a linha faltando.
+  //
+  // Idempotente pelas MESMAS chaves do workflow: `monday_notas` é a chave real, então nem o
+  // back-fill duplica linha, nem uma retomada do workflow cria de novo o que o back-fill criou.
+  app.post(
+    "/api/pontual/notas/:itemId",
+    async (req: FastifyRequest<{ Params: { itemId: string } }>, reply: FastifyReply) => {
+      const u = await usuarioDaSessao(req)
+      if (!u) return reply.code(401).send({ erro: "nao_autenticado" })
+      if (u.papel !== "admin") return reply.code(403).send({ erro: "sem_permissao" })
+      const itemId = String(req.params.itemId ?? "").trim()
+      if (!/^\d+$/.test(itemId)) return reply.code(400).send({ erro: "item_invalido" })
+
+      const quem = [u.nome, u.sobrenome].filter(Boolean).join(" ").trim() || u.email
+      const r = await lerDadosRelatorioPontual(itemId, `back-fill por ${quem}`, new Date())
+      if (!r) return reply.code(404).send({ erro: "sem_prepagamento", item_id: itemId })
+      if (!r.dados.pedidos.length) {
+        return reply.code(409).send({ erro: "sem_pedido_caju", mensagem: "pagamento sem pedido (semSaldo?)" })
+      }
+
+      const snapshot = await lerPrePagamentoCompleto(itemId)
+      if (!snapshot) return reply.code(404).send({ erro: "sem_prepagamento", item_id: itemId })
+
+      // Drive com chave PRÓPRIA: a chave `drive` do pagamento já está confirmada, e reusá-la
+      // faria o back-fill se pular achando que o PDF já subiu.
+      let relatorioUrl: string | null = null
+      const chaveDrive = `pontual:${itemId}:relatorio_backfill`
+      const jaSubiu = await detalheEfeito(chaveDrive)
+      if (jaSubiu?.status === "confirmado") {
+        relatorioUrl = (jaSubiu.payload as { relatorioUrl?: string } | null)?.relatorioUrl ?? null
+      } else {
+        await reservarEfeito(chaveDrive, "pontual_relatorio_backfill", { itemId, por: u.email })
+        const up = await arquivarRelatorioPontual(snapshot, r.dados)
+        relatorioUrl = up.url
+        await confirmarEfeito(chaveDrive, `drive:relatorio:${up.pastaId ?? "-"}`, { relatorioUrl })
+      }
+
+      const chaveNotas = `pontual:${itemId}:monday_notas`
+      const notas = await detalheEfeito(chaveNotas)
+      if (notas?.status === "confirmado") {
+        return { ok: true, relatorio_url: relatorioUrl, notas: "ja_registradas", ref: notas.refExterna }
+      }
+      await reservarEfeito(chaveNotas, "pontual_monday_notas", { itemId, por: u.email, backfill: true })
+      const res = await registrarNotasCaju(linhasNotaDeRelatorio(r.dados, { relatorioUrl }))
+      if (res.pulado) {
+        // Board ausente: solta a chave pra o back-fill valer de novo depois de registrar o board.
+        await liberarEfeito(chaveNotas).catch(() => {})
+        return reply.code(409).send({ erro: res.pulado, relatorio_url: relatorioUrl })
+      }
+      await confirmarEfeito(chaveNotas, `monday:notas:${res.criados.map((c) => c.itemId).join(",")}`)
+      return {
+        ok: true,
+        relatorio_url: relatorioUrl,
+        criados: res.criados,
+        colunas_faltando: res.faltando,
+      }
     },
   )
 }

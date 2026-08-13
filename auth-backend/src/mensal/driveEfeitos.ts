@@ -3,6 +3,11 @@
 // (services/driveArquivar.ts, já portado do WF Drive do n8n: CAJU/BOLETOS,
 // CAJU/COMPROVANTES, link da pasta na Solicitação de Pagamento).
 import { arquivarDrive, type ArquivarResultado } from "../services/driveArquivar.js"
+import {
+  gerarRelatorioPagamentoPdf,
+  nomeArquivoRelatorio,
+  type DadosRelatorioPagamento,
+} from "../services/relatorioPagamento.js"
 import { summaryUrlCaju, type PedidosCajuIds } from "../clients/caju.js"
 import type { ContratoPreviaMensal, PessoaPreviaMensal } from "./types.js"
 
@@ -32,6 +37,8 @@ function pessoasResumoTxt(pessoas: PessoaPreviaMensal[]): string {
 export interface RefsDriveMensal extends PedidosCajuIds {
   idVR?: string | null
   idVT?: string | null
+  /** Dados do relatório. Presente = o PDF vai junto, em RELATORIOS/. */
+  relatorio?: DadosRelatorioPagamento
   /** QR do boleto de VR. Desde 08/2026 são dois boletos por contrato, logo dois QRs. */
   qrBoletoVRBase64?: string
   /** QR do boleto de VT. */
@@ -40,7 +47,8 @@ export interface RefsDriveMensal extends PedidosCajuIds {
 }
 
 export interface ArquivoDriveMensal {
-  tipo: "caju_boleto" | "caju_comprovante"
+  /** `relatorio` cai em RELATORIOS/ (ver driveArquivar) — é o PDF que o financeiro consulta. */
+  tipo: "caju_boleto" | "caju_comprovante" | "relatorio"
   nome_arquivo: string
   mime: string
   conteudoBase64: string
@@ -111,6 +119,15 @@ export function montarArquivosDriveMensal(
       conteudoBase64: qr,
     })
   }
+  // O relatório é o documento; os TXT acima seguem sendo o rastro técnico.
+  if (refs.relatorio) {
+    arquivos.push({
+      tipo: "relatorio",
+      nome_arquivo: nomeArquivoRelatorio(refs.relatorio),
+      mime: "application/pdf",
+      conteudoBase64: gerarRelatorioPagamentoPdf(refs.relatorio).toString("base64"),
+    })
+  }
   return { dataInicio, dataFim, arquivos }
 }
 
@@ -122,7 +139,7 @@ export async function arquivarDriveMensal(
   refs: RefsDriveMensal & { solicitacaoId?: string | null; nomePrefixo?: string },
 ): Promise<Array<{ tipo: string; resultado: ArquivarResultado }>> {
   const { dataInicio, dataFim, arquivos } = montarArquivosDriveMensal(contrato, competencia, competenciaLabel, refs)
-  const porTipo = new Map<"caju_boleto" | "caju_comprovante", ArquivoDriveMensal[]>()
+  const porTipo = new Map<ArquivoDriveMensal["tipo"], ArquivoDriveMensal[]>()
   for (const a of arquivos) porTipo.set(a.tipo, [...(porTipo.get(a.tipo) ?? []), a])
   const out: Array<{ tipo: string; resultado: ArquivarResultado }> = []
   for (const [tipo, grupo] of porTipo) {

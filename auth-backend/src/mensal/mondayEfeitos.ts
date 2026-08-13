@@ -317,7 +317,11 @@ export async function garantirGrupoCaixa(
   caixa?: string,
 ): Promise<string> {
   const boardId = board === "solicitacao" ? BOARD_SOLICITACAO : BOARD_CONTROLE_CAJU
-  const titulo = tituloGrupoCaixa(board, caixa)
+  return garantirGrupoTitulo(boardId, tituloGrupoCaixa(board, caixa))
+}
+
+/** Acha o grupo por título (tolerante a acento/caixa/espaço) e cria se faltar. */
+export async function garantirGrupoTitulo(boardId: string, titulo: string): Promise<string> {
   const d = await mondayGraphql<{ boards: Array<{ groups: Array<{ id: string; title: string }> }> }>(
     `query($b:[ID!]){ boards(ids:$b){ groups{ id title } } }`,
     { b: [boardId] },

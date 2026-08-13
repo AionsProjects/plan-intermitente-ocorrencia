@@ -110,6 +110,8 @@ const n3 = (v: number): string => (Math.round(v * 1000) / 1000).toString()
 // ── Documento ────────────────────────────────────────────────────────────────
 
 export const A4_PAISAGEM = { largura: 841.89, altura: 595.28 } as const
+/** A4 em pé — a forma de documento (comprovante, relatório de 1 pessoa). */
+export const A4_RETRATO = { largura: 595.28, altura: 841.89 } as const
 
 /**
  * Uma página por vez, coordenadas do PDF (origem no canto INFERIOR esquerdo — quem

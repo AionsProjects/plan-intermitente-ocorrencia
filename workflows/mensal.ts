@@ -1,5 +1,5 @@
 import { FatalError, getStepMetadata, sleep } from "workflow"
-import { confirmarEfeito, reservarEfeito } from "../auth-backend/src/jobs/repo.js"
+import { confirmarEfeito, detalheEfeito, reservarEfeito } from "../auth-backend/src/jobs/repo.js"
 import {
   buscarEmployeeId,
   buscarPedido,
@@ -798,15 +798,37 @@ async function etapaDrive(
     idVT: string | null
     solicitacaoId: string | null
   },
-): Promise<void> {
+): Promise<{ relatorioUrl: string | null; pastaUrl: string | null }> {
   "use step"
   const etapa = "drive"
   const metadata = getStepMetadata()
   await registrarEvento({ runId, contrato: contrato.contrato, etapa, estado: "rodando", tentativa: metadata.attempt })
   const r = await reservarOuPular(runId, modo, competencia, contrato.contrato, etapa, metadata.attempt)
-  if (r.acao === "pular") return
-  if (r.acao === "simular") return simularEfeito(runId, contrato.contrato, etapa, r.chave, metadata.attempt)
+  // Retomada: o PDF já subiu; os links vivem no payload do efeito. Sem reler, a linha do board
+  // nasceria sem o link do relatório que está lá no Drive.
+  if (r.acao === "pular") {
+    const det = await detalheEfeito(r.chave)
+    const pay = (det?.payload ?? {}) as { relatorioUrl?: string; pastaUrl?: string }
+    return { relatorioUrl: pay.relatorioUrl ?? null, pastaUrl: pay.pastaUrl ?? null }
+  }
+  if (r.acao === "simular") {
+    await simularEfeito(runId, contrato.contrato, etapa, r.chave, metadata.attempt)
+    return { relatorioUrl: null, pastaUrl: null }
+  }
   const { mes } = competenciaPartes(competencia)
+  const { montarDadosRelatorioMensal } = await import("../auth-backend/src/mensal/relatorioMensal.js")
+  const { nomeArquivoRelatorio } = await import("../auth-backend/src/services/relatorioPagamento.js")
+  // `pastaDriveUrl` fica de fora do PDF: a pasta só é conhecida DEPOIS deste upload, e um
+  // documento que aponta pra pasta onde ele mesmo está não informa nada. A linha do board é
+  // que leva o link — lá ele serve.
+  const dados = montarDadosRelatorioMensal({
+    contrato,
+    competencia,
+    competenciaLabel: MESES_LABEL[mes - 1]!,
+    refs,
+    geradoPor: "automação (mensal)",
+    geradoEm: new Date(),
+  })
   const resultados = await arquivarDriveMensal(contrato, competencia, MESES_LABEL[mes - 1]!, {
     pedidoCreditoVR: refs.pedidoCreditoVR,
     pedidoCreditoVT: refs.pedidoCreditoVT,
@@ -817,19 +839,76 @@ async function etapaDrive(
     qrBoletoVRBase64: refs.qrBoletoVRBase64,
     qrBoletoVTBase64: refs.qrBoletoVTBase64,
     solicitacaoId: refs.solicitacaoId,
+    relatorio: dados,
     nomePrefixo: modo === "teste" ? "TESTE - " : undefined,
   })
   const uploads = resultados.flatMap((x) => x.resultado.uploads.map((u) => u.id))
-  await confirmarEfeito(r.chave, `drive:${uploads.join(",") || "sem_upload"}`)
+  const nomeRel = nomeArquivoRelatorio(dados)
+  const relatorioUrl = resultados
+    .flatMap((x) => x.resultado.uploads)
+    .find((u) => u.name === nomeRel)?.url ?? null
+  const pastaUrl = resultados[0]?.resultado.pasta_convocacao_drive_url ?? null
+  await confirmarEfeito(r.chave, `drive:${uploads.join(",") || "sem_upload"}`, { relatorioUrl, pastaUrl })
   await registrarEvento({
     runId, contrato: contrato.contrato, etapa, estado: "concluido", tentativa: metadata.attempt,
-    metadados: {
-      uploads: uploads.length,
-      pastaConvocacao: resultados[0]?.resultado.pasta_convocacao_drive_url,
-    },
+    metadados: { uploads: uploads.length, pastaConvocacao: pastaUrl, relatorioUrl },
   })
+  return { relatorioUrl, pastaUrl }
 }
 etapaDrive.maxRetries = 3
+
+/**
+ * monday_notas: uma linha por pedido Caju no board "Notas e Relatórios Caju".
+ *
+ * Mesmo board e mesmos builders do pontual — o DP consulta pedido de crédito e de boleto no
+ * mesmo lugar, venha de onde vier. Aqui são até quatro linhas (crédito VR/VT + boleto VR/VT),
+ * porque o mensal separa o pedido por benefício.
+ */
+async function etapaMondayNotas(
+  runId: string,
+  modo: ModoExec,
+  competencia: string,
+  contrato: ContratoPreviaMensal,
+  refs: PedidosCajuIds & { idVR: string | null; idVT: string | null; solicitacaoId: string | null },
+  drive: { relatorioUrl: string | null; pastaUrl: string | null },
+): Promise<void> {
+  "use step"
+  const etapa = "monday_notas"
+  const metadata = getStepMetadata()
+  await registrarEvento({ runId, contrato: contrato.contrato, etapa, estado: "rodando", tentativa: metadata.attempt })
+  const r = await reservarOuPular(runId, modo, competencia, contrato.contrato, etapa, metadata.attempt)
+  if (r.acao === "pular") return
+  if (r.acao === "simular") return simularEfeito(runId, contrato.contrato, etapa, r.chave, metadata.attempt)
+
+  const { mes } = competenciaPartes(competencia)
+  const { montarDadosRelatorioMensal } = await import("../auth-backend/src/mensal/relatorioMensal.js")
+  const { linhasNotaDeRelatorio, registrarNotasCaju } = await import("../auth-backend/src/services/notasCaju.js")
+  const dados = montarDadosRelatorioMensal({
+    contrato,
+    competencia,
+    competenciaLabel: MESES_LABEL[mes - 1]!,
+    refs,
+    pastaDriveUrl: drive.pastaUrl,
+    geradoPor: "automação (mensal)",
+    geradoEm: new Date(),
+  })
+  const res = await registrarNotasCaju(linhasNotaDeRelatorio(dados, { relatorioUrl: drive.relatorioUrl }))
+  if (res.pulado) {
+    // Board não registrado (ou contrato sem pedido) não é erro: o pagamento aconteceu.
+    await confirmarEfeito(r.chave, `monday:notas:${res.pulado}`)
+    await registrarEvento({
+      runId, contrato: contrato.contrato, etapa, estado: "concluido", tentativa: metadata.attempt,
+      metadados: { pulado: res.pulado },
+    })
+    return
+  }
+  await confirmarEfeito(r.chave, `monday:notas:${res.criados.map((c) => c.itemId).join(",")}`)
+  await registrarEvento({
+    runId, contrato: contrato.contrato, etapa, estado: "concluido", tentativa: metadata.attempt,
+    metadados: { itens: res.criados.length, faltando: res.faltando },
+  })
+}
+etapaMondayNotas.maxRetries = 3
 
 /**
  * monday_balao: um update no item de CADA pessoa que teve desconto abatido.
@@ -1007,15 +1086,17 @@ async function processarContrato(
       { idVR: rmIds.idVR, idVT: rmIds.idVT, ...pedidos },
     )
 
-    // Drive (adaptador real, gated). Dois boletos = dois QRs.
-    await etapaDrive(runId, modo, competencia, contrato, {
-      ...pedidos,
+    const refsPagamento = { ...pedidos, idVR: rmIds.idVR, idVT: rmIds.idVT, solicitacaoId }
+
+    // Drive (adaptador real, gated). Dois boletos = dois QRs, mais o relatório em PDF.
+    const drive = await etapaDrive(runId, modo, competencia, contrato, {
+      ...refsPagamento,
       qrBoletoVRBase64: pixVR.qr,
       qrBoletoVTBase64: pixVT.qr,
-      idVR: rmIds.idVR,
-      idVT: rmIds.idVT,
-      solicitacaoId,
     })
+
+    // Uma linha por pedido no board de notas — depois do Drive, que é quem devolve os links.
+    await etapaMondayNotas(runId, modo, competencia, contrato, refsPagamento, drive)
 
     // Balãozinho do desconto no item de quem teve dívida abatida.
     await etapaMondayBalao(runId, modo, competencia, contrato)

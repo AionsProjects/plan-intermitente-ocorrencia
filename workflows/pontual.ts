@@ -11,18 +11,18 @@
 // step. A trava mestra: o histórico do CRÉDITO só entra no ZMD DEPOIS do FopRotinas —
 // é a ORDEM (não um if) que impede lançamento financeiro sobre o crédito.
 import { FatalError, sleep } from "workflow"
-import { confirmarEfeito, estadoEfeito, liberarEfeito, reservarEfeito } from "../auth-backend/src/jobs/repo.js"
+import { confirmarEfeito, detalheEfeito, estadoEfeito, liberarEfeito, reservarEfeito } from "../auth-backend/src/jobs/repo.js"
 import {
   buscarEmployeeId,
   buscarPedido,
   confirmarPedido,
   criarPedido,
   extrairOrderId,
+  extrairPixCopiaECola,
   extrairQrBase64,
   juntarIdsCaju,
   resetTokenCaju,
   summaryUrlCaju,
-  type BeneficioCaju,
   type TipoPedidoCaju,
 } from "../auth-backend/src/clients/caju.js"
 import {
@@ -64,7 +64,15 @@ import {
   montarTextoBalao,
   montarValuesSolicitacaoPontual,
 } from "../auth-backend/src/pontual/mondayPontual.js"
-import { arquivarDrivePontual } from "../auth-backend/src/pontual/drivePontual.js"
+import { arquivarDrivePontual, urlDoRelatorio } from "../auth-backend/src/pontual/drivePontual.js"
+import { montarDadosRelatorioPontual } from "../auth-backend/src/pontual/relatorioPontual.js"
+import {
+  linhasNotaDeRelatorio,
+  registrarNotasCaju,
+  resolverBoardNotas,
+  urlItemNota,
+} from "../auth-backend/src/services/notasCaju.js"
+import type { DadosRelatorioPagamento } from "../auth-backend/src/services/relatorioPagamento.js"
 import type { PrePagamentoCompleto } from "../auth-backend/src/pontual/prepagamento.js"
 import type { PessoaPreviaMensal } from "../auth-backend/src/mensal/types.js"
 
@@ -373,7 +381,7 @@ async function etapaPedidoCaju(
   plano: PlanoPagamento,
   employeeId: string | null,
   tipo: TipoPedidoCaju,
-): Promise<{ orderId: string | null; qr: string }> {
+): Promise<{ orderId: string | null; qr: string; copiaECola: string }> {
   "use step"
   const { execucaoId, itemOrigemId } = input
   const etapa = `caju_${tipo === "credito" ? "credito" : "pix"}`
@@ -388,35 +396,41 @@ async function etapaPedidoCaju(
         await log(execucaoId, etapa, "pulado", {
           mensagem: `já pago no formato anterior (pedido por benefício${sufixo})`,
         })
-        return { orderId: null, qr: "" }
+        return { orderId: null, qr: "", copiaECola: "" }
       }
     }
   }
 
   const r = await reservarOuPular(input.modo, execucaoId, itemOrigemId, etapa)
-  if (r.acao === "pular") return { orderId: null, qr: "" }
+  if (r.acao === "pular") return { orderId: null, qr: "", copiaECola: "" }
   if (r.acao === "simular") {
     await simular(execucaoId, etapa, r.chave)
-    return { orderId: null, qr: "" }
+    return { orderId: null, qr: "", copiaECola: "" }
   }
 
   const pedido = montarPedidoCajuPontual({ ...plano.pessoa, employeeId }, tipo)
   if (!pedido.tem || !pedido.payload) {
     await confirmarEfeito(r.chave, `caju:${etapa}:vazio`)
     await log(execucaoId, etapa, "ok", { metadados: { vazio: true } })
-    return { orderId: null, qr: "" }
+    return { orderId: null, qr: "", copiaECola: "" }
   }
 
   const criado = await criarPedido(pedido.payload)
   const orderId = criado.orderId ?? extrairOrderId(criado.raw)
   let qr = ""
+  let copiaECola = ""
   if (tipo === "boleto" && orderId) {
     await confirmarPedido(orderId, pedido.confirmPayload)
-    qr = extrairQrBase64(await buscarPedido(orderId))
+    let resp = await buscarPedido(orderId)
+    qr = extrairQrBase64(resp)
     if (!qr) {
       await sleep("3s")
-      qr = extrairQrBase64(await buscarPedido(orderId))
+      resp = await buscarPedido(orderId)
+      qr = extrairQrBase64(resp)
     }
+    // O copia-e-cola vem no MESMO GET do QR — pegar aqui é de graça. Quem paga no celular
+    // não consegue ler um PNG de QR que está dentro de uma pasta do Drive.
+    copiaECola = extrairPixCopiaECola(resp)
   }
   await confirmarEfeito(r.chave, orderId ? `caju:${etapa}:${orderId}` : `caju:${etapa}:sem-id`)
   await log(execucaoId, etapa, "ok", {
@@ -428,10 +442,11 @@ async function etapaPedidoCaju(
       centavosVR: Math.round((tipo === "credito" ? plano.pessoa.creditoVR : plano.pessoa.pixVR) ?? 0) * 100,
       centavosVT: Math.round((tipo === "credito" ? plano.pessoa.creditoVT : plano.pessoa.pixVT) ?? 0) * 100,
       temQr: qr.length > 0,
+      temCopiaECola: copiaECola.length > 0,
       summary: summaryUrlCaju(orderId),
     },
   })
-  return { orderId, qr }
+  return { orderId, qr, copiaECola }
 }
 etapaPedidoCaju.maxRetries = 5
 
@@ -722,17 +737,77 @@ etapaSolicitacao.maxRetries = 5
 // Step 15 — Drive (pasta já resolvida pela fase 1).
 // ---------------------------------------------------------------------------
 
+interface RefsPagamento {
+  pedidoCreditoVR: string | null
+  pedidoCreditoVT: string | null
+  pedidoPixVR: string | null
+  pedidoPixVT: string | null
+  idVR: string | null
+  idVT: string | null
+  solicitacaoId: string | null
+}
+
+/**
+ * Dados do relatório montados a partir do que este pagamento produziu.
+ *
+ * Reconstruído em CADA step que precisa dele em vez de trafegar entre steps: o resultado de um
+ * step vira JSON, e `geradoEm: Date` voltaria como string — tipo mentindo em silêncio.
+ */
+function dadosDoRelatorio(
+  plano: PlanoPagamento,
+  refs: RefsPagamento,
+  abatimentos: AbatimentoBalao[],
+  geradoEm: Date,
+): DadosRelatorioPagamento {
+  return montarDadosRelatorioPontual({
+    snapshot: plano.snapshot,
+    pessoa: {
+      nome: plano.pessoa.nome,
+      chapa: plano.pessoa.chapa,
+      cpf: plano.pessoa.cpf,
+      diasVR: plano.snapshot.dias_vr,
+      diasVT: plano.snapshot.dias_vt,
+      vrDia: plano.snapshot.vr_dia,
+      vtDia: plano.snapshot.vt_dia,
+      brutoVR: plano.snapshot.bruto_vr,
+      brutoVT: plano.snapshot.bruto_vt,
+      descontoVR: plano.pessoa.descontoVR,
+      descontoVT: plano.pessoa.descontoVT,
+      liquidoVR: plano.pessoa.liquidoVR,
+      liquidoVT: plano.pessoa.liquidoVT,
+      creditoVR: plano.pessoa.creditoVR,
+      creditoVT: plano.pessoa.creditoVT,
+      pixVR: plano.pessoa.pixVR,
+      pixVT: plano.pessoa.pixVT,
+    },
+    refs,
+    abatimentos,
+    geradoPor: "automação (felipeta)",
+    geradoEm,
+  })
+}
+
 async function etapaDrive(
   input: PontualWorkflowInput,
   plano: PlanoPagamento,
-  refs: { pedidoCreditoVR: string | null; pedidoCreditoVT: string | null; pedidoPixVR: string | null; pedidoPixVT: string | null; idVR: string | null; idVT: string | null; qrVR: string; qrVT: string; solicitacaoId: string | null },
-): Promise<void> {
+  refs: RefsPagamento & { qrVR: string; qrVT: string; copiaECola: string },
+  abatimentos: AbatimentoBalao[],
+): Promise<{ relatorioUrl: string | null }> {
   "use step"
   const { execucaoId, itemOrigemId } = input
   const etapa = "drive"
   const r = await reservarOuPular(input.modo, execucaoId, itemOrigemId, etapa)
-  if (r.acao === "pular") return
-  if (r.acao === "simular") return simular(execucaoId, etapa, r.chave)
+  // Retomada: o PDF já subiu, mas o link só existe no payload do efeito. Sem reler daqui, a
+  // linha do board nasceria sem o link do relatório que está lá no Drive.
+  if (r.acao === "pular") {
+    const det = await detalheEfeito(r.chave)
+    return { relatorioUrl: (det?.payload as { relatorioUrl?: string } | null)?.relatorioUrl ?? null }
+  }
+  if (r.acao === "simular") {
+    await simular(execucaoId, etapa, r.chave)
+    return { relatorioUrl: null }
+  }
+  const dados = dadosDoRelatorio(plano, refs, abatimentos, new Date())
   const resultados = await arquivarDrivePontual(plano.snapshot, plano.pessoa, {
     pedidoCreditoVR: refs.pedidoCreditoVR,
     pedidoCreditoVT: refs.pedidoCreditoVT,
@@ -742,16 +817,69 @@ async function etapaDrive(
     idVT: refs.idVT,
     qrBoletoVRBase64: refs.qrVR,
     qrBoletoVTBase64: refs.qrVT,
+    pixCopiaECola: refs.copiaECola,
     solicitacaoId: refs.solicitacaoId,
+    relatorio: dados,
   })
   const uploads = resultados.flatMap((x) => x.resultado.uploads.map((u) => u.id))
-  await confirmarEfeito(r.chave, `drive:${uploads.join(",") || "sem_upload"}`)
-  await log(execucaoId, etapa, "ok", { metadados: { uploads: uploads.length } })
+  const relatorioUrl = urlDoRelatorio(resultados, dados)
+  await confirmarEfeito(r.chave, `drive:${uploads.join(",") || "sem_upload"}`, { relatorioUrl })
+  await log(execucaoId, etapa, "ok", { metadados: { uploads: uploads.length, relatorioUrl } })
+  return { relatorioUrl }
 }
 etapaDrive.maxRetries = 3
 
 // ---------------------------------------------------------------------------
-// Step 16 — balãozinho de desconto no item do Plano (roda no semSaldo também).
+// Step 16 — board "Notas e Relatórios Caju": uma linha por pedido.
+// ---------------------------------------------------------------------------
+
+async function etapaNotasCaju(
+  input: PontualWorkflowInput,
+  plano: PlanoPagamento,
+  refs: RefsPagamento,
+  abatimentos: AbatimentoBalao[],
+  relatorioUrl: string | null,
+): Promise<void> {
+  "use step"
+  const { execucaoId, itemOrigemId } = input
+  const etapa = "monday_notas"
+  const r = await reservarOuPular(input.modo, execucaoId, itemOrigemId, etapa)
+  if (r.acao === "pular") return
+  if (r.acao === "simular") return simular(execucaoId, etapa, r.chave)
+
+  const dados = dadosDoRelatorio(plano, refs, abatimentos, new Date())
+  const linhas = linhasNotaDeRelatorio(dados, { relatorioUrl })
+  const res = await registrarNotasCaju(linhas)
+  if (res.pulado) {
+    // Board ainda não registrado (ou semSaldo, sem pedido nenhum) não é erro: o pagamento
+    // aconteceu. Fica no log pro back-fill saber o que recuperar.
+    await confirmarEfeito(r.chave, `monday:notas:${res.pulado}`)
+    await log(execucaoId, etapa, "ok", { metadados: { pulado: res.pulado } })
+    return
+  }
+  const { abrirExecucao } = await import("../auth-backend/src/services/execucao.js")
+  const ex = await abrirExecucao({ id: execucaoId, acao: "pontual_pagamento", motor: "workflow" })
+  const board = res.criados.length ? await resolverBoardNotas() : null
+  for (const c of res.criados) {
+    await ex.artefato({
+      tipo: "monday_item",
+      chave: c.itemId,
+      rotulo: `Nota Caju do pedido ${c.orderId.slice(0, 8)}`,
+      ...(board ? { url: urlItemNota(board.boardId, c.itemId) } : {}),
+    })
+  }
+  await confirmarEfeito(r.chave, `monday:notas:${res.criados.map((c) => c.itemId).join(",")}`)
+  await log(execucaoId, etapa, res.faltando.length ? "aviso" : "ok", {
+    // `faltando` = coluna do contrato que não existe no board. Aparece como AVISO pra alguém
+    // corrigir o nome no Monday, sem derrubar o pagamento.
+    ...(res.faltando.length ? { mensagem: `colunas ausentes no board: ${res.faltando.join(", ")}` } : {}),
+    metadados: { itens: res.criados.length, faltando: res.faltando },
+  })
+}
+etapaNotasCaju.maxRetries = 3
+
+// ---------------------------------------------------------------------------
+// Step 17 — balãozinho de desconto no item do Plano (roda no semSaldo também).
 // ---------------------------------------------------------------------------
 
 async function etapaBalao(
@@ -782,7 +910,7 @@ async function etapaBalao(
 etapaBalao.maxRetries = 5
 
 // ---------------------------------------------------------------------------
-// Step 17 — AUTOMAÇÃO-OK na Solicitação (só depois de TUDO).
+// Step 18 — AUTOMAÇÃO-OK na Solicitação (só depois de TUDO).
 // ---------------------------------------------------------------------------
 
 async function etapaStatusOk(input: PontualWorkflowInput, solicitacaoId: string | null): Promise<void> {
@@ -804,7 +932,7 @@ async function etapaStatusOk(input: PontualWorkflowInput, solicitacaoId: string 
 etapaStatusOk.maxRetries = 5
 
 // ---------------------------------------------------------------------------
-// Step 18 — fechamento: artefatos + fechar execução + confirmar o gatilho.
+// Step 19 — fechamento: artefatos + fechar execução + confirmar o gatilho.
 // ---------------------------------------------------------------------------
 
 async function etapaFechamento(
@@ -909,43 +1037,30 @@ export async function executarPontualWorkflow(input: PontualWorkflowInput): Prom
 
     await etapaControleCaju(input, plano, { vr: credito.orderId, vt: null })
     await etapaMondayPlano(input, plano)
-    const solicitacaoId = await etapaSolicitacao(input, plano, {
-      // Pedido ÚNICO por tipo: o id vai no campo VR e o VT fica null. Quem consome junta
-      // os não-nulos (idsPedidoParaSolicitacao), então a Solicitação recebe um id por tipo.
+    // Pedido ÚNICO por tipo: o id vai no campo VR e o VT fica null. Quem consome junta os
+    // não-nulos (idsPedidoParaSolicitacao), então cada consumidor recebe um id por tipo.
+    const refsSemSolicitacao = {
       pedidoCreditoVR: credito.orderId,
       pedidoCreditoVT: null,
       pedidoPixVR: boleto.orderId,
       pedidoPixVT: null,
       idVR,
       idVT,
-    })
-    await etapaDrive(input, plano, {
-      // Pedido ÚNICO por tipo: o id vai no campo VR e o VT fica null. Quem consome junta
-      // os não-nulos (idsPedidoParaSolicitacao), então a Solicitação recebe um id por tipo.
-      pedidoCreditoVR: credito.orderId,
-      pedidoCreditoVT: null,
-      pedidoPixVR: boleto.orderId,
-      pedidoPixVT: null,
-      idVR,
-      idVT,
+    }
+    const solicitacaoId = await etapaSolicitacao(input, plano, refsSemSolicitacao)
+    const refs = { ...refsSemSolicitacao, solicitacaoId }
+    // O Drive vem antes das notas: a linha do board carrega o link do PDF que sobe aqui.
+    const { relatorioUrl } = await etapaDrive(input, plano, {
+      ...refs,
       // Um boleto = um QR. O segundo slot existe pro mensal, que tem dois.
       qrVR: boleto.qr,
       qrVT: "",
-      solicitacaoId,
-    })
+      copiaECola: boleto.copiaECola,
+    }, abatimentos)
+    await etapaNotasCaju(input, plano, refs, abatimentos, relatorioUrl)
     await etapaBalao(input, plano, abatimentos)
     await etapaStatusOk(input, solicitacaoId)
-    await etapaFechamento(input, plano, {
-      // Pedido ÚNICO por tipo: o id vai no campo VR e o VT fica null. Quem consome junta
-      // os não-nulos (idsPedidoParaSolicitacao), então a Solicitação recebe um id por tipo.
-      pedidoCreditoVR: credito.orderId,
-      pedidoCreditoVT: null,
-      pedidoPixVR: boleto.orderId,
-      pedidoPixVT: null,
-      idVR,
-      idVT,
-      solicitacaoId,
-    }, "ok")
+    await etapaFechamento(input, plano, refs, "ok")
     return { desfecho: "pago" }
   } catch (e) {
     const msg = e instanceof Error ? e.message.slice(0, 300) : String(e).slice(0, 300)

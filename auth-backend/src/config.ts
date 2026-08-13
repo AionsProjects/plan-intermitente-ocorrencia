@@ -148,6 +148,11 @@ export const config = {
     password: opt("CAJU_PASSWORD", ""),
     sponsorId: opt("CAJU_SPONSOR_ID", ""),
     integrationId: opt("CAJU_INTEGRATION_ID", ""),
+    // Link de download da NOTA DE DÉBITO do pedido. Template com `{orderId}` (ou `{id}`).
+    // Vive em env, não no código, porque o padrão foi descoberto no painel da Caju e pode
+    // mudar sem aviso — trocar env não exige deploy, e sem valor a coluna nasce vazia em
+    // vez de gravar link quebrado.
+    notaUrlTemplate: opt("CAJU_NOTA_URL", ""),
   },
   // Orquestração mensal nova. O default é deliberadamente seguro: homologação
   // e workflow desligado até migration/env/deploy serem validados.

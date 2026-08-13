@@ -158,6 +158,21 @@ export function extrairQrBase64(resp: unknown): string {
   return qr ? String(qr).replace(/^data:image\/[^;]+;base64,/, "") : ""
 }
 
+/**
+ * PIX copia-e-cola do boleto. O WF5 sondava três nomes possíveis (`emv`/`payload`/`copyPaste`)
+ * porque a Caju não documenta qual devolve; nosso código só extraía a IMAGEM do QR, então quem
+ * paga pelo celular não tinha o que colar. Vazio quando não vier — é opcional.
+ */
+export function extrairPixCopiaECola(resp: unknown): string {
+  const p = (resp as { pixCode?: Record<string, unknown> } | null)?.pixCode
+  if (!p) return ""
+  for (const k of ["emv", "payload", "copyPaste", "qrCode", "code"]) {
+    const v = p[k]
+    if (typeof v === "string" && v.trim()) return v.trim()
+  }
+  return ""
+}
+
 /** Parse do employeeId no retorno do GET /employee (items[0]/data[0]/content[0]/self). */
 export function extrairEmployeeId(resp: unknown): string | null {
   const pega = (o: unknown): string | null => {
@@ -274,6 +289,25 @@ export async function buscarPedido(orderId: string): Promise<unknown> {
 
 export const summaryUrlCaju = (orderId: string | null): string =>
   orderId ? `https://empresa.caju.com.br/classic/#/order/${orderId}/summary` : ""
+
+/**
+ * Link de download da NOTA DE DÉBITO do pedido, montado do template em env
+ * (`CAJU_NOTA_URL`, com `{orderId}`).
+ *
+ * Montado, não buscado: a API não expõe o documento, e o pedido de CRÉDITO do pontual só é
+ * confirmado à mão no painel — a nota nasce depois que a automação já terminou. Gravar o link na
+ * hora resolve isso sem varredura: ele fica de pé assim que o DP confirma.
+ *
+ * Sem template configurado devolve "" — coluna vazia é honesta, link quebrado não.
+ */
+export function notaDebitoUrl(orderId: string | null | undefined): string {
+  const tpl = config.caju.notaUrlTemplate
+  const id = String(orderId ?? "").trim()
+  if (!tpl || !id) return ""
+  const url = tpl.replace(/\{orderId\}/gi, id).replace(/\{id\}/gi, id)
+  // Template sem placeholder viraria a MESMA url pra todo pedido — pior que vazio.
+  return url === tpl ? "" : url
+}
 
 /**
  * Ids dos pedidos de um contrato numa competência: natureza × benefício.
