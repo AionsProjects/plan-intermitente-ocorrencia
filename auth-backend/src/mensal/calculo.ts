@@ -74,6 +74,17 @@ export interface DescontoUpdateMensal {
   descontadoVR: number
   descontadoVT: number
   status: "PARCIAL" | "FINALIZADO"
+  /**
+   * De QUEM é esta dívida (`DescontoMensal.pessoaKey` = cpf ou chapa).
+   *
+   * Só é usada pra montar o balãozinho por pessoa: `descontoUpdates` é por CONTRATO, e sem
+   * isto não há como dizer, no item de cada um, qual dívida foi abatida dele. Não entra em
+   * `montarValuesDesconto` — o board de Desconto não tem coluna pra isso.
+   */
+  pessoaKey?: string
+  /** Quanto ESTA execução abateu (delta), não o acumulado — é o que o balão informa. */
+  abatidoVR?: number
+  abatidoVT?: number
 }
 
 export interface ContratoCalculadoMensal {
@@ -220,6 +231,7 @@ export function calcularMensal(
     const pessoas: PessoaCalculadaMensal[] = []
     const planUpdates: PlanUpdateMensal[] = []
     const descontosTocados = new Set<DescontoMensal>()
+    const abatidoPorDivida = new Map<string, { vr: number; vt: number }>()
     for (const [key, linhas] of porPessoa) {
       const base = linhas[0]!, regra = resolverRegra(regras, base)
       const escala = !!base.escala12x36
@@ -252,6 +264,12 @@ export function calcularMensal(
         d.residualVR = r2(d.residualVR - tiraVR); d.residualVT = r2(d.residualVT - tiraVT)
         d.descontadoVR = r2(d.descontadoVR + tiraVR); d.descontadoVT = r2(d.descontadoVT + tiraVT)
         descontosTocados.add(d)
+        // Delta desta execução, pro balãozinho: `descontadoVR/VT` é o ACUMULADO histórico da
+        // dívida, e dizer "abatido R$ 245,00" quando hoje saíram R$ 24,50 seria mentira.
+        abatidoPorDivida.set(d.id, {
+          vr: r2((abatidoPorDivida.get(d.id)?.vr ?? 0) + tiraVR),
+          vt: r2((abatidoPorDivida.get(d.id)?.vt ?? 0) + tiraVT),
+        })
       }
       // Crédito em conta Caju, em DIAS de benefício — vem de `tetoCredito` (ver
       // TETO_CREDITO_MENSAL / TETO_CREDITO_PONTUAL no topo).
@@ -306,6 +324,9 @@ export function calcularMensal(
       id: d.id, residualVR: d.residualVR, residualVT: d.residualVT,
       descontadoVR: d.descontadoVR, descontadoVT: d.descontadoVT,
       status: d.residualVR <= 0 && d.residualVT <= 0 ? "FINALIZADO" : "PARCIAL",
+      pessoaKey: d.pessoaKey,
+      abatidoVR: abatidoPorDivida.get(d.id)?.vr ?? 0,
+      abatidoVT: abatidoPorDivida.get(d.id)?.vt ?? 0,
     }))
     contratos.push({ contrato: convocacoesContrato[0]!.contrato, codSecao: codigoSecaoContrato(convocacoesContrato[0]!.contrato), pessoas: ativas,
       pessoasSemSaldo: pessoas.filter((p) => p.liquidoVR + p.liquidoVT <= 0),

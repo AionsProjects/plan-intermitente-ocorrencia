@@ -140,5 +140,32 @@ test("emite descontoUpdates com residual/status finais", () => {
     residualVR: 50, residualVT: 20, descontadoVR: 10, descontadoVT: 0 }])
   const ups = r.contratos[0]!.descontoUpdates
   assert.equal(ups.length, 1)
-  assert.deepEqual(ups[0], { id: "d1", residualVR: 0, residualVT: 0, descontadoVR: 60, descontadoVT: 20, status: "FINALIZADO" })
+  assert.deepEqual(ups[0], {
+    id: "d1", residualVR: 0, residualVT: 0, descontadoVR: 60, descontadoVT: 20, status: "FINALIZADO",
+    // pessoaKey + delta: só o balãozinho usa (o board de Desconto não tem coluna pra isso).
+    pessoaKey: "1", abatidoVR: 50, abatidoVT: 20,
+  })
+})
+
+// O balãozinho do mensal precisa dizer, no item de CADA pessoa, qual dívida foi dela —
+// e `descontoUpdates` é por CONTRATO. Sem pessoaKey no update, não há como ligar.
+test("descontoUpdates liga cada dívida à pessoa certa e traz o DELTA desta execução", () => {
+  const r = calcularMensal(
+    [pessoa({ itemId: "A", cpf: "111", nome: "UM" }), pessoa({ itemId: "B", cpf: "222", nome: "DOIS" })],
+    [regra], [],
+    [
+      { id: "dUM", pessoaKey: "111", inicio: "2026-01-01", residualVR: 30, residualVT: 0, descontadoVR: 70, descontadoVT: 0 },
+      { id: "dDOIS", pessoaKey: "222", inicio: "2026-01-01", residualVR: 10, residualVT: 5, descontadoVR: 0, descontadoVT: 0 },
+    ],
+  )
+  const ups = r.contratos[0]!.descontoUpdates
+  const um = ups.find((u) => u.id === "dUM")!, dois = ups.find((u) => u.id === "dDOIS")!
+  assert.equal(um.pessoaKey, "111")
+  assert.equal(dois.pessoaKey, "222")
+  // Delta ≠ acumulado: dUM já tinha 70 abatidos antes, e AGORA saíram 30. Dizer "abatido
+  // R$ 100,00" no balão seria mentira.
+  assert.equal(um.abatidoVR, 30)
+  assert.equal(um.descontadoVR, 100)
+  assert.equal(dois.abatidoVR, 10)
+  assert.equal(dois.abatidoVT, 5)
 })

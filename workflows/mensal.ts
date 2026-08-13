@@ -831,6 +831,66 @@ async function etapaDrive(
 }
 etapaDrive.maxRetries = 3
 
+/**
+ * monday_balao: um update no item de CADA pessoa que teve desconto abatido.
+ *
+ * Mesmo texto e mesmo link do pontual (`montarTextoBalao`) — a informação que o operacional
+ * precisa é idêntica nos dois fluxos: quanto saiu do benefício, se a dívida quitou, e onde
+ * conferir. Um só builder pros dois evita a divergência que sempre aparece quando o mesmo
+ * aviso é escrito duas vezes.
+ *
+ * A ligação dívida→pessoa vem do `pessoaKey` propagado em `descontoUpdates` (calculo.ts):
+ * `descontoUpdates` é por CONTRATO, e sem a chave não haveria como dizer, no item de cada um,
+ * qual dívida era dele.
+ *
+ * Quem não teve desconto não recebe update. Balão em toda pessoa de todo contrato seria ~60
+ * updates por rodada dizendo "nada foi abatido" — e aí o aviso que importa vira ruído.
+ */
+async function etapaMondayBalao(
+  runId: string,
+  modo: ModoExec,
+  competencia: string,
+  contrato: ContratoPreviaMensal,
+): Promise<void> {
+  "use step"
+  const etapa = "monday_balao"
+  const metadata = getStepMetadata()
+  await registrarEvento({ runId, contrato: contrato.contrato, etapa, estado: "rodando", tentativa: metadata.attempt })
+  const r = await reservarOuPular(runId, modo, competencia, contrato.contrato, etapa, metadata.attempt)
+  if (r.acao === "pular") return
+  if (r.acao === "simular") return simularEfeito(runId, contrato.contrato, etapa, r.chave, metadata.attempt)
+
+  const { montarTextoBalao } = await import("../auth-backend/src/pontual/mondayPontual.js")
+  const { criarUpdate } = await import("../auth-backend/src/monday.js")
+  const updates = contrato.descontoUpdates ?? []
+  let postados = 0
+  for (const p of contrato.pessoas) {
+    const chave = (p.cpf || "").replace(/\D/g, "") || p.chapa?.trim()
+    const dele = updates.filter((u) => u.pessoaKey && chave && u.pessoaKey === chave)
+    const texto = montarTextoBalao(p, dele.map((u) => ({
+      descontoMondayItemId: u.id,
+      vr: u.abatidoVR ?? 0,
+      vt: u.abatidoVT ?? 0,
+      residualVR: u.residualVR,
+      residualVT: u.residualVT,
+      status: u.status,
+    })))
+    if (!texto) continue
+    // Uma pessoa pode ter várias linhas no Plano (convocação partida): o balão vai na
+    // primeira, senão o mesmo aviso se repete em cada linha dela.
+    const item = (p.itemIds ?? [p.itemId])[0]
+    if (!item) continue
+    await criarUpdate(item, texto)
+    postados++
+  }
+  await confirmarEfeito(r.chave, `monday:balao:${postados}`)
+  await registrarEvento({
+    runId, contrato: contrato.contrato, etapa, estado: "concluido", tentativa: metadata.attempt,
+    metadados: { postados, pessoasComDesconto: postados, pessoas: contrato.pessoas.length },
+  })
+}
+etapaMondayBalao.maxRetries = 3
+
 async function marcarContratoRodando(runId: string, contrato: string): Promise<void> {
   "use step"
   await atualizarContrato(runId, contrato, "rodando")
@@ -956,6 +1016,9 @@ async function processarContrato(
       idVT: rmIds.idVT,
       solicitacaoId,
     })
+
+    // Balãozinho do desconto no item de quem teve dívida abatida.
+    await etapaMondayBalao(runId, modo, competencia, contrato)
 
     // AUTOMAÇÃO - OK só depois de TODAS as etapas do contrato confirmadas.
     await etapaMondayStatusOk(runId, modo, competencia, contrato.contrato, solicitacaoId)
