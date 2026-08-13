@@ -35,13 +35,31 @@ const entrada = (item: number, fim: string) => ({
   calculo: {},
 })
 
-// hoje fixo: 2026-09-01. Com expiração default 15, corte = 2026-08-17.
-const HOJE = new Date("2026-09-01T12:00:00Z")
+// ⚠️ `hoje` é SEMPRE a data real, nunca uma data futura.
+//
+// `expirarReservasPontual` varre a tabela INTEIRA (não tem filtro de chapa — é um sweep), e
+// este banco é o de produção. Passar "2026-09-01" aqui uma vez liberou 4 convocações REAIS
+// de agosto: com hoje em setembro o corte virou 17/08 e as convocações vivas caíram na
+// peneira. Dano financeiro foi zero por sorte (nenhuma tinha desconto), mas a lição fica:
+// o cenário "vencida" se monta envelhecendo A LINHA DE TESTE, não adiantando o relógio.
+const HOJE = new Date()
+
+/** Envelhece a linha do teste pra ela cruzar o corte (data_fim antiga + criado_em antigo). */
+async function envelhecer(item: number, diasFim: number, diasCriacao: number): Promise<void> {
+  await query(
+    `UPDATE pontual_prepagamento
+        SET data_fim = (now() - ($2 || ' days')::interval)::date,
+            criado_em = now() - ($3 || ' days')::interval
+      WHERE item_origem_id = $1`,
+    [String(item), String(diasFim), String(diasCriacao)],
+  )
+}
 
 test("reserva vencida é liberada e a dívida volta (reserva some)", async () => {
   try {
     const item = ++seq
-    await reservarPrePagamento(entrada(item, "2026-08-05")) // fim + 15 < hoje
+    await reservarPrePagamento(entrada(item, "2026-08-05"))
+    await envelhecer(item, config.pontualReservaExpiraDias + 5, 10)
     const r = await expirarReservasPontual(HOJE)
     assert.ok(r.liberadas >= 1)
     const { rows } = await query<{ estado: string; n: number }>(
@@ -57,9 +75,8 @@ test("reserva vencida é liberada e a dívida volta (reserva some)", async () =>
 test("reserva dentro do prazo NÃO expira", async () => {
   try {
     const item = ++seq
-    const fimRecente = new Date(HOJE)
-    fimRecente.setUTCDate(fimRecente.getUTCDate() - (config.pontualReservaExpiraDias - 2))
-    await reservarPrePagamento(entrada(item, fimRecente.toISOString().slice(0, 10)))
+    await reservarPrePagamento(entrada(item, "2026-08-05"))
+    await envelhecer(item, config.pontualReservaExpiraDias - 2, 10)
     await expirarReservasPontual(HOJE)
     const { rows } = await query<{ estado: string }>(
       `SELECT estado FROM pontual_prepagamento WHERE item_origem_id = $1`, [String(item)],
@@ -68,10 +85,27 @@ test("reserva dentro do prazo NÃO expira", async () => {
   } finally { await limpar() }
 })
 
+// A guarda que faltava e virou bug de produção: convocação RETROATIVA (papel 'passado')
+// nasce com data_fim semanas atrás. Sem o piso de idade da reserva, ela era expirada no
+// primeiro tick — minutos depois de criada.
+test("convocação retroativa recém-criada NÃO expira (data_fim velha, reserva nova)", async () => {
+  try {
+    const item = ++seq
+    await reservarPrePagamento(entrada(item, "2026-06-30"))
+    await envelhecer(item, 60, 0) // período de 2 meses atrás, criada AGORA
+    await expirarReservasPontual(HOJE)
+    const { rows } = await query<{ estado: string }>(
+      `SELECT estado FROM pontual_prepagamento WHERE item_origem_id = $1`, [String(item)],
+    )
+    assert.equal(rows[0]!.estado, "reservado", "expirou uma reserva criada agora")
+  } finally { await limpar() }
+})
+
 test("gatilho de pagamento em curso protege a reserva da expiração", async () => {
   try {
     const item = ++seq
     await reservarPrePagamento(entrada(item, "2026-08-05"))
+    await envelhecer(item, config.pontualReservaExpiraDias + 5, 10)
     await query(
       `INSERT INTO efeitos_externos (chave, tipo, status) VALUES ($1, 'pontual_gatilho', 'pendente')`,
       [`pontual:gatilho:${item}`],

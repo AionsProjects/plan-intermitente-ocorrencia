@@ -29,7 +29,15 @@ export async function expirarReservasPontual(hoje: Date): Promise<{ liberadas: n
   const { rows } = await query<{ item_origem_id: string }>(
     `SELECT p.item_origem_id::text
        FROM pontual_prepagamento p
-      WHERE p.estado = 'reservado' AND p.data_fim < $1
+      WHERE p.estado = 'reservado'
+        AND p.data_fim < $1
+        -- IDADE DA PRÓPRIA RESERVA, não só do período. Duas coisas dependem disto:
+        --  1. convocação RETROATIVA (papel 'passado') nasce com data_fim semanas atrás — sem
+        --     esta linha ela é expirada no primeiro tick, minutos depois de criada, e a
+        --     felipeta perde a reserva de uma convocação que ninguém abandonou;
+        --  2. blindagem contra chamador com data errada (foi como o teste de setembro
+        --     liberou 4 convocações vivas de agosto).
+        AND p.criado_em < now() - interval '2 days'
       LIMIT 50`,
     [corteIso],
   )
