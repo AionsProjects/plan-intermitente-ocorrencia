@@ -207,14 +207,34 @@ test("values da Solicitação: INTERMITENTE + link pro pulse + resumo pontual", 
   assert.equal(v.text_mkrenhm, "24253")
 })
 
-test("balão: null sem desconto; texto com semSaldo e itens quitados", () => {
+test("balão: null quando não houve desconto", () => {
   assert.equal(montarTextoBalao({ descontoVR: 0, descontoVT: 0, liquidoVR: 10, liquidoVT: 0 }, []), null)
+})
+
+// Pedido do Isaac (13/08): quando HÁ desconto, o balão precisa dizer quanto foi abatido, se a
+// dívida quitou ou quanto resta, e linkar o ITEM no board de Desconto (não o board).
+test("balão: dívida QUITADA leva link do pulse e semSaldo avisa", () => {
   const txt = montarTextoBalao(
     { descontoVR: 49, descontoVT: 20, liquidoVR: 0, liquidoVT: 0 },
-    [{ descontoMondayItemId: "d1", vr: 49, vt: 20 }],
-  )
-  assert.match(txt!, /VR R\$ 49,00/)
-  assert.match(txt!, /NADA a pagar/)
-  assert.match(txt!, /item d1/)
-  assert.match(txt!, /boards\/18400981023/)
+    [{ descontoMondayItemId: "12414417232", vr: 49, vt: 20, residualVR: 0, residualVT: 0, status: "FINALIZADO" }],
+  )!
+  assert.match(txt, /VR R\$ 49,00 e VT R\$ 20,00/)
+  assert.match(txt, /NADA a pagar/)
+  assert.match(txt, /QUITADA/)
+  assert.match(txt, /boards\/18400981023\/pulses\/12414417232/, "link do item, não do board")
+})
+
+test("balão: dívida PARCIAL diz quanto ainda resta", () => {
+  const txt = montarTextoBalao(
+    { descontoVR: 10, descontoVT: 0, liquidoVR: 39, liquidoVT: 20 },
+    [{ descontoMondayItemId: "d1", vr: 10, vt: 0, residualVR: 14.5, residualVT: 0, status: "PARCIAL" }],
+  )!
+  assert.match(txt, /ainda resta VR R\$ 14,50/)
+  assert.doesNotMatch(txt, /NADA a pagar/, "tem saldo — não é semSaldo")
+  assert.doesNotMatch(txt, /VT/, "VT zerado não entra")
+})
+
+test("balão sem detalhe por item (fifo pulado) cai no link do board", () => {
+  const txt = montarTextoBalao({ descontoVR: 10, descontoVT: 0, liquidoVR: 5, liquidoVT: 0 }, [])!
+  assert.match(txt, /boards\/18400981023$/m)
 })

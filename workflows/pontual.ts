@@ -57,6 +57,7 @@ import {
   registrosHistoricoPontual,
 } from "../auth-backend/src/pontual/rmPontual.js"
 import {
+  type AbatimentoBalao,
   montarNomeDebitoPontual,
   montarNomeSolicitacaoPontual,
   montarResumoSolicitacaoPontual,
@@ -305,17 +306,24 @@ etapaEmployeeCaju.maxRetries = 3
 // Step 3 — consumo do FIFO (roda MESMO com semSaldo) + marcarConsumido.
 // ---------------------------------------------------------------------------
 
-async function etapaConsumirFifo(input: PontualWorkflowInput, plano: PlanoPagamento): Promise<void> {
+async function etapaConsumirFifo(
+  input: PontualWorkflowInput,
+  plano: PlanoPagamento,
+): Promise<AbatimentoBalao[]> {
   "use step"
   const { execucaoId, itemOrigemId } = input
   const etapa = "fifo"
   await log(execucaoId, etapa, "rodando")
   const r = await reservarOuPular(input.modo, execucaoId, itemOrigemId, etapa)
-  if (r.acao === "pular") return
-  if (r.acao === "simular") return simular(execucaoId, etapa, r.chave)
+  if (r.acao === "pular") return []
+  if (r.acao === "simular") {
+    await simular(execucaoId, etapa, r.chave)
+    return []
+  }
 
   const reservas = plano.snapshot.reservas.filter((x) => x.vr > 0 || x.vt > 0)
   let updates = 0
+  let abatimentos: AbatimentoBalao[] = []
   if (reservas.length) {
     // Estado ATUAL do board (o mensal pode ter consumido o mesmo item no meio) + deltas.
     const ids = reservas.map((x) => x.descontoMondayItemId)
@@ -332,14 +340,25 @@ async function etapaConsumirFifo(input: PontualWorkflowInput, plano: PlanoPagame
       descontadoVR: num(it, "numeric_mm0rqy6z"),
       descontadoVT: num(it, "numeric_mm0r6cn0"),
     }))
-    updates = await executarUpdatesDescontos(montarDescontoUpdatesPontual(reservas, itensBoard))
+    const upd = montarDescontoUpdatesPontual(reservas, itensBoard)
+    updates = await executarUpdatesDescontos(upd)
+    // O que o balaozinho conta: quanto foi abatido de cada divida e o que sobrou nela.
+    abatimentos = reservas.map((rr) => {
+      const u = upd.find((x) => x.id === rr.descontoMondayItemId)
+      return {
+        descontoMondayItemId: rr.descontoMondayItemId,
+        vr: rr.vr, vt: rr.vt,
+        residualVR: u?.residualVR, residualVT: u?.residualVT, status: u?.status,
+      }
+    })
   }
   // MESMA sequência: consumido + DELETE das reservas (senão lerReservasVivas subtrai a
   // mesma dívida DUAS vezes do pool do mensal a partir de agora).
   const { marcarConsumido } = await import("../auth-backend/src/pontual/prepagamento.js")
   await marcarConsumido(plano.snapshot.id)
   await confirmarEfeito(r.chave, `fifo:${updates}itens`, { reservas })
-  await log(execucaoId, etapa, "ok", { metadados: { itensAtualizados: updates } })
+  await log(execucaoId, etapa, "ok", { metadados: { itensAtualizados: updates, abatimentos } })
+  return abatimentos
 }
 etapaConsumirFifo.maxRetries = 5
 
@@ -735,16 +754,22 @@ etapaDrive.maxRetries = 3
 // Step 16 — balãozinho de desconto no item do Plano (roda no semSaldo também).
 // ---------------------------------------------------------------------------
 
-async function etapaBalao(input: PontualWorkflowInput, plano: PlanoPagamento): Promise<void> {
+async function etapaBalao(
+  input: PontualWorkflowInput,
+  plano: PlanoPagamento,
+  abatimentos: AbatimentoBalao[],
+): Promise<void> {
   "use step"
   const { execucaoId, itemOrigemId } = input
   const etapa = "monday_balao"
   const r = await reservarOuPular(input.modo, execucaoId, itemOrigemId, etapa)
   if (r.acao === "pular") return
   if (r.acao === "simular") return simular(execucaoId, etapa, r.chave)
-  const reservasDoCalculo = ((plano.snapshot.calculo as { reservas?: Array<{ descontoMondayItemId: string; vr: number; vt: number }> }).reservas)
+  // Abatimentos do step do FIFO (tem o residual pos-abatimento). Se o fifo foi pulado por
+  // idempotencia, cai nas reservas do snapshot — sem desfecho por divida, mas com os valores.
+  const doSnapshot = ((plano.snapshot.calculo as { reservas?: AbatimentoBalao[] }).reservas)
     ?? plano.snapshot.reservas
-  const texto = montarTextoBalao(plano.pessoa, reservasDoCalculo ?? [])
+  const texto = montarTextoBalao(plano.pessoa, abatimentos.length ? abatimentos : (doSnapshot ?? []))
   if (!texto) {
     await confirmarEfeito(r.chave, "monday:balao:sem_desconto")
     await log(execucaoId, etapa, "ok", { metadados: { pulado: "sem_desconto" } })
@@ -860,11 +885,11 @@ export async function executarPontualWorkflow(input: PontualWorkflowInput): Prom
     }
 
     const employeeId = await etapaEmployeeCaju(input, plano)
-    await etapaConsumirFifo(input, plano)
+    const abatimentos = await etapaConsumirFifo(input, plano)
 
     if (plano.semSaldo) {
       // Caminho curto do If2#false do WF5: FIFO consumido, balão, fechamento. Zero dinheiro.
-      await etapaBalao(input, plano)
+      await etapaBalao(input, plano, abatimentos)
       await etapaFechamento(input, plano, {}, "ok")
       return { desfecho: "sem_saldo" }
     }
@@ -908,7 +933,7 @@ export async function executarPontualWorkflow(input: PontualWorkflowInput): Prom
       qrVT: "",
       solicitacaoId,
     })
-    await etapaBalao(input, plano)
+    await etapaBalao(input, plano, abatimentos)
     await etapaStatusOk(input, solicitacaoId)
     await etapaFechamento(input, plano, {
       // Pedido ÚNICO por tipo: o id vai no campo VR e o VT fica null. Quem consome junta

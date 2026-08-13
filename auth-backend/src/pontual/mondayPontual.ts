@@ -5,7 +5,6 @@ import {
   type SolicitacaoMensalInput,
 } from "../mensal/mondayEfeitos.js"
 import type { PessoaPreviaMensal } from "../mensal/types.js"
-import type { ReservaDoSnapshot } from "./prepagamento.js"
 
 const r2 = (v: number): number => Math.round((Number(v) || 0) * 100) / 100
 
@@ -65,35 +64,77 @@ export function montarNomeDebitoPontual(nome: string, dataIso: string): string {
   return `INTERMITENTE - ${String(nome).trim().toUpperCase()} (${dataIso})`
 }
 
+/** O que sobrou de uma dívida depois do abatimento — vem dos updates aplicados no board. */
+export interface AbatimentoBalao {
+  descontoMondayItemId: string
+  vr: number
+  vt: number
+  /** Residual APÓS o abatimento. Ausente = não deu pra apurar (fifo pulado por idempotência). */
+  residualVR?: number
+  residualVT?: number
+  status?: "PARCIAL" | "FINALIZADO"
+}
+
+const fmtBrl = (v: number): string => `R$ ${r2(v).toFixed(2).replace(".", ",")}`
+
+/** Link do ITEM no board de Desconto — é onde a pessoa precisa chegar, não no board. */
+export function linkItemDesconto(itemId: string): string {
+  return `${BOARD_DESCONTO_URL}/pulses/${itemId}`
+}
+
 /**
- * O balãozinho (ponto 4 do brief): update no item do Plano contando o desconto abatido,
- * com link pro board de Desconto. Só existe quando HOUVE desconto — balão dizendo "nada
- * foi abatido" é ruído que ensina o operacional a ignorar o canal.
+ * O balãozinho (ponto 4 do brief do Isaac): update no item do Plano contando o desconto
+ * abatido, com link do ITEM de cada dívida no board de Desconto.
+ *
+ * Só existe quando HOUVE desconto — balão dizendo "nada foi abatido" em toda convocação é
+ * ruído que ensina o operacional a ignorar o canal, e aí o aviso que importa também passa.
+ *
+ * Link do pulse, não do board (pedido explícito): mandar alguém pro board com 500 itens pra
+ * procurar a dívida da pessoa é o mesmo que não mandar link.
  */
 export function montarTextoBalao(
   pessoa: Pick<PessoaPreviaMensal, "descontoVR" | "descontoVT" | "liquidoVR" | "liquidoVT">,
-  reservas: ReservaDoSnapshot[],
+  abatimentos: AbatimentoBalao[],
 ): string | null {
   const totalVR = r2(pessoa.descontoVR || 0)
   const totalVT = r2(pessoa.descontoVT || 0)
   if (totalVR <= 0 && totalVT <= 0) return null
-  const fmt = (v: number) => `R$ ${v.toFixed(2).replace(".", ",")}`
-  const linhas = [
-    `💰 Desconto de benefício abatido nesta convocação: VR ${fmt(totalVR)} | VT ${fmt(totalVT)}.`,
-  ]
+
+  const partes = [
+    totalVR > 0 ? `VR ${fmtBrl(totalVR)}` : null,
+    totalVT > 0 ? `VT ${fmtBrl(totalVT)}` : null,
+  ].filter(Boolean)
+
+  const linhas = [`Desconto de benefício abatido nesta convocação: ${partes.join(" e ")}.`, ""]
+
   const semSaldo = r2((pessoa.liquidoVR || 0) + (pessoa.liquidoVT || 0)) <= 0
   if (semSaldo) {
-    linhas.push(`⚠️ O desconto consumiu o benefício inteiro — NADA a pagar nesta convocação.`)
+    linhas.push("O desconto consumiu o benefício inteiro — NADA a pagar nesta convocação.", "")
   }
-  if (reservas.length) {
-    linhas.push(
-      `Dívidas quitadas/abatidas: ` +
-        reservas
-          .filter((rr) => rr.vr > 0 || rr.vt > 0)
-          .map((rr) => `item ${rr.descontoMondayItemId} (VR ${fmt(r2(rr.vr))}, VT ${fmt(r2(rr.vt))})`)
-          .join("; "),
-    )
+
+  const usados = abatimentos.filter((a) => a.vr > 0 || a.vt > 0)
+  if (usados.length) {
+    linhas.push(usados.length === 1 ? "Dívida abatida:" : "Dívidas abatidas:")
+    for (const a of usados) {
+      const abatido = [a.vr > 0 ? `VR ${fmtBrl(a.vr)}` : null, a.vt > 0 ? `VT ${fmtBrl(a.vt)}` : null]
+        .filter(Boolean).join(" + ")
+      // O DESFECHO da dívida é o que o operacional precisa saber: quitou, ou ainda deve
+      // quanto? Sem isso o balão informa que "abateu" e deixa a pergunta seguinte no ar.
+      let desfecho = ""
+      if (a.status === "FINALIZADO") desfecho = " — QUITADA"
+      else if (a.status === "PARCIAL") {
+        const resta = [
+          (a.residualVR ?? 0) > 0 ? `VR ${fmtBrl(a.residualVR!)}` : null,
+          (a.residualVT ?? 0) > 0 ? `VT ${fmtBrl(a.residualVT!)}` : null,
+        ].filter(Boolean).join(" + ")
+        desfecho = resta ? ` — ainda resta ${resta}` : " — quitada"
+      }
+      linhas.push(`• ${abatido}${desfecho}`)
+      linhas.push(`  ${linkItemDesconto(a.descontoMondayItemId)}`)
+    }
+  } else {
+    // Sem detalhe por item (fifo pulado): ainda vale o link do board pra conferência.
+    linhas.push(`Detalhe no board de Desconto: ${BOARD_DESCONTO_URL}`)
   }
-  linhas.push(`Detalhe no board de Desconto: ${BOARD_DESCONTO_URL}`)
   return linhas.join("\n")
 }
