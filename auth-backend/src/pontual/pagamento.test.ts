@@ -124,11 +124,12 @@ test("motivosRecusa: chapa/cpf/codSecao só quando há líquido", () => {
 // ---------- Caju ----------
 
 test("nome do pedido segue o formato WF5 e trunca em 100", () => {
+  // Sem sufixo de benefício: VR e VT vão no MESMO pedido (decisão 13/08).
   assert.equal(
-    montarNomePedidoPontual("Valcleber Costa", "007282", "2026-08-17", "credito", "VR"),
-    "INTERMITENTE-PONTUAL-VALCLEBER COSTA-007282-17.08 CREDITO VR",
+    montarNomePedidoPontual("Valcleber Costa", "007282", "2026-08-17", "credito"),
+    "INTERMITENTE-PONTUAL-VALCLEBER COSTA-007282-17.08 CREDITO",
   )
-  const longo = montarNomePedidoPontual("A".repeat(120), "007282", "2026-08-17", "boleto", "VT")
+  const longo = montarNomePedidoPontual("A".repeat(120), "007282", "2026-08-17", "boleto")
   assert.equal(longo.length, 100)
 })
 
@@ -138,22 +139,30 @@ const pessoaCaju = (over: Partial<PessoaPreviaMensal> = {}): PessoaPreviaMensal 
   creditoVR: 39, creditoVT: 20, pixVR: 60, pixVT: 30, employeeId: "emp-1", ...over,
 })
 
-test("pedido: valor zero é tem:false; valor>0 sem employeeId LANÇA", () => {
-  const zero = montarPedidoCajuPontual(pessoaCaju({ creditoVR: 0 }), "credito", "VR")
+test("pedido: os dois benefícios zerados é tem:false; valor>0 sem employeeId LANÇA", () => {
+  const zero = montarPedidoCajuPontual(pessoaCaju({ creditoVR: 0, creditoVT: 0 }), "credito")
   assert.equal(zero.tem, false)
   assert.equal(zero.payload, null)
   assert.throws(
-    () => montarPedidoCajuPontual(pessoaCaju({ employeeId: null }), "boleto", "VR"),
+    () => montarPedidoCajuPontual(pessoaCaju({ employeeId: null }), "boleto"),
     /pessoa_nao_cadastrada_na_caju: chapa=007282/,
   )
 })
 
-test("pedido boleto VT usa categoria por interior e centavos certos", () => {
-  const p = montarPedidoCajuPontual(pessoaCaju({ interior: "SIM" }), "boleto", "VT")
+// A mudança de 13/08: UM pedido carrega VR e VT juntos (dois `amounts` no mesmo allowance),
+// como o WF5 fazia. O mensal segue com um pedido por benefício.
+test("pedido único junta VR e VT no mesmo allowance", () => {
+  const p = montarPedidoCajuPontual(pessoaCaju({ pixVR: 60, pixVT: 30, interior: "SIM" }), "boleto")
   assert.equal(p.paymentType, "PIX_CODE")
-  assert.equal(p.totalCentavos, 3000)
-  assert.equal(p.payload!.allowances[0]!.amounts[0]!.category, "TRANSPORTATION")
-  const capital = montarPedidoCajuPontual(pessoaCaju({ interior: "NAO", contrato: "SEMSA" }), "boleto", "VT")
+  assert.equal(p.totalCentavos, 9000)
+  assert.equal(p.payload!.allowances.length, 1, "mais de um allowance")
+  const amounts = p.payload!.allowances[0]!.amounts
+  assert.equal(amounts.length, 2)
+  assert.deepEqual(amounts[0], { category: "FOOD_AID", amount: 6000 })
+  assert.deepEqual(amounts[1], { category: "TRANSPORTATION", amount: 3000 })
+  // capital usa voucher em vez de mobilidade
+  const capital = montarPedidoCajuPontual(pessoaCaju({ pixVR: 0, pixVT: 30, interior: "NAO", contrato: "SEMSA" }), "boleto")
+  assert.equal(capital.payload!.allowances[0]!.amounts.length, 1, "VR zerado não entra")
   assert.equal(capital.payload!.allowances[0]!.amounts[0]!.category, "TRANSPORTATION_VOUCHER")
 })
 

@@ -11,7 +11,7 @@
 // step. A trava mestra: o histórico do CRÉDITO só entra no ZMD DEPOIS do FopRotinas —
 // é a ORDEM (não um if) que impede lançamento financeiro sobre o crédito.
 import { FatalError, sleep } from "workflow"
-import { confirmarEfeito, liberarEfeito, reservarEfeito } from "../auth-backend/src/jobs/repo.js"
+import { confirmarEfeito, estadoEfeito, liberarEfeito, reservarEfeito } from "../auth-backend/src/jobs/repo.js"
 import {
   buscarEmployeeId,
   buscarPedido,
@@ -354,11 +354,26 @@ async function etapaPedidoCaju(
   plano: PlanoPagamento,
   employeeId: string | null,
   tipo: TipoPedidoCaju,
-  beneficio: BeneficioCaju,
 ): Promise<{ orderId: string | null; qr: string }> {
   "use step"
   const { execucaoId, itemOrigemId } = input
-  const etapa = `caju_${tipo === "credito" ? "credito" : "pix"}_${beneficio.toLowerCase()}`
+  const etapa = `caju_${tipo === "credito" ? "credito" : "pix"}`
+
+  // GUARDA CONTRA O FORMATO ANTIGO. Até 13/08 o pontual criava um pedido por benefício, com
+  // as chaves `..._vr` e `..._vt`. Um item pago naquele formato e retomado agora não veria a
+  // chave nova e criaria pedido em cima do que já existe — pagando duas vezes. Se qualquer
+  // metade antiga está confirmada, este step não tem nada a fazer.
+  if (input.modo === "producao") {
+    for (const sufixo of ["_vr", "_vt"]) {
+      if ((await estadoEfeito(`pontual:${itemOrigemId}:${etapa}${sufixo}`)) === "confirmado") {
+        await log(execucaoId, etapa, "pulado", {
+          mensagem: `já pago no formato anterior (pedido por benefício${sufixo})`,
+        })
+        return { orderId: null, qr: "" }
+      }
+    }
+  }
+
   const r = await reservarOuPular(input.modo, execucaoId, itemOrigemId, etapa)
   if (r.acao === "pular") return { orderId: null, qr: "" }
   if (r.acao === "simular") {
@@ -366,7 +381,7 @@ async function etapaPedidoCaju(
     return { orderId: null, qr: "" }
   }
 
-  const pedido = montarPedidoCajuPontual({ ...plano.pessoa, employeeId }, tipo, beneficio)
+  const pedido = montarPedidoCajuPontual({ ...plano.pessoa, employeeId }, tipo)
   if (!pedido.tem || !pedido.payload) {
     await confirmarEfeito(r.chave, `caju:${etapa}:vazio`)
     await log(execucaoId, etapa, "ok", { metadados: { vazio: true } })
@@ -386,7 +401,16 @@ async function etapaPedidoCaju(
   }
   await confirmarEfeito(r.chave, orderId ? `caju:${etapa}:${orderId}` : `caju:${etapa}:sem-id`)
   await log(execucaoId, etapa, "ok", {
-    metadados: { orderId, centavos: pedido.totalCentavos, temQr: qr.length > 0, summary: summaryUrlCaju(orderId) },
+    metadados: {
+      orderId,
+      centavos: pedido.totalCentavos,
+      // Quanto foi de cada benefício DENTRO do pedido único — sem isto, um pedido de
+      // R$ 172,50 não diz o que é VR e o que é VT, e é a conferência do DP.
+      centavosVR: Math.round((tipo === "credito" ? plano.pessoa.creditoVR : plano.pessoa.pixVR) ?? 0) * 100,
+      centavosVT: Math.round((tipo === "credito" ? plano.pessoa.creditoVT : plano.pessoa.pixVT) ?? 0) * 100,
+      temQr: qr.length > 0,
+      summary: summaryUrlCaju(orderId),
+    },
   })
   return { orderId, qr }
 }
@@ -795,11 +819,17 @@ async function etapaFechamento(
     })
   }
   await ex.fechar("ok", desfecho === "ja_pago" ? { erro: undefined } : undefined)
-  // Só produção confirma o gatilho real (a chave da rota). Simulação deixa o gatilho como
-  // estava — o pagamento de verdade ainda não aconteceu.
   if (input.modo === "producao") {
+    // A marca de "pagamento concluído", e ela precisa EXISTIR: a rota do webhook consulta
+    // `pontual:{item}:fechamento` como primeira barreira de idempotência, e enquanto o step
+    // não a criava essa consulta era código morto — o no-op só acontecia pelas outras duas
+    // vias (snapshot consumido, gatilho confirmado). Também é o que distingue "pagou tudo"
+    // de "parou no meio" numa auditoria do ledger.
+    await reservarEfeito(`pontual:${itemOrigemId}:fechamento`, "pontual_fechamento", { execucaoId })
+    await confirmarEfeito(`pontual:${itemOrigemId}:fechamento`, execucaoId, { desfecho })
     await confirmarEfeito(`pontual:gatilho:${itemOrigemId}`, execucaoId, { desfecho })
   } else {
+    // Simulação não deixa marca de pagamento: o dinheiro não se moveu.
     await liberarEfeito(`pontual:gatilho:${itemOrigemId}`)
   }
 }
@@ -839,10 +869,11 @@ export async function executarPontualWorkflow(input: PontualWorkflowInput): Prom
       return { desfecho: "sem_saldo" }
     }
 
-    const credVR = await etapaPedidoCaju(input, plano, employeeId, "credito", "VR")
-    const credVT = await etapaPedidoCaju(input, plano, employeeId, "credito", "VT")
-    const pixVR = await etapaPedidoCaju(input, plano, employeeId, "boleto", "VR")
-    const pixVT = await etapaPedidoCaju(input, plano, employeeId, "boleto", "VT")
+    // DOIS pedidos, não quatro: VR e VT viajam juntos em cada um (formato WF5, decisão do
+    // Isaac 13/08). O crédito nunca é confirmado (fica DRAFT); o boleto é confirmado e
+    // devolve o QR.
+    const credito = await etapaPedidoCaju(input, plano, employeeId, "credito")
+    const boleto = await etapaPedidoCaju(input, plano, employeeId, "boleto")
 
     await etapaRmHistorico(input, plano, "pix")
     const { temFinanceiro } = await etapaRmFopRotinas(input, plano)
@@ -851,34 +882,41 @@ export async function executarPontualWorkflow(input: PontualWorkflowInput): Prom
     // A TRAVA: histórico do crédito SÓ depois do FopRotinas+integrar.
     await etapaRmHistorico(input, plano, "credito")
 
-    await etapaControleCaju(input, plano, { vr: credVR.orderId, vt: credVT.orderId })
+    await etapaControleCaju(input, plano, { vr: credito.orderId, vt: null })
     await etapaMondayPlano(input, plano)
     const solicitacaoId = await etapaSolicitacao(input, plano, {
-      pedidoCreditoVR: credVR.orderId,
-      pedidoCreditoVT: credVT.orderId,
-      pedidoPixVR: pixVR.orderId,
-      pedidoPixVT: pixVT.orderId,
+      // Pedido ÚNICO por tipo: o id vai no campo VR e o VT fica null. Quem consome junta
+      // os não-nulos (idsPedidoParaSolicitacao), então a Solicitação recebe um id por tipo.
+      pedidoCreditoVR: credito.orderId,
+      pedidoCreditoVT: null,
+      pedidoPixVR: boleto.orderId,
+      pedidoPixVT: null,
       idVR,
       idVT,
     })
     await etapaDrive(input, plano, {
-      pedidoCreditoVR: credVR.orderId,
-      pedidoCreditoVT: credVT.orderId,
-      pedidoPixVR: pixVR.orderId,
-      pedidoPixVT: pixVT.orderId,
+      // Pedido ÚNICO por tipo: o id vai no campo VR e o VT fica null. Quem consome junta
+      // os não-nulos (idsPedidoParaSolicitacao), então a Solicitação recebe um id por tipo.
+      pedidoCreditoVR: credito.orderId,
+      pedidoCreditoVT: null,
+      pedidoPixVR: boleto.orderId,
+      pedidoPixVT: null,
       idVR,
       idVT,
-      qrVR: pixVR.qr,
-      qrVT: pixVT.qr,
+      // Um boleto = um QR. O segundo slot existe pro mensal, que tem dois.
+      qrVR: boleto.qr,
+      qrVT: "",
       solicitacaoId,
     })
     await etapaBalao(input, plano)
     await etapaStatusOk(input, solicitacaoId)
     await etapaFechamento(input, plano, {
-      pedidoCreditoVR: credVR.orderId,
-      pedidoCreditoVT: credVT.orderId,
-      pedidoPixVR: pixVR.orderId,
-      pedidoPixVT: pixVT.orderId,
+      // Pedido ÚNICO por tipo: o id vai no campo VR e o VT fica null. Quem consome junta
+      // os não-nulos (idsPedidoParaSolicitacao), então a Solicitação recebe um id por tipo.
+      pedidoCreditoVR: credito.orderId,
+      pedidoCreditoVT: null,
+      pedidoPixVR: boleto.orderId,
+      pedidoPixVT: null,
       idVR,
       idVT,
       solicitacaoId,
