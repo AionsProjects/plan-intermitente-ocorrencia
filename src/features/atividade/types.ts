@@ -71,6 +71,7 @@ export const LABEL_ACAO: Record<string, string> = {
   // O front declarava `mensal_fechamento` no TipoAtividade enquanto o servidor
   // gravava `mensal`. Os dois entram pra lista não filtrar errado no histórico antigo.
   mensal_fechamento: "Pagamento mensal",
+  pontual_pagamento: "Pagamento pontual",
 }
 
 export const COR_ACAO: Record<string, string> = {
@@ -83,12 +84,14 @@ export const COR_ACAO: Record<string, string> = {
   desconto: "text-blue-400",
   mensal: "text-fuchsia-400",
   mensal_fechamento: "text-fuchsia-400",
+  // Verde-limão: é pagamento, mas não é o mensal — o DP precisa distinguir de longe.
+  pontual_pagamento: "text-lime-400",
 }
 
 /** Ordem dos chips de filtro. `mensal_fechamento` fica fora — é sinônimo de `mensal`. */
 export const ACOES_FILTRAVEIS = [
   "convocacao", "registro", "cancelamento", "split",
-  "atestado", "ponto_facultativo", "desconto", "mensal",
+  "atestado", "ponto_facultativo", "desconto", "mensal", "pontual_pagamento",
 ] as const
 
 export const rotuloAcao = (a: string): string => LABEL_ACAO[a] ?? a.replaceAll("_", " ")

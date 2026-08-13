@@ -238,10 +238,37 @@ async function etapaValidacao(input: PontualWorkflowInput): Promise<PlanoPagamen
   if (recusas.length) throw new FatalError(`validacao_recusou: ${recusas.join(", ")}`)
 
   const semSaldo = (Number(snapshot!.liquido_vr) || 0) + (Number(snapshot!.liquido_vt) || 0) <= 0
+  const pessoa = montarPessoaPagamento(snapshot!)
+
+  // Identidade + valores na LINHA do log. O webhook do Monday só traz o item_id, então sem
+  // isto a execução aparece anônima em /atividade e some da busca por nome e do filtro de
+  // pessoa. `abrirExecucao` faz COALESCE nesses campos, então preencher aqui é seguro.
+  const { abrirExecucao } = await import("../auth-backend/src/services/execucao.js")
+  await abrirExecucao({
+    id: execucaoId,
+    acao: "pontual_pagamento",
+    motor: "workflow",
+    alvo: itemOrigemId,
+    pessoa: pessoa.nome,
+    contrato: pessoa.contrato,
+    resumo: {
+      chapa: pessoa.chapa,
+      data_inicio: snapshot!.data_inicio,
+      data_fim: snapshot!.data_fim,
+      vr: Number(snapshot!.liquido_vr) || 0,
+      vt: Number(snapshot!.liquido_vt) || 0,
+      desconto: (Number(snapshot!.desconto_vr) || 0) + (Number(snapshot!.desconto_vt) || 0),
+      credito: (Number(snapshot!.credito_vr) || 0) + (Number(snapshot!.credito_vt) || 0),
+      boleto: (Number(snapshot!.pix_vr) || 0) + (Number(snapshot!.pix_vt) || 0),
+      sem_saldo: semSaldo,
+      recalculado,
+    },
+  })
+
   await log(execucaoId, "validacao", "ok", {
     metadados: { semSaldo, recalculado, liquidoVR: snapshot!.liquido_vr, liquidoVT: snapshot!.liquido_vt },
   })
-  return { snapshot: snapshot!, pessoa: montarPessoaPagamento(snapshot!), semSaldo, recalculado, jaPago: false }
+  return { snapshot: snapshot!, pessoa, semSaldo, recalculado, jaPago: false }
 }
 etapaValidacao.maxRetries = 3
 

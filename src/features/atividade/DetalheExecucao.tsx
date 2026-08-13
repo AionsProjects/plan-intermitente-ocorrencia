@@ -48,6 +48,14 @@ const LABEL_RESUMO: Record<string, string> = {
   tipo: "Tipo",
   qtd_faltas: "Faltas",
   qtd_atrasos: "Atrasos",
+  // pagamento pontual (felipeta)
+  vr: "VR a pagar",
+  vt: "VT a pagar",
+  desconto: "Desconto abatido",
+  credito: "Crédito no cartão",
+  boleto: "Boleto PIX",
+  sem_saldo: "Desconto consumiu tudo",
+  recalculado: "Recalculado na confirmação",
 }
 
 const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho",

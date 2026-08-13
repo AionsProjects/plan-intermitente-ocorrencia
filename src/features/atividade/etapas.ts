@@ -36,6 +36,22 @@ const LABEL_ETAPA: Record<string, string> = {
   historico: "Atualizando o Histórico",
   cancelar_rm: "Removendo convocação do RM",
   substituir_rm: "Substituindo convocação no RM",
+  // pré-pagamento na convocação (fase 1 do pontual)
+  pre_pagamento: "Calculando o pagamento",
+  reservar_prepagamento: "Reservando o desconto",
+  liberar_prepagamento: "Devolvendo o desconto ao FIFO",
+  // pagamento pontual na felipeta (workflows/pontual.ts) — um por step, senão a
+  // timeline mostra "rm gerar hist pix l0" pra quem só quer saber o que aconteceu.
+  caju_pessoa: "Localizando a pessoa no Caju",
+  fifo: "Abatendo o desconto pendente",
+  caju_credito_vr: "Pedido de crédito — VR",
+  caju_credito_vt: "Pedido de crédito — VT",
+  caju_pix_vr: "Boleto PIX — VR",
+  caju_pix_vt: "Boleto PIX — VT",
+  rm_gerar_hist_pix_l0: "Histórico do boleto no RM",
+  rm_gerar_hist_credito_l0: "Histórico do crédito no RM",
+  monday_balao: "Publicando o resumo no item",
+  pagamento: "Pagamento",
 }
 
 export const rotuloEtapa = (e: string | null | undefined): string =>

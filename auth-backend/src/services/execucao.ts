@@ -282,7 +282,14 @@ export async function abrirExecucao(inp: AberturaExecucao): Promise<Execucao> {
              -- Preenche o que faltava sem sobrescrever o que já havia: um reatache pode
              -- saber a pessoa que a abertura não sabia, e vice-versa.
              pessoa_nome = COALESCE(audit_lancamentos.pessoa_nome, EXCLUDED.pessoa_nome),
-             contrato = COALESCE(audit_lancamentos.contrato, EXCLUDED.contrato)
+             contrato = COALESCE(audit_lancamentos.contrato, EXCLUDED.contrato),
+             -- Resumo MESCLA (chave nova entra, chave repetida vence a do reatache). É o que
+             -- permite um fluxo em duas pontas enriquecer a mesma linha: o gatilho da felipeta
+             -- só conhece o item_id, e os valores só existem depois da validação. COALESCE nos
+             -- dois lados porque jsonb concatenado com NULL dá NULL — apagaria o resumo
+             -- que já estava gravado.
+             payload_resumo = COALESCE(audit_lancamentos.payload_resumo, '{}'::jsonb)
+                              || COALESCE(EXCLUDED.payload_resumo, '{}'::jsonb)
        RETURNING id, acao, pessoa_nome, contrato`,
       [
         inp.id || null,
