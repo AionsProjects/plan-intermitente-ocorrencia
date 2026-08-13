@@ -2,6 +2,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import {
+  NATUREZAS_NO_BOARD,
   linhasNotaDeRelatorio,
   montarNomeItemNota,
   montarValuesItemNota,
@@ -142,8 +143,26 @@ const dados: DadosRelatorioPagamento = {
   geradoEm: new Date("2026-08-13T18:00:00Z"),
 }
 
+test("board leva SÓ o crédito — boleto continua na Solicitação de Pagamento", () => {
+  // Decisão do Isaac: duplicar o boleto num segundo board criaria duas listas de "pague isto".
+  assert.deepEqual(NATUREZAS_NO_BOARD, ["CRÉDITO"])
+  const linhas = linhasNotaDeRelatorio(dados)
+  assert.equal(linhas.length, 1)
+  assert.equal(linhas[0]!.natureza, "CRÉDITO")
+  assert.equal(linhas[0]!.orderId, "cred-vr")
+})
+
+test("o boleto entra quando pedido — mesmo builder, mesmo layout", () => {
+  // É assim que a parte do boleto liga depois: sem segundo formato pra manter.
+  const linhas = linhasNotaDeRelatorio(dados, { naturezas: ["CRÉDITO", "BOLETO"] })
+  assert.deepEqual(linhas.map((l) => l.natureza), ["CRÉDITO", "BOLETO"])
+})
+
 test("uma linha por pedido, com pessoa/contrato/período do relatório", () => {
-  const linhas = linhasNotaDeRelatorio(dados, { relatorioUrl: "https://drive/rel.pdf" })
+  const linhas = linhasNotaDeRelatorio(dados, {
+    relatorioUrl: "https://drive/rel.pdf",
+    naturezas: ["CRÉDITO", "BOLETO"],
+  })
   assert.equal(linhas.length, 2)
   assert.equal(linhas[0]!.colaborador, "LUAN VICTOR")
   assert.equal(linhas[0]!.chapa, "007104")
@@ -155,7 +174,7 @@ test("uma linha por pedido, com pessoa/contrato/período do relatório", () => {
 test("IDFINANC e Solicitação só na linha do BOLETO", () => {
   // O lançamento financeiro no RM existe pro boleto. Repetir na linha do crédito faria parecer
   // que o crédito gerou financeiro — exatamente o que a ordem dos steps do RM evita.
-  const [credito, boleto] = linhasNotaDeRelatorio(dados)
+  const [credito, boleto] = linhasNotaDeRelatorio(dados, { naturezas: ["CRÉDITO", "BOLETO"] })
   assert.equal(credito!.idfinanc, null)
   assert.equal(credito!.solicitacaoUrl, null)
   assert.equal(boleto!.idfinanc, "VR 24278; VT 24279")
@@ -168,6 +187,7 @@ test("mensal (N pessoas) não põe colaborador na linha", () => {
     origem: "MENSAL",
     pessoas: [{ nome: "A" }, { nome: "B" }],
   })
+  assert.ok(linhas.length > 0)
   assert.equal(linhas[0]!.colaborador, null)
   assert.equal(linhas[0]!.chapa, null)
   assert.equal(linhas[0]!.origem, "MENSAL")

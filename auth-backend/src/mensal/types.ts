@@ -67,6 +67,17 @@ export interface DescontoUpdatePrevia {
   descontadoVR: number
   descontadoVT: number
   status: "PARCIAL" | "FINALIZADO"
+  /**
+   * CPF (ou chapa) de quem teve esta dívida abatida. `descontoUpdates` é por CONTRATO; sem esta
+   * chave não há como dizer, no item de cada pessoa, qual dívida era dela.
+   */
+  pessoaKey?: string
+  /**
+   * DELTA abatido NESTA execução — não o `descontadoVR/VT` acumulado do board. Uma dívida que já
+   * vinha parcialmente abatida apareceria com valor inflado se o balão/relatório usasse o total.
+   */
+  abatidoVR?: number
+  abatidoVT?: number
 }
 
 export interface ContratoPreviaMensal {

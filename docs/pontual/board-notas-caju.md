@@ -1,14 +1,22 @@
 # Board "Notas e Relatórios Caju"
 
-Registro de UM item por **pedido na Caju** (crédito e boleto em linhas separadas), com o link do
-resumo na Caju, da nota de débito, do relatório em PDF e da pasta no Drive.
+Registro de UM item por **pedido de CRÉDITO na Caju**, com o link do resumo na Caju, da nota de
+débito, do relatório em PDF e da pasta no Drive.
 
-Por que board novo e não colunas na Solicitação de Pagamento:
+**Escopo: só o crédito.** O boleto continua na Solicitação de Pagamento — é de lá que o DP paga, e
+duplicá-lo aqui criaria duas listas de "pague isto".
+
+Por que o crédito precisou de board próprio:
 
 - a Solicitação **só é criada quando há boleto**, e a maioria dos pontuais é só crédito — o pedido
   de crédito não tinha registro em lugar nenhum;
 - a célula de pedido da Solicitação é a lista "pague isto" do DP. Misturar id de crédito ali
   convida alguém a pagar um pedido que não é boleto.
+
+O **layout abaixo é o completo** — inclui `IDFINANC` e `Solicitação`, que só um boleto preenche. É
+de propósito: quando a parte do boleto for feita, ela reusa o mesmo builder
+(`linhasNotaDeRelatorio(dados, { naturezas: ["CRÉDITO", "BOLETO"] })`) e o mesmo desenho de
+colunas, sem um segundo formato pra manter. Hoje `NATUREZAS_NO_BOARD = ["CRÉDITO"]`.
 
 ## Colunas
 
@@ -20,7 +28,7 @@ formata o valor conforme o **tipo** real. Coluna com nome diferente é pulada e 
 |---|---|---|
 | *(nome do item)* | — | `CRÉDITO - MARIA DA SILVA - 01/08/2026` |
 | `Pedido Caju` | Text | id do pedido — é a chave de conferência com o extrato |
-| `Natureza` | Status | `CRÉDITO` / `BOLETO` |
+| `Natureza` | Status | `CRÉDITO` (o `BOLETO` existe no layout, mas hoje não é gravado) |
 | `Benefício` | Dropdown | `VR`, `VT` (pedido do pontual leva os dois → duas labels) |
 | `Origem` | Status | `PONTUAL` / `MENSAL` |
 | `Contrato` | Dropdown | contrato |
@@ -33,8 +41,8 @@ formata o valor conforme o **tipo** real. Coluna com nome diferente é pulada e 
 | `Nota de Débito` | Link | só em `CRÉDITO`, e só com `CAJU_NOTA_URL` configurada |
 | `Relatório` | Link | PDF em `RELATORIOS/` na pasta da convocação |
 | `Pasta Drive` | Link | pasta da convocação/competência |
-| `IDFINANC` | Text | `VR 24278; VT 24279` — só na linha do BOLETO |
-| `Solicitação` | Link | item da Solicitação — só na linha do BOLETO |
+| `IDFINANC` | Text | `VR 24278; VT 24279` — só na linha do BOLETO (vazio hoje) |
+| `Solicitação` | Link | item da Solicitação — só na linha do BOLETO (vazio hoje) |
 | `Status` | Status | nasce `GERADO`; daí em diante é do DP |
 
 Gaveta (grupo) = mês de **caixa**, formato `AGOSTO/26` (o mesmo da Solicitação). Criada sozinha.

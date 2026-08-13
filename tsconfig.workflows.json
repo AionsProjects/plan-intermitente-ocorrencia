@@ -1,0 +1,26 @@
+{
+  // Typecheck de `workflows/` — que NÃO era coberto por nada.
+  //
+  // O `tsconfig.json` da raiz só referencia `tsconfig.app.json` (include: src) e
+  // `tsconfig.node.json` (include: vite.config.ts), e o do auth-backend cobre `auth-backend/src`.
+  // Resultado: os dois workflows duráveis — que movem DINHEIRO — passaram a existir sem
+  // verificação de tipo. Um `import` faltando e um campo inexistente em `descontoUpdates`
+  // sobreviveram a `npm run build` e a `tsc -b --force` sem uma linha de erro.
+  //
+  // `erasableSyntaxOnly` fica desligado porque o backend (importado daqui) usa parameter
+  // properties em drive.ts e monday.ts; a regra vale pro código do app, não pra este passe.
+  //
+  // Rodar: `npm run typecheck:workflows`.
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "es2022",
+    "lib": ["es2023"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": false
+  },
+  "include": ["workflows/**/*.ts"]
+}

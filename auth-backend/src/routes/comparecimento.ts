@@ -186,8 +186,15 @@ export async function rotasComparecimento(app: FastifyInstance): Promise<void> {
       const quem = [u.nome, u.sobrenome].filter(Boolean).join(" ").trim() || u.email
       const r = await lerDadosRelatorioPontual(itemId, `back-fill por ${quem}`, new Date())
       if (!r) return reply.code(404).send({ erro: "sem_prepagamento", item_id: itemId })
-      if (!r.dados.pedidos.length) {
-        return reply.code(409).send({ erro: "sem_pedido_caju", mensagem: "pagamento sem pedido (semSaldo?)" })
+      // Confere as linhas que o board REALMENTE vai receber (hoje só crédito) antes de subir
+      // arquivo: um pagamento sem crédito nenhum não tem o que registrar aqui.
+      const linhas = linhasNotaDeRelatorio(r.dados)
+      if (!linhas.length) {
+        return reply.code(409).send({
+          erro: "sem_pedido_credito",
+          mensagem: "pagamento sem pedido de crédito (semSaldo, ou só boleto)",
+          pedidos: r.dados.pedidos.map((p) => `${p.natureza} ${p.orderId}`),
+        })
       }
 
       const snapshot = await lerPrePagamentoCompleto(itemId)
@@ -213,7 +220,7 @@ export async function rotasComparecimento(app: FastifyInstance): Promise<void> {
         return { ok: true, relatorio_url: relatorioUrl, notas: "ja_registradas", ref: notas.refExterna }
       }
       await reservarEfeito(chaveNotas, "pontual_monday_notas", { itemId, por: u.email, backfill: true })
-      const res = await registrarNotasCaju(linhasNotaDeRelatorio(r.dados, { relatorioUrl }))
+      const res = await registrarNotasCaju(linhas.map((l) => ({ ...l, relatorioUrl })))
       if (res.pulado) {
         // Board ausente: solta a chave pra o back-fill valer de novo depois de registrar o board.
         await liberarEfeito(chaveNotas).catch(() => {})

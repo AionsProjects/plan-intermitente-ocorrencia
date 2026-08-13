@@ -1,12 +1,17 @@
-// Board "Notas e Relatórios Caju" — UMA linha por pedido na Caju.
+// Board "Notas e Relatórios Caju" — UMA linha por pedido de CRÉDITO na Caju.
 //
-// Por que um board novo em vez de colunas na Solicitação de Pagamento: a Solicitação só existe
-// quando há BOLETO, e a maioria dos pontuais é só crédito — o pedido de crédito ficava sem
-// registro em lugar nenhum. E a célula de pedido da Solicitação é a lista "pague isto" do DP;
-// misturar id de crédito ali convida alguém a pagar o que não é boleto.
+// Escopo (decisão do Isaac, 13/08): **só o crédito entra aqui**. O boleto continua onde já está,
+// na Solicitação de Pagamento — é de lá que o DP paga, e duplicar o boleto num segundo board
+// criaria duas listas de "pague isto".
 //
-// Uma linha por pedido (decisão do Isaac) porque é o que bate com o extrato da Caju: o crédito e
-// o boleto do mesmo pagamento são dois documentos, com valores e desfechos diferentes.
+// Por que o crédito precisou de board próprio: a Solicitação só é criada quando há BOLETO, e a
+// maioria dos pontuais é só crédito — o pedido de crédito não tinha registro em lugar nenhum.
+//
+// O layout, porém, é o COMPLETO (incluindo `IDFINANC` e `Solicitação`, que só um boleto preenche),
+// e `linhasNotaDeRelatorio` aceita as naturezas por parâmetro. Quando a parte do boleto for feita,
+// ela reusa este mesmo builder e o mesmo desenho de colunas — sem um segundo formato pra manter.
+//
+// Uma linha por pedido porque é o que bate com o extrato da Caju.
 //
 // TODAS as colunas resolvidas por NOME pelo registry (`board_colunas`, que também guarda o TIPO),
 // e o valor é formatado conforme o tipo real da coluna. Coluna que não existir no board é
@@ -153,15 +158,24 @@ export function montarValuesItemNota(l: LinhaNotaCaju, colunas: ColunaRegistro[]
 }
 
 /**
+ * Naturezas que entram no board. Hoje só o CRÉDITO — o boleto vive na Solicitação de Pagamento.
+ *
+ * Existe como constante e não como `filter` chumbado porque a parte do boleto vai ser feita
+ * depois, com este mesmo builder e o mesmo layout: ligar é trocar esta lista.
+ */
+export const NATUREZAS_NO_BOARD: Array<LinhaNotaCaju["natureza"]> = ["CRÉDITO"]
+
+/**
  * Linhas do board a partir dos dados do relatório — fonte única: o PDF e as linhas do board
  * contam a MESMA história, com os mesmos valores por pedido.
  */
 export function linhasNotaDeRelatorio(
   d: DadosRelatorioPagamento,
-  extras: { relatorioUrl?: string | null } = {},
+  extras: { relatorioUrl?: string | null; naturezas?: Array<LinhaNotaCaju["natureza"]> } = {},
 ): LinhaNotaCaju[] {
   const pessoa = d.pessoas.length === 1 ? d.pessoas[0] : null
-  return d.pedidos.map((p) => ({
+  const querer = new Set(extras.naturezas ?? NATUREZAS_NO_BOARD)
+  return d.pedidos.filter((p) => querer.has(p.natureza)).map((p) => ({
     natureza: p.natureza,
     beneficio: p.beneficio,
     orderId: p.orderId,
