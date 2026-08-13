@@ -251,15 +251,22 @@ async function etapaValidacao(input: PontualWorkflowInput): Promise<PlanoPagamen
     alvo: itemOrigemId,
     pessoa: pessoa.nome,
     contrato: pessoa.contrato,
+    // Valores por BENEFÍCIO, não só o total: é assim que a Caju (pedidos separados) e o RM
+    // (eventos 100/110) tratam, então é assim que o DP confere. O total continua sendo somado
+    // na tela — guardar os dois seria a mesma informação em dois lugares, e o que soma nunca
+    // divergiria por acidente.
     resumo: {
       chapa: pessoa.chapa,
       data_inicio: snapshot!.data_inicio,
       data_fim: snapshot!.data_fim,
       vr: Number(snapshot!.liquido_vr) || 0,
       vt: Number(snapshot!.liquido_vt) || 0,
-      desconto: (Number(snapshot!.desconto_vr) || 0) + (Number(snapshot!.desconto_vt) || 0),
-      credito: (Number(snapshot!.credito_vr) || 0) + (Number(snapshot!.credito_vt) || 0),
-      boleto: (Number(snapshot!.pix_vr) || 0) + (Number(snapshot!.pix_vt) || 0),
+      credito_vr: Number(snapshot!.credito_vr) || 0,
+      credito_vt: Number(snapshot!.credito_vt) || 0,
+      boleto_vr: Number(snapshot!.pix_vr) || 0,
+      boleto_vt: Number(snapshot!.pix_vt) || 0,
+      desconto_vr: Number(snapshot!.desconto_vr) || 0,
+      desconto_vt: Number(snapshot!.desconto_vt) || 0,
       sem_saldo: semSaldo,
       recalculado,
     },
