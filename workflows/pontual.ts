@@ -772,12 +772,19 @@ async function etapaFechamento(
   ] as const) {
     if (chave) await ex.artefato({ tipo, chave, rotulo })
   }
-  if (plano?.snapshot.pasta_convocacao_drive_id) {
+  // A pasta é RELIDA do banco, não tirada de `plano.snapshot`: quando a fase 1 não
+  // conseguiu resolvê-la, quem resolve é o step do Drive — e o objeto em memória do step 1
+  // continua com `pasta_estado='pendente'`. Foi o que aconteceu no pagamento da MARCIA
+  // (13/08): a pasta existia no board e no banco, mas o log fechou sem o artefato dela.
+  const { lerPrePagamentoCompleto } = await import("../auth-backend/src/pontual/prepagamento.js")
+  const atual = await lerPrePagamentoCompleto(itemOrigemId).catch(() => null)
+  const pastaId = atual?.pasta_convocacao_drive_id ?? plano?.snapshot.pasta_convocacao_drive_id
+  if (pastaId) {
     await ex.artefato({
       tipo: "drive_pasta",
-      chave: plano.snapshot.pasta_convocacao_drive_id,
+      chave: pastaId,
       rotulo: "Pasta da convocação",
-      url: `https://drive.google.com/drive/folders/${plano.snapshot.pasta_convocacao_drive_id}`,
+      url: `https://drive.google.com/drive/folders/${pastaId}`,
     })
   }
   await ex.fechar("ok", desfecho === "ja_pago" ? { erro: undefined } : undefined)

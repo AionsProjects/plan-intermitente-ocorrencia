@@ -9,6 +9,7 @@
 // no primeiro nível, então objeto e array aninhados passavam intactos. Metadado de
 // fase é aninhado por natureza (`{ pessoas: [{ cpf, chapa }] }`), logo o caso comum
 // era justamente o que escapava. Esta versão desce na estrutura.
+import { cpfValido } from "../cpf.js"
 
 /** Chaves cujo VALOR nunca é gravado, em qualquer profundidade. */
 const CHAVES_PROIBIDAS = /token|secret|password|authorization|cpf|access[_-]?token|apikey|api[_-]?key/i
@@ -37,9 +38,23 @@ export function limparTexto(v: unknown, limite = 500): string | null {
     .slice(0, limite)
 }
 
-/** Um CPF solto no meio do texto não casa `chave=valor`, então tem regra própria. */
+/**
+ * Um CPF solto no meio do texto não casa `chave=valor`, então tem regra própria.
+ *
+ * FORMATADO (`123.456.789-01`) mascara sempre — a pontuação já declara o que é. Onze
+ * dígitos CRUS só mascaram se passarem o dígito verificador, e isso não é preciosismo:
+ * item id do Monday tem 11 dígitos hoje, então a regra anterior transformava TODO id em
+ * "[cpf]" no log (`{"itemId":"[cpf]"}` no pagamento da MARCIA, 13/08 — o id do item de
+ * débito do Controle Caju foi perdido, e o mesmo valia pro mensal).
+ *
+ * O buraco que sobra é um CPF cru cujos DVs estão errados — que não é CPF de ninguém.
+ */
 export function limparCpfEmTexto(v: string): string {
-  return v.replace(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g, "[cpf]")
+  return v.replace(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g, (m) => {
+    const temPontuacao = /[.-]/.test(m)
+    if (temPontuacao) return "[cpf]"
+    return cpfValido(m) ? "[cpf]" : m
+  })
 }
 
 function limparValor(valor: unknown, profundidade: number): unknown {

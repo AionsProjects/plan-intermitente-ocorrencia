@@ -23,8 +23,23 @@ test("limparTexto corta no limite e trata nulo", () => {
 })
 
 test("limparCpfEmTexto pega CPF com e sem máscara", () => {
+  // Formatado: mascara sempre, a pontuação já declara o que é (mesmo com DV inválido).
   assert.equal(limparCpfEmTexto("cpf 123.456.789-01 aqui"), "cpf [cpf] aqui")
-  assert.equal(limparCpfEmTexto("12345678901"), "[cpf]")
+  // Cru: mascara CPF de verdade (DV confere).
+  assert.equal(limparCpfEmTexto("12345678909"), "[cpf]")
+  assert.equal(limparCpfEmTexto("pessoa 76236633215 sem cadastro"), "pessoa [cpf] sem cadastro")
+})
+
+// REGRESSÃO: item id do Monday tem 11 dígitos, e a regra "11 dígitos = CPF" transformava
+// TODO id em "[cpf]" — o pagamento da MARCIA (13/08) gravou {"itemId":"[cpf]"} e o id do
+// item de débito do Controle Caju foi perdido. Vale pro mensal também.
+test("id numérico de 11 dígitos NÃO é confundido com CPF", () => {
+  assert.equal(limparCpfEmTexto("12793710473"), "12793710473")
+  assert.equal(limparCpfEmTexto("item 12792874220 criado"), "item 12792874220 criado")
+  assert.deepEqual(
+    limparMetadados({ itemId: "12793710473", debito: 34.5 }),
+    { itemId: "12793710473", debito: 34.5 },
+  )
 })
 
 test("chave proibida é descartada no primeiro nível", () => {
