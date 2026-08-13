@@ -8,7 +8,7 @@ import {
 } from "../monday.js"
 import { usuarioDaSessao } from "../session.js"
 import { config } from "../config.js"
-import { chapaAceitavelNoFiltro, paraDataIso } from "../domain/convocacaoRm.js"
+import { chapaAceitavelNoFiltro, paraDataBr } from "../domain/convocacaoRm.js"
 import { temRmSoap } from "../clients/rmSoap.js"
 import { confirmarEfeito, enfileirar, liberarEfeito, reservarEfeito } from "../jobs/repo.js"
 import { TIPO_JOB_CONVOCACAO_RM, type PayloadConvocacaoRmPontual } from "../jobs/convocacaoRmPontual.js"
@@ -507,11 +507,11 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
       setTexto(COL.cpf, campos.empregado_cpf)
       setTexto(COL.chapa, campos.empregado_chapa)
       setTexto(COL.funcao, campos.empregado_funcao)
-      // Normaliza na ESCRITA também, não só na busca: o valor chega do navegador, e o board
-      // guarda `Admissão` como TEXT — o que entrar aqui é o que a convocação RM vai ler depois
-      // como piso da data do ato. Payload antigo em cache ou chamada fora do form não passa
-      // dateTime com fuso pra dentro do board.
-      setTexto(COL.admissao, paraDataIso(campos.empregado_admissao) || campos.empregado_admissao)
+      // `DD/MM/YYYY`: a coluna é TEXT e o DP a preenche à mão em pt-BR desde sempre — o que a
+      // automação escreve tem de ser indistinguível disso. Internamente tudo é ISO; a conversão
+      // acontece aqui, na borda. (Quem lê depois — a convocação RM — usa `paraDataIso`, que
+      // aceita os dois formatos, então nada quebra.)
+      setTexto(COL.admissao, paraDataBr(campos.empregado_admissao) || campos.empregado_admissao)
       setTexto(COL.escala, campos.escala)
       setStatus(COL.solicitante, campos.solicitante)
       setStatus(COL.contrato, campos.contrato)

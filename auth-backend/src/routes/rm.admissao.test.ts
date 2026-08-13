@@ -5,6 +5,7 @@
 // `06/08/2026` (legado, à mão) e metade em `2026-08-06T00:00:00-03:00`.
 import { test } from "node:test"
 import assert from "node:assert/strict"
+import { paraDataBr } from "../domain/convocacaoRm.js"
 import { mapearEmpregadoBen2 } from "./rm.js"
 
 const linha = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
@@ -58,4 +59,27 @@ test("resto do payload segue intacto (contrato inferido da seção, VT nas duas 
   assert.equal(r.optante_vt, "SIM")
   assert.equal(r.optanteVT, "SIM")
   assert.equal(r.codcoligada, 3)
+})
+
+// ---------------------------------------------------------------------------
+// paraDataBr — o que a coluna `Admissão` do board recebe
+// ---------------------------------------------------------------------------
+
+test("coluna do board recebe DD/MM/YYYY, o formato que o DP usa à mão", () => {
+  // A API segue devolvendo ISO (o front faz `parseISO`); a conversão é só na borda de escrita.
+  assert.equal(paraDataBr("2026-06-12"), "12/06/2026")
+  assert.equal(paraDataBr("2026-06-12T00:00:00-03:00"), "12/06/2026")
+  assert.equal(paraDataBr("12/06/2026"), "12/06/2026")
+})
+
+test("paraDataBr não muda o dia em virada de ano/mês", () => {
+  assert.equal(paraDataBr("2026-01-01T00:00:00-03:00"), "01/01/2026")
+  assert.equal(paraDataBr("2026-12-31T00:00:00-03:00"), "31/12/2026")
+  assert.equal(paraDataBr("2026-03-01T00:00:00-04:00"), "01/03/2026")
+})
+
+test("paraDataBr devolve vazio no que não é data", () => {
+  for (const v of [null, undefined, "", "  ", "nao informado", "12/2026"]) {
+    assert.equal(paraDataBr(v), "")
+  }
 })

@@ -75,6 +75,22 @@ export function paraDataIso(v: unknown): string {
   return ""
 }
 
+/**
+ * `DD/MM/YYYY` — o formato da coluna `Admissão` no board.
+ *
+ * Ela é **text**, e o DP a preenche à mão em pt-BR desde sempre; o que a automação escreve tem de
+ * ser indistinguível disso, senão a coluna vira duas convenções misturadas e quem lê não sabe qual
+ * é a certa. Internamente tudo continua ISO — a conversão acontece só na borda de escrita.
+ *
+ * Devolve `""` no que não for data, igual a `paraDataIso`.
+ */
+export function paraDataBr(v: unknown): string {
+  const iso = paraDataIso(v)
+  if (!iso) return ""
+  const [ano, mes, dia] = iso.split("-")
+  return `${dia}/${mes}/${ano}`
+}
+
 /** Formato dateTime que o RM devolve e aceita: `YYYY-MM-DDTHH:mm:ss` (sem fuso). */
 export function dataHoraRm(iso: string, hora = "00:00:00"): string {
   const dia = String(iso).slice(0, 10)

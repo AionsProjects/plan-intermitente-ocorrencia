@@ -1,15 +1,17 @@
-// Corrige a coluna `Admissão` do board atual: `2026-08-12T00:00:00-03:00` -> `2026-08-12`.
+// Uniformiza a coluna `Admissão` do board atual em `DD/MM/YYYY` — o formato que o DP usa à mão.
 //
 // Origem do estrago: a rota `/api/convocar-buscar-empregado` devolvia a `Data de Admissão` do RM
-// CRUA (dateTime com fuso) e o valor ia inteiro pra coluna, que é text. Corrigido na fonte e na
-// escrita (routes/rm.ts + routes/convocar.ts); este script limpa o que já entrou.
+// CRUA (dateTime com fuso, `2026-08-12T00:00:00-03:00`) e o valor ia inteiro pra coluna, que é
+// text. Corrigido na fonte e na escrita (routes/rm.ts + routes/convocar.ts); este script arruma o
+// que já entrou.
 //
-// NÃO muda a data, só o formato: corta por STRING nos 10 primeiros caracteres. `new Date()`
-// converteria meia-noite -03:00 pro fuso da máquina e poderia trocar o dia — e a admissão é o
-// piso do cálculo da data do ato no S-2260.
+// NÃO muda a data, só o formato. Conversão por STRING (`paraDataBr`), nunca `new Date()`:
+// converter meia-noite -03:00 pro fuso da máquina troca o dia — e a admissão é o piso do cálculo
+// da data do ato no S-2260.
 //
 // Dry-run por padrão. Para gravar:  node --env-file=.env --import tsx src/scripts/corrigir-admissao-board.ts --aplicar
 import { query } from "../db.js"
+import { paraDataBr } from "../domain/convocacaoRm.js"
 import { mondayGraphql } from "../monday.js"
 
 const aplicar = process.argv.includes("--aplicar")
@@ -56,10 +58,15 @@ do {
     total++
     const v = (it.column_values[0]?.text ?? "").trim()
     if (!v) continue
-    // Só toca no que é ISO COM sobra (hora/fuso). `DD/MM/YYYY` do legado fica como está:
-    // reformatar 180 linhas à mão do DP não é o problema em questão.
-    const m = /^(\d{4}-\d{2}-\d{2})[T ].+$/.exec(v)
-    if (m) alvos.push({ id: it.id, nome: it.name, de: v, para: m[1]! })
+    // Já em `DD/MM/YYYY` = nada a fazer. O resto (ISO seco ou com carimbo) vira pt-BR.
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(v)) continue
+    const br = paraDataBr(v)
+    // Sem `paraDataBr` = não é data (texto livre do DP). Não inventa: deixa como está e reporta.
+    if (!br) {
+      console.warn(` ? ${it.id} valor não reconhecido como data: ${JSON.stringify(v)}  ${it.name}`)
+      continue
+    }
+    alvos.push({ id: it.id, nome: it.name, de: v, para: br })
   }
   cursor = page.cursor
 } while (cursor)
