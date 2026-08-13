@@ -1,0 +1,66 @@
+// RM do PONTUAL — o que difere do mensal e por quê:
+//
+// - eventos do FopRotinas: 100 (VR) / 110 (VT). O mensal usa 101/111 (chumbado em
+//   chapasEventosPix); trocar lá quebraria o mensal, então a variante vive aqui.
+// - eventos derivam do VALOR FINAL (pix>0), fidelidade ao WF5: o Code10 monta a lista a
+//   partir do líquido, e o WF6 só roda quando há boleto — quem garante "crédito não gera
+//   financeiro" é a ORDEM (histórico do crédito só depois do FopRotinas), não um if.
+// - TPBEN: 0 no histórico do BOLETO (diário), 1 no do CRÉDITO (mensal) — paridade WF5.
+//   O mensal grava tudo com 1; por isso o parâmetro em montarXmlHistorico tem default 1.
+// - competência = mês da data_inicio da CONVOCAÇÃO (permite retroativo), não o mês corrente.
+import { chapa6, montarXmlHistorico, type RegistroHistoricoRm } from "../mensal/rmEfeitos.js"
+import type { PessoaPreviaMensal } from "../mensal/types.js"
+
+export const EVENTO_PONTUAL_VR = "100"
+export const EVENTO_PONTUAL_VT = "110"
+
+/** Eventos do FopRotinas — do valor FINAL (pix por benefício), nunca de "teve boleto". */
+export function eventosPontual(pessoa: Pick<PessoaPreviaMensal, "pixVR" | "pixVT">): string[] {
+  const out: string[] = []
+  if ((Number(pessoa.pixVR) || 0) > 0) out.push(EVENTO_PONTUAL_VR)
+  if ((Number(pessoa.pixVT) || 0) > 0) out.push(EVENTO_PONTUAL_VT)
+  return out
+}
+
+/** Competência do RM = mês/ano do INÍCIO da convocação. */
+export function competenciaPontual(dataInicio: string): { anoComp: number; mesComp: number } {
+  const [ano, mes] = String(dataInicio).split("-").map(Number)
+  return { anoComp: ano || 0, mesComp: mes || 0 }
+}
+
+/**
+ * Registros ZMDHSTBENFUNC de UMA pessoa. `tipo` decide valor E TPBEN:
+ * pix → pixVR/pixVT com TPBEN=0; credito → creditoVR/creditoVT com TPBEN=1.
+ */
+export function registrosHistoricoPontual(
+  pessoa: PessoaPreviaMensal,
+  tipo: "pix" | "credito",
+  ctx: { codSecao: string; dataImport: string },
+): RegistroHistoricoRm[] {
+  const chapa = chapa6(pessoa.chapa)
+  if (!chapa || chapa === "000000") return []
+  const { anoComp, mesComp } = competenciaPontual(pessoa.dataInicio)
+  const tpben: 0 | 1 = tipo === "pix" ? 0 : 1
+  const label = tipo === "pix" ? "PIX" : "CREDITO"
+  const out: RegistroHistoricoRm[] = []
+  const pares: Array<{ beneficio: 1 | 2; sufixo: "VR" | "VT"; valor: number }> = [
+    { beneficio: 1, sufixo: "VR", valor: Number((tipo === "pix" ? pessoa.pixVR : pessoa.creditoVR) || 0) },
+    { beneficio: 2, sufixo: "VT", valor: Number((tipo === "pix" ? pessoa.pixVT : pessoa.creditoVT) || 0) },
+  ]
+  for (const p of pares) {
+    if (p.valor <= 0) continue
+    out.push({
+      tipo: `HIST_${label}_${p.sufixo}`,
+      chapa,
+      nome: pessoa.nome,
+      valor: p.valor,
+      codBeneficio: p.beneficio,
+      dadosXml: montarXmlHistorico({
+        anoComp, mesComp, chapa, nome: pessoa.nome,
+        codSecao: ctx.codSecao, codBeneficio: p.beneficio,
+        vlrTotal: p.valor, dataImport: ctx.dataImport, tpben,
+      }),
+    })
+  }
+  return out
+}

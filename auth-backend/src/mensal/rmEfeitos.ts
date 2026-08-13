@@ -73,6 +73,13 @@ export function montarXmlHistorico(p: {
   codBeneficio: 1 | 2
   vlrTotal: number
   dataImport: string // YYYY-MM-DD
+  /**
+   * 1 = mensal (default — o fluxo mensal grava TUDO com TPBEN=1, validado 6/6 em produção).
+   * 0 = diário — usado pelo PONTUAL no histórico do BOLETO (paridade com o WF5: TPBEN=0 no
+   * boleto e 1 no crédito é metade da trava que impede lançamento financeiro sobre o crédito;
+   * a outra metade é a ordem, crédito só DEPOIS do FopRotinas).
+   */
+  tpben?: 0 | 1
 }): string {
   let mesRef = p.mesComp - 1
   let anoRef = p.anoComp
@@ -90,7 +97,7 @@ export function montarXmlHistorico(p: {
     <CODSECAO>${p.codSecao}</CODSECAO>
     <CODBENEFICIO>${p.codBeneficio}</CODBENEFICIO>
     <VLRTOTAL>${fmtVirgula(p.vlrTotal)}</VLRTOTAL>
-    <TPBEN>1</TPBEN>
+    <TPBEN>${p.tpben ?? 1}</TPBEN>
     <CATFUN>1</CATFUN>
     <DATAIMPORT>${p.dataImport}</DATAIMPORT>
   </ZMDHSTBENFUNC>

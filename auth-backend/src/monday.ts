@@ -225,3 +225,12 @@ export async function criarWebhook(
 export async function deletarWebhook(webhookId: string): Promise<void> {
   await mondayGraphql(`mutation($id:ID!){ delete_webhook(id:$id){ id } }`, { id: webhookId })
 }
+
+/** Update (o "balãozinho") num item. Devolve o id do update criado. */
+export async function criarUpdate(itemId: string, body: string): Promise<string | null> {
+  const d = await mondayGraphql<{ create_update: { id: string } | null }>(
+    `mutation($item:ID!,$body:String!){ create_update(item_id:$item, body:$body){ id } }`,
+    { item: itemId, body },
+  )
+  return d.create_update?.id ?? null
+}
