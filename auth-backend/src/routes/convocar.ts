@@ -360,9 +360,15 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
     // uq_prepag_item_vivo não ajuda, porque cada item é "vivo" por conta própria).
     //
     // Chave por execucao_id não resolveria: cobre só o mesmo formulário; um retry com id novo
-    // passa. Fica ANTES de abrirExecucao de propósito — os dois cliques compartilham o mesmo
-    // execucao_id, e fechar a execução do 2º clique com "erro" marcaria de erro o log do 1º,
-    // que ainda está rodando (fechar é first-wins).
+    // passa. Fica ANTES de abrirExecucao pra o 2º clique não escrever NADA no log do 1º.
+    //
+    // ⚠️ Cada clique tem execucao_id PRÓPRIO — `comAtividade` no front cunha um id novo por
+    // chamada da mutation. A versão anterior deste comentário afirmava o contrário ("os dois
+    // cliques compartilham o mesmo execucao_id") e por isso não fechava a execução do 2º
+    // clique: sobrava uma linha `aberta`, sem fase nem artefato, ao lado da linha real.
+    // Em 14/08 isso deu 4 linhas no /atividade para 2 convocações (MICHELE e MARCILENE) — e
+    // fez o operador achar que uma delas não registrou. Fechar a do 2º clique é seguro
+    // justamente porque o id é outro.
     const identidade = normCode(campos.empregado_chapa ?? "")
       || (campos.empregado_cpf ?? "").replace(/\D/g, "")
       || normName(campos.empregado_nome)
@@ -370,10 +376,35 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
     const estadoIdem = await reservarEfeito(chaveIdem, "convocacao_pontual", {
       chapa: campos.empregado_chapa ?? null, nome: campos.empregado_nome, papel,
     })
+    /**
+     * Fecha a execução DESTE clique (id próprio) como duplicata, pra ela não virar linha
+     * fantasma `aberta` no /atividade. Best-effort: a resposta 409 é o que importa.
+     */
+    const fecharDuplicata = async (motivo: string): Promise<void> => {
+      if (!campos.execucao_id) return
+      try {
+        const exDup = await abrirExecucao({
+          id: campos.execucao_id,
+          acao: "convocacao",
+          motor: "backend",
+          operador: { userId: usuario.id, email: usuario.email, nome: [usuario.nome, usuario.sobrenome].filter(Boolean).join(" ").trim() || usuario.email },
+          pessoa: campos.empregado_nome,
+          contrato: campos.contrato,
+        })
+        await exDup.etapa("idempotencia", "pulado", { mensagem: motivo })
+        // `parcial`, não `erro`: nada quebrou — o clique anterior fez o trabalho. Marcar erro
+        // acenderia alerta de WhatsApp para uma convocação que existe e está certa.
+        await exDup.fechar("parcial", { resumo: { duplicata: motivo } })
+      } catch (e) {
+        req.log.warn(e, "fechar execucao duplicada falhou")
+      }
+    }
+
     if (estadoIdem === "pendente") {
       // 1ª chamada ainda em curso (ou morreu antes do create — o catch libera a chave; se
       // morreu SEM liberar, o retry destrava sozinho quando o operador reabrir o form, e o
       // caso é visível no /atividade).
+      await fecharDuplicata("clique repetido: a 1ª chamada ainda está criando esta convocação")
       return reply.code(409).send({
         ok: false, erro: "convocacao_em_curso",
         mensagem: "Esta convocação já está sendo criada. Aguarde alguns segundos.",
@@ -386,6 +417,9 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
         `SELECT ref_externa FROM efeitos_externos WHERE chave = $1`, [chaveIdem],
       ).then((r) => r.rows[0]?.ref_externa ?? null).catch(() => null)
       const bIdem = await resolverBoard(papel).catch(() => null)
+      await fecharDuplicata(
+        ref ? `convocação já criada no item ${ref}` : "convocação já criada para esta pessoa neste período",
+      )
       return reply.code(409).send({
         ok: false, erro: "convocacao_conflitante",
         mensagem: "Convocação já criada para esta pessoa neste período.",

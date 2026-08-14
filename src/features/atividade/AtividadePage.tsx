@@ -96,10 +96,19 @@ export function AtividadePage() {
     queryKey: ["atividade", escopoTodos],
     queryFn: () => listarAtividade(escopoTodos),
     staleTime: 15_000,
-    // Enquanto houver execução em andamento a lista se atualiza sozinha — o log passa
-    // a servir DURANTE a execução, não só depois dela.
+    /**
+     * A lista se atualiza sozinha SEMPRE — 4s com execução em andamento, 30s parada.
+     *
+     * Antes o polling só existia enquanto havia linha `aberta`, e com tudo fechado a página
+     * congelava: quem ficava nela não via a convocação que acabou de ser criada e precisava
+     * recarregar à mão pra saber se deu certo. Foi o que levou o operador a clicar em
+     * "Convocar" de novo em 14/08 — o clique repetido é sintoma disto.
+     *
+     * `refetchIntervalInBackground: false` mantém a aba oculta em silêncio; 30s é barato
+     * (uma query de 200 linhas) e é o que faz o histórico ser um painel, não um snapshot.
+     */
     refetchInterval: (q) =>
-      q.state.data?.atividades.some((a) => a.estado === "aberta") ? 4000 : false,
+      q.state.data?.atividades.some((a) => a.estado === "aberta") ? 4000 : 30_000,
     refetchIntervalInBackground: false,
   })
 
