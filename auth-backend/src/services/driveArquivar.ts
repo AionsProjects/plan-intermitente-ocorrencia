@@ -99,6 +99,15 @@ export interface ArquivarInput {
    * convocação, e `ATESTADOS` pendura na pessoa.
    */
   pastas_resolvidas?: { pastaPessoaId: string; pastaConvocacaoId: string }
+  /**
+   * Cria o nível do PERÍODO (`13 A 19 08 2026`) dentro da pasta do dono. Default `true`.
+   *
+   * O pontual precisa dele: a mesma pessoa tem várias convocações no mesmo mês, e sem o período
+   * os pacotes se sobrescreveriam. O MENSAL passa `false` — lá o dono é o contrato, existe um
+   * pagamento por competência, e a competência já está no `08 - AGOSTO` do caminho: o período
+   * seria uma pasta a mais dizendo o que o avô já diz.
+   */
+  agrupar_por_periodo?: boolean
 }
 
 /** Natureza default — mantém intacto o caminho que o pontual já usa em produção. */
@@ -245,12 +254,16 @@ export async function arquivarDrive(input: ArquivarInput): Promise<ArquivarResul
   // Pastas já resolvidas pelo pré-pagamento: usa os ids e pula as ~7 idas ao Drive. O nome
   // fica só pra url de fallback — a real vem do `webViewLink` quando o Drive devolve.
   const reaproveita = input.pastas_resolvidas
+  const comPeriodo = input.agrupar_por_periodo !== false
   const pastaPessoa: DriveFile = reaproveita
     ? { id: reaproveita.pastaPessoaId, name: pessoa }
     : await ensurePath(root, [ano, mes, "CONTATO", contrato, natureza, pessoa])
+  // Sem período, as três pastas penduram direto no dono (o contrato, no caso do mensal).
   const pastaConvocacao: DriveFile = reaproveita
-    ? { id: reaproveita.pastaConvocacaoId, name: periodo }
-    : await ensureFolder(pastaPessoa.id, periodo)
+    ? { id: reaproveita.pastaConvocacaoId, name: comPeriodo ? periodo : pessoa }
+    : comPeriodo
+      ? await ensureFolder(pastaPessoa.id, periodo)
+      : pastaPessoa
 
   /**
    * Subpasta de destino por tipo, com cache.
@@ -333,8 +346,8 @@ export async function arquivarDrive(input: ArquivarInput): Promise<ArquivarResul
     pasta_pessoa_drive_url: pastaPessoaUrl,
     pasta_convocacao_drive_id: pastaConvocacao.id,
     pasta_convocacao_drive_url: pastaConvUrl,
-    pasta_convocacao_nome: periodo,
-    pasta_caminho: [ano, mes, "CONTATO", contrato, natureza, pessoa, periodo].join("/"),
+    pasta_convocacao_nome: comPeriodo ? periodo : pessoa,
+    pasta_caminho: [ano, mes, "CONTATO", contrato, natureza, pessoa, ...(comPeriodo ? [periodo] : [])].join("/"),
     uploads: uploads.map((u) => ({ id: u.id, name: u.name, url: u.webViewLink })),
     planilha: planilha ? { id: planilha.id, name: planilha.name, url: planilha.webViewLink } : undefined,
   }

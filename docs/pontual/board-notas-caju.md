@@ -87,19 +87,48 @@ não exige deploy. Template sem `{orderId}` é ignorado (geraria a mesma URL pra
 
 ## Pastas no Drive
 
-Três pastas dentro da pasta do período, e só três (pedido do Isaac, 13/08):
+Três pastas, e só três, dentro da pasta do dono do pagamento (pedido do Isaac, 13/08):
 
 ```
-<raiz>/2026/08 - AGOSTO/CONTATO/85 - SEMSA/INTERMITENTE - PONTUAL/KETLEM RAMOS MATOS/13 A 15 08 2026/
-├── CAJU/          boleto TXT (com o PIX copia-e-cola) + QR PNG + comprovante técnico TXT
-├── CONFERENCIA/   conferencia-<itemId>.xlsx
-└── OUTROS/        nota de débito e Relatório-de-pedidos da Caju (subidos à mão),
-                   relatorio-pagamento-*.pdf (automação), termos de convocação/insalubridade
+CAJU/          boleto TXT (com o PIX copia-e-cola) + QR PNG + comprovante técnico TXT
+CONFERENCIA/   conferencia-<itemId>.xlsx
+OUTROS/        nota de débito e Relatório-de-pedidos da Caju (subidos à mão),
+               relatorio-pagamento-*.pdf (automação), termos de convocação/insalubridade
 ```
+
+**PONTUAL** — o dono é a PESSOA, e há uma pasta por convocação (a mesma pessoa é convocada
+várias vezes no mesmo mês):
+
+```
+<raiz>/2026/08 - AGOSTO/CONTATO/11.02 - SEDUC INTERIOR/INTERMITENTE - PONTUAL/
+  └── LUAN VICTOR SOARES DA FONSECA/
+       └── 13 A 19 08 2026/          ← período da convocação
+            └── CAJU/ · CONFERENCIA/ · OUTROS/
+```
+
+**MENSAL** — o dono é o CONTRATO. Sem nível de pessoa (o pedido Caju é do contrato inteiro) e
+**sem nível de período**: há um pagamento por competência e a competência já está no `08 - AGOSTO`
+do caminho, então o período seria uma pasta repetindo o que o avô já diz.
+
+```
+<raiz>/2026/08 - AGOSTO/CONTATO/85 - SEMSA/INTERMITENTE - MENSAL/
+  └── MENSAL - SEMSA/
+       └── CAJU/ · CONFERENCIA/ · OUTROS/
+```
+
+O legado do n8n dividia o mensal por RODADA (`MENSAL ` para o boleto, `3 DIAS CREDITO ` para o
+crédito, ambos com espaço no fim do nome e arquivos soltos dentro). Essas pastas param de receber
+coisa nova; o conteúdo delas fica onde está.
+
+⚠️ **Espaço no fim do nome** era uma bomba: `ensureFolder` acha por nome EXATO e o nosso
+`sanitizeName` faz `trim`, então numa pasta criada pelo n8n com espaço o código não achava e criava
+uma SEGUNDA — os arquivos do mês rachavam entre as duas, calados.
+`scripts/corrigir-nome-pastas-drive.ts` renomeia (dry-run por padrão); renomear preserva id, url e
+conteúdo, então os links já gravados no Monday continuam valendo.
 
 - `CONFERENCIA` **sem acento**: é o nome que já existe em produção com a planilha dentro, e
   `findFolder` casa por nome exato — `CONFERÊNCIA` criaria uma segunda pasta.
-- A pasta do período chama-se `13 A 15 08 2026`, não `13 A 15/08/2026`: `sanitizeName` troca `/`
+- A pasta do período (pontual) chama-se `13 A 19 08 2026`, não `13 A 19/08/2026`: `sanitizeName` troca `/`
   por espaço (nome de arquivo/pasta não aceita barra em vários contextos).
 - **Nada fica solto** na raiz do período — o default é `OUTROS`.
 - `ATESTADOS/` é a única exceção: pendura na PESSOA, um nível acima. Atestado cobre dias, não um

@@ -14,6 +14,7 @@ process.env.GOOGLE_CLIENT_SECRET ??= "test"
 process.env.OAUTH_REDIRECT_URI ??= "http://localhost/cb"
 
 const { subpastaDoTipo } = await import("./driveArquivar.js")
+const { sanitizeName } = await import("../clients/drive.js")
 
 test("boleto e comprovante caem em CAJU (sem subpasta por dentro)", () => {
   // Antes eram CAJU/BOLETOS e CAJU/COMPROVANTES. Achatado — as antigas param de receber, mas
@@ -48,4 +49,22 @@ test("tipo casa ignorando acento, caixa e espaço", () => {
   assert.equal(subpastaDoTipo(" Relatorio "), "OUTROS")
   assert.equal(subpastaDoTipo("RELATÓRIO"), "OUTROS")
   assert.equal(subpastaDoTipo("Atestado"), null)
+})
+
+// ---------------------------------------------------------------------------
+// Nome de pasta — o que o trim resolve e o que ele arrisca
+// ---------------------------------------------------------------------------
+
+test("sanitizeName tira espaço do fim — origem da pasta duplicada", () => {
+  // O n8n criou `INTERMITENTE - MENSAL ` (com espaço). `ensureFolder` acha por nome EXATO e o
+  // nosso nome vai trimado: sem alinhar os dois, o código cria uma SEGUNDA pasta e os arquivos
+  // do mês racham entre as duas.
+  assert.equal(sanitizeName("INTERMITENTE - MENSAL "), "INTERMITENTE - MENSAL")
+  assert.equal(sanitizeName("3 DIAS CREDITO "), "3 DIAS CREDITO")
+  assert.equal(sanitizeName(" MENSAL "), "MENSAL")
+})
+
+test("sanitizeName troca a barra da data por espaço", () => {
+  // É por isso que a pasta do período se chama `13 A 19 08 2026` e não `13 A 19/08/2026`.
+  assert.equal(sanitizeName("13 A 19/08/2026"), "13 A 19 08 2026")
 })

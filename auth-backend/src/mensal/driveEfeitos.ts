@@ -153,6 +153,10 @@ export async function arquivarDriveMensal(
     contrato: contrato.contrato,
     data_inicio: dataInicio,
     data_fim: dataFim,
+    // Sem nível de período (decisão do Isaac, 13/08): no mensal o dono é o CONTRATO, há um
+    // pagamento por competência, e a competência já está no `08 - AGOSTO` do caminho — o período
+    // seria uma pasta repetindo o que o avô já diz. As três pastas penduram no contrato.
+    agrupar_por_periodo: false,
     item_solicitacao_id: refs.solicitacaoId ?? undefined,
     atualizar_monday: true,
     arquivos: arquivos.map((a) => ({
