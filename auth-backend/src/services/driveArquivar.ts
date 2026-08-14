@@ -52,6 +52,11 @@ interface ArquivoEntrada {
   buffer: Buffer
   filename: string
   mime: string
+  /**
+   * Subpasta de destino DESTE arquivo (`caju_boleto`, `relatorio`, `termo`…). Ausente = usa o
+   * `tipo` do input. É o que permite arquivar o pacote inteiro do pagamento numa só chamada.
+   */
+  tipo?: string
 }
 
 export interface ArquivarInput {
@@ -209,31 +214,53 @@ export async function arquivarDrive(input: ArquivarInput): Promise<ArquivarResul
     ? { id: reaproveita.pastaConvocacaoId, name: periodo }
     : await ensureFolder(pastaPessoa.id, periodo)
 
-  let pastaUpload = pastaConvocacao
+  /**
+   * Subpasta de destino por tipo, com cache.
+   *
+   * Cada `ensureFolder` é uma ida ao Drive (find, e create se faltar). Sem o cache, um pacote com
+   * boleto TXT + dois QR PNG resolveria `CAJU/BOLETOS` três vezes na mesma chamada.
+   */
+  const cacheSub = new Map<string, DriveFile>()
   let pastaAtestados: DriveFile | undefined
-  if (tipo === "atestado") {
-    pastaAtestados = await ensureFolder(pastaPessoa.id, "ATESTADOS")
-    pastaUpload = pastaAtestados
-  } else if (tipo === "caju_boleto") {
-    const caju = await ensureFolder(pastaConvocacao.id, "CAJU")
-    pastaUpload = await ensureFolder(caju.id, "BOLETOS")
-  } else if (tipo === "caju_comprovante") {
-    const caju = await ensureFolder(pastaConvocacao.id, "CAJU")
-    pastaUpload = await ensureFolder(caju.id, "COMPROVANTES")
-  } else if (tipo === "relatorio") {
-    // Pasta própria: o relatório é o documento que o financeiro procura, e enterrá-lo junto do
-    // QR code e do TXT técnico em CAJU/ é o mesmo que não gerar.
-    pastaUpload = await ensureFolder(pastaConvocacao.id, "RELATORIOS")
-  } else if (tipo === "termo") {
-    pastaUpload = await ensureFolder(pastaConvocacao.id, "TERMOS")
-  } else if (tipo === "outro") {
-    pastaUpload = await ensureFolder(pastaConvocacao.id, "OUTROS")
+  const subpastaDe = async (t: string): Promise<DriveFile> => {
+    const cache = cacheSub.get(t)
+    if (cache) return cache
+    let destino = pastaConvocacao
+    if (t === "atestado") {
+      // ATESTADOS pendura na PESSOA, não na convocação: um atestado cobre dias, não um período
+      // de convocação específico.
+      pastaAtestados = await ensureFolder(pastaPessoa.id, "ATESTADOS")
+      destino = pastaAtestados
+    } else if (t === "caju_boleto") {
+      destino = await ensureFolder((await ensureFolder(pastaConvocacao.id, "CAJU")).id, "BOLETOS")
+    } else if (t === "caju_comprovante") {
+      destino = await ensureFolder((await ensureFolder(pastaConvocacao.id, "CAJU")).id, "COMPROVANTES")
+    } else if (t === "relatorio") {
+      // Pasta própria: o relatório é o documento que o financeiro procura, e enterrá-lo junto do
+      // QR code e do TXT técnico em CAJU/ é o mesmo que não gerar.
+      destino = await ensureFolder(pastaConvocacao.id, "RELATORIOS")
+    } else if (t === "termo") {
+      destino = await ensureFolder(pastaConvocacao.id, "TERMOS")
+    } else if (t === "outro") {
+      destino = await ensureFolder(pastaConvocacao.id, "OUTROS")
+    }
+    cacheSub.set(t, destino)
+    return destino
   }
 
+  // O `tipo` de cada ARQUIVO manda; o do input é o default.
+  //
+  // Antes só existia o tipo do input, então arquivar boleto + comprovante + relatório do mesmo
+  // pagamento exigia TRÊS chamadas a esta função — e no mensal, que não tem `pastas_resolvidas`,
+  // cada uma redescobria a árvore inteira (~7 idas ao Drive) e reescrevia as MESMAS 4 colunas do
+  // Monday. Uma chamada com os arquivos etiquetados resolve o caminho uma vez.
   const uploads = []
   for (const arq of input.arquivos ?? []) {
-    uploads.push(await uploadBuffer(pastaUpload.id, arq.filename, arq.mime, arq.buffer))
+    const destino = await subpastaDe(normDrive(arq.tipo ?? input.tipo ?? "convocacao").toLowerCase())
+    uploads.push(await uploadBuffer(destino.id, arq.filename, arq.mime, arq.buffer))
   }
+  // Atestado sem arquivo (ou com tipo só no input) ainda precisa da pasta pro eco no Monday.
+  if (tipo === "atestado" && !pastaAtestados) await subpastaDe("atestado")
 
   let planilha: DriveFile | undefined
   if (input.gerar_planilha_conferencia && input.item_entrada_id) {

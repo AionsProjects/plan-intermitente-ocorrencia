@@ -104,7 +104,12 @@ export function montarArquivosDrivePontual(
   return arquivos
 }
 
-/** Executa o arquivamento (ESCRITA REAL — gated no workflow). 1 chamada por tipo. */
+/**
+ * Executa o arquivamento (ESCRITA REAL — gated no workflow).
+ *
+ * UMA chamada com os arquivos etiquetados por tipo, não uma por tipo: cada chamada extra
+ * re-resolveria a árvore e reescreveria as mesmas colunas de pasta no Monday.
+ */
 export async function arquivarDrivePontual(
   snapshot: PrePagamentoCompleto,
   pessoa: PessoaPreviaMensal,
@@ -116,42 +121,36 @@ export async function arquivarDrivePontual(
       ? { pastaPessoaId: snapshot.pasta_pessoa_drive_id, pastaConvocacaoId: snapshot.pasta_convocacao_drive_id }
       : undefined
 
-  const porTipo = new Map<string, ArquivoDriveMensal[]>()
-  for (const a of arquivos) porTipo.set(a.tipo, [...(porTipo.get(a.tipo) ?? []), a])
-
-  const out: Array<{ tipo: string; resultado: ArquivarResultado }> = []
-  for (const [tipo, grupo] of porTipo) {
-    const resultado = await arquivarDrive({
-      tipo,
-      nome: pessoa.nome,
-      chapa: pessoa.chapa,
-      cpf: pessoa.cpf,
-      contrato: pessoa.contrato,
-      data_inicio: pessoa.dataInicio,
-      data_fim: pessoa.dataFim,
-      item_entrada_id: snapshot.item_origem_id,
-      board_entrada_id: snapshot.monday_board_id ?? undefined,
-      item_solicitacao_id: refs.solicitacaoId ?? undefined,
-      atualizar_monday: true,
-      pastas_resolvidas: pastasResolvidas,
-      arquivos: grupo.map((a) => ({
-        buffer: Buffer.from(a.conteudoBase64, "base64"),
-        filename: a.nome_arquivo,
-        mime: a.mime,
-      })),
+  const resultado = await arquivarDrive({
+    nome: pessoa.nome,
+    chapa: pessoa.chapa,
+    cpf: pessoa.cpf,
+    contrato: pessoa.contrato,
+    data_inicio: pessoa.dataInicio,
+    data_fim: pessoa.dataFim,
+    item_entrada_id: snapshot.item_origem_id,
+    board_entrada_id: snapshot.monday_board_id ?? undefined,
+    item_solicitacao_id: refs.solicitacaoId ?? undefined,
+    atualizar_monday: true,
+    pastas_resolvidas: pastasResolvidas,
+    arquivos: arquivos.map((a) => ({
+      tipo: a.tipo,
+      buffer: Buffer.from(a.conteudoBase64, "base64"),
+      filename: a.nome_arquivo,
+      mime: a.mime,
+    })),
+  })
+  // Pasta estava pendente e acabou de ser resolvida pelo caminho normal → back-fill.
+  if (!pastasResolvidas && resultado.pasta_convocacao_drive_id) {
+    await anotarPastaDrive(snapshot.id, {
+      pastaPessoaId: resultado.pasta_pessoa_drive_id,
+      pastaConvocacaoId: resultado.pasta_convocacao_drive_id,
+      nome: resultado.pasta_convocacao_nome,
+      caminho: resultado.pasta_caminho,
     })
-    out.push({ tipo, resultado })
-    // Pasta estava pendente e acabou de ser resolvida pelo caminho normal → back-fill.
-    if (!pastasResolvidas && resultado.pasta_convocacao_drive_id) {
-      await anotarPastaDrive(snapshot.id, {
-        pastaPessoaId: resultado.pasta_pessoa_drive_id,
-        pastaConvocacaoId: resultado.pasta_convocacao_drive_id,
-        nome: resultado.pasta_convocacao_nome,
-        caminho: resultado.pasta_caminho,
-      })
-    }
   }
-  return out
+  // Formato de retorno preservado (lista) — `urlDoRelatorio` e o step do workflow varrem `uploads`.
+  return [{ tipo: "pacote", resultado }]
 }
 
 /**

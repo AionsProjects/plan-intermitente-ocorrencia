@@ -131,7 +131,13 @@ export function montarArquivosDriveMensal(
   return { dataInicio, dataFim, arquivos }
 }
 
-/** Executa o arquivamento no Drive (ESCRITA REAL — GATED no workflow). 1 chamada por tipo. */
+/**
+ * Executa o arquivamento no Drive (ESCRITA REAL — GATED no workflow).
+ *
+ * UMA chamada com os arquivos etiquetados por tipo. Uma por tipo custava caro aqui: o mensal não
+ * tem `pastas_resolvidas`, então cada chamada redescobria a árvore inteira (~7 idas ao Drive,
+ * sequenciais, com teto de 12s cada) e reescrevia as mesmas colunas de pasta no Monday.
+ */
 export async function arquivarDriveMensal(
   contrato: ContratoPreviaMensal,
   competencia: string,
@@ -139,28 +145,23 @@ export async function arquivarDriveMensal(
   refs: RefsDriveMensal & { solicitacaoId?: string | null; nomePrefixo?: string },
 ): Promise<Array<{ tipo: string; resultado: ArquivarResultado }>> {
   const { dataInicio, dataFim, arquivos } = montarArquivosDriveMensal(contrato, competencia, competenciaLabel, refs)
-  const porTipo = new Map<ArquivoDriveMensal["tipo"], ArquivoDriveMensal[]>()
-  for (const a of arquivos) porTipo.set(a.tipo, [...(porTipo.get(a.tipo) ?? []), a])
-  const out: Array<{ tipo: string; resultado: ArquivarResultado }> = []
-  for (const [tipo, grupo] of porTipo) {
-    const resultado = await arquivarDrive({
-      tipo,
-      // Pasta própria: sem isto o mensal caía dentro de "INTERMITENTE - PONTUAL", que é o default
-      // de arquivarDrive (nasceu no pontual e o segmento estava cravado no ensurePath).
-      natureza: "INTERMITENTE - MENSAL",
-      nome: `${refs.nomePrefixo ?? ""}MENSAL - ${contrato.contrato}`,
-      contrato: contrato.contrato,
-      data_inicio: dataInicio,
-      data_fim: dataFim,
-      item_solicitacao_id: refs.solicitacaoId ?? undefined,
-      atualizar_monday: true,
-      arquivos: grupo.map((a) => ({
-        buffer: Buffer.from(a.conteudoBase64, "base64"),
-        filename: a.nome_arquivo,
-        mime: a.mime,
-      })),
-    })
-    out.push({ tipo, resultado })
-  }
-  return out
+  const resultado = await arquivarDrive({
+    // Pasta própria: sem isto o mensal caía dentro de "INTERMITENTE - PONTUAL", que é o default
+    // de arquivarDrive (nasceu no pontual e o segmento estava cravado no ensurePath).
+    natureza: "INTERMITENTE - MENSAL",
+    nome: `${refs.nomePrefixo ?? ""}MENSAL - ${contrato.contrato}`,
+    contrato: contrato.contrato,
+    data_inicio: dataInicio,
+    data_fim: dataFim,
+    item_solicitacao_id: refs.solicitacaoId ?? undefined,
+    atualizar_monday: true,
+    arquivos: arquivos.map((a) => ({
+      tipo: a.tipo,
+      buffer: Buffer.from(a.conteudoBase64, "base64"),
+      filename: a.nome_arquivo,
+      mime: a.mime,
+    })),
+  })
+  // Formato de retorno preservado (lista) — o step do workflow varre `uploads`.
+  return [{ tipo: "pacote", resultado }]
 }

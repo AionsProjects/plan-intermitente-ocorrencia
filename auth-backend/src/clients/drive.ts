@@ -125,6 +125,45 @@ export async function findFolder(parentId: string, name: string): Promise<DriveF
   return r.files?.[0] ?? null
 }
 
+export interface ItemDrive extends DriveFile {
+  mimeType: string
+  /** Ausente em pasta. */
+  size?: string
+  modifiedTime?: string
+  get ehPasta(): boolean
+}
+
+/**
+ * Lista o conteúdo de uma pasta — pastas E arquivos, paginado.
+ *
+ * `findFolder` filtra `mimeType='folder'` e `pageSize=1`: serve pra resolver caminho, não pra
+ * conferir o que foi arquivado. Sem isto, "o relatório subiu na pasta certa?" só se responde
+ * abrindo o Drive no navegador.
+ */
+export async function listarPasta(parentId: string): Promise<ItemDrive[]> {
+  const out: ItemDrive[] = []
+  let pageToken: string | undefined
+  do {
+    const params = new URLSearchParams({
+      q: `'${q(parentId)}' in parents and trashed=false`,
+      fields: "nextPageToken, files(id,name,webViewLink,mimeType,size,modifiedTime)",
+      pageSize: "200",
+      orderBy: "folder,name",
+      supportsAllDrives: "true",
+      includeItemsFromAllDrives: "true",
+      ...(pageToken ? { pageToken } : {}),
+    })
+    const r = await driveFetch<{ files?: Array<Omit<ItemDrive, "ehPasta">>; nextPageToken?: string }>(
+      `${DRIVE}/files?${params}`,
+    )
+    for (const f of r.files ?? []) {
+      out.push({ ...f, get ehPasta() { return this.mimeType === FOLDER_MIME } })
+    }
+    pageToken = r.nextPageToken
+  } while (pageToken)
+  return out
+}
+
 export async function createFolder(parentId: string, name: string): Promise<DriveFile> {
   return driveFetch<DriveFile>(`${DRIVE}/files?fields=id,name,webViewLink&supportsAllDrives=true`, {
     method: "POST",

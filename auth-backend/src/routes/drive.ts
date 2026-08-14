@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
 import { config } from "../config.js"
+import { listarPasta, rootFolderId } from "../clients/drive.js"
 import { usuarioDaSessao } from "../session.js"
 import { arquivarDrive, gerarPlanilhaConferencia } from "../services/driveArquivar.js"
 
@@ -52,6 +53,72 @@ export async function rotasDrive(app: FastifyInstance): Promise<void> {
       } catch (e) {
         req.log.error(e, "drive-intermitente-arquivar falhou")
         return reply.code(502).send({ ok: false, erro: "drive_falhou", mensagem: (e as Error).message })
+      }
+    },
+  )
+
+  /**
+   * Árvore de pastas/arquivos a partir de uma pasta (ou da raiz). READ-ONLY, admin.
+   *
+   * Existe porque a credencial do Drive só vive na Vercel: da máquina do dev não há como
+   * conferir se o relatório caiu em `RELATORIOS/` ou se o mensal foi parar dentro de
+   * `INTERMITENTE - PONTUAL`. Sem isto, "a árvore está certa?" só se responde abrindo o Drive
+   * no navegador e clicando pasta por pasta.
+   */
+  app.get(
+    "/api/drive/arvore",
+    async (
+      req: FastifyRequest<{ Querystring: { pasta?: string; nivel?: string } }>,
+      reply: FastifyReply,
+    ) => {
+      const u = await usuarioDaSessao(req)
+      if (!u) return reply.code(401).send({ erro: "nao_autenticado" })
+      if (u.papel !== "admin" && u.papel !== "dp") return reply.code(403).send({ erro: "sem_permissao" })
+      const nivelMax = Math.min(Math.max(Number(req.query.nivel ?? "3") || 3, 1), 8)
+      let raiz: string
+      try {
+        raiz = String(req.query.pasta ?? "").trim() || rootFolderId()
+      } catch {
+        return reply.code(409).send({ erro: "drive_nao_configurado" })
+      }
+
+      interface No {
+        id: string
+        nome: string
+        pasta: boolean
+        url?: string
+        tamanho?: number
+        filhos?: No[]
+      }
+      // Teto de nós: uma raiz com meses × contratos × pessoas × períodos explode fácil, e a
+      // resposta é pra leitura humana, não pra inventário.
+      const TETO = 2000
+      let vistos = 0
+      const andar = async (id: string, nivel: number): Promise<No[]> => {
+        if (nivel > nivelMax || vistos >= TETO) return []
+        const itens = await listarPasta(id)
+        const out: No[] = []
+        for (const it of itens) {
+          if (vistos >= TETO) break
+          vistos++
+          out.push({
+            id: it.id,
+            nome: it.name,
+            pasta: it.ehPasta,
+            ...(it.webViewLink ? { url: it.webViewLink } : {}),
+            ...(it.size ? { tamanho: Number(it.size) } : {}),
+            ...(it.ehPasta ? { filhos: await andar(it.id, nivel + 1) } : {}),
+          })
+        }
+        return out
+      }
+
+      try {
+        const filhos = await andar(raiz, 1)
+        return { ok: true, raiz, nivel: nivelMax, nos: vistos, truncado: vistos >= TETO, filhos }
+      } catch (e) {
+        req.log.error(e, "drive/arvore falhou")
+        return reply.code(502).send({ erro: "drive_falhou", mensagem: (e as Error).message })
       }
     },
   )

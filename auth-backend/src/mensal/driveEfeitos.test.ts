@@ -7,6 +7,7 @@ process.env.GOOGLE_CLIENT_SECRET ??= "test"
 process.env.OAUTH_REDIRECT_URI ??= "http://localhost/cb"
 
 const { montarArquivosDriveMensal, safeNomeArquivo, ultimoDiaMes } = await import("./driveEfeitos.js")
+const { montarDadosRelatorioMensal } = await import("./relatorioMensal.js")
 
 const contrato = {
   contrato: "SEDUC INTERIOR", ordem: 1, bloqueado: false, motivoBloqueio: null,
@@ -72,4 +73,31 @@ test("dois boletos = dois PNGs com nomes distintos", () => {
     "boleto-pix-qr-vt-SEDUC-INTERIOR-2026-07.png",
   ])
   assert.equal(r.arquivos[3]!.conteudoBase64, "WFla")
+})
+
+test("relatório entra como 4o arquivo, etiquetado `relatorio`", () => {
+  // A etiqueta POR ARQUIVO é o que permite arquivar o pacote inteiro numa só chamada a
+  // `arquivarDrive`. Uma chamada por tipo redescobria a árvore (~7 idas ao Drive) e reescrevia
+  // as mesmas colunas de pasta no Monday a cada vez.
+  const dados = montarDadosRelatorioMensal({
+    contrato,
+    competencia: "2026-08",
+    competenciaLabel: "AGOSTO",
+    refs: {},
+    geradoPor: "teste",
+    geradoEm: new Date("2026-08-13T18:00:00Z"),
+  })
+  const r = montarArquivosDriveMensal(contrato, "2026-08", "AGOSTO", { relatorio: dados })
+  const rel = r.arquivos.find((a) => a.tipo === "relatorio")
+  assert.ok(rel, "PDF do relatório tem de estar no pacote")
+  assert.equal(rel.mime, "application/pdf")
+  assert.match(rel.nome_arquivo, /^relatorio-pagamento-mensal-.*\.pdf$/)
+  assert.equal(Buffer.from(rel.conteudoBase64, "base64").subarray(0, 5).toString("latin1"), "%PDF-")
+  // Todo arquivo do pacote carrega a sua etiqueta — nenhum fica sem destino.
+  assert.ok(r.arquivos.every((a) => a.tipo))
+})
+
+test("sem relatorio nos refs, o pacote segue com os 2 TXT de sempre", () => {
+  const r = montarArquivosDriveMensal(contrato, "2026-08", "AGOSTO", {})
+  assert.deepEqual(r.arquivos.map((a) => a.tipo), ["caju_boleto", "caju_comprovante"])
 })
