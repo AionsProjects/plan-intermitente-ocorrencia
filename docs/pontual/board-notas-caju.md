@@ -39,7 +39,7 @@ formata o valor conforme o **tipo** real. Coluna com nome diferente é pulada e 
 | `Valor` | Numbers | valor daquele pedido |
 | `Resumo Caju` | Link | painel da Caju do pedido |
 | `Nota de Débito` | Link | só em `CRÉDITO`, e só com `CAJU_NOTA_URL` configurada |
-| `Relatório` | Link | PDF em `RELATORIOS/` na pasta da convocação |
+| `Relatório` | Link | PDF em `OUTROS/` na pasta da convocação |
 | `Pasta Drive` | Link | pasta da convocação/competência |
 | `IDFINANC` | Text | `VR 24278; VT 24279` — só na linha do BOLETO (vazio hoje) |
 | `Solicitação` | Link | item da Solicitação — só na linha do BOLETO (vazio hoje) |
@@ -85,9 +85,37 @@ Sem template a coluna nasce vazia e o PDF diz, no lugar do link, que a nota sai 
 env e não no código porque o padrão foi descoberto no painel e pode mudar sem aviso — trocar env
 não exige deploy. Template sem `{orderId}` é ignorado (geraria a mesma URL pra todo pedido).
 
+## Pastas no Drive
+
+Três pastas dentro da pasta do período, e só três (pedido do Isaac, 13/08):
+
+```
+<raiz>/2026/08 - AGOSTO/CONTATO/85 - SEMSA/INTERMITENTE - PONTUAL/KETLEM RAMOS MATOS/13 A 15 08 2026/
+├── CAJU/          boleto TXT (com o PIX copia-e-cola) + QR PNG + comprovante técnico TXT
+├── CONFERENCIA/   conferencia-<itemId>.xlsx
+└── OUTROS/        nota de débito e Relatório-de-pedidos da Caju (subidos à mão),
+                   relatorio-pagamento-*.pdf (automação), termos de convocação/insalubridade
+```
+
+- `CONFERENCIA` **sem acento**: é o nome que já existe em produção com a planilha dentro, e
+  `findFolder` casa por nome exato — `CONFERÊNCIA` criaria uma segunda pasta.
+- A pasta do período chama-se `13 A 15 08 2026`, não `13 A 15/08/2026`: `sanitizeName` troca `/`
+  por espaço (nome de arquivo/pasta não aceita barra em vários contextos).
+- **Nada fica solto** na raiz do período — o default é `OUTROS`.
+- `ATESTADOS/` é a única exceção: pendura na PESSOA, um nível acima. Atestado cobre dias, não um
+  período de convocação; escolher uma das convocações que ele atravessa seria arbitrário.
+- `CAJU` é plana. Até 13/08 havia `CAJU/BOLETOS` e `CAJU/COMPROVANTES`; elas param de receber, e
+  o que já está lá **não foi movido**.
+
+Conferir a árvore sem abrir o navegador (a credencial do Drive só vive na Vercel):
+
+```
+GET /api/drive/arvore?pasta=<id>&nivel=4     (admin/DP, só leitura)
+```
+
 ## Relatório em PDF
 
-`RELATORIOS/relatorio-pagamento-<origem>-<quem>-<data>.pdf` na pasta da convocação. Uma folha (A4
+`OUTROS/relatorio-pagamento-<origem>-<quem>-<data>.pdf` na pasta da convocação. Uma folha (A4
 em pé no pontual, paisagem no mensal, que leva tabela de N pessoas) com: identificação, tabela de
 valores (apurado × desconto × líquido × crédito × boleto por benefício), pedidos na Caju com os
 links, IDFINANC/Solicitação/pasta e as dívidas abatidas com link do item.

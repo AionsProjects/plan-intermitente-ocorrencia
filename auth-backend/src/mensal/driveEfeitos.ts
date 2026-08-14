@@ -1,7 +1,7 @@
 // Arquivos Drive do mensal — porta do nó "Mensal Preparar Arquivos Drive" (krRj3mXCM3F1CCYN).
-// Gera os TXT de boleto/comprovante + QR PNG e delega ao serviço arquivarDrive
-// (services/driveArquivar.ts, já portado do WF Drive do n8n: CAJU/BOLETOS,
-// CAJU/COMPROVANTES, link da pasta na Solicitação de Pagamento).
+// Gera os TXT de boleto/comprovante + QR PNG + o relatório em PDF e delega ao serviço
+// arquivarDrive (services/driveArquivar.ts), que decide a subpasta por tipo de arquivo e
+// escreve o link da pasta na Solicitação de Pagamento.
 import { arquivarDrive, type ArquivarResultado } from "../services/driveArquivar.js"
 import {
   gerarRelatorioPagamentoPdf,
@@ -37,7 +37,7 @@ function pessoasResumoTxt(pessoas: PessoaPreviaMensal[]): string {
 export interface RefsDriveMensal extends PedidosCajuIds {
   idVR?: string | null
   idVT?: string | null
-  /** Dados do relatório. Presente = o PDF vai junto, em RELATORIOS/. */
+  /** Dados do relatório. Presente = o PDF vai junto, em OUTROS/. */
   relatorio?: DadosRelatorioPagamento
   /** QR do boleto de VR. Desde 08/2026 são dois boletos por contrato, logo dois QRs. */
   qrBoletoVRBase64?: string
@@ -47,7 +47,7 @@ export interface RefsDriveMensal extends PedidosCajuIds {
 }
 
 export interface ArquivoDriveMensal {
-  /** `relatorio` cai em RELATORIOS/ (ver driveArquivar) — é o PDF que o financeiro consulta. */
+  /** `relatorio` cai em OUTROS/ (ver driveArquivar) — é o PDF que o financeiro consulta. */
   tipo: "caju_boleto" | "caju_comprovante" | "relatorio"
   nome_arquivo: string
   mime: string

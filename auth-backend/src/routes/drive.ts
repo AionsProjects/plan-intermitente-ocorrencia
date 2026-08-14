@@ -61,7 +61,7 @@ export async function rotasDrive(app: FastifyInstance): Promise<void> {
    * Árvore de pastas/arquivos a partir de uma pasta (ou da raiz). READ-ONLY, admin.
    *
    * Existe porque a credencial do Drive só vive na Vercel: da máquina do dev não há como
-   * conferir se o relatório caiu em `RELATORIOS/` ou se o mensal foi parar dentro de
+   * conferir se o relatório caiu em `OUTROS/` ou se o mensal foi parar dentro de
    * `INTERMITENTE - PONTUAL`. Sem isto, "a árvore está certa?" só se responde abrindo o Drive
    * no navegador e clicando pasta por pasta.
    */

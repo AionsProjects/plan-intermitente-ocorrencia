@@ -24,7 +24,7 @@ export interface RefsDrivePontual extends PedidosCajuIds {
   pixCopiaECola?: string
   resumoSolicitacao?: string
   solicitacaoId?: string | null
-  /** Dados do relatório. Presente = o PDF vai junto, em RELATORIOS/. */
+  /** Dados do relatório. Presente = o PDF vai junto, em OUTROS/. */
   relatorio?: DadosRelatorioPagamento
 }
 
@@ -156,8 +156,8 @@ export async function arquivarDrivePontual(
 /**
  * Link do PDF recém-subido, casando pelo NOME do arquivo.
  *
- * Pelo nome e não pela ordem: `arquivarDrive` é chamado uma vez por tipo, e um grupo pode ter
- * vários uploads (boleto TXT + QR PNG). Pegar "o último" acertaria por acidente.
+ * Pelo nome e não pela ordem: o pacote leva boleto TXT, um ou dois QR PNG, comprovante TXT e o
+ * PDF, tudo na mesma chamada. Pegar "o último" acertaria por acidente.
  */
 export function urlDoRelatorio(
   resultados: Array<{ tipo: string; resultado: ArquivarResultado }>,

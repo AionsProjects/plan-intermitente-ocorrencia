@@ -104,6 +104,44 @@ export interface ArquivarInput {
 /** Natureza default — mantém intacto o caminho que o pontual já usa em produção. */
 const NATUREZA_PADRAO = "INTERMITENTE - PONTUAL"
 
+/**
+ * TRÊS pastas dentro da pasta do período, e só três (pedido do Isaac, 13/08):
+ *
+ *   CAJU        — boleto (TXT + QR PNG) e o comprovante técnico
+ *   CONFERENCIA — planilha de conferência
+ *   OUTROS      — lado do CRÉDITO: nota de débito e Relatório-de-pedidos da Caju (subidos à mão),
+ *                 o relatório da automação, e os termos de convocação/insalubridade
+ *
+ * Sem acento em `CONFERENCIA` de propósito: é o nome que já existe em produção, com a planilha
+ * dentro. `findFolder` casa por nome EXATO — trocar por `CONFERÊNCIA` criaria uma segunda pasta
+ * e racharia os arquivos entre as duas.
+ *
+ * O DEFAULT é OUTROS, não a raiz do período: `/convocar` manda `tipo: "convocacao"` nos termos, e
+ * antes disso eles caíam soltos ao lado das pastas. Nada mais fica solto.
+ */
+const SUBPASTA_POR_TIPO: Record<string, string> = {
+  caju_boleto: "CAJU",
+  caju_comprovante: "CAJU",
+  relatorio: "OUTROS",
+  termo: "OUTROS",
+  outro: "OUTROS",
+  convocacao: "OUTROS",
+}
+const SUBPASTA_PADRAO = "OUTROS"
+/** Onde a planilha de conferência é gerada. */
+const SUBPASTA_CONFERENCIA = "CONFERENCIA"
+
+/**
+ * Subpasta do PERÍODO para um tipo de arquivo. `null` = não mora no período (só o atestado, que
+ * pendura na pessoa). Exportada pura porque é a regra que o pedido do Isaac fixou — dentro de
+ * `arquivarDrive`, que faz I/O, ela não teria teste.
+ */
+export function subpastaDoTipo(tipo: unknown): string | null {
+  const t = normDrive(tipo || "convocacao").toLowerCase()
+  if (t === "atestado") return null
+  return SUBPASTA_POR_TIPO[t] ?? SUBPASTA_PADRAO
+}
+
 export interface ArquivarResultado {
   ok: true
   pasta_pessoa_drive_id: string
@@ -218,31 +256,22 @@ export async function arquivarDrive(input: ArquivarInput): Promise<ArquivarResul
    * Subpasta de destino por tipo, com cache.
    *
    * Cada `ensureFolder` é uma ida ao Drive (find, e create se faltar). Sem o cache, um pacote com
-   * boleto TXT + dois QR PNG resolveria `CAJU/BOLETOS` três vezes na mesma chamada.
+   * boleto TXT + dois QR PNG resolveria `CAJU` três vezes na mesma chamada.
    */
   const cacheSub = new Map<string, DriveFile>()
   let pastaAtestados: DriveFile | undefined
   const subpastaDe = async (t: string): Promise<DriveFile> => {
     const cache = cacheSub.get(t)
     if (cache) return cache
-    let destino = pastaConvocacao
-    if (t === "atestado") {
-      // ATESTADOS pendura na PESSOA, não na convocação: um atestado cobre dias, não um período
-      // de convocação específico.
+    const nome = subpastaDoTipo(t)
+    let destino: DriveFile
+    if (nome === null) {
+      // ATESTADOS pendura na PESSOA, não na convocação: um atestado cobre dias, não um período de
+      // convocação específico. Único destino fora das três pastas do período.
       pastaAtestados = await ensureFolder(pastaPessoa.id, "ATESTADOS")
       destino = pastaAtestados
-    } else if (t === "caju_boleto") {
-      destino = await ensureFolder((await ensureFolder(pastaConvocacao.id, "CAJU")).id, "BOLETOS")
-    } else if (t === "caju_comprovante") {
-      destino = await ensureFolder((await ensureFolder(pastaConvocacao.id, "CAJU")).id, "COMPROVANTES")
-    } else if (t === "relatorio") {
-      // Pasta própria: o relatório é o documento que o financeiro procura, e enterrá-lo junto do
-      // QR code e do TXT técnico em CAJU/ é o mesmo que não gerar.
-      destino = await ensureFolder(pastaConvocacao.id, "RELATORIOS")
-    } else if (t === "termo") {
-      destino = await ensureFolder(pastaConvocacao.id, "TERMOS")
-    } else if (t === "outro") {
-      destino = await ensureFolder(pastaConvocacao.id, "OUTROS")
+    } else {
+      destino = await ensureFolder(pastaConvocacao.id, nome)
     }
     cacheSub.set(t, destino)
     return destino
@@ -264,7 +293,7 @@ export async function arquivarDrive(input: ArquivarInput): Promise<ArquivarResul
 
   let planilha: DriveFile | undefined
   if (input.gerar_planilha_conferencia && input.item_entrada_id) {
-    const conf = await ensureFolder(pastaConvocacao.id, "CONFERENCIA")
+    const conf = await ensureFolder(pastaConvocacao.id, SUBPASTA_CONFERENCIA)
     planilha = await gerarPlanilhaConferencia({
       item_entrada_id: input.item_entrada_id,
       pasta_convocacao_drive_id: conf.id,
