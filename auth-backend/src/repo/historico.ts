@@ -4,6 +4,9 @@ import { lerPorColuna, mudarColunas, gql, type MondayItem } from "../clients/mon
 
 export const BOARD_HISTORICO = 18411141462
 
+// Ids conferidos contra os nós REAIS do WF3 em `docs/n8n/backups/
+// rlxTk4VZLM2gTzx7-nodes-2026-08-13.json` (node "Validar e preparar1"), não contra a
+// tabela do CLAUDE.md — que não lista dias_perde_*, total_min_devidos nem qtdSabadosExtras.
 export const COL_HIST = {
   uuid: "text_mm2xjend",
   contrato: "text_mm2x1ktb",
@@ -20,6 +23,20 @@ export const COL_HIST = {
   diasDesativados: "long_text_mm2xm820",
   atestados: "long_text_mm3cp43g",
   split: "long_text_mm3m8k0m",
+  // Usadas pelo finalizar (paridade com o WF3).
+  protocolo: "text_mm2xsvg6",
+  status: "color_mm2xkqpc",
+  concluidoEm: "date_mm2xh1vm",
+  editado: "boolean_mm2x1aa4",
+  editadoEm: "date_mm2x62fq",
+  qtdFaltas: "numeric_mm2xe2zk",
+  qtdAtrasos: "numeric_mm2x18hh",
+  totalMin: "numeric_mm2x4fjj",
+  totalMinDevidos: "numeric_mm3455ss",
+  diasPerdeVr: "numeric_mm34a3ph",
+  diasPerdeVt: "numeric_mm345xb6",
+  diasExtras: "long_text_mm2x73w6",
+  qtdSabadosExtras: "numeric_mm3bvgy",
 } as const
 
 export async function buscarHistoricoPorUuid(uuid: string): Promise<MondayItem | null> {

@@ -28,6 +28,8 @@ import {
 import {
   buscarDescontoPorPeriodo,
   gravarDescontoBoard,
+  zerarDescontoBoard,
+  BOARD_DESCONTOS,
 } from "../repo/boardDescontos.js"
 import { lerItem, mudarColunas, moverParaGrupo } from "../clients/monday.js"
 import { changeColumnValues } from "../monday.js"
@@ -142,6 +144,23 @@ function arr<T = unknown>(v: unknown): T[] {
 
 function soData(s: string | null): string | null {
   return s ? String(s).slice(0, 10) : null
+}
+
+/**
+ * Valor de coluna `date` do Monday COM hora — o formato `{date, time}` (UTC).
+ *
+ * ⚠️ Aceita `Date` além de string porque `timestamptz` volta do pg como objeto Date
+ * (só a coluna `date`/OID 1082 tem parser pra string — ver db.ts). Um `.slice()` direto
+ * em `concluido_em` quebraria exatamente na reedição, que é quando o campo está
+ * preenchido — e passaria batido em qualquer teste que só finalize uma vez.
+ */
+function dataHoraMonday(v: string | Date | null | undefined): { date: string; time: string } | null {
+  if (!v) return null
+  const iso = v instanceof Date ? v.toISOString() : String(v)
+  const m = iso.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})/)
+  if (m) return { date: m[1]!, time: m[2]! }
+  const soDia = iso.match(/^(\d{4}-\d{2}-\d{2})/)
+  return soDia ? { date: soDia[1]!, time: "00:00:00" } : null
 }
 
 // --- Readers do espelho Postgres (exportados: usados pelas rotas espelho E como
@@ -477,16 +496,130 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
         // fase faria parecer que a etapa foi esquecida.
         await ex.etapa("desconto", "pulado", { mensagem: "sem falta nem atraso a descontar" })
       }
-      await ex.fechar("ok", {
+
+      // ── Escritas Monday (paridade com o WF3) ─────────────────────────────────────
+      //
+      // Depois do Postgres de propósito. O PG é a fonte da contingência e nunca falha por
+      // rede; o Monday é a VISTA do DP e depende de três chamadas externas. Se o board
+      // ficar pra trás, o registro existe e re-finalizar reconcilia (as escritas são
+      // idempotentes: `change_multiple_column_values` sobrescreve, o desconto casa por
+      // chapa+período). O inverso — board gravado e ledger não — deixaria o DP vendo
+      // desconto que o pagamento não conhece.
+      //
+      // Falha aqui NÃO derruba o registro: fecha 'parcial', que aparece no /atividade sem
+      // disparar alerta, e o operador refinaliza.
+      const mondayFalhas: string[] = []
+      const item = await buscarHistoricoPorUuid(uuid).catch(() => null)
+      if (!item) {
+        mondayFalhas.push("historico_nao_encontrado")
+        await ex.etapa("monday_historico", "aviso", {
+          mensagem: "item do Histórico não localizado por uuid — board não atualizado",
+        })
+      } else {
+        const origem = parseItemOrigem(item)
+        await ex.artefato({
+          tipo: "monday_item",
+          chave: item.id,
+          rotulo: "Item no Histórico",
+          url: `https://contato-serv.monday.com/boards/${BOARD_HISTORICO}/pulses/${item.id}`,
+        })
+
+        // 1) Histórico — as 20 colunas do `columnValuesUpdate` do WF3.
+        const colsHist: Record<string, unknown> = {
+          [COL_HIST.status]: { label: "Concluído" },
+          [COL_HIST.protocolo]: protocolo,
+          [COL_HIST.concluidoEm]: dataHoraMonday(c.concluido_em ?? agoraIso),
+          [COL_HIST.editado]: { checked: editado ? "true" : "false" },
+          [COL_HIST.qtdFaltas]: String(ag.qtd_faltas),
+          [COL_HIST.qtdAtrasos]: String(ag.qtd_atrasos),
+          [COL_HIST.totalMin]: String(ag.total_minutos),
+          [COL_HIST.totalMinDevidos]: String(ag.total_min_devidos),
+          [COL_HIST.diasPerdeVr]: String(ag.dias_perde_vr),
+          [COL_HIST.diasPerdeVt]: String(ag.dias_perde_vt),
+          [COL_HIST.diasExtras]: { text: JSON.stringify(b.dias_extras ?? []) },
+          [COL_HIST.diasDesativados]: { text: JSON.stringify(b.dias_desativados ?? []) },
+          [COL_HIST.respostas]: { text: JSON.stringify(respostas) },
+          [COL_HIST.qtdSabadosExtras]: String((c.sabados_extras ?? []).length),
+          [COL_HIST.sabadosExtras]: (c.sabados_extras ?? []).join(", "),
+          [COL_HIST.ledgerBeneficios]: { text: JSON.stringify(ledgerObj) },
+        }
+        // Só em reedição, como o WF3: `Editado Em` numa primeira finalização mentiria.
+        if (editado) colsHist[COL_HIST.editadoEm] = dataHoraMonday(agoraIso)
+        await comEtapa(ex, "monday_historico", () => atualizarHistorico(item.id, colsHist))
+          .catch((e) => {
+            mondayFalhas.push("historico")
+            req.log.warn(e, "finalizar: update historico falhou")
+          })
+
+        // 2) Base de Desconto. CPF vem do item da Entrada — o Histórico não tem a coluna,
+        //    e criar a linha financeira sem CPF quebra a conferência do DP.
+        let cpf = ""
+        if (origem.itemId) {
+          const oi = await lerItem(Number(origem.itemId)).catch(() => null)
+          if (oi) cpf = oi.cv["dup__of_matr_cula"]?.text ?? ""
+        }
+        const existenteBoard = await buscarDescontoPorPeriodo(c.chapa ?? "", di, df).catch(() => null)
+        if (desc.descontoVR > 0 || desc.descontoVT > 0) {
+          await comEtapa(ex, "desconto_board", () => gravarDescontoBoard(
+            {
+              nome: c.nome ?? null, chapa: c.chapa ?? "", cpf,
+              dataInicio: di, dataFim: df,
+              diasPerdeVT: ag.dias_perde_vt, diasPerdeVR: ag.dias_perde_vr,
+              // MINUTOS, não contagem — é o que o WF3 grava em COL_D_QTD_ATRASOS.
+              qtdAtrasos: ag.total_minutos,
+              descontoVR: desc.descontoVR, descontoVT: desc.descontoVT,
+              protocolo,
+            },
+            existenteBoard,
+          )).catch((e) => {
+            mondayFalhas.push("desconto_board")
+            req.log.warn(e, "finalizar: desconto board falhou")
+          })
+        } else if (existenteBoard) {
+          // `zerar_divida` do WF3. Correção que apaga a ocorrência tem que apagar a dívida:
+          // sem isto o item antigo segue PENDENTE com o valor velho e o próximo pagamento
+          // abate uma dívida que não existe mais.
+          await comEtapa(ex, "desconto_board", () => zerarDescontoBoard(existenteBoard, protocolo))
+            .catch((e) => {
+              mondayFalhas.push("desconto_board_zerar")
+              req.log.warn(e, "finalizar: zerar desconto board falhou")
+            })
+        }
+        if (existenteBoard) {
+          await ex.artefato({
+            tipo: "desconto_item",
+            chave: existenteBoard.id,
+            rotulo: "Base de Desconto",
+            url: `https://contato-serv.monday.com/boards/${BOARD_DESCONTOS}/pulses/${existenteBoard.id}`,
+          })
+        }
+
+        // 3) Espelho no item do Plano — faltas, minutos e protocolo (WF3 "Atualizar Plan
+        //    Falta/Atraso"). SOBRESCREVE com o total calculado; nunca incrementa.
+        if (origem.itemId && origem.boardId) {
+          await comEtapa(ex, "monday_plano", () => mudarColunas(Number(origem.boardId), Number(origem.itemId), {
+            numeric: String(ag.qtd_faltas),
+            texto5: String(ag.total_minutos),
+            text_mm3zezw: protocolo,
+          })).catch((e) => {
+            mondayFalhas.push("plano")
+            req.log.warn(e, "finalizar: espelho no Plano falhou")
+          })
+        }
+      }
+
+      await ex.fechar(mondayFalhas.length ? "parcial" : "ok", {
         resumo: {
           protocolo, chapa: c.chapa, eh_correcao: ehCorrecao,
           qtd_faltas: ag.qtd_faltas, qtd_atrasos: ag.qtd_atrasos,
           desconto_vr: desc.descontoVR, desconto_vt: desc.descontoVT,
+          monday_falhas: mondayFalhas.length ? mondayFalhas : undefined,
         },
       })
       return {
         ok: true, uuid, protocolo, editado, concluido_em: c.concluido_em ?? agoraIso,
         descontoVR: desc.descontoVR, descontoVT: desc.descontoVT, dias_perde_vr: ag.dias_perde_vr,
+        monday_falhas: mondayFalhas,
       }
     },
   )

@@ -123,7 +123,22 @@ export function agregados(respostas: RespostaDia[], ledger: EntradaLedger[]) {
   const atrasos = respostas.filter((r) => r.tipo === "atraso")
   const qtd_atrasos = atrasos.length
   const total_minutos = atrasos.reduce((s, r) => s + (r.minutos_atraso || 0), 0)
-  const dias_perde_vr = ledger.filter((e) => e.vr).length
-  const dias_perde_vt = ledger.filter((e) => e.vt).length
-  return { qtd_faltas, qtd_atrasos, total_minutos, dias_perde_vr, dias_perde_vt }
+  // FRACIONÁRIO, somando percentual — não `filter(e => e.vr).length`.
+  //
+  // Atraso desconta VR proporcional à jornada: 60 min de 480 = 12,5% do dia. Contar
+  // "dias com vr=true" transformaria isso em 1 dia inteiro perdido, e o número que o DP
+  // lê no board ficaria maior que o desconto que ele vê em reais na mesma linha. Fiel ao
+  // WF3 (`diasPerdeVR = descontosPorDia.reduce((a,d) => a + (d.vr_percentual||0)/100, 0)`,
+  // backup de 2026-08-13). O dinheiro nunca veio daqui — `calcularDesconto` trabalha em
+  // cima dos percentuais — então isto é o número REPORTADO, não o cobrado.
+  const dias_perde_vr = ledger.reduce((s, e) => s + (Number(e.vr_percentual) || 0) / 100, 0)
+  const dias_perde_vt = ledger.filter((e) => (Number(e.vt_percentual) || 0) > 0 || e.vt).length
+  // Minutos que de fato geraram desconto de VR, que não é o mesmo que os minutos
+  // lançados: dia coberto por atestado/feriado/cancelamento entra em `total_minutos`
+  // (o operador registrou) e fica de fora daqui (não descontou).
+  const total_min_devidos = ledger.reduce(
+    (s, e) => s + (e.vr_tipo === "atraso" && (Number(e.vr_percentual) || 0) > 0 ? (e.minutos_atraso || 0) : 0),
+    0,
+  )
+  return { qtd_faltas, qtd_atrasos, total_minutos, total_min_devidos, dias_perde_vr, dias_perde_vt }
 }

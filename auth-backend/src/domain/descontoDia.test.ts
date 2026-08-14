@@ -73,3 +73,26 @@ test("derivar -> calcularDesconto end-to-end (CETAM, 2 faltas)", () => {
   assert.equal(ag.qtd_faltas, 2)
   assert.equal(ag.dias_perde_vr, 2)
 })
+
+// O número que vai pro board Histórico e pra Base de Desconto. Contar "dias com vr=true"
+// diria 2 dias perdidos onde o desconto em reais é de 1,5 — e o DP leria a linha como
+// erro da automação. Fiel ao WF3 (backup rlxTk4VZ de 2026-08-13).
+test("agregados: dias_perde_vr é FRACIONÁRIO — atraso não custa um dia inteiro", () => {
+  const respostas = [
+    { data: "2026-06-23", tipo: "falta" },
+    { data: "2026-06-24", tipo: "atraso", minutos_atraso: 240 }, // metade de uma jornada de 480
+  ]
+  const ledger = derivarDescontosPorDia({
+    dataInicio: "2026-06-22", dataFim: "2026-06-26", trabalhaSabado: false, respostas,
+  })
+  const ag = agregados(respostas, ledger)
+  assert.equal(ag.qtd_faltas, 1)
+  assert.equal(ag.qtd_atrasos, 1)
+  assert.equal(ag.dias_perde_vr, 1.5) // 100% + 50%
+  assert.equal(ag.total_minutos, 240)
+  // Minutos que de fato geraram desconto — aqui coincide com o lançado porque nenhum dia
+  // está coberto por atestado/feriado/cancelamento.
+  assert.equal(ag.total_min_devidos, 240)
+  // VT é por DIA, não proporcional: o atraso não tira VT, só a falta.
+  assert.equal(ag.dias_perde_vt, 1)
+})
