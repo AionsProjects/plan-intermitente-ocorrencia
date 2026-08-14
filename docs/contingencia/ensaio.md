@@ -1,48 +1,140 @@
-# Ensaio de contingência (~10 min) — validar a rota de fuga em produção
+# Contingência — rota de fuga e ensaio
 
-> Fazer em horário calmo. Nada aqui paga ninguém. Objetivo: exercitar o flip
-> `modo=api` de verdade e confirmar que o DP consegue operar com o n8n "fora".
-> Pré-requisito: estar logado como **admin** no app.
+> Premissa (invertida em 03/07/2026, Isaac): **o código no Vercel é o PRINCIPAL**. O n8n
+> tem dois papéis, e só dois: **ponte** (o relógio de 15 min do `/api/jobs/tick`, porque a
+> conta Vercel é Hobby e só aceita cron diário) e **escape**.
+>
+> Este documento é o que fazer quando o Vercel cai, e como ensaiar isso antes de precisar.
 
-## Passo 0 — Preparar uma convocação de teste
+## Os quatro modos
 
-Usar uma convocação real já CONCLUÍDA e conhecida (ou criar uma de teste pelo fluxo
-normal /convocar com uma chapa de teste). Anotar o **uuid** e o **protocolo**.
+`pi.rotas_processo` guarda um modo por processo. `chamarProcesso` ([`src/lib/http.ts`](../../src/lib/http.ts)) obedece:
 
-## Passo 1 — Conferir o estado dos flags (console do browser, F12, logado)
+| modo | leitura | escrita |
+|---|---|---|
+| `n8n` | n8n | n8n |
+| `auto` | n8n; cai pro `/api` em rede/timeout/5xx | n8n; cai pro `/api` **só em 404** |
+| `api` | `/api` | `/api` |
+| **`escape`** | **`/api`; cai pro n8n em rede/timeout/5xx/404** | **só `/api`. Erro sobe. Nunca repete no n8n.** |
+
+Linha `'*'` = default de quem não tem linha própria; `'*' = api` continua sendo kill-switch global.
+
+**Por que a escrita não faz failover.** Timeout ou 5xx não provam que o backend deixou de
+gravar — provam que a resposta não voltou. Repetir a mesma escrita no n8n lançaria o
+desconto duas vezes, ou geraria um segundo pedido na Caju. Escrita que falha é decisão de
+gente: o operador vê o erro, e quem manda voltar pro n8n é o flip manual.
+
+**Sinal na tela.** Qualquer fuga acionada — ou escrita que falhou no primário — acende o
+aviso de sessão degradada ([`AvisoRotaDeFuga.tsx`](../../src/components/AvisoRotaDeFuga.tsx)).
+Se o operador viu esse aviso, o resultado daquela ação precisa ser conferido.
+
+---
+
+## Acionar o escape
+
+### Caminho normal — backend de pé
+
+```js
+// no console do browser, logado como admin
+await fetch("/api/rotas/registro", {method:"PATCH", credentials:"include",
+  headers:{"Content-Type":"application/json"}, body: JSON.stringify({modo:"n8n"})
+}).then(r=>r.json())
+```
+
+### Caminho de contingência — backend NÃO responde
+
+O `PATCH /api/rotas/:processo` mora no Vercel. Se o Vercel caiu, o botão do escape caiu
+junto. Vá direto no Postgres:
+
+```sql
+-- devolve UM processo pro n8n
+UPDATE pi.rotas_processo SET modo='n8n', atualizado_em=now() WHERE processo='registro';
+
+-- ou tudo de uma vez (o '*' vale pra quem não tem linha própria; as linhas
+-- próprias precisam ser mudadas também, porque elas vencem o '*')
+UPDATE pi.rotas_processo SET modo='n8n', atualizado_em=now();
+```
+
+**O navegador pode não obedecer na hora.** O front cacheia o mapa por 60 s em memória e
+persiste em `localStorage["pi_rotas"]`. Com o backend fora, o `GET /api/rotas` falha e o
+cache persistido é usado — até 24 h (`CACHE_VALIDADE_MS`). Para forçar agora:
+
+```js
+localStorage.removeItem("pi_rotas"); location.reload()
+```
+
+Sem backend e sem cache válido, o mapa volta a `{}` = **tudo n8n**, que é o pior caso seguro.
+
+---
+
+## O que NÃO volta pro n8n
+
+Reserva quente só serve se calcular igual, e não calcula. Antes de flipar qualquer coisa
+de volta, conferir a coluna de divergências em [`docs/paridade/README.md`](../paridade/README.md).
+
+| processo | pode voltar? | por quê |
+|---|---|---|
+| `convocar` | **não** | o n8n não faz a convocação no RM (inline desde 10/08) |
+| `pontual` | **não** | o WF5 paga no `create_item`, sem a felipeta `OP - Compareceu?` (13/08). Gatilho diferente = pagamento sem confirmação de comparecimento |
+| `registro`, `pontofac`, `descontos`, `atestados` | com ressalva | os WFs não têm o patch DETRAN/TRE PB (desconto VR Mensal/30, commit `907a7ff`, 12/08). Voltar = descontar diferente do que o app calcula hoje |
+
+---
+
+## Ensaio (~10 min) — validar a fuga em produção
+
+Fazer em horário calmo. Nada aqui paga ninguém.
+Pré-requisito: estar logado como **admin**.
+
+### Passo 0 — preparar
+
+Usar uma convocação real já CONCLUÍDA e conhecida, ou criar uma de teste pelo `/convocar`
+com chapa de teste. Anotar **uuid** e **protocolo**.
+
+### Passo 1 — conferir o estado
 
 ```js
 await fetch("/api/rotas", {credentials:"include"}).then(r=>r.json())
-// esperado: { rotas: { "*": "n8n" } }  ← tudo no primário
+// → { rotas: {...}, flags_rm: {...} }
 ```
 
-## Passo 2 — FLIP: registro assume pelo backend
+### Passo 2 — colocar o processo em `escape`
 
 ```js
 await fetch("/api/rotas/registro", {method:"PATCH", credentials:"include",
-  headers:{"Content-Type":"application/json"}, body: JSON.stringify({modo:"api"})
+  headers:{"Content-Type":"application/json"}, body: JSON.stringify({modo:"escape"})
 }).then(r=>r.json())
-// esperado: { ok:true, processo:"registro", modo:"api" }
 ```
-O front cacheia os flags por 60s — **espere 1 min** ou recarregue a aba anônima nova.
 
-## Passo 3 — Operar como DP (o teste de verdade)
+Esperar 1 min (cache) ou abrir aba anônima.
 
-1. Abrir "Atualizar ocorrência" → buscar pelo **protocolo** da convocação de teste.
-2. Reabrir e registrar 1 dia (ex.: marcar 1 falta) → Concluir.
-3. **Sinal de sucesso:** a operação completa sem erro. No DevTools → Network, a
-   chamada `intermitente-finalizar` foi pra **`/api/intermitente-finalizar`**
-   (não pro n8n).
+### Passo 3 — caminho feliz
 
-## Passo 4 — Verificar onde gravou
+Operar normalmente (buscar pelo protocolo → registrar 1 dia → Concluir). No DevTools →
+Network, a chamada tem que ir pro **`/api/…`**, e **nenhuma** execução do WF correspondente
+pode aparecer no n8n na janela.
 
-- **Postgres (fonte da contingência):**
-  `GET /api/convocacoes/<uuid>` (logado) → `respostas`/`ledger_beneficios`/`qtd_faltas`
-  refletem o registro do passo 3.
-- **Board Monday:** NÃO atualiza no modo fallback (gap documentado) — é esperado.
-- **n8n:** conferir que NENHUMA execução do WF finalizar (rlxTk4) rodou nesse horário.
+### Passo 4 — exercitar a queda (o teste de verdade)
 
-## Passo 5 — FLIP de volta (fim do ensaio)
+Sem derrubar produção: numa aba, interceptar o backend antes da chamada.
+
+```js
+// bloqueia SÓ as chamadas /api desta aba, simulando o backend fora
+const orig = window.fetch
+window.fetch = (u, o) => String(u).startsWith("/api")
+  ? Promise.reject(new TypeError("simulado: backend fora"))
+  : orig(u, o)
+```
+
+Esperado:
+
+- **Leitura** (abrir `/preencher/<uuid>`): a tela carrega, o aviso amarelo de rota de fuga
+  aparece, e o Network mostra a chamada indo pro host do n8n.
+- **Escrita** (Concluir): falha com erro visível, o aviso acende, e **nenhuma** execução no
+  n8n — é o comportamento correto, não um bug.
+
+Restaurar com `window.fetch = orig` ou recarregando a aba.
+
+### Passo 5 — voltar
 
 ```js
 await fetch("/api/rotas/registro", {method:"PATCH", credentials:"include",
@@ -50,43 +142,14 @@ await fetch("/api/rotas/registro", {method:"PATCH", credentials:"include",
 }).then(r=>r.json())
 ```
 
-## Passo 6 — Reconciliar o teste
+### Passo 6 — conferir onde gravou
 
-O registro do passo 3 existe SÓ no PG (board ficou para trás — igual numa contingência
-real). Duas opções:
-- **Replay:** refazer o mesmo registro pelo fluxo normal (agora via n8n) → board e PG
-  convergem (o espelho é idempotente por uuid).
-- **Descartar:** se foi convocação de teste, apagar o item do board + `DELETE FROM
-  convocacoes WHERE uuid='<uuid>'` + limpar o desconto de teste em `pi.descontos`.
+- **Postgres:** `GET /api/convocacoes/<uuid>` (logado) → `respostas`/`ledger_beneficios`/`qtd_faltas`.
+- **Board Monday:** deve refletir o registro. Se não refletir, é gap de paridade — anotar.
+- **n8n:** conferir que nenhuma execução do WF rodou na janela do ensaio
+  (`nocturnalgoose.execution_entity`, retenção de 7 dias).
 
-## Passo 7 — Registrar o resultado
+### Passo 7 — registrar
 
-Atualizar a coluna "Último check" em `docs/paridade/README.md` e anotar qualquer
-divergência de shape/comportamento encontrada (vira fix de paridade).
-
----
-
-## Ensaio B (opcional, +5 min) — fallback de LEITURA
-
-O fallback de leitura dispara sozinho quando o MONDAY falha (não o n8n). Pra exercitar
-sem derrubar nada, teste o espelho direto:
-
-```js
-// espelho PG (o que o fallback serve):
-await fetch("/api/intermitente-ler?uuid=<uuid>").then(r=>r.json())
-// rota normal (Monday):
-await fetch("/api/intermitente/ler?uuid=<uuid>").then(r=>r.json())
-// → comparar os dois JSONs: shapes/valores devem bater (diferenças = fix de paridade).
-```
-
-## Ensaio C (opcional) — kill-switch global
-
-`PATCH /api/rotas/*` com `{modo:"api"}` manda TUDO que usa chamarProcesso pro backend
-de uma vez (leituras + escritas espelhadas). Só ensaiar depois do A passar limpo.
-Voltar com `{modo:"n8n"}`.
-
----
-
-**Critério de aprovação do ensaio:** passo 3 sem erro + passo 4 com PG correto +
-nenhuma execução n8n no período + flip de volta limpo. Com isso, a confiança da
-contingência de escrita sobe de "média" pra "alta".
+Atualizar "Último check" em [`docs/paridade/README.md`](../paridade/README.md) e anotar
+qualquer divergência encontrada — divergência vira fix de paridade, não nota de rodapé.

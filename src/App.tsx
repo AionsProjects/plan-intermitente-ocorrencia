@@ -1,6 +1,7 @@
 import { Route, Routes } from "react-router-dom"
 
 import { AuroraBackground } from "@/components/AuroraBackground"
+import { AvisoRotaDeFuga } from "@/components/AvisoRotaDeFuga"
 import { FundoTematico } from "@/components/FundoTematico"
 import { NavCluster } from "@/components/NavCluster"
 import { NavProvider } from "@/components/NavContext"
@@ -66,6 +67,7 @@ function App() {
         )}
       />
       {/* Globais — fora do PageTransition (persistem entre rotas) */}
+      <AvisoRotaDeFuga />
       <NavCluster />
       <ConfigOverlay />
     </NavProvider>

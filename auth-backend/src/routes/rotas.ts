@@ -4,10 +4,15 @@ import { query } from "../db.js"
 import { usuarioDaSessao } from "../session.js"
 import { temRmSoap } from "../clients/rmSoap.js"
 
-// Chaveamento do Plano de Fuga: modo por processo (n8n | auto | api) em pi.rotas_processo.
+// Chaveamento do Plano de Fuga: modo por processo em pi.rotas_processo.
 // GET = qualquer sessão (o front precisa saber pra onde chamar). PATCH = admin (flip manual).
-
-const MODOS = new Set(["n8n", "auto", "api"])
+//
+// Modos (semântica em src/lib/http.ts e na migration 021):
+//   n8n    n8n é o executor. Sem fallback.
+//   auto   n8n primário, cai pro /api (leitura: rede/timeout/5xx; escrita: só 404).
+//   api    só /api. Sem rota de fuga.
+//   escape /api primário; leitura cai pro n8n em falha, escrita NUNCA repete. ← alvo
+const MODOS = new Set(["n8n", "auto", "api", "escape"])
 
 /**
  * Estado das flags que ligam efeito real no RM. BOOLEANOS, nunca valores.
