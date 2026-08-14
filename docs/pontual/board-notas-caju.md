@@ -18,6 +18,12 @@ de propósito: quando a parte do boleto for feita, ela reusa o mesmo builder
 (`linhasNotaDeRelatorio(dados, { naturezas: ["CRÉDITO", "BOLETO"] })`) e o mesmo desenho de
 colunas, sem um segundo formato pra manter. Hoje `NATUREZAS_NO_BOARD = ["CRÉDITO"]`.
 
+## O board
+
+**`18426593215`** — [abrir](https://contato-serv.monday.com/boards/18426593215). Workspace
+DEPARTAMENTO PESSOAL, na pasta da Solicitação de Pagamento. Criado e registrado em 14/08 por
+`scripts/criar-board-notas-caju.ts`.
+
 ## Colunas
 
 O nome é o contrato: o backend resolve tudo pelo **título** da coluna (via `pi.board_colunas`) e
@@ -53,17 +59,28 @@ cadastrar `CRÉDITO`, `BOLETO`, contrato nem `GERADO` à mão.
 só *subscriber* responde `403 UserUnauthorizedException` no `create_item` — foi o que aconteceu com
 o Controle Saldo Caju (`7833600425`).
 
-## Ativar
+## Ativar — já feito
 
 ```bash
-curl -X POST https://plan-intermitente-ocorrencia.vercel.app/api/boards/registrar \
-  -H 'Content-Type: application/json' -b "pi_sess=<sessão de admin>" \
-  -d '{"monday_board_id":"<id do board>","papel":"notas_caju"}'
+node --env-file=.env --import tsx src/scripts/criar-board-notas-caju.ts --aplicar
 ```
 
-Enquanto o board não estiver registrado, o step `monday_notas` **pula** (`board_nao_registrado`) e
-o pagamento segue normal — nada de derrubar dinheiro por causa de um board de consulta. Depois de
-registrar, o back-fill recupera o que faltou:
+Cria o board (ou reusa o existente pelo NOME e só cria a coluna que falta, avisando quando o tipo
+de uma coluna existente divergir), grava no registry com `papel=notas_caju` e confere no fim que
+`montarValuesItemNota` acha todas as colunas do contrato. Rodar duas vezes não duplica nada.
+
+Board não registrado NÃO é erro: o step `monday_notas` pula com `board_nao_registrado` e o
+pagamento segue normal — nada de derrubar dinheiro por causa de um board de consulta.
+
+Os 9 pagamentos anteriores (14 linhas: os 5 do formato antigo rendem 2 cada, os 4 novos 1) entraram
+por:
+
+```bash
+node --env-file=.env --import tsx src/scripts/backfill-notas-caju.ts --aplicar
+```
+
+Ele **não sobe o PDF** — a credencial do Drive só existe na Vercel —, então `Relatório` fica vazio
+nessas linhas históricas. Para um pagamento específico, COM o PDF:
 
 ```bash
 curl -X POST .../api/pontual/notas/<item_id_da_convocacao> -b "pi_sess=<admin>"
