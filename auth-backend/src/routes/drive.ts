@@ -29,14 +29,22 @@ export async function rotasDrive(app: FastifyInstance): Promise<void> {
           data_fim?: string
           item_entrada_id?: string
           board_entrada_id?: string
+          item_solicitacao_id?: string
+          board_solicitacao_id?: string
           gerar_planilha_conferencia?: boolean
           atualizar_monday?: boolean
+          natureza?: string
+          garantir_subpastas?: boolean
+          agrupar_por_periodo?: boolean
         }
       }>,
       reply: FastifyReply,
     ) => {
       if (!(await autorizado(req))) return reply.code(401).send({ ok: false, erro: "nao_autenticado" })
       try {
+        // `natureza`, `garantir_subpastas` e `agrupar_por_periodo` passam a ser repassados: sem
+        // eles esta rota só sabia criar a árvore do PONTUAL sob demanda, e não dava pra usá-la
+        // para completar uma pasta que nasceu antes das três subpastas existirem.
         return await arquivarDrive({
           tipo: req.body?.tipo,
           nome: String(req.body?.nome ?? ""),
@@ -47,8 +55,13 @@ export async function rotasDrive(app: FastifyInstance): Promise<void> {
           data_fim: req.body?.data_fim,
           item_entrada_id: req.body?.item_entrada_id,
           board_entrada_id: req.body?.board_entrada_id,
+          item_solicitacao_id: req.body?.item_solicitacao_id,
+          board_solicitacao_id: req.body?.board_solicitacao_id,
           gerar_planilha_conferencia: req.body?.gerar_planilha_conferencia === true,
           atualizar_monday: req.body?.atualizar_monday === true,
+          ...(req.body?.natureza ? { natureza: req.body.natureza } : {}),
+          ...(req.body?.garantir_subpastas === true ? { garantir_subpastas: true } : {}),
+          ...(req.body?.agrupar_por_periodo === false ? { agrupar_por_periodo: false } : {}),
         })
       } catch (e) {
         req.log.error(e, "drive-intermitente-arquivar falhou")
