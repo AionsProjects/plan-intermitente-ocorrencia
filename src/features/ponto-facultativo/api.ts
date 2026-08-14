@@ -340,6 +340,8 @@ export async function previewPontoFacultativo(
 
 export async function aplicarPontoFacultativo(
   payload: PontoFacultativoPayload,
+  /** Execução aberta pelo front; a rota se anexa a ela em vez de abrir outra linha. */
+  execucaoId?: string | null,
 ): Promise<PontoFacultativoAplicacao> {
   if (USE_MOCK) {
     await new Promise((resolve) => setTimeout(resolve, 650))
@@ -353,7 +355,7 @@ export async function aplicarPontoFacultativo(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(comOperador(payload)),
+      body: JSON.stringify(comOperador(payload, execucaoId)),
     },
     { tipo: "escrita" },
   )

@@ -143,12 +143,24 @@ export async function rotasAtividade(app: FastifyInstance): Promise<void> {
       if (!estado || !ESTADOS_FINAIS.has(estado)) return reply.code(400).send({ erro: "estado_invalido" })
       // Só quem abriu (ou DP/admin) fecha — senão um operador fecharia a execução de
       // outro como 'ok' e escondería a falha.
-      const { rows } = await query<{ user_id: string | null }>(
-        `SELECT user_id FROM audit_lancamentos WHERE id = $1`, [req.params.id],
+      const { rows } = await query<{ user_id: string | null; estado: string }>(
+        `SELECT user_id, estado FROM audit_lancamentos WHERE id = $1`, [req.params.id],
       )
       if (!rows[0]) return reply.code(404).send({ erro: "execucao_nao_encontrada" })
       if (rows[0].user_id !== u.id && !podeVerTodos(u.papel)) {
         return reply.code(403).send({ erro: "sem_permissao" })
+      }
+      // QUEM EXECUTOU TEM A ÚLTIMA PALAVRA. O front usa `comAtividade`, que fecha 'ok' ao
+      // ver a resposta HTTP chegar — mas a rota que fez o trabalho pode ter fechado
+      // 'parcial' ou 'erro' ANTES de responder 200. Sem esta guarda o fecho do browser
+      // sobrescreve o do servidor e a linha mente: o duplo-clique de convocação
+      // (convocar.ts, fecha 'parcial') aparecia como 'ok', e o mesmo aconteceria com o
+      // ponto facultativo que grava parte dos itens.
+      //
+      // 'aberta' e 'abandonada' seguem fecháveis: a primeira é o caso normal, e a segunda
+      // é a varredura chutando um desfecho que o dono da execução pode corrigir.
+      if (rows[0].estado === "ok" || rows[0].estado === "erro" || rows[0].estado === "parcial") {
+        return { ok: true, ignorado: "ja_fechada", estado: rows[0].estado }
       }
       const ex = await abrirExecucao({ id: req.params.id, acao: "", motor: "app" })
       await ex.fechar(estado, { erro: req.body?.erro, etapaErro: req.body?.etapa_erro, resumo: req.body?.resumo })

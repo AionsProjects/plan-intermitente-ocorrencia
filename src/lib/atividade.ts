@@ -126,12 +126,13 @@ export async function comAtividade<T>(
  * Abre e fecha 'ok' de uma vez, sem envolver a chamada.
  *
  * @deprecated Só registra SUCESSO — ação que falha não deixa rastro, que é o buraco que
- * `comAtividade` conserta. Sobrevive em `atestado`, `desconto` e `ponto_facultativo`,
- * cujas rotas ainda não estão instrumentadas (então não há duplicação de linha).
+ * `comAtividade` conserta. Sobrevive apenas em `desconto`, cuja rota ainda não está
+ * instrumentada (então não há duplicação de linha).
  *
- * Migrar `atestado` exige uma decisão: hoje ele grava UMA LINHA POR DOCUMENTO do lote, e
- * `comAtividade` naturalmente daria uma execução para o lote inteiro (com um artefato por
- * documento). É mudança no que o operador vê no histórico, não refactor.
+ * `ponto_facultativo` migrou para `comAtividade` (o id vai no payload e a rota se anexa).
+ * `atestado` saiu daqui por outro caminho: o lote é UMA requisição com N documentos, então
+ * o front não teria como carimbar N ids — quem abre a execução é a rota, uma por documento
+ * (`auth-backend/src/routes/atestados.ts`), e o front não loga nada.
  */
 export function registrarAtividade(acao: TipoAtividade, meta: MetaAtividade = {}): void {
   void abrirAtividade(acao, meta).then((id) => fecharAtividade(id, "ok"))

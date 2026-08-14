@@ -10,7 +10,6 @@ import type {
   BuscarConvocacoesEmpregadoQuery,
   DocumentoLancamento,
 } from "./types"
-import { registrarAtividade } from "@/lib/atividade"
 
 function useDebounce<T>(value: T, delay = 250): T {
   const [debounced, setDebounced] = useState(value)
@@ -51,16 +50,10 @@ export function useLancarDocumentos() {
   return useMutation({
     mutationFn: (documentos: DocumentoLancamento[]) =>
       lancarDocumentos(documentos),
-    onSuccess: (_resp, documentos) => {
-      // 1 evento por documento lançado.
-      for (const d of documentos) {
-        registrarAtividade("atestado", {
-          alvo: d.chapa,
-          pessoa: d.empregadoNome,
-          contrato: d.contratoColaborador,
-          resumo: { tipo_doc: d.tipoDocumentacaoLabel, dias: d.diasAtestado },
-        })
-      }
-    },
+    // Sem `registrarAtividade` aqui: quem abre a execução é a ROTA, uma por documento
+    // (`auth-backend/src/routes/atestados.ts`). O lote é uma requisição só, então o front
+    // não teria como carimbar N ids — e logar dos dois lados renderia duas linhas por
+    // documento. Ganho da troca: documento que falha no meio do lote passa a aparecer no
+    // /atividade com o motivo, coisa que o antigo `onSuccess` nunca registrava.
   })
 }

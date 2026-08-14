@@ -5,7 +5,8 @@ import {
   buscarOpcoesPontoFacultativo,
   previewPontoFacultativo,
 } from "./api"
-import { registrarAtividade } from "@/lib/atividade"
+import { comAtividade } from "@/lib/atividade"
+import type { PontoFacultativoPayload } from "./types"
 
 export function useOpcoesPontoFacultativo() {
   return useQuery({
@@ -23,17 +24,19 @@ export function usePreviewPontoFacultativo() {
 
 export function useAplicarPontoFacultativo() {
   return useMutation({
-    mutationFn: aplicarPontoFacultativo,
-    onSuccess: (resp, payload) => {
-      registrarAtividade("ponto_facultativo", {
-        alvo: `${payload.contrato}:${payload.unidades.join("+")}:${payload.data}`,
-        contrato: payload.contrato,
-        resumo: {
-          unidades: payload.unidades,
-          data: payload.data,
-          qtd: resp?.processados ?? null,
+    // `comAtividade` no lugar do antigo `registrarAtividade` do onSuccess: abre a execução
+    // ANTES da chamada, então aplicação que FALHA passa a deixar rastro — que é justamente
+    // quando alguém precisa do log. O id vai no payload e a rota se anexa a ele, em vez de
+    // abrir uma segunda linha pra mesma ação.
+    mutationFn: (payload: PontoFacultativoPayload) =>
+      comAtividade(
+        "ponto_facultativo",
+        {
+          alvo: `${payload.contrato}:${payload.unidades.join("+")}:${payload.data}`,
+          contrato: payload.contrato,
+          resumo: { unidades: payload.unidades, data: payload.data },
         },
-      })
-    },
+        (execucaoId) => aplicarPontoFacultativo(payload, execucaoId),
+      ),
   })
 }

@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
 import { createItem, uploadFileToColumn } from "../monday.js"
 import { usuarioDaSessao } from "../session.js"
+import { abrirExecucao, comEtapa } from "../services/execucao.js"
 import { arquivarDrive } from "../services/driveArquivar.js"
 
 // Lançar documentos (atestados/declarações) — substitui WF n8n. Documental puro:
@@ -45,7 +46,9 @@ interface DocEntrada {
 
 export async function rotasAtestados(app: FastifyInstance): Promise<void> {
   const lancarDocumentosHandler = async (req: FastifyRequest, reply: FastifyReply) => {
-    if (!(await usuarioDaSessao(req))) return reply.code(401).send({ ok: false, erro: "nao_autenticado" })
+    const usuario = await usuarioDaSessao(req)
+    if (!usuario) return reply.code(401).send({ ok: false, erro: "nao_autenticado" })
+    const operador = { userId: usuario.id, email: usuario.email, nome: usuario.nome ?? null }
 
     // Lê multipart: campo "payload" (JSON) + arquivos doc_<id>.
     let payloadStr = ""
@@ -78,6 +81,28 @@ export async function rotasAtestados(app: FastifyInstance): Promise<void> {
 
     const resultados: { id: string; monday_item_id_controle?: string; erro?: string }[] = []
     for (const d of docs) {
+      // UMA execução POR DOCUMENTO (decisão de 14/08): mantém o formato que o DP já lê no
+      // /atividade, e passa a registrar o documento que falha no meio do lote — hoje o
+      // `registrarAtividade` do front só grava sucesso, então a falha some.
+      //
+      // Aberta aqui dentro, e não pelo front: o lote é UMA requisição, então o front não
+      // teria como carimbar N ids. Por isso o front deixou de logar `atestado` — senão
+      // cada documento renderia duas linhas.
+      const ex = await abrirExecucao({
+        acao: "atestado",
+        motor: "backend",
+        operador,
+        alvo: d.chapa ?? null,
+        pessoa: d.empregado_nome ?? null,
+        contrato: d.contrato_colaborador ?? null,
+        resumo: {
+          tipo_doc: d.tipo_documentacao_label,
+          dias: d.dias_atestado,
+          data_inicio: d.data_inicio,
+          data_fim: d.data_fim,
+          uuid_convocacao: d.uuid_convocacao ?? null,
+        },
+      })
       try {
         const competencia = (d.data_inicio || d.emissao_atestado || "").slice(0, 7)
         const obsBase = d.observacao ?? ""
@@ -96,16 +121,36 @@ export async function rotasAtestados(app: FastifyInstance): Promise<void> {
         setTxt(C.observacao, obs)
         if (competencia) cv[C.competencia] = { labels: [competencia] }
 
-        const item = await createItem(BOARD, d.empregado_nome || "ATESTADO", cv, GROUP)
+        const item = await comEtapa(ex, "criar_item", () =>
+          createItem(BOARD, d.empregado_nome || "ATESTADO", cv, GROUP),
+        )
+        await ex.artefato({
+          tipo: "monday_item",
+          chave: item.id,
+          rotulo: `${d.tipo_documentacao_label ?? "Documento"} — ${d.empregado_nome ?? d.chapa ?? ""}`.trim(),
+          url: `https://contato-serv.monday.com/boards/${BOARD}/pulses/${item.id}`,
+        })
 
         // Anexa arquivo (best-effort).
         const arq = arquivos[`doc_${d.id}`]
         if (arq) {
           try {
             await uploadFileToColumn(item.id, C.files, arq.buffer, arq.filename, arq.mime)
+            await ex.etapa("anexar_arquivo", "ok", {
+              metadados: { nome: arq.filename, bytes: arq.buffer.length },
+            })
           } catch (e) {
             req.log.warn(e, `upload atestado ${d.id} falhou`)
+            // 'aviso' e não 'erro': o item existe no board e o lançamento vale; o que falta
+            // é o anexo, que o DP resolve à mão. Fechar como erro chamaria refazimento do
+            // documento inteiro e criaria item duplicado.
+            await ex.etapa("anexar_arquivo", "aviso", {
+              mensagem: e instanceof Error ? e.message : e,
+              metadados: { nome: arq.filename },
+            })
           }
+        } else {
+          await ex.etapa("anexar_arquivo", "pulado", { mensagem: "documento sem arquivo" })
         }
         await arquivarDrive({
           tipo: "atestado",
@@ -120,9 +165,13 @@ export async function rotasAtestados(app: FastifyInstance): Promise<void> {
           arquivos: arq ? [arq] : [],
         }).catch((e) => req.log.warn(e, `drive atestado ${d.id} falhou`))
         resultados.push({ id: d.id, monday_item_id_controle: item.id })
+        await ex.fechar("ok", { resumo: { monday_item_id: item.id } })
       } catch (e) {
         req.log.error(e, `erro lancar atestado ${d.id}`)
         resultados.push({ id: d.id, erro: "erro_monday" })
+        // O lote continua (o `for` não quebra) — este documento é que fica marcado como
+        // erro, com o motivo. É a linha que hoje simplesmente não existe.
+        await ex.fechar("erro", { etapaErro: "criar_item", erro: e })
       }
     }
     return { ok: true, resultados }

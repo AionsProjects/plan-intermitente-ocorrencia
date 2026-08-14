@@ -1,5 +1,7 @@
-import type { FastifyInstance, FastifyRequest } from "fastify"
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
 import { lerItens, texto, dataApenas, gql } from "../clients/monday.js"
+import { usuarioDaSessao } from "../session.js"
+import { abrirExecucao } from "../services/execucao.js"
 import { boardAtual } from "../repo/boards.js"
 import { lerValores } from "../repo/valores.js"
 import { resolverValores, naoDesconta, norm } from "../domain/desconto.js"
@@ -320,8 +322,33 @@ async function buscarDescontoPfExistente(): Promise<MondayItem[]> {
   return lerItens(BOARD_DESCONTOS)
 }
 
+type UsuarioSessao = NonNullable<Awaited<ReturnType<typeof usuarioDaSessao>>>
+
+/**
+ * Gate de papel: DP ou Admin, espelhando o `<RequireRole nivelMinimo="dp">` que já protege
+ * a tela `/ponto-facultativo` no front (App.tsx).
+ *
+ * Estas rotas nasceram como espelho dos webhooks n8n, que eram abertos — e ficaram abertas
+ * também. `aplicar` desconta VR/VT de TODOS os intermitentes de um contrato × unidade × data
+ * de uma vez; enquanto o processo estava em modo `n8n` ninguém batia aqui, mas rota primária
+ * aberta na internet é outra história. Guarda de tela não protege endpoint.
+ */
+async function exigirDp(req: FastifyRequest, reply: FastifyReply): Promise<UsuarioSessao | null> {
+  const u = await usuarioDaSessao(req)
+  if (!u) {
+    reply.code(401).send({ ok: false, erro: "nao_autenticado" })
+    return null
+  }
+  if (u.papel !== "admin" && u.papel !== "dp") {
+    reply.code(403).send({ ok: false, erro: "sem_permissao" })
+    return null
+  }
+  return u
+}
+
 export async function rotasPontoFacultativo(app: FastifyInstance): Promise<void> {
   app.get("/api/ponto-facultativo-opcoes", async (req, reply) => {
+    if (!(await exigirDp(req, reply))) return
     try {
       const board = await boardAtual()
       if (!board) return reply.code(502).send({ erro: "board_nao_resolvido" })
@@ -378,6 +405,7 @@ export async function rotasPontoFacultativo(app: FastifyInstance): Promise<void>
       req: FastifyRequest<{ Body: { contrato?: string; unidade?: string; unidades?: string[]; data?: string; beneficios?: string[] } }>,
       reply,
     ) => {
+      if (!(await exigirDp(req, reply))) return
       const contrato = String(req.body?.contrato ?? "").trim().toUpperCase()
       const unidades = parseLista(req.body?.unidades?.length ? req.body.unidades : req.body?.unidade)
       const beneficios = beneficiosValidos(req.body?.beneficios)
@@ -396,23 +424,68 @@ export async function rotasPontoFacultativo(app: FastifyInstance): Promise<void>
   app.post(
     "/api/ponto-facultativo-aplicar",
     async (
-      req: FastifyRequest<{ Body: { contrato?: string; unidade?: string; unidades?: string[]; data?: string; beneficios?: string[] } }>,
+      req: FastifyRequest<{
+        Body: {
+          contrato?: string; unidade?: string; unidades?: string[]; data?: string
+          beneficios?: string[]; execucao_id?: string
+        }
+      }>,
       reply,
     ) => {
+      const usuario = await exigirDp(req, reply)
+      if (!usuario) return
       const contrato = String(req.body?.contrato ?? "").trim().toUpperCase()
       const unidades = parseLista(req.body?.unidades?.length ? req.body.unidades : req.body?.unidade)
       const beneficios = beneficiosValidos(req.body?.beneficios)
       const data = String(req.body?.data ?? "").trim()
-      const err = validarPedido(contrato, unidades, data, beneficios)
-      if (err) return reply.code(err.status).send({ ok: false, erro: err.erro, mensagem: err.mensagem })
 
+      // `alvo` = a mesma chave composta que o front já usava em registrarAtividade
+      // (contrato:unidades:data). Não há item único pra apontar: a ação é sobre um
+      // recorte, não sobre uma convocação.
+      const ex = await abrirExecucao({
+        id: req.body?.execucao_id || null,
+        acao: "ponto_facultativo",
+        motor: "backend",
+        operador: { userId: usuario.id, email: usuario.email, nome: usuario.nome ?? null },
+        alvo: `${contrato}:${unidades.join("+")}:${data}`,
+        contrato,
+        resumo: { unidades, data, beneficios },
+      })
+
+      const err = validarPedido(contrato, unidades, data, beneficios)
+      if (err) {
+        // Fecha 'ok' com o motivo, NÃO 'erro': `ponto_facultativo` está em ACOES_RELEVANTES
+        // (alertaFalha.ts), então 'erro' manda WhatsApp pro grupo de falhas — e isto aqui é
+        // o operador escolhendo domingo/feriado/mês errado, não automação quebrada. O que
+        // importava era não deixar a execução 'aberta' até a varredura de abandonadas.
+        await ex.fechar("ok", {
+          resumo: { unidades, data, beneficios, processados: 0, recusado: err.erro, motivo: err.mensagem ?? null },
+        })
+        return reply.code(err.status).send({ ok: false, erro: err.erro, mensagem: err.mensagem })
+      }
+
+      // Etapa manual (não `comEtapa`) porque os metadados úteis — quantos candidatos,
+      // quantos de fato aplicáveis — só existem DEPOIS da chamada.
       let afetados: Afetado[]
+      await ex.etapa("selecao", "rodando")
       try {
         afetados = await selecionar(contrato, unidades, data, beneficios)
+        await ex.etapa("selecao", "ok", {
+          metadados: {
+            candidatos: afetados.length,
+            aplicaveis: afetados.filter((a) => a.aplica_vr || a.aplica_vt).length,
+          },
+        })
       } catch (e) {
+        await ex.fechar("erro", { etapaErro: "selecao", erro: e })
         return reply.code(502).send({ erro: "selecao_falhou", mensagem: (e as Error).message })
       }
       if (afetados.filter((a) => a.aplica_vr || a.aplica_vt).length === 0) {
+        // Recusa de negócio, não falha: o operador escolheu um recorte vazio. Fecha 'ok'
+        // pra não encher o banner de erros do /atividade com engano de filtro.
+        await ex.fechar("ok", {
+          resumo: { unidades, data, beneficios, processados: 0, motivo: "sem_intermitentes_para_aplicar" },
+        })
         return reply.code(409).send({
           ...montarPreview(contrato, unidades, data, beneficios, afetados),
           ok: false,
@@ -441,6 +514,10 @@ export async function rotasPontoFacultativo(app: FastifyInstance): Promise<void>
 
       let processados = 0
       let ignorados = 0
+      // Separado de `ignorados` (que mistura "não se aplica" com "quebrou"): é o que decide
+      // entre desfecho 'ok' e 'parcial' — item que falhou no board precisa de refazimento.
+      let falhas = 0
+      await ex.etapa("aplicacao", "rodando", { metadados: { alvos: afetados.length } })
       for (const a of afetados) {
         if (!a.aplica_vr && !a.aplica_vt) {
           ignorados++
@@ -474,6 +551,7 @@ export async function rotasPontoFacultativo(app: FastifyInstance): Promise<void>
           ignorados++
           continue
         }
+        let itemDescontoId: string | null = null
         try {
           if (existente) {
             const numTx = (col: string) => Number(String(existente.cv[col]?.text ?? "0").replace(",", ".")) || 0
@@ -491,6 +569,7 @@ export async function rotasPontoFacultativo(app: FastifyInstance): Promise<void>
               `mutation($b:ID!,$i:ID!,$v:JSON!){ change_multiple_column_values(board_id:$b, item_id:$i, column_values:$v, create_labels_if_missing:true){ id } }`,
               { b: String(BOARD_DESCONTOS), i: existente.id, v: JSON.stringify(values) },
             )
+            itemDescontoId = existente.id
           } else {
             const values: Record<string, unknown> = {
               [COL_DESC.nome]: { labels: [a.nome] },
@@ -510,15 +589,34 @@ export async function rotasPontoFacultativo(app: FastifyInstance): Promise<void>
               [COL_DESC.descontadoVT]: "0",
               [COL_DESC_ORIGEM]: { label: "PONTO FACULTATIVO" },
             }
-            await gql(
+            const criado = await gql<{ create_item?: { id?: string } }>(
               `mutation($b:ID!,$g:String!,$n:String!,$v:JSON!){ create_item(board_id:$b, group_id:$g, item_name:$n, column_values:$v, create_labels_if_missing:true){ id } }`,
               { b: String(BOARD_DESCONTOS), g: GRUPO_DESCONTOS, n: "PONTO FACULTATIVO", v: JSON.stringify(values) },
             )
+            itemDescontoId = criado?.create_item?.id ?? null
           }
         } catch (e) {
           req.log.error(e, `pf: board descontos ${a.chapa} falhou`)
+          // Etapa própria (`aplicacao_item`), não `aplicacao`: senão a timeline mistura
+          // "um item quebrou" com o fecho da fase inteira, e fica impossível ler quantos
+          // e quais falharam.
+          await ex.etapa("aplicacao_item", "erro", {
+            mensagem: `board descontos falhou p/ chapa ${a.chapa}`,
+            metadados: { chapa: a.chapa, nome: a.nome, data: a.data },
+          })
+          falhas++
           ignorados++
           continue
+        }
+        // O item da Base de Desconto É o efeito desta ação — é o que o DP abre pra
+        // conferir, e o que precisa ser desfeito à mão se o recorte estiver errado.
+        if (itemDescontoId) {
+          await ex.artefato({
+            tipo: "desconto_item",
+            chave: itemDescontoId,
+            rotulo: `${a.nome || a.chapa} — ${a.data}`,
+            url: `https://contato-serv.monday.com/boards/${BOARD_DESCONTOS}/pulses/${itemDescontoId}`,
+          })
         }
 
         // ── 3. Espelho PG (idempotente via efeitos_externos) ──
@@ -543,6 +641,15 @@ export async function rotasPontoFacultativo(app: FastifyInstance): Promise<void>
         }
         processados++
       }
+
+      await ex.etapa("aplicacao", falhas ? "aviso" : "ok", {
+        metadados: { processados, ignorados, falhas },
+      })
+      // 'parcial' quando algum item quebrou no board: a ação aconteceu, mas incompleta —
+      // e 'parcial' não dispara alerta (a fila/refazimento resolve), diferente de 'erro'.
+      await ex.fechar(falhas ? "parcial" : "ok", {
+        resumo: { unidades, data, beneficios, processados, ignorados, falhas },
+      })
 
       return {
         ...montarPreview(contrato, unidades, data, beneficios, afetados),
