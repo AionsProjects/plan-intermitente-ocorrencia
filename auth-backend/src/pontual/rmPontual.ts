@@ -64,3 +64,52 @@ export function registrosHistoricoPontual(
   }
   return out
 }
+
+/** Uma linha do IDFNAN, no que interessa pra decidir o que integrar. */
+export interface LancamentoIdfinanc {
+  IDFINANC: number | string
+  VALORORIGINAL?: number
+  tipoEvento?: string
+}
+
+export interface ClassificacaoIdfinanc<T> {
+  /** Valor bate com o esperado → integra (dedup por IDFINANC fica com quem executa). */
+  integrar: T[]
+  /** Valor NÃO bate → é de outro pagamento da mesma seção/dia. */
+  divergentes: T[]
+}
+
+/**
+ * Separa os lançamentos da seção/dia entre "deste pagamento" e "de outro".
+ *
+ * A consulta IDFNAN é por SEÇÃO e DIA, não por pessoa — e toda a SEMSA compartilha
+ * `01.01.0085`. Do segundo pagamento do dia em diante, os lançamentos dos anteriores sempre
+ * aparecem: em 14/08 a run da MÁRCIA encontrou 4 (os 2 dela e os 2 da TRIMEIA, de 40min antes).
+ * Integrar por posição ou "todos os que apareceram" lançaria o boleto de um na conta do outro.
+ *
+ * O critério é o VALOR (±0,05), único campo que distingue as pessoas nessa resposta. Tolerância e
+ * não igualdade porque o RM devolve float.
+ *
+ * `alvo <= 0` sai fora: benefício que este pagamento não tem (só VR, por exemplo) não pode casar
+ * com lançamento nenhum — sem isso um VT alheio de valor zero entraria.
+ */
+export function classificarLancamentosIdfinanc<T extends LancamentoIdfinanc>(
+  rows: T[],
+  esperado: { VR: number; VT: number },
+  tolerancia = 0.05,
+): ClassificacaoIdfinanc<T> {
+  const integrar: T[] = []
+  const divergentes: T[] = []
+  for (const row of rows) {
+    if (row.tipoEvento !== "VR" && row.tipoEvento !== "VT") continue
+    const alvo = esperado[row.tipoEvento]
+    if (!(alvo > 0)) continue
+    // Sem VALORORIGINAL não há como distinguir — integra, que é o comportamento herdado do WF5.
+    if (typeof row.VALORORIGINAL === "number" && Math.abs(row.VALORORIGINAL - alvo) > tolerancia) {
+      divergentes.push(row)
+      continue
+    }
+    integrar.push(row)
+  }
+  return { integrar, divergentes }
+}

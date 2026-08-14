@@ -52,6 +52,7 @@ import {
 } from "../auth-backend/src/pontual/pagamento.js"
 import { montarPedidoCajuPontual } from "../auth-backend/src/pontual/cajuPontual.js"
 import {
+  classificarLancamentosIdfinanc,
   competenciaPontual,
   eventosPontual,
   registrosHistoricoPontual,
@@ -554,18 +555,24 @@ async function etapaRmIntegrar(
   // Mitigação de concorrência na mesma seção/dia (furo herdado do WF5): quando o RM devolve
   // VALORORIGINAL, só integramos lançamento cujo valor bate com o pix esperado (±0,05).
   const esperado = { VR: Number(plano.pessoa.pixVR) || 0, VT: Number(plano.pessoa.pixVT) || 0 }
+  const { integrar, divergentes } = classificarLancamentosIdfinanc(rotulados, esperado)
+
+  // Divergente é o caso NORMAL, não um problema: do segundo pagamento do dia em diante, os
+  // lançamentos dos anteriores da mesma seção sempre aparecem na consulta. O que separa ruído de
+  // problema é quem já integrou — efeito confirmado significa "de outro pagamento, resolvido";
+  // ausência de efeito significa que NINGUÉM integrou aquele lançamento, e isso merece o olho.
+  let deOutroPagamento = 0
+  const orfaos: string[] = []
+  for (const row of divergentes) {
+    const chave = `pontual:rm_idfinanc:${RM_COLIGADA}:${row.IDFINANC}`
+    if ((await estadoEfeito(chave)) === "confirmado") deOutroPagamento++
+    else orfaos.push(`${row.IDFINANC} (${row.tipoEvento} ${row.VALORORIGINAL})`)
+  }
+
   const idsVR: string[] = []
   const idsVT: string[] = []
   let integrados = 0
-  let ignoradosPorValor = 0
-  for (const row of rotulados) {
-    if (row.tipoEvento !== "VR" && row.tipoEvento !== "VT") continue
-    const alvo = esperado[row.tipoEvento]
-    if (alvo <= 0) continue
-    if (typeof row.VALORORIGINAL === "number" && Math.abs(row.VALORORIGINAL - alvo) > 0.05) {
-      ignoradosPorValor++
-      continue
-    }
+  for (const row of integrar) {
     const chaveId = `pontual:rm_idfinanc:${RM_COLIGADA}:${row.IDFINANC}`
     const reservaId = await reservarEfeito(chaveId, "pontual_rm_idfinanc", { itemOrigemId, tipo: row.tipoEvento })
     if (reservaId === "confirmado") continue
@@ -580,11 +587,21 @@ async function etapaRmIntegrar(
   const idVT = idsVT.length ? idsVT.join(", ") : null
   await confirmarEfeito(r.chave, `rm:integrar:${integrados}:vr=${idVR ?? "-"}:vt=${idVT ?? "-"}`)
   await log(execucaoId, etapa, "ok", {
-    metadados: { encontrados: rotulados.length, integrados, ignoradosPorValor, idVR, idVT },
+    metadados: {
+      encontrados: rotulados.length,
+      integrados,
+      idVR,
+      idVT,
+      // Contado e registrado, mas SEM aviso: é o vizinho de seção já resolvido.
+      deOutroPagamento,
+      ...(orfaos.length ? { orfaos } : {}),
+    },
   })
-  if (ignoradosPorValor > 0) {
+  if (orfaos.length) {
     await log(execucaoId, etapa, "aviso", {
-      mensagem: `${ignoradosPorValor} lançamento(s) na mesma seção/dia com valor divergente — não integrados por este pagamento`,
+      mensagem:
+        `${orfaos.length} lançamento(s) na mesma seção/dia que NINGUÉM integrou: ${orfaos.join(", ")}. ` +
+        `Não são deste pagamento — confira de quem são.`,
     })
   }
   return { idVR, idVT }
