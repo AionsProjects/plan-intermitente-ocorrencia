@@ -36,16 +36,34 @@ const MESES = [
   "DEZEMBRO",
 ]
 
+/**
+ * Nome da pasta de contrato no Drive. Conferido contra a árvore REAL em 14/08 — não é palpite.
+ *
+ * `DETRAN` e `SEDUC SEDE` estavam SEM o prefixo numérico e isso já rachou produção: em
+ * 12/08 21:12 o código criou `CONTATO/DETRAN` ao lado do `CONTATO/04 - DETRAN` que existe desde
+ * março, e a convocação do HARLISSON foi para a pasta nova enquanto AMANDA, ANA CAROLINE e ALMIRA
+ * ficaram na antiga. SEDUC SEDE tinha a mesma bomba armada, só não havia estourado.
+ *
+ * Contrato que não estiver aqui cai no nome normalizado (`URUGUAIANA`), que é o comportamento
+ * antigo — e o mesmo risco. Quando algum deles virar contrato de intermitente, o nome tem de ser
+ * conferido no Drive antes, não deduzido.
+ */
 const CONTRATO_DRIVE_MAP: Record<string, string> = {
   SEMSA: "85 - SEMSA",
   CETAM: "74 - CETAM",
   "TRE PB": "79 - TRE PB",
-  "SEDUC SEDE": "SEDUC SEDE",
+  "SEDUC SEDE": "10 - SEDUC SEDE",
   "SEDUC ESCOLA": "11.01 - SEDUC ESCOLA",
   "SEDUC INTERIOR": "11.02 - SEDUC INTERIOR",
   "BARCO CONTATO": "15 - BARCO CONTATO",
-  DETRAN: "DETRAN",
+  DETRAN: "04 - DETRAN",
   ADMINISTRATIVO: "ADMINISTRATIVO",
+}
+
+/** Nome da pasta de contrato no Drive. Pura, pra ter teste — é onde o DETRAN rachou. */
+export function nomePastaContrato(contrato: unknown): string {
+  const norm = normDrive(contrato)
+  return CONTRATO_DRIVE_MAP[norm] || norm
 }
 
 interface ArquivoEntrada {
@@ -244,8 +262,7 @@ export async function arquivarDrive(input: ArquivarInput): Promise<ArquivarResul
 
   const ano = input.data_inicio.slice(0, 4)
   const mes = mesNome(input.data_inicio)
-  const contratoNorm = normDrive(input.contrato)
-  const contrato = CONTRATO_DRIVE_MAP[contratoNorm] || contratoNorm
+  const contrato = nomePastaContrato(input.contrato)
   const pessoa = normDrive(input.nome)
   const periodo = sanitizeName(periodoNome(input.data_inicio, input.data_fim))
   const tipo = normDrive(input.tipo || "convocacao").toLowerCase()

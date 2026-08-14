@@ -13,7 +13,7 @@ process.env.GOOGLE_CLIENT_ID ??= "test"
 process.env.GOOGLE_CLIENT_SECRET ??= "test"
 process.env.OAUTH_REDIRECT_URI ??= "http://localhost/cb"
 
-const { subpastaDoTipo } = await import("./driveArquivar.js")
+const { nomePastaContrato, subpastaDoTipo } = await import("./driveArquivar.js")
 const { escolherPasta, sanitizeName, variantesNome } = await import("../clients/drive.js")
 
 test("boleto e comprovante caem em CAJU (sem subpasta por dentro)", () => {
@@ -108,4 +108,32 @@ test("irmãos de MESMO nome → a mais antiga, sempre a mesma", () => {
 
 test("nada achado → null (quem chama cria)", () => {
   assert.equal(escolherPasta([], "08 - AGOSTO"), null)
+})
+
+// ---------------------------------------------------------------------------
+// Nome da pasta de contrato — conferido contra a arvore real em 14/08
+// ---------------------------------------------------------------------------
+
+test("contrato leva o prefixo numérico que existe no Drive", () => {
+  // DETRAN e SEDUC SEDE estavam SEM prefixo e isso rachou producao: em 12/08 o codigo criou
+  // `CONTATO/DETRAN` ao lado do `CONTATO/04 - DETRAN` que existe desde marco.
+  assert.equal(nomePastaContrato("DETRAN"), "04 - DETRAN")
+  assert.equal(nomePastaContrato("SEDUC SEDE"), "10 - SEDUC SEDE")
+  assert.equal(nomePastaContrato("SEMSA"), "85 - SEMSA")
+  assert.equal(nomePastaContrato("SEDUC INTERIOR"), "11.02 - SEDUC INTERIOR")
+  assert.equal(nomePastaContrato("SEDUC ESCOLA"), "11.01 - SEDUC ESCOLA")
+  assert.equal(nomePastaContrato("TRE PB"), "79 - TRE PB")
+  assert.equal(nomePastaContrato("CETAM"), "74 - CETAM")
+  assert.equal(nomePastaContrato("BARCO CONTATO"), "15 - BARCO CONTATO")
+  assert.equal(nomePastaContrato("ADMINISTRATIVO"), "ADMINISTRATIVO")
+})
+
+test("casa ignorando acento e caixa", () => {
+  assert.equal(nomePastaContrato("detran"), "04 - DETRAN")
+  assert.equal(nomePastaContrato(" Seduc  Sede "), "10 - SEDUC SEDE")
+})
+
+test("contrato fora do mapa cai no nome normalizado", () => {
+  // URUGUAIANA nao esta no mapa — mesmo risco de pasta nova. Conferir no Drive antes de ligar.
+  assert.equal(nomePastaContrato("URUGUAIANA"), "URUGUAIANA")
 })
