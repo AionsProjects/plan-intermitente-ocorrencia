@@ -14,7 +14,7 @@ process.env.GOOGLE_CLIENT_SECRET ??= "test"
 process.env.OAUTH_REDIRECT_URI ??= "http://localhost/cb"
 
 const { subpastaDoTipo } = await import("./driveArquivar.js")
-const { sanitizeName } = await import("../clients/drive.js")
+const { escolherPasta, sanitizeName, variantesNome } = await import("../clients/drive.js")
 
 test("boleto e comprovante caem em CAJU (sem subpasta por dentro)", () => {
   // Antes eram CAJU/BOLETOS e CAJU/COMPROVANTES. Achatado — as antigas param de receber, mas
@@ -67,4 +67,45 @@ test("sanitizeName tira espaço do fim — origem da pasta duplicada", () => {
 test("sanitizeName troca a barra da data por espaço", () => {
   // É por isso que a pasta do período se chama `13 A 19 08 2026` e não `13 A 19/08/2026`.
   assert.equal(sanitizeName("13 A 19/08/2026"), "13 A 19 08 2026")
+})
+
+// ---------------------------------------------------------------------------
+// findFolder tolerante — a duplicata de julho/26 nasceu daqui
+// ---------------------------------------------------------------------------
+
+test("variantesNome cobre o espaço no fim e no começo", () => {
+  assert.deepEqual(variantesNome("07 - JULHO"), ["07 - JULHO", "07 - JULHO ", " 07 - JULHO"])
+  // Nome já sujo entra pelo trim e gera as mesmas variantes — chamar com um ou com outro dá igual.
+  assert.deepEqual(variantesNome("07 - JULHO "), variantesNome("07 - JULHO"))
+})
+
+test("nome limpo vence a variante com espaço", () => {
+  const achados = [
+    { id: "com-espaco", name: "07 - JULHO " },
+    { id: "limpo", name: "07 - JULHO" },
+  ]
+  assert.equal(escolherPasta(achados, "07 - JULHO")?.id, "limpo")
+})
+
+test("só a variante com espaço existe → usa ela em vez de criar outra", () => {
+  // Este é o caso de `01 - JANEIRO ` e `INTERMITENTE - MENSAL `: antes o código não achava e
+  // criava uma segunda pasta, rachando os arquivos do mês.
+  const achados = [{ id: "so-com-espaco", name: "01 - JANEIRO " }]
+  assert.equal(escolherPasta(achados, "01 - JANEIRO")?.id, "so-com-espaco")
+})
+
+test("irmãos de MESMO nome → a mais antiga, sempre a mesma", () => {
+  // Existem dois `04 - DETRAN` dentro de `07 - JULHO/CONTATO`. Com pageSize 1 o destino do
+  // arquivo era o que a API devolvesse primeiro — sorteio. A query pede orderBy createdTime,
+  // então o primeiro do grupo é o mais antigo, e a escolha para de variar entre chamadas.
+  const achados = [
+    { id: "antiga-24-06", name: "04 - DETRAN" },
+    { id: "nova-13-07", name: "04 - DETRAN" },
+  ]
+  assert.equal(escolherPasta(achados, "04 - DETRAN")?.id, "antiga-24-06")
+  assert.equal(escolherPasta(achados, "04 - DETRAN")?.id, "antiga-24-06")
+})
+
+test("nada achado → null (quem chama cria)", () => {
+  assert.equal(escolherPasta([], "08 - AGOSTO"), null)
 })

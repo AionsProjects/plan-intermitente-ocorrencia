@@ -113,16 +113,72 @@ export function rootFolderId(): string {
   return config.googleDrive.rootFolderId
 }
 
+/**
+ * Variantes do nome que contam como A MESMA pasta.
+ *
+ * O Drive casa por nome EXATO, e boa parte da árvore foi criada pelo n8n com ESPAÇO no fim
+ * (`07 - JULHO `, `INTERMITENTE - MENSAL `, `3 DIAS CREDITO `). O nosso `sanitizeName` faz trim,
+ * então procurar só o nome limpo não achava a pasta e criava uma SEGUNDA — foi o que aconteceu em
+ * 22/06 com julho, que hoje tem duas árvores paralelas, cada uma com seu `CONTATO`.
+ */
+export function variantesNome(name: string): string[] {
+  const limpo = name.trim()
+  return [...new Set([limpo, `${limpo} `, ` ${limpo}`])]
+}
+
+/**
+ * Qual das pastas achadas vence. Pura, pra ter teste — é a regra que decide onde o arquivo cai.
+ *
+ * `achados` deve vir ordenado por `createdTime` (a query pede `orderBy: createdTime`), então o
+ * primeiro de cada grupo é o mais antigo.
+ */
+export function escolherPasta<T extends { name: string }>(achados: T[], name: string): T | null {
+  for (const v of variantesNome(name)) {
+    const g = achados.filter((f) => f.name === v)
+    if (g.length > 0) return g[0]!
+  }
+  return achados[0] ?? null
+}
+
+/**
+ * Acha a pasta pelo nome, tolerando as variantes com espaço, e DETERMINÍSTICA quando há repetidas.
+ *
+ * Dois cuidados que a versão anterior não tinha:
+ *
+ *  - `pageSize: 1` + nome exato devolvia "o primeiro que a API quiser". Existem irmãos de mesmo
+ *    nome em produção (dois `04 - DETRAN` dentro de `07 - JULHO/CONTATO`), então o destino do
+ *    arquivo era efetivamente sorteado a cada chamada. Agora vence a MAIS ANTIGA — a original,
+ *    onde o histórico está — e a duplicata sai no log em vez de passar calada.
+ *  - o nome limpo tem prioridade sobre a variante com espaço; a variante só é usada quando o nome
+ *    limpo não existe, pra não migrar sozinho o que já está certo.
+ */
 export async function findFolder(parentId: string, name: string): Promise<DriveFile | null> {
+  const variantes = variantesNome(name)
+  const ou = variantes.map((v) => `name='${q(v)}'`).join(" or ")
   const params = new URLSearchParams({
-    q: `'${q(parentId)}' in parents and name='${q(name)}' and mimeType='${FOLDER_MIME}' and trashed=false`,
-    fields: "files(id,name,webViewLink)",
-    pageSize: "1",
+    q: `'${q(parentId)}' in parents and (${ou}) and mimeType='${FOLDER_MIME}' and trashed=false`,
+    fields: "files(id,name,webViewLink,createdTime)",
+    pageSize: "20",
+    orderBy: "createdTime",
     supportsAllDrives: "true",
     includeItemsFromAllDrives: "true",
   })
-  const r = await driveFetch<{ files?: DriveFile[] }>(`${DRIVE}/files?${params}`)
-  return r.files?.[0] ?? null
+  const r = await driveFetch<{ files?: Array<DriveFile & { createdTime?: string }> }>(`${DRIVE}/files?${params}`)
+  const achados = r.files ?? []
+  const escolhida = escolherPasta(achados, name)
+  if (!escolhida) return null
+  if (achados.length > 1) {
+    console.warn(
+      "[drive] pastas com o mesmo nome no mesmo pai — usando a mais antiga:",
+      JSON.stringify({
+        pai: parentId,
+        procurado: name,
+        escolhida: { id: escolhida.id, nome: escolhida.name },
+        outras: achados.filter((f) => f.id !== escolhida.id).map((f) => ({ id: f.id, nome: f.name })),
+      }),
+    )
+  }
+  return { id: escolhida.id, name: escolhida.name, ...(escolhida.webViewLink ? { webViewLink: escolhida.webViewLink } : {}) }
 }
 
 export interface ItemDrive extends DriveFile {
