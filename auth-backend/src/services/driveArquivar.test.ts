@@ -137,3 +137,18 @@ test("contrato fora do mapa cai no nome normalizado", () => {
   // URUGUAIANA nao esta no mapa — mesmo risco de pasta nova. Conferir no Drive antes de ligar.
   assert.equal(nomePastaContrato("URUGUAIANA"), "URUGUAIANA")
 })
+
+// ---------------------------------------------------------------------------
+// As três pastas nascem juntas — nada de OUTROS só aparecer no pagamento
+// ---------------------------------------------------------------------------
+
+test("os tipos que o /convocar usa pra pré-criar cobrem as TRÊS pastas", () => {
+  // `garantir_subpastas` pré-cria via `subpastaDoTipo` + a de conferência. Se algum dia um destes
+  // mapeamentos mudar, este teste cai — e é o que impede a convocação nascer com pasta faltando,
+  // que foi o que a ANGELA (14/08) mostrou: só `CONFERENCIA` existia, e o DP não tinha `OUTROS`
+  // pra soltar a nota de débito.
+  assert.equal(subpastaDoTipo("caju_boleto"), "CAJU")
+  assert.equal(subpastaDoTipo("convocacao"), "OUTROS")
+  const tres = new Set([subpastaDoTipo("caju_boleto"), subpastaDoTipo("convocacao"), "CONFERENCIA"])
+  assert.deepEqual([...tres].sort(), ["CAJU", "CONFERENCIA", "OUTROS"])
+})

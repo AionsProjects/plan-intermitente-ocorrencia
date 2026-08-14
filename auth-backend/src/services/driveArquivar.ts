@@ -126,6 +126,18 @@ export interface ArquivarInput {
    * seria uma pasta a mais dizendo o que o avô já diz.
    */
   agrupar_por_periodo?: boolean
+  /**
+   * Cria as TRÊS pastas (`CAJU`, `CONFERENCIA`, `OUTROS`) mesmo vazias.
+   *
+   * Sem isto elas nascem sob demanda, quando um arquivo cai — e na criação da convocação só a
+   * planilha de conferência existe, então o DP abria a pasta e encontrava só `CONFERENCIA`, sem
+   * `OUTROS` pra soltar a nota de débito que ele acabou de baixar. Ter que criar a pasta à mão é
+   * exatamente o atrito que o board de notas existe pra remover.
+   *
+   * Ligado pelo `/convocar` (onde a pasta nasce). O pagamento não precisa: lá os arquivos chegam
+   * e criam o que falta.
+   */
+  garantir_subpastas?: boolean
 }
 
 /** Natureza default — mantém intacto o caminho que o pontual já usa em produção. */
@@ -320,6 +332,14 @@ export async function arquivarDrive(input: ArquivarInput): Promise<ArquivarResul
   }
   // Atestado sem arquivo (ou com tipo só no input) ainda precisa da pasta pro eco no Monday.
   if (tipo === "atestado" && !pastaAtestados) await subpastaDe("atestado")
+
+  // As TRÊS pastas, mesmo vazias — o DP tem de achar a mesma estrutura em toda convocação, e não
+  // criar `OUTROS` à mão pra soltar a nota. O cache de `subpastaDe` faz cada uma custar uma ida
+  // só, e o `ensureFolder` é find-or-create: rodar de novo não duplica.
+  if (input.garantir_subpastas && tipo !== "atestado") {
+    for (const t of ["caju_boleto", "convocacao"]) await subpastaDe(t) // CAJU e OUTROS
+    await ensureFolder(pastaConvocacao.id, SUBPASTA_CONFERENCIA)
+  }
 
   let planilha: DriveFile | undefined
   if (input.gerar_planilha_conferencia && input.item_entrada_id) {

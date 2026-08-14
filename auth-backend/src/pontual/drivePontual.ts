@@ -133,6 +133,9 @@ export async function arquivarDrivePontual(
     item_solicitacao_id: refs.solicitacaoId ?? undefined,
     atualizar_monday: true,
     pastas_resolvidas: pastasResolvidas,
+    // As três pastas mesmo que este pagamento não use todas (sem boleto não haveria `CAJU`):
+    // o DP tem de achar a mesma estrutura em toda pasta.
+    garantir_subpastas: true,
     arquivos: arquivos.map((a) => ({
       tipo: a.tipo,
       buffer: Buffer.from(a.conteudoBase64, "base64"),

@@ -744,6 +744,9 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
         board_entrada_id: b.boardId,
         atualizar_monday: true,
         gerar_planilha_conferencia: true,
+        // As três pastas (CAJU/CONFERENCIA/OUTROS) nascem AQUI, mesmo vazias. É a pasta que o DP
+        // vai abrir pra soltar a nota de débito, e sob demanda ele encontrava só `CONFERENCIA`.
+        garantir_subpastas: true,
         arquivos: uploads
           .map(([campo]) => arquivos[campo])
           .filter((a): a is { buffer: Buffer; filename: string; mime: string } => !!a),

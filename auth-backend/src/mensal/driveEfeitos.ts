@@ -159,6 +159,9 @@ export async function arquivarDriveMensal(
     agrupar_por_periodo: false,
     item_solicitacao_id: refs.solicitacaoId ?? undefined,
     atualizar_monday: true,
+    // As três pastas mesmo que este pagamento não use todas (sem boleto não haveria `CAJU`):
+    // o DP tem de achar a mesma estrutura em toda pasta.
+    garantir_subpastas: true,
     arquivos: arquivos.map((a) => ({
       tipo: a.tipo,
       buffer: Buffer.from(a.conteudoBase64, "base64"),
