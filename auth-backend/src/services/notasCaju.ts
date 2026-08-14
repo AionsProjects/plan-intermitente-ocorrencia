@@ -56,10 +56,18 @@ export interface ColunaRegistro {
   tipo: string
 }
 
-/** Nome do item: o que se lê na lista do board sem abrir nada. */
+/**
+ * Nome do item: o que se lê na lista do board sem abrir nada.
+ *
+ * O BENEFÍCIO entra no nome porque um pagamento pode ter DOIS pedidos de crédito (o formato até
+ * 13/08, e o mensal, separam VR de VT). Sem ele, as duas linhas do mesmo pagamento ficam
+ * indistinguíveis na lista — foi o que aconteceu com o LUAN quando as colunas `Benefício` e
+ * `Valor` saíram: dois itens com o mesmo nome, apontando para pedidos diferentes.
+ */
 export function montarNomeItemNota(l: LinhaNotaCaju): string {
   const quem = (l.colaborador ?? "").trim() || l.contrato
-  return `${l.natureza} - ${quem.toUpperCase()} - ${fmtDataIso(l.dataInicio)}`
+  const ben = l.beneficio.replace(/\s*\+\s*/g, "+")
+  return `${l.natureza} ${ben} - ${quem.toUpperCase()} - ${fmtDataIso(l.dataInicio)}`
 }
 
 /** Título da gaveta: mês de CAIXA (quando o pagamento saiu), formato "AGOSTO/26" da Solicitação. */
@@ -72,26 +80,32 @@ export function tituloGrupoNotas(dataIso: string): string {
   return `${MESES[Number(m[2]) - 1] ?? "?"}/${m[1]!.slice(-2)}`
 }
 
-// Nome da coluna no board -> valor bruto da linha. A ordem é a de leitura do item.
+/**
+ * Nome da coluna no board -> valor da linha. A ordem é a de leitura do item.
+ *
+ * ENXUTO de propósito (decisão do Isaac, 14/08). O board tem UM trabalho: ele abre a linha, baixa
+ * o PDF da nota e anexa na pasta do Drive. Tudo que não serve a isso saiu — o board nasceu com 17
+ * colunas e virou 6.
+ *
+ * O que saiu e por quê:
+ *  - `IDFINANC` e `Solicitação` só existem em BOLETO, e o board leva só CRÉDITO: nasciam vazias;
+ *  - `Natureza` e `Origem` eram constantes na prática (CRÉDITO, e a origem se lê no nome);
+ *  - `Pedido Caju`, `Valor`, `Benefício`, `Chapa`, `Data Fim` são conferência, não o trabalho —
+ *    seguem no `/atividade`, no PDF do relatório e no `payload_resumo`;
+ *  - `Status` sairia como controle manual, mas o Isaac filtra por DATA e pega as do dia;
+ *  - `Relatório` (o PDF da automação) já está DENTRO da pasta que a linha aponta.
+ *
+ * `Data Início` fica porque é o que torna "pegar as do dia" possível — sem coluna de data, o
+ * filtro por dia não existe (o grupo é por mês).
+ */
 function camposDaLinha(l: LinhaNotaCaju): Array<[string, unknown]> {
   return [
-    ["Pedido Caju", l.orderId],
-    ["Natureza", l.natureza],
-    ["Benefício", l.beneficio],
-    ["Origem", l.origem],
-    ["Contrato", l.contrato],
     ["Colaborador", l.colaborador],
-    ["Chapa", l.chapa],
+    ["Contrato", l.contrato],
     ["Data Início", l.dataInicio],
-    ["Data Fim", l.dataFim],
-    ["Valor", r2(l.valor)],
-    ["Resumo Caju", l.resumoUrl],
     ["Nota de Débito", l.notaUrl],
-    ["Relatório", l.relatorioUrl],
+    ["Resumo Caju", l.resumoUrl],
     ["Pasta Drive", l.pastaDriveUrl],
-    ["IDFINANC", l.idfinanc],
-    ["Solicitação", l.solicitacaoUrl],
-    ["Status", "GERADO"],
   ]
 }
 

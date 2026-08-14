@@ -103,6 +103,23 @@ for (const c of faltando) {
   console.log(`  + ${r.create_column.title} → ${r.create_column.id} [${c.tipo}]`)
 }
 
+// --- 2b. item default ("Task 1") que o Monday cria com o board -------------------------------
+// Só apaga se estiver REALMENTE vazio: um item com dado nunca é lixo de criação.
+try {
+  const d = await mondayGraphql<{ boards: Array<{ items_page: { items: Array<{ id: string; name: string; column_values: Array<{ text: string | null }> }> } }> }>(
+    `query($b:ID!){ boards(ids:[$b]){ items_page(limit:5){ items{ id name column_values{ text } } } } }`,
+    { b: boardId },
+  )
+  for (const it of d.boards[0]?.items_page.items ?? []) {
+    if (it.column_values.some((c) => c.text)) continue
+    if (!/^(task|item)\s*\d+$/i.test(it.name.trim())) continue
+    await mondayGraphql(`mutation($i:ID!){ delete_item(item_id:$i){ id } }`, { i: it.id })
+    console.log(`\nitem default apagado: ${JSON.stringify(it.name)}`)
+  }
+} catch (e) {
+  console.warn("apagar item default falhou (segue):", (e as Error).message)
+}
+
 // --- 3. registry: papel notas_caju (título -> column_id) -------------------------------------
 const finais = await lerColunas(boardId)
 await query(

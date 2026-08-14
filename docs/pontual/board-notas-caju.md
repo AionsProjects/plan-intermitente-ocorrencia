@@ -26,30 +26,36 @@ DEPARTAMENTO PESSOAL, na pasta da Solicitação de Pagamento. Criado e registrad
 
 ## Colunas
 
-O nome é o contrato: o backend resolve tudo pelo **título** da coluna (via `pi.board_colunas`) e
-formata o valor conforme o **tipo** real. Coluna com nome diferente é pulada e reportada no log
-(`colunas ausentes no board: …`) — não derruba o registro do pagamento.
+O board tem UM trabalho: abrir a linha, baixar o PDF da nota e anexar na pasta do Drive. Nasceu com
+17 colunas e foi enxugado pra 6 em 14/08 (decisão do Isaac) — o que não serve a esse trabalho saiu
+do board E do código, porque coluna que o código escreve e não existe acende
+"colunas ausentes no board" em todo pagamento.
 
 | Coluna | Tipo | Conteúdo |
 |---|---|---|
-| *(nome do item)* | — | `CRÉDITO - MARIA DA SILVA - 01/08/2026` |
-| `Pedido Caju` | Text | id do pedido — é a chave de conferência com o extrato |
-| `Natureza` | Status | `CRÉDITO` (o `BOLETO` existe no layout, mas hoje não é gravado) |
-| `Benefício` | Dropdown | `VR`, `VT` (pedido do pontual leva os dois → duas labels) |
-| `Origem` | Status | `PONTUAL` / `MENSAL` |
-| `Contrato` | Dropdown | contrato |
+| *(nome do item)* | — | `CRÉDITO VR+VT - MARIA DA SILVA - 01/08/2026` |
 | `Colaborador` | Text | vazio no mensal: lá o pedido é do contrato |
-| `Chapa` | Text | |
-| `Data Início` | Date | |
-| `Data Fim` | Date | |
-| `Valor` | Numbers | valor daquele pedido |
-| `Resumo Caju` | Link | painel da Caju do pedido |
-| `Nota de Débito` | Link | só em `CRÉDITO`, e só com `CAJU_NOTA_URL` configurada |
-| `Relatório` | Link | PDF em `OUTROS/` na pasta da convocação |
-| `Pasta Drive` | Link | pasta da convocação/competência |
-| `IDFINANC` | Text | `VR 24278; VT 24279` — só na linha do BOLETO (vazio hoje) |
-| `Solicitação` | Link | item da Solicitação — só na linha do BOLETO (vazio hoje) |
-| `Status` | Status | nasce `GERADO`; daí em diante é do DP |
+| `Contrato` | Dropdown | |
+| `Data Início` | Date | é o que permite filtrar e pegar as do dia |
+| `Nota de Débito` | Link | o PDF pra baixar — só com `CAJU_NOTA_URL` configurada |
+| `Resumo Caju` | Link | painel da Caju do pedido, pra chegar lá quando o link direto falhar |
+| `Pasta Drive` | Link | onde anexar |
+
+O **benefício vai no NOME** do item, não em coluna: um pagamento pode ter dois pedidos de crédito
+(o formato até 13/08, e o mensal, separam VR de VT), e sem isso as duas linhas ficam idênticas na
+lista — foi o que aconteceu quando `Benefício` e `Valor` saíram.
+
+Saíram do board: `Pedido Caju`, `Natureza`, `Benefício`, `Origem`, `Chapa`, `Data Fim`, `Valor`,
+`Relatório`, `IDFINANC`, `Solicitação`, `Status`. `IDFINANC` e `Solicitação` só existem em BOLETO e
+o board leva só CRÉDITO — nasciam vazias. O resto é conferência, e conferência vive no `/atividade`,
+no PDF do relatório e em `payload_resumo`.
+
+```bash
+node --env-file=.env --import tsx src/scripts/enxugar-board-notas-caju.ts --aplicar
+```
+
+Deriva o que apagar do que o código escreve (nada de segunda lista pra manter em sincronia) e
+re-sincroniza o registry no fim.
 
 Gaveta (grupo) = mês de **caixa**, formato `AGOSTO/26` (o mesmo da Solicitação). Criada sozinha.
 Labels de status/dropdown também nascem sozinhas (`create_labels_if_missing`) — não precisa
