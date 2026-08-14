@@ -80,7 +80,11 @@ export const LABEL_ESTADO_FASE: Record<string, string> = {
   ok: "ok",
   erro: "erro",
   pulado: "não se aplica",
-  aviso: "pendente",
+  // `aviso` é NOTA, não pendência: a fase terminou. O `rm_integrar` do pagamento da MÁRCIA
+  // (14/08) avisou "2 lançamentos na mesma seção/dia com valor divergente" e a barra passou a
+  // dizer "pendente" — num pagamento com os 14 efeitos confirmados e IDFINANC integrado. Quem
+  // leu entendeu "travou", e o certo era "olha isso".
+  aviso: "atenção",
 }
 
 /**

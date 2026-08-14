@@ -13,7 +13,7 @@ import {
   horaComSegundosManaus, LABEL_ESTADO_FASE, rotuloEtapa,
 } from "./etapas"
 import { ehFalha, LABEL_ESTADO, rotuloAcao, type ArtefatoExecucao, type Execucao } from "./types"
-import { fraseDesfecho } from "./resumoHumano"
+import { fraseDesfecho, totalResumo } from "./resumoHumano"
 
 /**
  * Painel de detalhe da linha expandida: trilho de fases, resumo, artefatos gerados e
@@ -74,13 +74,13 @@ const CHAVES_DINHEIRO = [
  */
 function linhasDinheiro(r: Record<string, unknown>): Array<{ rotulo: string; vr: number | null; vt: number | null; total: number }> {
   const n = (k: string): number => Number(r[k]) || 0
+  // O TOTAL sai do mesmo helper que a frase de desfecho usa. Quando as duas contas viviam
+  // separadas, a tabela mostrou R$ 138 e a frase disse "Pago: nada" na mesma tela.
   const par = (base: string): { vr: number | null; vt: number | null; total: number } => {
     const temSeparado = r[`${base}_vr`] != null || r[`${base}_vt`] != null
-    if (temSeparado) {
-      const vr = n(`${base}_vr`), vt = n(`${base}_vt`)
-      return { vr, vt, total: vr + vt }
-    }
-    return { vr: null, vt: null, total: n(base) }
+    return temSeparado
+      ? { vr: n(`${base}_vr`), vt: n(`${base}_vt`), total: totalResumo(r, base) }
+      : { vr: null, vt: null, total: totalResumo(r, base) }
   }
   const aPagar = { vr: r.vr != null ? n("vr") : null, vt: r.vt != null ? n("vt") : null, total: n("vr") + n("vt") }
   return [

@@ -25,6 +25,23 @@ function num(resumo: Record<string, unknown>, chave: string): number {
   return typeof v === "number" ? v : Number(v) || 0
 }
 
+/**
+ * Total de uma grandeza do resumo, aceitando as DUAS formas em que ela existe.
+ *
+ * O workflow passou a gravar `credito_vr`/`credito_vt` separados (pedido de separar VR e VT na
+ * tabela). Quem continuou lendo só a chave plana `credito` passou a ler ZERO — e foi assim que o
+ * pagamento da MÁRCIA (14/08, R$ 138) apareceu como "Pago: nada" enquanto a tabela ao lado
+ * mostrava os valores certos, tirados das chaves novas.
+ *
+ * Execuções antigas só têm a chave plana, então as duas formas continuam valendo.
+ */
+export function totalResumo(resumo: Record<string, unknown>, base: string): number {
+  if (resumo[`${base}_vr`] != null || resumo[`${base}_vt`] != null) {
+    return num(resumo, `${base}_vr`) + num(resumo, `${base}_vt`)
+  }
+  return num(resumo, base)
+}
+
 export interface ResumoLinha {
   /** Quem — o que o olho procura primeiro. */
   titulo: string
@@ -123,13 +140,13 @@ export function fraseDesfecho(exec: Execucao): string {
     if (r.sem_saldo === true) {
       return `Nada a pagar: o desconto pendente consumiu todo o benefício de ${quem}. A dívida foi abatida.`
     }
-    const credito = num(r, "credito")
-    const boleto = num(r, "boleto")
+    const credito = totalResumo(r, "credito")
+    const boleto = totalResumo(r, "boleto")
     const partes = [
       credito > 0 ? `${dinheiro(credito)} de crédito no cartão` : null,
       boleto > 0 ? `${dinheiro(boleto)} em boleto PIX` : null,
     ].filter(Boolean)
-    const desconto = num(r, "desconto")
+    const desconto = totalResumo(r, "desconto")
     return (
       `Pago a ${quem}: ${partes.join(" e ") || "nada"}.` +
       (desconto > 0 ? ` Desconto de ${dinheiro(desconto)} abatido.` : "") +
