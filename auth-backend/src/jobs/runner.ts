@@ -6,6 +6,7 @@ import { pegarDevidos, avancar, falhar, retomarPresos, type Job } from "./repo.j
 import { handlerConvocacaoRmPontual, TIPO_JOB_CONVOCACAO_RM } from "./convocacaoRmPontual.js"
 import { handlerConvocacaoRmRemover, TIPO_JOB_CONVOCACAO_RM_REMOVER } from "./convocacaoRmRemover.js"
 import { handlerConvocacaoRmSubstituir, TIPO_JOB_CONVOCACAO_RM_SUBSTITUIR } from "./convocacaoRmSubstituir.js"
+import { handlerSabadoExtra, TIPO_JOB_SABADO_EXTRA } from "./sabadoExtra.js"
 
 type Handler = (job: Job) => Promise<void>
 
@@ -36,6 +37,10 @@ const HANDLERS: Record<string, Handler> = {
   // e o job só acumula tentativa sem nunca rodar.
   [TIPO_JOB_CONVOCACAO_RM_REMOVER]: handlerConvocacaoRmRemover,
   [TIPO_JOB_CONVOCACAO_RM_SUBSTITUIR]: handlerConvocacaoRmSubstituir,
+  // Sábado extra: tipo PRÓPRIO. Sem registrar aqui cairia em "tipo desconhecido" e o boleto
+  // de VT simplesmente nunca sairia — calado, que é o pior desfecho pra dinheiro.
+  // Percorre tudo em modo simulado enquanto SABADO_EXTRA_HABILITADO estiver desligada.
+  [TIPO_JOB_SABADO_EXTRA]: handlerSabadoExtra(),
   sync_monday: syncMonday,
   pontual: gated,
   mensal: gated,

@@ -96,6 +96,18 @@ test("lancamento financeiro: so evento 110", () => {
   assert.equal(l.coligada, 3)
 })
 
+test("nome do pedido Caju segue o formato do WF (o DP concilia por ele)", async () => {
+  const { montarNomePedidoSabados } = await import("../jobs/sabadoExtra.js")
+  const n = montarNomePedidoSabados("maria augusta", "2026-08-17")
+  // Corta em 27 como o WF — com nome deste tamanho o ANO fica de fora. É o comportamento
+  // do WF (`.substring(0,27)`), preservado de propósito: mudar o formato faria o sábado
+  // extra sumir da busca que o DP já usa no painel da Caju.
+  assert.equal(n, "INT-MARIA AUGUSTA-SAB-17/08")
+  assert.equal(n.length, 27)
+  // Nome longo nao estoura o limite da Caju.
+  assert.ok(montarNomePedidoSabados("ANA BEATRIZ DA SILVA SANTOS FERREIRA", "2026-08-17").length <= 27)
+})
+
 test("chave de efeito: muda se o conjunto de sabados muda, estavel se nao", () => {
   const a = montarPedidoSabados(BASE, VALORES)
   const b = montarPedidoSabados({ ...BASE, sabados: ["2026-08-15", "2026-08-08"] }, VALORES)

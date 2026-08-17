@@ -45,6 +45,8 @@ import {
 } from "../services/convocacaoBifurcar.js"
 import { ecoCodigosDoItem } from "../services/convocacaoPontual.js"
 import { enfileirar } from "../jobs/repo.js"
+import { montarPedidoSabados, ehErroSabados } from "../sabados/calculo.js"
+import { TIPO_JOB_SABADO_EXTRA } from "../jobs/sabadoExtra.js"
 import { TIPO_JOB_CONVOCACAO_RM_REMOVER } from "../jobs/convocacaoRmRemover.js"
 import { TIPO_JOB_CONVOCACAO_RM_SUBSTITUIR } from "../jobs/convocacaoRmSubstituir.js"
 
@@ -608,11 +610,64 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
         }
       }
 
+      // ── Sábado extra: boleto VT + lançamento no RM (job) ─────────────────────────
+      //
+      // Enfileira, não executa: o operador não espera a Caju, e função serverless que morre
+      // no meio de um pagamento não deixa retomada — a fila deixa. Idempotência real é a
+      // chave por conjunto de sábados (`chaveEfeitoSabados`), então job duplicado por
+      // refinalização encontra 'confirmado' e não paga de novo.
+      const sabados = c.sabados_extras ?? []
+      if (sabados.length > 0) {
+        // cpf e cod_secao vêm do snapshot do pré-pagamento, criado pelo /convocar. É a única
+        // fonte que já tem os dois; `convocacoes` não guarda seção, e sem seção o lançamento
+        // financeiro do RM não tem onde cair.
+        const { rows: pre } = await query<{ cpf: string | null; cod_secao: string | null }>(
+          `SELECT cpf, cod_secao FROM pontual_prepagamento
+            WHERE uuid_convocacao = $1 AND cod_secao IS NOT NULL
+            ORDER BY criado_em DESC LIMIT 1`,
+          [uuid],
+        )
+        const cpf = pre[0]?.cpf ?? ""
+        const codSecao = pre[0]?.cod_secao ?? ""
+        const pedido = montarPedidoSabados(
+          {
+            uuid, nome: c.nome ?? "", chapa: c.chapa ?? "", contrato: c.contrato ?? "",
+            sabados, optanteVT: c.optante_vt === true,
+            anoComp: Number(di.slice(0, 4)), mesComp: Number(di.slice(5, 7)),
+          },
+          linhas,
+        )
+        if (ehErroSabados(pedido)) {
+          // Recusa de regra (não optante, VT/dia zero) não é falha: é informação. O registro
+          // já está concluído — o que não acontece é o boleto.
+          await ex.etapa("sabado_extra", "pulado", { mensagem: pedido.mensagem, metadados: { erro: pedido.erro } })
+        } else if (!cpf || !codSecao) {
+          // Não enfileira job condenado. Fica visível e o DP lança à mão.
+          await ex.etapa("sabado_extra", "aviso", {
+            mensagem: "sem cpf/cod_secao no pre-pagamento — boleto de VT nao enfileirado",
+            metadados: { tem_cpf: !!cpf, tem_cod_secao: !!codSecao, sabados: sabados.length },
+          })
+        } else {
+          const jobId = await enfileirar(TIPO_JOB_SABADO_EXTRA, {
+            pedido, cpf, codSecao, dataImport: agoraIso.slice(0, 10),
+            item_origem_id: item ? parseItemOrigem(item).itemId : null,
+          }).catch((e) => { req.log.warn(e, "finalizar: enfileirar sabado extra falhou"); return null })
+          await ex.etapa("sabado_extra", jobId ? "ok" : "erro", {
+            metadados: {
+              job: jobId, qtd_sabados: pedido.qtdSabados, vt_dia: pedido.vtDia,
+              valor_total: pedido.valorTotal, habilitado: config.sabadoExtraHabilitado,
+            },
+          })
+          if (jobId) await ex.artefato({ tipo: "job", chave: jobId, rotulo: `Sábado extra — R$ ${pedido.valorTotal}` })
+        }
+      }
+
       await ex.fechar(mondayFalhas.length ? "parcial" : "ok", {
         resumo: {
           protocolo, chapa: c.chapa, eh_correcao: ehCorrecao,
           qtd_faltas: ag.qtd_faltas, qtd_atrasos: ag.qtd_atrasos,
           desconto_vr: desc.descontoVR, desconto_vt: desc.descontoVT,
+          sabados_extras: sabados.length || undefined,
           monday_falhas: mondayFalhas.length ? mondayFalhas : undefined,
         },
       })

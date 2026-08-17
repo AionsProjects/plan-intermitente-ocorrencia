@@ -29,6 +29,9 @@ function flagsRm(): Record<string, boolean> {
     // fora do config do backend.
     convocacao_rm_mensal: process.env.CONVOCACAO_RM_MENSAL_HABILITADA === "1",
     atestado_quebra: config.atestadoQuebraConvocacao,
+    // Sábado extra: boleto VT na Caju + lançamento no RM. Desligada, o job percorre todas as
+    // etapas e registra o que FARIA — então "rodou sem pagar" e "não rodou" ficam distintos.
+    sabado_extra: config.sabadoExtraHabilitado,
     split_rm: config.convocacaoRmHabilitada && String(process.env.SPLIT_RM_HABILITADO ?? "1") !== "0",
     rm_soap_configurado: temRmSoap(),
   }
