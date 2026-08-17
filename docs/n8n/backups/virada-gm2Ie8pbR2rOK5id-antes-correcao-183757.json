@@ -1,0 +1,784 @@
+{
+ "id": "gm2Ie8pbR2rOK5id",
+ "name": "DP - Plan. de Intermitentes (BENAUT)",
+ "versionId": "6edaed2e-fd01-45c9-89a7-83b57ca752dd",
+ "salvoEm": "2026-08-17",
+ "nodes": [
+  {
+   "parameters": {
+    "rule": {
+     "interval": [
+      {
+       "field": "cronExpression",
+       "expression": "0 17 14 * *"
+      }
+     ]
+    }
+   },
+   "type": "n8n-nodes-base.scheduleTrigger",
+   "typeVersion": 1.3,
+   "position": [
+    -2368,
+    48
+   ],
+   "id": "9dc29dc3-6923-4cb8-934c-24d880209364",
+   "name": "Schedule Trigger"
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "https://api.monday.com/v2",
+    "authentication": "genericCredentialType",
+    "genericAuthType": "httpHeaderAuth",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ { \"query\": \"query ($cursor: String) { boards(ids: [18418191275]) { id name items_page(limit: 500, cursor: $cursor) { cursor items { id name } } } }\", \"variables\": { \"cursor\": null } } }}",
+    "options": {
+     "pagination": {
+      "pagination": {
+       "parameters": {
+        "parameters": [
+         {
+          "type": "body",
+          "name": "variables",
+          "value": "={{ { \"cursor\": $response.body.data.boards[0].items_page.cursor } }}"
+         }
+        ]
+       },
+       "paginationCompleteWhen": "other",
+       "completeExpression": "={{ !$response.body.data.boards[0].items_page.cursor }}",
+       "limitPagesFetched": true,
+       "requestInterval": 1000
+      }
+     }
+    }
+   },
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.3,
+   "position": [
+    -2160,
+    48
+   ],
+   "id": "3da0e500-2094-4875-adb5-eb650e7e2db1",
+   "name": "Ler board central",
+   "credentials": {
+    "httpHeaderAuth": {
+     "id": "n5gkjTMvpDvy8eER",
+     "name": "api monday - Isaac"
+    }
+   }
+  },
+  {
+   "parameters": {
+    "jsCode": "const CENTRAL_BOARD_ID = \"18418191275\";\nconst pages = $input.all().map(item => item.json);\nconst firstBoard = pages.find(page => page.data?.boards?.[0])?.data?.boards?.[0];\nif (!firstBoard) throw new Error(\"Board central nao encontrado: \" + CENTRAL_BOARD_ID);\nconst itemsById = new Map();\nfor (const page of pages) {\n  const board = page.data?.boards?.[0];\n  for (const item of board?.items_page?.items || []) itemsById.set(String(item.id), item);\n}\nconst formatBoardName = (date) => {\n  const mm = String(date.getMonth() + 1).padStart(2, \"0\");\n  const yy = String(date.getFullYear()).slice(-2);\n  return `${mm}/${yy} - Plan. de Intermitente - Contato`;\n};\nconst now = new Date();\nconst currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);\nconst nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);\nconst _ym = (d) => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');\nreturn [{\n  json: {\n    centralBoardId: CENTRAL_BOARD_ID,\n    competenciaAtual: _ym(currentMonth),\n    competenciaProxima: _ym(nextMonth),\n    currentBoardName: firstBoard.name,\n    archiveBoardName: formatBoardName(currentMonth),\n    nextBoardName: formatBoardName(nextMonth),\n    itemIdsToArchive: Array.from(itemsById.keys()),\n    itemCountToArchive: itemsById.size,\n    itemPagesRead: pages.length\n  }\n}];"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    -1936,
+    48
+   ],
+   "id": "7dc1b993-3053-44db-801e-7056d958d2fa",
+   "name": "Preparar dados da virada"
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "https://api.monday.com/v2",
+    "authentication": "genericCredentialType",
+    "genericAuthType": "httpHeaderAuth",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ { \"query\": \"mutation ($boardId: ID!, $boardName: String!) { duplicate_board(board_id: $boardId, duplicate_type: duplicate_board_with_pulses_and_updates, board_name: $boardName, keep_subscribers: true) { board { id name url } } }\", \"variables\": { \"boardId\": $json.centralBoardId, \"boardName\": $json.archiveBoardName } } }}",
+    "options": {}
+   },
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.3,
+   "position": [
+    -592,
+    48
+   ],
+   "id": "226efcd8-c61f-4a98-a65b-b2282d85c5a5",
+   "name": "Duplicar board central",
+   "executeOnce": true,
+   "credentials": {
+    "httpHeaderAuth": {
+     "id": "n5gkjTMvpDvy8eER",
+     "name": "api monday - Isaac"
+    }
+   }
+  },
+  {
+   "parameters": {
+    "amount": 30
+   },
+   "type": "n8n-nodes-base.wait",
+   "typeVersion": 1.1,
+   "position": [
+    -352,
+    48
+   ],
+   "id": "621d1022-a637-4784-ba6c-ccc322438403",
+   "name": "Aguardar duplicacao",
+   "webhookId": "7f75a018-e1a5-49f5-bf9c-3cc5d9f7bc9d"
+  },
+  {
+   "parameters": {
+    "jsCode": "const prep = $(\"Preparar dados da virada\").first().json; return (prep.itemIdsToArchive || []).map(itemId => ({ json: { itemId } }));"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    704,
+    16
+   ],
+   "id": "75a12a85-3957-423e-95ca-262617dcb158",
+   "name": "Preparar itens para arquivar"
+  },
+  {
+   "parameters": {
+    "options": {}
+   },
+   "type": "n8n-nodes-base.splitInBatches",
+   "typeVersion": 3,
+   "position": [
+    1072,
+    16
+   ],
+   "id": "c6cad1f1-28b1-47c5-83f1-7d6609d21cad",
+   "name": "Loop arquivar itens"
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "https://api.monday.com/v2",
+    "authentication": "genericCredentialType",
+    "genericAuthType": "httpHeaderAuth",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ { \"query\": \"mutation ($itemId: ID!) { archive_item(item_id: $itemId) { id } }\", \"variables\": { \"itemId\": $json.itemId } } }}",
+    "options": {}
+   },
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.3,
+   "position": [
+    1360,
+    112
+   ],
+   "id": "d31b8312-c651-4322-bbec-fc4024db65b3",
+   "name": "Arquivar item do central",
+   "credentials": {
+    "httpHeaderAuth": {
+     "id": "n5gkjTMvpDvy8eER",
+     "name": "api monday - Isaac"
+    }
+   }
+  },
+  {
+   "parameters": {
+    "amount": 1
+   },
+   "type": "n8n-nodes-base.wait",
+   "typeVersion": 1.1,
+   "position": [
+    1584,
+    224
+   ],
+   "id": "01200acd-a00f-4d23-98d3-ddafb9df787f",
+   "name": "Pausar entre arquivamentos",
+   "webhookId": "bce174bf-8134-4db6-8abf-4b4a8f60d94d"
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "https://headed-shawl-annex.ngrok-free.dev/consultar-rm",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "AIONS-AUTH",
+       "value": "AIONS-ISAACR-2026"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={\n  \"solicitante\": \"n8n-intermitentes\",\n  \"codigo_sql\": \"BENAUT\",\n  \"codigo_sistema\": \"A\",\n  \"codigo_coligada\": 0\n}",
+    "options": {}
+   },
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.3,
+   "position": [
+    -1664,
+    48
+   ],
+   "id": "5e803a66-19fc-4e11-8f59-5b0e286e82ac",
+   "name": "Consultar colaboradores TOTVS",
+   "executeOnce": true,
+   "retryOnFail": true,
+   "maxTries": 3,
+   "waitBetweenTries": 5000,
+   "onError": "continueErrorOutput"
+  },
+  {
+   "parameters": {
+    "jsCode": "const TARGET_BOARD_ID = \"18418191275\";\nconst TARGET_GROUP_ID = \"group_mm2eqsdr\"; // NAO CONVOCADOS\nconst BATCH_SIZE = 25;\n\nconst formatDate = (value) => {\n  if (!value) return \"\";\n  const s = String(value).trim();\n  const iso = s.match(/^(\\d{4})-(\\d{2})-(\\d{2})/);\n  if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;\n  const br = s.match(/^(\\d{2})\\/(\\d{2})\\/(\\d{4})/);\n  if (br) return `${br[1]}/${br[2]}/${br[3]}`;\n  return s.substring(0, 10);\n};\n\n// Atestado: somente periodos que tocam o MES CORRENTE (01 ao ultimo dia)\nconst parseBR = (s) => {\n  const m = String(s || \"\").match(/(\\d{2})\\/(\\d{2})\\/(\\d{4})/);\n  return m ? new Date(+m[3], +m[2] - 1, +m[1]) : null;\n};\nconst atestadoMesCorrente = (raw) => {\n  if (!raw) return \"\";\n  const now = new Date();\n  const ws = new Date(now.getFullYear(), now.getMonth(), 1);\n  const we = new Date(now.getFullYear(), now.getMonth() + 1, 0);\n  return String(raw).split(\";\").map(s => s.trim()).filter(Boolean).filter(p => {\n    const parts = p.split(\" a \");\n    const ini = parseBR(parts[0]);\n    const fim = parseBR(parts[1] || parts[0]);\n    return ini && fim && ini <= we && fim >= ws;\n  }).join(\"; \");\n};\n\nconst normalize = (value) => String(value || \"\")\n  .normalize(\"NFD\").replace(/[̀-ͯ]/g, \"\").replace(/\\s+/g, \" \").trim().toUpperCase();\nconst getValue = (data, names) => {\n  for (const nm of names) for (const [k, v] of Object.entries(data))\n    if (normalize(k) === nm && v !== undefined && v !== null && String(v).trim() !== \"\") return v;\n  return \"\";\n};\nconst employeeName = (data) => getValue(data, [\"NOME DO FUNCIONARIO\", \"FUNCIONARIO\"]) || \"Sem nome\";\n\nconst collaborators = [];\nfor (const item of $input.all()) {\n  const data = item.json;\n  if (normalize(getValue(data, [\"INTERMITENTE?\"])) !== \"SIM\") continue;\n  const nome = employeeName(data);\n  const columnValues = {\n    \"dropdown_mktadatt\": { \"labels\": [nome] },\n    \"texto\": getValue(data, [\"FUNCIONARIO\", \"NOME DO FUNCIONARIO\"]),\n    \"dup__of_matr_cula\": getValue(data, [\"CPF\"]),\n    \"texto75\": getValue(data, [\"LOCAL/UNIDADE\"]),\n    \"text_mkrzbj02\": getValue(data, [\"CAMPO COMPLEMENTAR\"]),\n    \"text_mkrztp4t\": getValue(data, [\"JORNADA\"]),\n    \"texto0\": getValue(data, [\"FUNCAO\"]),\n    \"text_mkzh8jhn\": formatDate(getValue(data, [\"ADMISSAO\"])),\n    \"text_mkt63tyk\": getValue(data, [\"CODIGO\"]),\n    \"texto9\": atestadoMesCorrente(getValue(data, [\"PERIODO DO ATESTADO\"])),\n    \"optante___vt\": { \"label\": getValue(data, [\"VALE TRANSPORTE\"]) || \"NÃO\" }\n  };\n  collaborators.push({ groupId: TARGET_GROUP_ID, itemName: \"INTERMITENTE\", columnValuesString: JSON.stringify(columnValues) });\n}\n\nconst output = [];\nfor (let start = 0; start < collaborators.length; start += BATCH_SIZE) {\n  const batch = collaborators.slice(start, start + BATCH_SIZE);\n  const declarations = [\"$boardId: ID!\"];\n  const mutations = [\"complexity { before after query }\"];\n  const variables = { boardId: TARGET_BOARD_ID };\n  batch.forEach((c, i) => {\n    declarations.push(`$groupId${i}: String!`, `$itemName${i}: String!`, `$columnValues${i}: JSON!`);\n    mutations.push(`item${i}: create_item(board_id: $boardId, group_id: $groupId${i}, item_name: $itemName${i}, column_values: $columnValues${i}, create_labels_if_missing: true) { id }`);\n    variables[`groupId${i}`] = c.groupId;\n    variables[`itemName${i}`] = c.itemName;\n    variables[`columnValues${i}`] = c.columnValuesString;\n  });\n  output.push({ json: { batchNumber: output.length + 1, batchSize: batch.length, totalCollaborators: collaborators.length, query: `mutation CreateIntermitentesBatch(${declarations.join(\", \")}) { ${mutations.join(\" \")} }`, variables } });\n}\nreturn output;"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    -1360,
+    -48
+   ],
+   "id": "53e26cf3-b991-4ffe-9743-5a2863a77f1d",
+   "name": "Preparar intermitentes"
+  },
+  {
+   "parameters": {
+    "options": {}
+   },
+   "type": "n8n-nodes-base.splitInBatches",
+   "typeVersion": 3,
+   "position": [
+    2416,
+    0
+   ],
+   "id": "3328defb-f2cc-442c-9ed0-7b6962ba17e4",
+   "name": "Loop criar intermitentes"
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "https://api.monday.com/v2",
+    "authentication": "genericCredentialType",
+    "genericAuthType": "httpHeaderAuth",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ { \"query\": $json.query, \"variables\": $json.variables } }}",
+    "options": {}
+   },
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.3,
+   "position": [
+    2656,
+    80
+   ],
+   "id": "ddb79948-1a23-4e39-8b89-0a87b9c88cda",
+   "name": "Criar intermitentes no central",
+   "credentials": {
+    "httpHeaderAuth": {
+     "id": "n5gkjTMvpDvy8eER",
+     "name": "api monday - Isaac"
+    }
+   }
+  },
+  {
+   "parameters": {
+    "amount": 1
+   },
+   "type": "n8n-nodes-base.wait",
+   "typeVersion": 1.1,
+   "position": [
+    2864,
+    144
+   ],
+   "id": "da10b472-f6b8-4b35-a120-26cc058669c4",
+   "name": "Pausar entre lotes",
+   "webhookId": "281cf511-881d-4c1e-becd-3a4bba4e95e9"
+  },
+  {
+   "parameters": {
+    "jsCode": "const prep = $(\"Preparar dados da virada\").first().json; const duplicate = $(\"Duplicar board central\").first().json.data?.duplicate_board?.board; const batches = $(\"Preparar intermitentes\").all(); return [{ json: { ok: true, centralBoardId: prep.centralBoardId, duplicateBoardId: duplicate?.id, duplicateBoardName: duplicate?.name, nextBoardName: prep.nextBoardName, itemsArchivedRequested: prep.itemCountToArchive, batchesPrepared: batches.length, intermitentesPrepared: batches.reduce((sum, item) => sum + (item.json.batchSize || 0), 0) } }];"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    3104,
+    -16
+   ],
+   "id": "b0d3c8ac-1099-468e-9365-1bbcc679fae9",
+   "name": "Resumo final"
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "https://api.monday.com/v2",
+    "authentication": "genericCredentialType",
+    "genericAuthType": "httpHeaderAuth",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ { \"query\": \"mutation ($boardId: ID!, $name: String!) { update_board(board_id: $boardId, board_attribute: name, new_value: $name) }\", \"variables\": { \"boardId\": $('Preparar dados da virada').first().json.centralBoardId, \"name\": $('Preparar dados da virada').first().json.nextBoardName } } }}",
+    "options": {}
+   },
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.3,
+   "position": [
+    1904,
+    0
+   ],
+   "id": "1e4c3b19-71e8-4e2b-b25f-205abbf5c5b4",
+   "name": "Renomear board central",
+   "executeOnce": true,
+   "credentials": {
+    "httpHeaderAuth": {
+     "id": "n5gkjTMvpDvy8eER",
+     "name": "api monday - Isaac"
+    }
+   }
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "https://api.monday.com/v2",
+    "authentication": "genericCredentialType",
+    "genericAuthType": "httpHeaderAuth",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ \"query\": \"mutation ($b: ID!, $url: String!, $cfg: JSON!) { create_webhook(board_id: $b, url: $url, event: change_specific_column_value, config: $cfg) { id } }\", \"variables\": { \"b\": $('Duplicar board central').first().json.data.duplicate_board.board.id, \"url\": \"https://aionscorp-n8n.cloudfy.live/webhook/Intermitentehaha\", \"cfg\": \"{\\\"columnId\\\":\\\"color_mm2pxmak\\\"}\" } }) }}",
+    "options": {}
+   },
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.3,
+   "position": [
+    -96,
+    48
+   ],
+   "id": "de552ae7-b760-42b0-a621-9fae7cbac224",
+   "name": "Criar webhook ativar na copia",
+   "executeOnce": true,
+   "credentials": {
+    "httpHeaderAuth": {
+     "id": "n5gkjTMvpDvy8eER",
+     "name": "api monday - Isaac"
+    }
+   },
+   "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "https://plan-intermitente-ocorrencia.vercel.app/api/boards/virada",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "X-Service-Token",
+       "value": "pi_svc_1bf727e963b0381086bb620dc56e00891f9213a1fe886a00"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ \"copia_board_id\": $('Duplicar board central').first().json.data.duplicate_board.board.id, \"copia_competencia\": $('Preparar dados da virada').first().json.competenciaAtual, \"central_board_id\": $('Preparar dados da virada').first().json.centralBoardId, \"central_competencia\": $('Preparar dados da virada').first().json.competenciaProxima }) }}",
+    "options": {}
+   },
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    3328,
+    -16
+   ],
+   "id": "8df81d7a-9c55-40b0-8b46-bd1f2edcfee6",
+   "name": "Salvar registry (virada)",
+   "retryOnFail": true,
+   "maxTries": 3,
+   "waitBetweenTries": 5000
+  },
+  {
+   "parameters": {
+    "jsCode": "// Um item por evento -> o no seguinte cria um webhook para cada.\nreturn [\"change_column_value\",\"create_item\",\"item_deleted\",\"item_moved_to_any_group\",\"change_name\",\"item_archived\"].map(evento => ({ json: { evento } }));"
+   },
+   "id": "monitor-alteracao-eventos",
+   "name": "Eventos do monitor",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    320,
+    48
+   ]
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "https://api.monday.com/v2",
+    "authentication": "genericCredentialType",
+    "genericAuthType": "httpHeaderAuth",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ \"query\": \"mutation ($b: ID!, $url: String!, $e: WebhookEventType!) { create_webhook(board_id: $b, url: $url, event: $e) { id } }\", \"variables\": { \"b\": $('Duplicar board central').first().json.data.duplicate_board.board.id, \"url\": \"https://aionscorp-n8n.cloudfy.live/webhook/monitor-alteracao-intermitente\", \"e\": $json.evento } }) }}",
+    "options": {}
+   },
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.3,
+   "position": [
+    544,
+    48
+   ],
+   "id": "monitor-alteracao-webhook",
+   "name": "Criar webhook monitor na copia",
+   "executeOnce": true,
+   "credentials": {
+    "httpHeaderAuth": {
+     "id": "n5gkjTMvpDvy8eER",
+     "name": "api monday - Isaac"
+    }
+   },
+   "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "jsCode": "// Piso de sanidade ANTES de qualquer passo destrutivo.\n// Em 14/07/2026 a ponte caiu, a lista voltou vazia e a virada seguiu: arquivou os 181\n// itens, renomeou o board e criou ZERO intermitentes. O mes novo nasceu vazio com o\n// resumo dizendo ok:true. Este no existe para isso nao se repetir.\nconst PISO = 100; // medido 08/08/2026: 137 intermitentes no BENAUT\nconst lotes = $input.all();\nconst total = lotes.reduce((s, i) => s + (i.json.batchSize || 0), 0);\nconst ok = total >= PISO;\nreturn [{ json: {\n  ok, total, piso: PISO, lotes: lotes.length,\n  motivo: ok ? null : `lista de intermitentes veio com ${total} (piso ${PISO}) — RM instavel ou consulta mudou`,\n} }];"
+   },
+   "id": "virada-guard",
+   "name": "Conferir intermitentes",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    -1104,
+    -112
+   ]
+  },
+  {
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "version": 2,
+      "typeValidation": "loose"
+     },
+     "combinator": "and",
+     "conditions": [
+      {
+       "id": "ok",
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       },
+       "leftValue": "={{ $json.ok }}",
+       "rightValue": ""
+      }
+     ]
+    },
+    "options": {}
+   },
+   "id": "virada-se",
+   "name": "Intermitentes suficientes?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.2,
+   "position": [
+    -848,
+    64
+   ]
+  },
+  {
+   "parameters": {
+    "resource": "messages-api",
+    "instanceName": "AIONS-MIKE",
+    "remoteJid": "120363400013959285@g.us",
+    "messageText": "=*Virada de board ABORTADA*\n\n{{ $json.motivo || ('RM nao respondeu: ' + ($json.error && $json.error.message ? $json.error.message : 'erro na consulta BENAUT')) }}\n\nNada foi arquivado nem renomeado — o board do mes segue intacto. Rodar manualmente depois de conferir o RM.",
+    "options_message": {}
+   },
+   "id": "virada-alerta",
+   "name": "Avisar falha da virada",
+   "type": "n8n-nodes-evolution-api.evolutionApi",
+   "typeVersion": 1,
+   "position": [
+    -1152,
+    64
+   ],
+   "credentials": {
+    "evolutionApi": {
+     "id": "dt7Gnr1tI00nHLdp",
+     "name": "Evolution account (ray)"
+    }
+   },
+   "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "jsCode": "// 'Preparar intermitentes' agora roda LA NA FRENTE (antes de destruir qualquer coisa).\n// O caminho principal segue com 1 item so (a conferencia), entao aqui recuperamos os\n// lotes para alimentar o loop de criacao.\nreturn $('Preparar intermitentes').all();"
+   },
+   "id": "virada-retomar",
+   "name": "Retomar lotes",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    2160,
+    0
+   ]
+  }
+ ],
+ "connections": {
+  "Schedule Trigger": {
+   "main": [
+    [
+     {
+      "node": "Ler board central",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Ler board central": {
+   "main": [
+    [
+     {
+      "node": "Preparar dados da virada",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Preparar dados da virada": {
+   "main": [
+    [
+     {
+      "node": "Consultar colaboradores TOTVS",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Duplicar board central": {
+   "main": [
+    [
+     {
+      "node": "Aguardar duplicacao",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Aguardar duplicacao": {
+   "main": [
+    [
+     {
+      "node": "Criar webhook ativar na copia",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Preparar itens para arquivar": {
+   "main": [
+    [
+     {
+      "node": "Loop arquivar itens",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Loop arquivar itens": {
+   "main": [
+    [
+     {
+      "node": "Renomear board central",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Arquivar item do central",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Arquivar item do central": {
+   "main": [
+    [
+     {
+      "node": "Pausar entre arquivamentos",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Pausar entre arquivamentos": {
+   "main": [
+    [
+     {
+      "node": "Loop arquivar itens",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Consultar colaboradores TOTVS": {
+   "main": [
+    [
+     {
+      "node": "Preparar intermitentes",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Avisar falha da virada",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Preparar intermitentes": {
+   "main": [
+    [
+     {
+      "node": "Conferir intermitentes",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Loop criar intermitentes": {
+   "main": [
+    [
+     {
+      "node": "Resumo final",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Criar intermitentes no central",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Criar intermitentes no central": {
+   "main": [
+    [
+     {
+      "node": "Pausar entre lotes",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Pausar entre lotes": {
+   "main": [
+    [
+     {
+      "node": "Loop criar intermitentes",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Renomear board central": {
+   "main": [
+    [
+     {
+      "node": "Retomar lotes",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Criar webhook ativar na copia": {
+   "main": [
+    [
+     {
+      "node": "Eventos do monitor",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Eventos do monitor": {
+   "main": [
+    [
+     {
+      "node": "Criar webhook monitor na copia",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Criar webhook monitor na copia": {
+   "main": [
+    [
+     {
+      "node": "Preparar itens para arquivar",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Conferir intermitentes": {
+   "main": [
+    [
+     {
+      "node": "Intermitentes suficientes?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Intermitentes suficientes?": {
+   "main": [
+    [
+     {
+      "node": "Duplicar board central",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Avisar falha da virada",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Retomar lotes": {
+   "main": [
+    [
+     {
+      "node": "Loop criar intermitentes",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Resumo final": {
+   "main": [
+    [
+     {
+      "node": "Salvar registry (virada)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  }
+ }
+}

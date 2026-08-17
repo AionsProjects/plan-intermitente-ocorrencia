@@ -89,12 +89,49 @@ return [{ json: { copiaBoardId: String(id) } }];
 
 Deixar o `onError` deste nó no **padrão** (parar o workflow). É o ponto do nó.
 
-## Correção 3 — o webhook que faria o pontual pagar duas vezes
+## Correção 3 — já estava feita
 
-Remover o nó **`Criar webhook create_item na copia`**. Ele recria na cópia o webhook que
-dispara o **WF5 Pontual**, que está desligado porque o pagamento passou a sair pela felipeta
-(`OP - Compareceu?`) em código. Se a virada voltar a funcionar com esse nó, a cópia nasce com
-o WF5 armado e o pontual paga **duas vezes**.
+O nó **`Criar webhook create_item na copia`** (que recriava na cópia o webhook do **WF5
+Pontual**, e faria o pontual pagar duas vezes) **não existe mais** na definição atual — o
+patch de `4516591` já o removeu. Ele aparece na execução `183757` porque aquela rodou uma
+versão anterior do WF.
+
+Nós que criam webhook hoje: `Criar webhook ativar na copia` e `Criar webhook monitor na
+copia`. Ambos legítimos.
+
+---
+
+## Estado: 1 e 2 APLICADAS em 17/08/2026
+
+Gravadas na definição do WF (`versionId c0rr3cao-183757-1786972387124`), com backup em
+`docs/n8n/backups/virada-gm2Ie8pbR2rOK5id-antes-correcao-183757.json`.
+
+Conferido por leitura independente da definição:
+
+```
+[1] nao usa mais $json.centralBoardId | usa $('Preparar dados da virada') nas DUAS variaveis
+[2] 'Conferir duplicacao' existe | Code | onError padrao (para o WF)
+    checa errors[]: true | checa board id: true
+[3] fios: Duplicar -> Aguardar -> Conferir duplicacao -> Criar webhook ativar na copia
+[4] passos destrutivos so alcancaveis via 'Criar webhook monitor na copia', a jusante da trava
+```
+
+### ⚠️ O n8n precisa RECARREGAR antes de executar
+
+A gravação foi feita na definição (banco). O WF está `active: true`, e o n8n mantém workflow
+ativo **em memória** — ele ainda não conhece a mudança. Executar sem recarregar rodaria a
+versão VELHA parecendo corrigida, que é exatamente a classe de erro que causou este incidente.
+
+Antes de executar:
+
+1. Abrir o WF no n8n e dar **hard reload** na página (Ctrl+Shift+R).
+2. Confirmar visualmente que existe o nó **`Conferir duplicacao`** entre `Aguardar duplicacao`
+   e `Criar webhook ativar na copia`.
+3. Abrir `Duplicar board central` → o JSON Body deve citar `$('Preparar dados da virada')`,
+   e **não** `$json.centralBoardId`.
+4. Desativar e reativar o toggle **Active** (re-registra o cron com a definição nova).
+
+Se qualquer um dos três não conferir, **não executar** — a página estava em cache.
 
 ---
 
