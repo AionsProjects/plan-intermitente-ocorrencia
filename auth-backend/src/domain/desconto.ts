@@ -137,10 +137,21 @@ export interface DescontoCalculado {
   vtDia: number
 }
 
+/**
+ * VT diário EFETIVO: 0 se não optante, metade se "SIM*" (a empresa paga só a volta).
+ *
+ * Extraído de `calcularDesconto` porque a mesma regra vale fora do desconto — o sábado
+ * extra CREDITA VT usando exatamente este valor por dia (`src/sabados/calculo.ts`). Duas
+ * cópias da regra é como uma delas fica para trás.
+ */
+export function vtDiaEfetivo(p: { vtDia: number; optanteVT: boolean; vtSoVolta?: boolean }): number {
+  const base = p.optanteVT ? round2(p.vtDia) : 0
+  return p.vtSoVolta && base > 0 ? round2(base / 2) : base
+}
+
 /** Calcula desconto VR/VT total a partir dos dias. Fiel ao WF3. */
 export function calcularDesconto(p: CalcParams): DescontoCalculado {
-  let vtDia = p.optanteVT ? round2(p.vtDia) : 0
-  if (p.vtSoVolta && vtDia > 0) vtDia = round2(vtDia / 2)
+  const vtDia = vtDiaEfetivo({ vtDia: p.vtDia, optanteVT: p.optanteVT, vtSoVolta: p.vtSoVolta })
   const vrDia = round2(p.vrDia)
 
   let descontoVR = 0

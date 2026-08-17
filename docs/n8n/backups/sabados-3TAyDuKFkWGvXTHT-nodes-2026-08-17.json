@@ -1,0 +1,685 @@
+{
+ "name": "Intermitente — Lançamento Sábados Extras (NOVO)",
+ "nodes": [
+  {
+   "parameters": {
+    "httpMethod": "POST",
+    "path": "sabados-extras-boleto",
+    "responseMode": "responseNode",
+    "options": {}
+   },
+   "type": "n8n-nodes-base.webhook",
+   "typeVersion": 2.1,
+   "position": [
+    -1920,
+    0
+   ],
+   "id": "sex-001-webhook",
+   "name": "Webhook",
+   "webhookId": "sabados-extras-boleto-wh"
+  },
+  {
+   "parameters": {
+    "jsCode": "// ==============================================================\n// Sábados Extras — validar payload\n// ==============================================================\n// Body esperado:\n// {\n//   uuid: string,\n//   nome: string,\n//   chapa: string,\n//   contrato: string,             // \"SEDUC SEDE\" | \"DETRAN\" | \"TRE PB\" | etc\n//   sabados: string[],            // ISO YYYY-MM-DD\n//   anoComp: number,\n//   mesComp: number,\n//   optanteVT: boolean,           // do board origem\n//   vtSoVolta?: boolean           // empresa fornece Uber só ida (½ valor)\n// }\n// vtDia é calculado dentro deste WF a partir de contrato+funcao+flags.\n\nconst body = $json.body || {};\nconst sabados = Array.isArray(body.sabados) ? body.sabados.filter(d => /^\\d{4}-\\d{2}-\\d{2}$/.test(d)) : [];\n\nif (sabados.length === 0) {\n  return [{ json: { _statusCode: 400, _erro: 'sem_sabados', mensagem: 'Nenhum sábado extra informado.' } }];\n}\nif (!body.chapa) {\n  return [{ json: { _statusCode: 400, _erro: 'chapa_obrigatoria', mensagem: 'Campo chapa é obrigatório.' } }];\n}\nif (!body.nome) {\n  return [{ json: { _statusCode: 400, _erro: 'nome_obrigatorio', mensagem: 'Campo nome é obrigatório.' } }];\n}\nif (body.optanteVT !== true && body.optanteVT !== 'SIM' && body.optanteVT !== 'sim') {\n  return [{ json: { _statusCode: 400, _erro: 'nao_optante_vt', mensagem: 'Empregado não é optante de VT — sábado extra não gera benefício.' } }];\n}\n\nconst hoje = new Date();\nconst anoComp = Number(body.anoComp) || hoje.getFullYear();\nconst mesComp = Number(body.mesComp) || (hoje.getMonth() + 1);\n\nreturn [{\n  json: {\n    _statusCode: 200,\n    uuid: body.uuid || null,\n    nome: String(body.nome).trim(),\n    chapa: String(body.chapa).padStart(6, '0'),\n    contrato: String(body.contrato || '').toUpperCase().trim(),\n    sabados,\n    qtdSabados: sabados.length,\n    optanteVT: true,\n    vtSoVolta: body.vtSoVolta === true || body.vtSoVolta === 'SIM*',\n    anoComp,\n    mesComp,\n    nomeLike: `%${String(body.nome).trim()}%`,\n    ambiente: body.ambiente || 'producao'\n  }\n}];"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    -1696,
+    0
+   ],
+   "id": "sex-002-validar",
+   "name": "Validar payload"
+  },
+  {
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "strict",
+      "version": 2
+     },
+     "conditions": [
+      {
+       "id": "sex-if1",
+       "leftValue": "={{ $json._statusCode }}",
+       "rightValue": 200,
+       "operator": {
+        "type": "number",
+        "operation": "equals"
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   },
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.3,
+   "position": [
+    -1472,
+    0
+   ],
+   "id": "sex-003-if-valid",
+   "name": "Payload OK?"
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "https://headed-shawl-annex.ngrok-free.dev/consultar-rm",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "AIONS-AUTH",
+       "value": "AIONS-ISAACR-2026"
+      },
+      {
+       "name": "Content-Type",
+       "value": "application/json"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ ambiente: ($json.ambiente||'producao'), solicitante: 'n8n-sabado-ben2', codigo_sql: 'BEN 2', codigo_sistema: 'P', codigo_coligada: 3, parametros: { '$CODCOLIGADA': 3, NOME: $json.nomeLike } }) }}",
+    "options": {
+     "response": {
+      "response": {
+       "neverError": true
+      }
+     }
+    }
+   },
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    -1248,
+    -96
+   ],
+   "id": "sex-004-consulta-rm",
+   "name": "Consultar BEN 2 (RM)"
+  },
+  {
+   "parameters": {
+    "jsCode": "// Encontra empregado RM por chapa, extrai CPF + secao + funcao.\n// VT por dia vem do board Parametros de Beneficios.\nconst chapaTarget = $('Validar payload').first().json.chapa;\nconst items = $('Consultar BEN 2 (RM)').all();\nlet matched = null;\nfunction getField(obj, ...keys) { for (const k of keys) if (obj[k] !== undefined && obj[k] !== null && obj[k] !== '') return obj[k]; return ''; }\n\nfor (const it of items) {\n  const j = it.json;\n  const linhas = Array.isArray(j) ? j : (Array.isArray(j.body) ? j.body : (Array.isArray(j.data) ? j.data : [j]));\n  for (const r of linhas) {\n    const chapa = String(getField(r, 'Matr\\u00edcula/Chapa', 'Matricula/Chapa', 'chapa')).padStart(6, '0');\n    if (chapa === chapaTarget) { matched = r; break; }\n  }\n  if (matched) break;\n}\n\nif (!matched) {\n  return [{ json: { _statusCode: 404, _erro: 'empregado_nao_encontrado', mensagem: 'Chapa ' + chapaTarget + ' nao encontrada em BEN 2.' } }];\n}\n\nconst dados = $('Validar payload').first().json;\nfunction nomeNorm(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().trim(); }\nconst funcao = nomeNorm(getField(matched, 'Fun\\u00e7\\u00e3o', 'Funcao', 'funcao'));\nconst contrato = nomeNorm(dados.contrato);\n\nfunction round2(n) { return Math.round(Number(n || 0) * 100) / 100; }\nfunction num(v) { return Number(String(v || '0').replace(',', '.')) || 0; }\nfunction valoresItemsMonday() {\n  const resp = $('Buscar Valores Beneficios').first().json;\n  if (Array.isArray(resp.errors) && resp.errors.length > 0) throw new Error(resp.errors.map(e => e.message).join(' | '));\n  return resp?.data?.boards?.[0]?.items_page?.items || [];\n}\nfunction colTitle(cv) { return nomeNorm(cv?.column?.title || cv?.id || ''); }\nfunction colPorTitulo(item, candidatos) {\n  const alvo = candidatos.map(nomeNorm);\n  for (const cv of item.column_values || []) {\n    const t = colTitle(cv);\n    if (alvo.some(a => t === a || t.includes(a))) return cv;\n  }\n  return null;\n}\nfunction valorTexto(item, candidatos) { return colPorTitulo(item, candidatos)?.text || ''; }\nfunction valorNumero(item, candidatos) { return num(valorTexto(item, candidatos)); }\nfunction linhaAtiva(item) {\n  const t = nomeNorm(valorTexto(item, ['Ativo', 'Status', 'Habilitado']));\n  return !t || ['SIM', 'ATIVO', 'TRUE', '1', 'HABILITADO', 'REALIZADO', 'DONE'].includes(t);\n}\nfunction contratoLinha(item) { return nomeNorm(valorTexto(item, ['Contrato'])); }\nfunction regraLinha(item) { return nomeNorm(valorTexto(item, ['Regra', 'Funcao', 'Cargo'])); }\nfunction prioridadeLinha(item) { return valorNumero(item, ['Prioridade', 'Ordem']) || 0; }\nfunction resolverValoresBeneficios() {\n  const items = valoresItemsMonday().filter(linhaAtiva);\n  if (items.length === 0) return { erro: 'valores_beneficios_vazio', mensagem: 'O board de valores de beneficios nao retornou linhas ativas.' };\n  const matches = [];\n  for (const item of items) {\n    const c = contratoLinha(item);\n    const regra = regraLinha(item);\n    const contratoPadrao = ['PADRAO', 'GLOBAL', '*'].includes(c);\n    if (c && c !== contrato && !contratoPadrao) continue;\n    const regraPadrao = !regra || ['PADRAO', 'GERAL', '*'].includes(regra);\n    if (!regraPadrao && !funcao.includes(regra)) continue;\n    const especificidade = (c === contrato ? 1000 : 0) + (!regraPadrao ? 100 : 0) + prioridadeLinha(item);\n    matches.push({ item, especificidade });\n  }\n  if (matches.length === 0) return { erro: 'valores_beneficios_sem_regra', mensagem: 'Nenhuma regra ativa encontrada para contrato ' + (contrato || '(vazio)') + ' e funcao ' + (funcao || '(vazia)') + '.' };\n  matches.sort((a, b) => b.especificidade - a.especificidade);\n  const escolhido = matches[0].item;\n  const vrDia = valorNumero(escolhido, ['VR', 'Valor VR']);\n  const vtDia = valorNumero(escolhido, ['VT', 'Valor VT', 'Vale Transporte']);\n  if (!vrDia && !vtDia) return { erro: 'valores_beneficios_sem_valor', mensagem: 'Regra encontrada, mas VR e VT estao vazios/zerados.' };\n  const contratoTxt = valorTexto(escolhido, ['Contrato']) || contrato;\n  const regraTxt = valorTexto(escolhido, ['Regra', 'Funcao', 'Cargo']);\n  return { vrDia, vtDia, regraAplicada: 'Board valores - ' + contratoTxt + (regraTxt ? ' / ' + regraTxt : ''), fonteValores: 'board' };\n}\nfunction failValores(code, mensagem) { return [{ json: { _statusCode: 500, _erro: code, mensagem, acao: 'skip' } }]; }\nlet valoresBeneficios;\ntry { valoresBeneficios = resolverValoresBeneficios(); }\ncatch (e) { return failValores('erro_ler_valores_beneficios', e.message || 'Erro ao ler board de valores de beneficios.'); }\nif (valoresBeneficios.erro) return failValores(valoresBeneficios.erro, valoresBeneficios.mensagem);\nlet vrDia = round2(valoresBeneficios.vrDia);\nlet vtDia = round2(valoresBeneficios.vtDia);\nlet regraAplicada = valoresBeneficios.regraAplicada;\n\nif (dados.vtSoVolta && vtDia > 0) { vtDia = round2(vtDia / 2); regraAplicada += ' + VT so volta (1/2)'; }\nconst valorTotal = round2(dados.qtdSabados * vtDia);\n\nreturn [{\n  json: {\n    ...dados,\n    cpf: String(getField(matched, 'CPF', 'cpf')).replace(/D/g, ''),\n    secaoRM: String(getField(matched, 'Se\\u00e7\\u00e3o', 'Secao', 'secao')).trim(),\n    nomeEmpregado: String(getField(matched, 'Nome do Intermitente', 'nome') || dados.nome).trim(),\n    funcao,\n    vtDia,\n    vrDia,\n    regraAplicada,\n    fonteValores: 'board',\n    valorTotal,\n    valorTotalCentavos: Math.round(valorTotal * 100)\n  }\n}];"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    -608,
+    -96
+   ],
+   "id": "sex-005-parse-rm",
+   "name": "Extrair CPF + Seção"
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "https://auth.caju.com.br/realms/partner/protocol/openid-connect/token",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "Accept",
+       "value": "application/json"
+      }
+     ]
+    },
+    "sendBody": true,
+    "contentType": "form-urlencoded",
+    "bodyParameters": {
+     "parameters": [
+      {
+       "name": "client_id",
+       "value": "contato-servicos"
+      },
+      {
+       "name": "client_secret",
+       "value": "j6K8IKb2mNig7JYpfoCWwQx28E019oEA"
+      },
+      {
+       "name": "grant_type",
+       "value": "password"
+      },
+      {
+       "name": "username",
+       "value": "423ae836-16c6-4b02-9d67-fd5949faa830"
+      },
+      {
+       "name": "password",
+       "value": "-inVDaf66ZkKdb*oWhE3B3Q9dYnJKsV!GUeP"
+      }
+     ]
+    },
+    "options": {}
+   },
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.4,
+   "position": [
+    -384,
+    -96
+   ],
+   "id": "sex-006-caju-oauth",
+   "name": "Caju OAuth"
+  },
+  {
+   "parameters": {
+    "url": "https://services.caju.com.br/partners/v1/sponsor/5ff5cdc3-c55a-46b3-8a47-29479bf5ad35/employee",
+    "sendQuery": true,
+    "queryParameters": {
+     "parameters": [
+      {
+       "name": "cpf",
+       "value": "={{ $('Extrair CPF + Seção').first().json.cpf }}"
+      }
+     ]
+    },
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "Authorization",
+       "value": "=Bearer {{ $json.access_token }}"
+      }
+     ]
+    },
+    "options": {}
+   },
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.4,
+   "position": [
+    -160,
+    -96
+   ],
+   "id": "sex-007-caju-employee",
+   "name": "Caju buscar employee"
+  },
+  {
+   "parameters": {
+    "jsCode": "// Monta payloads Caju (allowance_order VT + confirmação PIX) + valida employeeId\nconst caju = $('Caju buscar employee').first().json;\nconst _interior = (() => { try { return $('Resolver Interior').first().json.interior === true; } catch (e) { return false; } })();\nconst _catVT = _interior ? 'TRANSPORTATION' : 'TRANSPORTATION_VOUCHER';\nconst items = Array.isArray(caju.items) ? caju.items : (Array.isArray(caju) ? caju : []);\nconst emp = items[0] || caju;\n\nif (!emp || !emp.employeeId) {\n  return [{ json: { _statusCode: 404, _erro: 'caju_employee_nao_encontrado', mensagem: 'Empregado não encontrado no Caju pelo CPF.' } }];\n}\n\nconst dados = $('Extrair CPF + Seção').first().json;\nconst hoje = new Date();\nconst dataFormatada = hoje.toLocaleDateString('pt-BR');\nconst nomePedidoBoleto = `INT-${dados.nomeEmpregado}-SAB-${dataFormatada}`.substring(0, 27);\nconst sponsorId = '5ff5cdc3-c55a-46b3-8a47-29479bf5ad35';\n\nreturn [{\n  json: {\n    ...dados,\n    employeeId: emp.employeeId,\n    cpfCaju: emp.cpf,\n    fullNameCaju: emp.fullName,\n    sponsorId,\n    payloadBoleto: {\n      sponsorId,\n      name: nomePedidoBoleto,\n      allowances: [{\n        employeeId: emp.employeeId,\n        amounts: [{ category: _catVT, amount: dados.valorTotalCentavos }]\n      }]\n    },\n    payloadConfirmarBoleto: {\n      paymentStrategies: [{ paymentType: 'PIX_CODE', amount: dados.valorTotalCentavos }]\n    }\n  }\n}];"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    64,
+    -96
+   ],
+   "id": "sex-008-montar-caju",
+   "name": "Montar payloads Caju"
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "https://services.caju.com.br/partners/v1/voucher/allowance_order",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "Authorization",
+       "value": "=Bearer {{ $('Caju OAuth').first().json.access_token }}"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify($json.payloadBoleto) }}",
+    "options": {}
+   },
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.4,
+   "position": [
+    288,
+    -96
+   ],
+   "id": "sex-009-caju-order",
+   "name": "Caju criar allowance_order"
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "=https://services.caju.com.br/partners/v1/voucher/allowance_order/{{ $json.allowanceOrderId }}",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "Authorization",
+       "value": "=Bearer {{ $('Caju OAuth').first().json.access_token }}"
+      },
+      {
+       "name": "Accept",
+       "value": "application/json"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify($('Montar payloads Caju').first().json.payloadConfirmarBoleto) }}",
+    "options": {}
+   },
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.4,
+   "position": [
+    512,
+    -96
+   ],
+   "id": "sex-010-caju-confirm",
+   "name": "Caju confirmar boleto (PIX)"
+  },
+  {
+   "parameters": {
+    "jsCode": "// Monta XML SOAP SaveRecord ZMDHSTBENFUNC — VT (CODBENEFICIO=2), TPBEN=0 (crédito)\nconst dados = $('Montar payloads Caju').first().json;\nconst hoje = new Date();\nconst anoComp = dados.anoComp;\nconst mesComp = dados.mesComp;\nconst formatarValor = v => Number(v).toFixed(2).replace('.', ',');\nconst valorRM = formatarValor(dados.valorTotal);\n\nconst xml = `<PRJ3230976>\n              <ZMDHSTBENFUNC>\n                <ID>-1</ID>\n                <CODCOLIGADA>3</CODCOLIGADA>\n                <ANOCOMP>${anoComp}</ANOCOMP>\n                <MESCOMP>${mesComp}</MESCOMP>\n                <ANOREF>${anoComp}</ANOREF>\n                <MESREF>${mesComp}</MESREF>\n                <CHAPA>${dados.chapa}</CHAPA>\n                <NOME>${dados.nomeEmpregado}</NOME>\n                <CODBENEFICIO>2</CODBENEFICIO>\n                <VLRTOTAL>${valorRM}</VLRTOTAL>\n                <TPBEN>0</TPBEN>\n                <CATFUN>1</CATFUN>\n              </ZMDHSTBENFUNC>\n            </PRJ3230976>`;\n\nconst soapBody = `<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:tot=\"http://www.totvs.com/\">\n   <soapenv:Header/>\n   <soapenv:Body>\n      <tot:SaveRecord>\n         <tot:DataServerName>RMSPRJ3230976Server</tot:DataServerName>\n         <tot:XML><![CDATA[${xml}]]></tot:XML>\n         <tot:Contexto>CODCOLIGADA=3; USUARIO=003080</tot:Contexto>\n      </tot:SaveRecord>\n   </soapenv:Body>\n</soapenv:Envelope>`;\n\nreturn [{ json: { ...dados, soapBody, dadosXml: xml, dataServer: 'RMSPRJ3230976Server' } }];"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    736,
+    -96
+   ],
+   "id": "sex-011-montar-soap",
+   "name": "Montar SOAP ZMDHSTBENFUNC"
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "https://headed-shawl-annex.ngrok-free.dev/enviar-rm",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "AIONS-AUTH",
+       "value": "AIONS-ISAACR-2026"
+      },
+      {
+       "name": "Content-Type",
+       "value": "application/json"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ ambiente: (($('Validar payload').first().json.ambiente)||'producao'), solicitante: 'n8n-sabado-saverecord', data_server: $json.dataServer, codigo_sistema: 'P', codigo_coligada: 3, dados_xml: $json.dadosXml }) }}",
+    "options": {
+     "response": {
+      "response": {
+       "neverError": true
+      }
+     }
+    }
+   },
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    960,
+    -96
+   ],
+   "id": "sex-012-soap-rm",
+   "name": "POST SaveRecord RM"
+  },
+  {
+   "parameters": {
+    "jsCode": "// Monta payload pro WF6 (GERAR LANCAMENTO FINANCEIRO BENEFICIOS) — só evento 110 (VT)\nconst dados = $('Montar payloads Caju').first().json;\nreturn [{\n  json: {\n    tipo: 'Diario',\n    coligada: 3,\n    anoComp: dados.anoComp,\n    mesComp: dados.mesComp,\n    contrato: dados.contrato,\n    codSecao: dados.secaoRM,\n    chapas: [dados.chapa],\n    eventos: ['110'],\n    ambiente: dados.ambiente || 'producao'\n  }\n}];"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1184,
+    -96
+   ],
+   "id": "sex-013-payload-wf6",
+   "name": "Payload WF6 (VT)"
+  },
+  {
+   "parameters": {
+    "workflowId": {
+     "__rl": true,
+     "value": "NdUSkYcRT4DkKfzW",
+     "mode": "id"
+    },
+    "workflowInputs": {
+     "mappingMode": "defineBelow",
+     "value": {},
+     "matchingColumns": [],
+     "schema": [],
+     "attemptToConvertTypes": false,
+     "convertFieldsToString": true
+    },
+    "options": {
+     "waitForSubWorkflow": true
+    }
+   },
+   "type": "n8n-nodes-base.executeWorkflow",
+   "typeVersion": 1.3,
+   "position": [
+    1408,
+    -96
+   ],
+   "id": "sex-014-call-wf6",
+   "name": "Call WF6 (Lançamento Financeiro VT)"
+  },
+  {
+   "parameters": {
+    "respondWith": "json",
+    "responseBody": "={{ JSON.stringify({ ok: true, uuid: $('Montar payloads Caju').first().json.uuid, chapa: $('Montar payloads Caju').first().json.chapa, qtdSabados: $('Montar payloads Caju').first().json.qtdSabados, valorTotal: $('Montar payloads Caju').first().json.valorTotal, allowanceOrderId: $('Caju criar allowance_order').first().json.allowanceOrderId, message: 'Boleto VT gerado, SOAP RM enviado e lançamento financeiro disparado.' }) }}",
+    "options": {
+     "responseCode": 200,
+     "responseHeaders": {
+      "entries": [
+       {
+        "name": "Access-Control-Allow-Origin",
+        "value": "*"
+       },
+       {
+        "name": "Content-Type",
+        "value": "application/json"
+       }
+      ]
+     }
+    }
+   },
+   "type": "n8n-nodes-base.respondToWebhook",
+   "typeVersion": 1.1,
+   "position": [
+    1632,
+    -96
+   ],
+   "id": "sex-015-respond-ok",
+   "name": "Responder OK"
+  },
+  {
+   "parameters": {
+    "respondWith": "json",
+    "responseBody": "={{ JSON.stringify({ ok: false, erro: $json._erro, mensagem: $json.mensagem }) }}",
+    "options": {
+     "responseCode": "={{ $json._statusCode }}",
+     "responseHeaders": {
+      "entries": [
+       {
+        "name": "Access-Control-Allow-Origin",
+        "value": "*"
+       },
+       {
+        "name": "Content-Type",
+        "value": "application/json"
+       }
+      ]
+     }
+    }
+   },
+   "type": "n8n-nodes-base.respondToWebhook",
+   "typeVersion": 1.1,
+   "position": [
+    -1248,
+    144
+   ],
+   "id": "sex-016-respond-erro",
+   "name": "Responder Erro"
+  },
+  {
+   "parameters": {
+    "jsCode": "// Prepara leitura obrigatoria do board de valores de beneficios.\n// Usa variavel n8n BOARD_VALORES_BENEFICIOS_ID quando existir; senao usa o board atual.\nlet vars = {};\ntry { vars = $vars || {}; } catch {}\nconst boardId = Number(vars.BOARD_VALORES_BENEFICIOS_ID || 18413870370) || 0;\nif (!boardId) {\n  return [{ json: { _statusCode: 500, _erro: 'board_valores_nao_configurado', mensagem: 'Configure BOARD_VALORES_BENEFICIOS_ID no n8n.' } }];\n}\nconst queryValoresBeneficios = `query { boards(ids: [${boardId}]) { id name items_page(limit: 500) { items { id name column_values { id text value column { title } } } } } }`;\nreturn [{ json: { ...$json, board_valores_beneficios_id: boardId, queryValoresBeneficios } }];"
+   },
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    -1024,
+    -96
+   ],
+   "id": "5bca0125-5667-4ab5-8678-a559d6be0c30",
+   "name": "Preparar Query Valores Beneficios"
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "https://api.monday.com/v2",
+    "authentication": "predefinedCredentialType",
+    "nodeCredentialType": "mondayComApi",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "Content-Type",
+       "value": "application/json"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ query: $json.queryValoresBeneficios }) }}",
+    "options": {
+     "response": {
+      "response": {
+       "neverError": true
+      }
+     }
+    }
+   },
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    -816,
+    -96
+   ],
+   "id": "db8906a6-fdd3-415d-ace5-82bf25ceb00f",
+   "name": "Buscar Valores Beneficios",
+   "credentials": {
+    "mondayComApi": {
+     "id": "6I0ycSr6PQJkBYpc",
+     "name": "Ray0"
+    }
+   }
+  },
+  {
+   "parameters": {
+    "url": "={{ 'https://plan-intermitente-ocorrencia.vercel.app/api/intermitente/interior?uuid=' + encodeURIComponent($('Validar payload').first().json.uuid || '') }}",
+    "options": {}
+   },
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    40,
+    64
+   ],
+   "id": "eccd93e2-3cce-4533-884e-43e487438398",
+   "name": "Resolver Interior",
+   "onError": "continueRegularOutput"
+  }
+ ],
+ "connections": {
+  "Webhook": {
+   "main": [
+    [
+     {
+      "node": "Validar payload",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Validar payload": {
+   "main": [
+    [
+     {
+      "node": "Payload OK?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Payload OK?": {
+   "main": [
+    [
+     {
+      "node": "Consultar BEN 2 (RM)",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Responder Erro",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Consultar BEN 2 (RM)": {
+   "main": [
+    [
+     {
+      "node": "Preparar Query Valores Beneficios",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Extrair CPF + Seção": {
+   "main": [
+    [
+     {
+      "node": "Caju OAuth",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Caju OAuth": {
+   "main": [
+    [
+     {
+      "node": "Caju buscar employee",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Caju buscar employee": {
+   "main": [
+    [
+     {
+      "node": "Resolver Interior",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Montar payloads Caju": {
+   "main": [
+    [
+     {
+      "node": "Caju criar allowance_order",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Caju criar allowance_order": {
+   "main": [
+    [
+     {
+      "node": "Caju confirmar boleto (PIX)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Caju confirmar boleto (PIX)": {
+   "main": [
+    [
+     {
+      "node": "Montar SOAP ZMDHSTBENFUNC",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Montar SOAP ZMDHSTBENFUNC": {
+   "main": [
+    [
+     {
+      "node": "POST SaveRecord RM",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "POST SaveRecord RM": {
+   "main": [
+    [
+     {
+      "node": "Payload WF6 (VT)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Payload WF6 (VT)": {
+   "main": [
+    [
+     {
+      "node": "Call WF6 (Lançamento Financeiro VT)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Call WF6 (Lançamento Financeiro VT)": {
+   "main": [
+    [
+     {
+      "node": "Responder OK",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Preparar Query Valores Beneficios": {
+   "main": [
+    [
+     {
+      "node": "Buscar Valores Beneficios",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Buscar Valores Beneficios": {
+   "main": [
+    [
+     {
+      "node": "Extrair CPF + Seção",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Resolver Interior": {
+   "main": [
+    [
+     {
+      "node": "Montar payloads Caju",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  }
+ }
+}
