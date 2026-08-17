@@ -31,7 +31,10 @@ import {
   zerarDescontoBoard,
   BOARD_DESCONTOS,
 } from "../repo/boardDescontos.js"
-import { lerItem, mudarColunas, moverParaGrupo } from "../clients/monday.js"
+import { lerItem, lerItemComSubitems, criarSubitem, mudarColunas, moverParaGrupo } from "../clients/monday.js"
+import {
+  particionarSplit, splitValido, nomeSubitem, colunasSubitem, acharSubitemExistente, COL_PAI_PROPAGA,
+} from "../split/subitems.js"
 import { changeColumnValues } from "../monday.js"
 import { config } from "../config.js"
 import { temRmSoap } from "../clients/rmSoap.js"
@@ -594,6 +597,50 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
             rotulo: "Base de Desconto",
             url: `https://contato-serv.monday.com/boards/${BOARD_DESCONTOS}/pulses/${existenteBoard.id}`,
           })
+        }
+
+        // 2.5) Subitems do split — uma metade por contrato no item da Entrada.
+        //
+        // Lê o split do PRÓPRIO Histórico, não do payload: o front pode mandar `split: null`
+        // por race condition (é o mesmo fallback que o WF3 faz). Idempotente por prefixo
+        // `Parte N` — refinalizar atualiza os dois subitems em vez de criar mais.
+        const split = jsonCol<unknown>(item, COL_HIST.split, null)
+        if (origem.itemId && splitValido(split)) {
+          try {
+            const pai = await lerItemComSubitems(Number(origem.itemId))
+            const partes = particionarSplit({
+              dataInicio: di, dataFim: df, split,
+              respostas, diasExtras: b.dias_extras ?? [],
+              diasDesativados: b.dias_desativados ?? [], sabadosExtras: c.sabados_extras ?? [],
+            })
+            const propaga = {
+              empregadoSubstituido: pai?.item.cv[COL_PAI_PROPAGA.empregadoSubstituido]?.text ?? null,
+              insalubridade: pai?.item.cv[COL_PAI_PROPAGA.insalubridade]?.text ?? null,
+            }
+            const subitems = pai?.subitems ?? []
+            for (const p of partes) {
+              const existente = acharSubitemExistente(subitems, p.parte)
+              const cols = colunasSubitem(p, propaga)
+              if (existente?.boardId) {
+                await mudarColunas(Number(existente.boardId), Number(existente.id), cols)
+              } else {
+                // `create_subitem` não recebe board — o Monday resolve pelo item pai. Foi o
+                // board chumbado no WF (18413180938, de junho) que virou lixo na virada.
+                await criarSubitem(Number(origem.itemId), nomeSubitem(p), cols)
+              }
+            }
+            await ex.etapa("subitems_split", "ok", {
+              metadados: {
+                corte: split.data_inicio_parte2,
+                parte1: { contrato: partes[0].contrato, faltas: partes[0].qtdFaltas, minutos: partes[0].totalMin },
+                parte2: { contrato: partes[1].contrato, faltas: partes[1].qtdFaltas, minutos: partes[1].totalMin },
+              },
+            })
+          } catch (e) {
+            mondayFalhas.push("subitems_split")
+            req.log.warn(e, "finalizar: subitems do split falharam")
+            await ex.etapa("subitems_split", "erro", { mensagem: e instanceof Error ? e.message : e })
+          }
         }
 
         // 3) Espelho no item do Plano — faltas, minutos e protocolo (WF3 "Atualizar Plan

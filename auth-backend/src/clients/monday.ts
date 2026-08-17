@@ -210,6 +210,61 @@ export async function criarItem(
   return d.create_item.id
 }
 
+export interface SubitemRef {
+  id: string
+  name: string | null
+  board: { id: string } | null
+}
+
+/**
+ * Item + subitems + o BOARD de cada subitem. Query separada de `lerItem` porque `subitems`
+ * pesa na complexidade do Monday e quase nenhum caller precisa.
+ *
+ * O `board.id` de cada subitem é o que permite ATUALIZAR: board de subitem é próprio e muda
+ * na virada, então chumbar o id (o que o WF3 fazia: 18413180938, de junho) vira lixo no mês
+ * seguinte. Aqui ele vem do próprio item.
+ */
+export async function lerItemComSubitems(
+  itemId: number,
+): Promise<{ item: MondayItem; subitems: SubitemRef[] } | null> {
+  const d = await gql<{
+    items: Array<RawItem & { subitems?: Array<{ id: string; name: string | null; board?: { id: string } | null }> }>
+  }>(
+    `query($i:[ID!]){ items(ids:$i){ id name column_values{ id text value } subitems{ id name board{ id } } } }`,
+    { i: [String(itemId)] },
+  )
+  const it = d.items?.[0]
+  if (!it) return null
+  return {
+    item: { id: it.id, name: it.name, cv: indexarColunas(it.column_values) },
+    subitems: (it.subitems ?? []).map((s) => ({
+      id: String(s.id),
+      name: s.name ?? null,
+      board: s.board?.id != null ? { id: String(s.board.id) } : null,
+    })),
+  }
+}
+
+/**
+ * Cria subitem sob um item pai.
+ *
+ * Não recebe board de propósito: o Monday resolve pelo pai. `create_labels_if_missing` porque
+ * o contrato da metade pode ser um label que ainda não existe na coluna do subitem.
+ */
+export async function criarSubitem(
+  parentItemId: number,
+  nome: string,
+  valores: Record<string, unknown>,
+): Promise<string> {
+  const d = await gql<{ create_subitem: { id: string } }>(
+    `mutation($p:ID!,$n:String!,$vals:JSON!){
+       create_subitem(parent_item_id:$p, item_name:$n, column_values:$vals, create_labels_if_missing:true){ id }
+     }`,
+    { p: String(parentItemId), n: nome, vals: JSON.stringify(valores) },
+  )
+  return d.create_subitem.id
+}
+
 /** Apaga um item (usado em testes de escrita + cleanup). */
 export async function deletarItem(itemId: number): Promise<void> {
   await gql(`mutation($i:ID!){ delete_item(item_id:$i){ id } }`, { i: String(itemId) })
