@@ -28,11 +28,18 @@ test("centsCaju arredonda pra centavos", () => {
 })
 
 test("categoriaVT: mobilidade vs vale", () => {
-  assert.equal(categoriaVT("CETAM", "NAO"), "TRANSPORTATION")
   assert.equal(categoriaVT("TRE PB", "NAO"), "TRANSPORTATION")
   assert.equal(categoriaVT("SEDUC INTERIOR", "NAO"), "TRANSPORTATION")
   assert.equal(categoriaVT("SEMSA", "NAO"), "TRANSPORTATION_VOUCHER")
   assert.equal(categoriaVT("SEMSA", "SIM"), "TRANSPORTATION") // interior força mobilidade
+})
+
+test("categoriaVT: CETAM decide pela coluna Interior, nao pelo contrato", () => {
+  // chapa 007386 (JOSE MARCOS): CETAM + Interior=NÃO -> vale, nao mobilidade
+  assert.equal(categoriaVT("CETAM", "NAO"), "TRANSPORTATION_VOUCHER")
+  assert.equal(categoriaVT("CETAM", "NÃO"), "TRANSPORTATION_VOUCHER")
+  assert.equal(categoriaVT("CETAM", ""), "TRANSPORTATION_VOUCHER")
+  assert.equal(categoriaVT("CETAM", "SIM"), "TRANSPORTATION")
 })
 
 test("montarNomePedido monta e trunca em 100", () => {
@@ -58,10 +65,20 @@ test("montarPedidoCaju crédito VR: só FOOD_AID, centavos, paymentType, nome", 
 })
 
 test("montarPedidoCaju crédito VT: só transporte, sem FOOD_AID", () => {
+  // fixture é CETAM + interior=NAO -> vale, não mobilidade
   const r = montarPedidoCaju([p({ creditoVR: 90, creditoVT: 30 })], "credito", "VT", "CETAM", 7, 2026)
   assert.equal(r.totalCentavos, 3000)
   assert.equal(r.name, "INTERMITENTE-MENSAL-CETAM-07.26 3 DIAS CREDITO VT")
-  assert.deepEqual(r.payload!.allowances, [{ employeeId: "emp-1", amounts: [{ category: "TRANSPORTATION", amount: 3000 }] }])
+  assert.deepEqual(r.payload!.allowances, [
+    { employeeId: "emp-1", amounts: [{ category: "TRANSPORTATION_VOUCHER", amount: 3000 }] },
+  ])
+})
+
+test("montarPedidoCaju crédito VT: CETAM com interior=SIM vira mobilidade", () => {
+  const r = montarPedidoCaju([p({ interior: "SIM", creditoVT: 30 })], "credito", "VT", "CETAM", 7, 2026)
+  assert.deepEqual(r.payload!.allowances, [
+    { employeeId: "emp-1", amounts: [{ category: "TRANSPORTATION", amount: 3000 }] },
+  ])
 })
 
 test("montarPedidoCaju boleto: usa pix* e PIX_CODE, sufixo DEBITO, VT vale p/ contrato fora da lista", () => {
