@@ -35,9 +35,17 @@ export function normCaju(v: unknown): string {
   return String(v ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/\s+/g, " ").trim()
 }
 
-/** Categoria VT: mobilidade (TRANSPORTATION) p/ SEDUC INTERIOR/TRE PB/CETAM ou interior=SIM; senão vale (TRANSPORTATION_VOUCHER). */
+/**
+ * Categoria VT: mobilidade (TRANSPORTATION) ou vale (TRANSPORTATION_VOUCHER).
+ *
+ * SEDUC INTERIOR e TRE PB são mobilidade por definição do contrato.
+ * CETAM NÃO é — decide pela coluna "OP - Interior?" (`color__1`) caso a caso:
+ * Interior=SIM -> mobilidade; qualquer outro valor -> vale. Nem todo CETAM é
+ * interior (ex. chapa 007386, CETAM/Interior=NÃO, pagava mobilidade errado
+ * até 21/08/2026).
+ */
 export function categoriaVT(contrato: string, interior: string): "TRANSPORTATION" | "TRANSPORTATION_VOUCHER" {
-  const mobilidade = ["SEDUC INTERIOR", "TRE PB", "CETAM"].includes(normCaju(contrato)) || normCaju(interior) === "SIM"
+  const mobilidade = ["SEDUC INTERIOR", "TRE PB"].includes(normCaju(contrato)) || normCaju(interior) === "SIM"
   return mobilidade ? "TRANSPORTATION" : "TRANSPORTATION_VOUCHER"
 }
 
