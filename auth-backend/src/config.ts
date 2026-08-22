@@ -119,11 +119,14 @@ export const config = {
     url: opt("EVOLUTION_URL", ""),
     apiKey: opt("EVOLUTION_API_KEY", ""),
     instance: opt("EVOLUTION_INSTANCE", "check-intermitente"),
-    // Destino do ESCAPE DE ERRO (fase de automação que não concluiu). Separado do
-    // `monitor.destinoWhatsapp` de propósito: são públicos e cadências diferentes — o
-    // do monitor hoje é o grupo "Operacional" (3 pessoas), e o de erro é o grupo de
-    // erros que já recebe falha da virada.
-    destinoErros: opt("EVOLUTION_DESTINO_ERROS", "120363400013959285@g.us"),
+    // Destino do ESCAPE DE ERRO (fase de automação que não concluiu). Desde 22/08/2026
+    // aponta pro MESMO grupo do `monitor.destinoWhatsapp` ("Operacional",
+    // 120363424978312590) por decisão do DP — antes ia pro "AIONS/interno"
+    // (120363400013959285), que era o grupo errado. Continuam duas chaves separadas de
+    // propósito: cadências diferentes, e um dia podem voltar a divergir.
+    // ⚠️ O n8n tem emissor próprio — WF "MENSAGEM DE ERRO - WHATSAPP - RAYLEN"
+    // (JX3nDipT3NYIxFfj), errorWorkflow de ~10 WFs. Mudar aqui NÃO muda lá.
+    destinoErros: opt("EVOLUTION_DESTINO_ERROS", "120363424978312590@g.us"),
     // Fusível: mais apertado que os 20/h do monitor de board. Alerta de erro deve ser
     // raro; se passar disso, algo sistêmico está acontecendo e uma mensagem agrupada
     // diz mais que trinta iguais.
