@@ -14,7 +14,12 @@ import { limparMetadados, limparTexto } from "../domain/sanitizar.js"
 
 export type MotorExecucao = "app" | "backend" | "n8n" | "workflow" | "job"
 export type EstadoEtapa = "rodando" | "ok" | "erro" | "pulado" | "aviso"
-export type EstadoFinal = "ok" | "erro" | "parcial"
+/**
+ * Desfecho da execução. 'recusado' NÃO é falha: a automação rodou até o fim e
+ * decidiu não agir por regra de negócio (ex.: trava antifraude do /convocar
+ * barrando período sobreposto). Só 'erro' alerta — ver fechar().
+ */
+export type EstadoFinal = "ok" | "erro" | "parcial" | "recusado"
 
 /** Espelha o CHECK de pi.atividade_artefato — mudar aqui exige migration. */
 export type TipoArtefato =
@@ -224,7 +229,11 @@ class ExecucaoViva implements Execucao {
     // ESCAPE DE ERRO. Fora do try acima de propósito: se o UPDATE do desfecho falhar, o
     // alerta é a última chance de alguém saber que quebrou.
     //
-    // Só em 'erro'. 'parcial' NÃO alerta: é o caso de Drive ou RM pendente numa
+    // Só em 'erro'. 'recusado' NÃO alerta: é desfecho de negócio (antifraude barrando
+    // período sobreposto) — a regra funcionando não é incidente, e mandar isso pro grupo
+    // treina todo mundo a ignorar o alerta.
+    //
+    // 'parcial' NÃO alerta: é o caso de Drive ou RM pendente numa
     // convocação que existe, e a fila já cuida — alertar ali faria o grupo receber
     // mensagem de coisa que se resolve sozinha, que é o ruído que mata a feature.
     if (estado !== "erro") return

@@ -29,7 +29,7 @@ export interface Execucao {
   qtd_artefatos: number
 }
 
-export type EstadoExecucao = "aberta" | "ok" | "erro" | "parcial" | "abandonada"
+export type EstadoExecucao = "aberta" | "ok" | "erro" | "parcial" | "abandonada" | "recusado"
 
 export interface EtapaExecucao {
   id: number
@@ -135,9 +135,13 @@ export function lampDoEstado(e: EstadoExecucao): string {
   if (e === "erro" || e === "abandonada") return "lamp--red"
   if (e === "parcial") return "lamp--yellow"
   if (e === "aberta") return "lamp--yellow"
+  // 'recusado' cai no neutro de propósito: a regra funcionou e decidiu não agir.
+  // Vermelho leria como quebra; verde leria como feito. Nenhum dos dois é verdade.
   return "lamp--off"
 }
 
+// 'recusado' NÃO entra: é desfecho de negócio, não falha. Fora daqui ele sai do
+// filtro "só erros", do contador de falhas e do botão de reconhecer erro.
 export const ehFalha = (e: EstadoExecucao): boolean => e === "erro" || e === "abandonada"
 
 export const LABEL_ESTADO: Record<EstadoExecucao, string> = {
@@ -146,4 +150,5 @@ export const LABEL_ESTADO: Record<EstadoExecucao, string> = {
   erro: "com erro",
   parcial: "concluída com pendência",
   abandonada: "interrompida",
+  recusado: "não permitida",
 }

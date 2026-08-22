@@ -502,13 +502,19 @@ export async function rotasConvocar(app: FastifyInstance): Promise<void> {
             eFim = d.toISOString().slice(0, 10)
           }
           if (eIni && eFim && overlap(dataInicio, dataFim, eIni, eFim)) {
-            // Conflito é desfecho de negócio, não crash — mas a convocação NÃO
-            // aconteceu, então fecha 'erro'. `fechar` é first-wins, então o
-            // 'ok' do fim do handler não sobrescreve isto.
+            // Conflito é desfecho de NEGÓCIO, não crash: fecha 'recusado'. A convocação
+            // não aconteceu (por isso não é 'ok'), mas nada quebrou — e 'erro' dispararia
+            // o WhatsApp do grupo por comportamento correto da trava. `fechar` é
+            // first-wins, então o 'ok' do fim do handler não sobrescreve isto.
             await liberarEfeito(chaveIdem)
-            await ex.fechar("erro", {
+            await ex.fechar("recusado", {
               erro: `convocacao_conflitante: item ${it.id} (${eIni} a ${eFim})`,
               etapaErro: "antifraude",
+              resumo: {
+                recusado: "convocacao_conflitante",
+                item_conflitante: it.id,
+                periodo_conflitante: `${eIni} a ${eFim}`,
+              },
             })
             await ex.artefato({
               tipo: "monday_item",

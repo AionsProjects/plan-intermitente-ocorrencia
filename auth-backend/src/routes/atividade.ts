@@ -75,7 +75,7 @@ export async function registrarAtividadeServidor(inp: {
 }
 
 const ESTADOS_ETAPA = new Set<EstadoEtapa>(["rodando", "ok", "erro", "pulado", "aviso"])
-const ESTADOS_FINAIS = new Set<EstadoFinal>(["ok", "erro", "parcial"])
+const ESTADOS_FINAIS = new Set<EstadoFinal>(["ok", "erro", "parcial", "recusado"])
 const MOTORES = new Set<MotorExecucao>(["app", "backend", "n8n", "workflow", "job"])
 
 export async function rotasAtividade(app: FastifyInstance): Promise<void> {
@@ -159,7 +159,10 @@ export async function rotasAtividade(app: FastifyInstance): Promise<void> {
       //
       // 'aberta' e 'abandonada' seguem fecháveis: a primeira é o caso normal, e a segunda
       // é a varredura chutando um desfecho que o dono da execução pode corrigir.
-      if (rows[0].estado === "ok" || rows[0].estado === "erro" || rows[0].estado === "parcial") {
+      if (
+        rows[0].estado === "ok" || rows[0].estado === "erro" ||
+        rows[0].estado === "parcial" || rows[0].estado === "recusado"
+      ) {
         return { ok: true, ignorado: "ja_fechada", estado: rows[0].estado }
       }
       const ex = await abrirExecucao({ id: req.params.id, acao: "", motor: "app" })

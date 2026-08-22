@@ -245,3 +245,46 @@ test("uuid_alvo é gravado sem alteração de semântica", async () => {
     assert.equal(rows[0]?.contrato, "CETAM")
   } finally { await limpar() }
 })
+
+// ── 'recusado': desfecho de negócio, não falha ───────────────────────────────
+// O par de testes é proposital. O "não alertou" sozinho passaria à toa se o
+// escape estivesse quebrado para TODOS os estados; o controle com 'erro' prova
+// que o alerta funciona e que é o estado que faz a diferença.
+
+test("fechar 'recusado' grava o desfecho e NÃO dispara alerta", async () => {
+  try {
+    const ex = await abrir({ pessoa: "FULANO RECUSADO" })
+    await ex.fechar("recusado", {
+      erro: "convocacao_conflitante: item 123 (2026-08-01 a 2026-08-21)",
+      etapaErro: "antifraude",
+      resumo: { recusado: "convocacao_conflitante" },
+    })
+
+    const { rows } = await query<{ estado: string; erro_etapa: string | null }>(
+      "SELECT estado, erro_etapa FROM audit_lancamentos WHERE id = $1", [ex.id],
+    )
+    assert.equal(rows[0]?.estado, "recusado")
+    assert.equal(rows[0]?.erro_etapa, "antifraude", "o motivo continua rastreável")
+
+    const { rows: al } = await query<{ n: number }>(
+      "SELECT count(*)::int n FROM alerta_falha WHERE execucao_id = $1", [ex.id],
+    )
+    assert.equal(al[0]?.n, 0, "recusa de negócio não pode virar alerta de falha")
+  } finally {
+    await limpar()
+  }
+})
+
+test("controle: fechar 'erro' continua disparando alerta", async () => {
+  try {
+    const ex = await abrir({ pessoa: "FULANO QUEBROU" })
+    await ex.fechar("erro", { erro: "estourou de verdade", etapaErro: "monday" })
+
+    const { rows: al } = await query<{ n: number }>(
+      "SELECT count(*)::int n FROM alerta_falha WHERE execucao_id = $1", [ex.id],
+    )
+    assert.equal(al[0]?.n, 1, "falha real precisa alertar — senão o teste acima é vazio")
+  } finally {
+    await limpar()
+  }
+})

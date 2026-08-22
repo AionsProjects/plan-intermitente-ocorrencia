@@ -310,6 +310,7 @@ export function DetalheExecucao({ exec, aoVivo }: { exec: Execucao; aoVivo: bool
           <p
             className={`mb-3 text-[13px] leading-relaxed ${
               exec.estado === "erro" ? "text-[var(--status-red)]"
+              : exec.estado === "recusado" ? "text-[var(--muted-foreground)]"
               : exec.estado === "parcial" || exec.estado === "abandonada" ? "text-[var(--status-yellow)]"
               : "text-foreground/85"
             }`}

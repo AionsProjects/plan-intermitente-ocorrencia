@@ -131,6 +131,15 @@ export function fraseDesfecho(exec: Execucao): string {
   if (exec.estado === "erro") {
     return `Não concluiu. ${exec.erro_msg ? exec.erro_msg : "Veja o detalhe técnico abaixo."}`
   }
+  if (exec.estado === "recusado") {
+    const r2 = r as { recusado?: string; item_conflitante?: string; periodo_conflitante?: string }
+    if (r2.recusado === "convocacao_conflitante") {
+      return `Não permitida: ${quem} já tem convocação no período${
+        r2.periodo_conflitante ? ` (${r2.periodo_conflitante})` : ""
+      }. A trava impediu a sobreposição — nada quebrou.`
+    }
+    return `Não permitida por regra de negócio. ${exec.erro_msg ?? ""}`.trim()
+  }
   if (exec.estado === "abandonada") {
     return "Começou e não terminou — ninguém confirmou o fim. Pode ter sido aba fechada no meio."
   }
