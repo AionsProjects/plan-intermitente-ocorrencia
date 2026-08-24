@@ -241,7 +241,11 @@ const ARTEFATO_POR_REFERENCIA: Record<string, { tipo: string; rotulo: string }> 
   pedidoPixVT: { tipo: "caju_boleto", rotulo: "Boleto PIX VT" },
   idVR: { tipo: "rm_idfinanc", rotulo: "IDFINANC VR" },
   idVT: { tipo: "rm_idfinanc", rotulo: "IDFINANC VT" },
+  // Uma linha por benefício no board desde o split de 08/2026. `solicitacaoId` (sem sufixo) fica
+  // para os runs anteriores à mudança continuarem legíveis.
   solicitacaoId: { tipo: "solicitacao", rotulo: "Solicitação de Pagamento" },
+  solicitacaoIdVR: { tipo: "solicitacao", rotulo: "Solicitação de Pagamento VR" },
+  solicitacaoIdVT: { tipo: "solicitacao", rotulo: "Solicitação de Pagamento VT" },
 }
 
 async function gravarArtefatosDoContrato(

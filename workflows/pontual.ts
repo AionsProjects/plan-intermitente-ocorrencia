@@ -59,12 +59,14 @@ import {
 } from "../auth-backend/src/pontual/rmPontual.js"
 import {
   type AbatimentoBalao,
+  beneficiosDaSolicitacaoPontual,
   montarNomeDebitoPontual,
   montarNomeSolicitacaoPontual,
   montarResumoSolicitacaoPontual,
   montarTextoBalao,
   montarValuesSolicitacaoPontual,
 } from "../auth-backend/src/pontual/mondayPontual.js"
+import type { BeneficioCaju } from "../auth-backend/src/clients/caju.js"
 import { arquivarDrivePontual, urlDoRelatorio } from "../auth-backend/src/pontual/drivePontual.js"
 import { montarDadosRelatorioPontual } from "../auth-backend/src/pontual/relatorioPontual.js"
 import {
@@ -79,6 +81,12 @@ import type { PessoaPreviaMensal } from "../auth-backend/src/mensal/types.js"
 
 const MESES_LABEL = ["JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO",
   "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"] as const
+
+/** Linha criada no board de Solicitação — uma por benefício desde o split de 08/2026. */
+interface LinhaSolicitacaoPontual {
+  beneficio: BeneficioCaju
+  id: string
+}
 
 export interface PontualWorkflowInput {
   itemOrigemId: string
@@ -697,21 +705,21 @@ async function etapaSolicitacao(
   input: PontualWorkflowInput,
   plano: PlanoPagamento,
   refs: { pedidoCreditoVR: string | null; pedidoCreditoVT: string | null; pedidoPixVR: string | null; pedidoPixVT: string | null; idVR: string | null; idVT: string | null },
-): Promise<string | null> {
+): Promise<LinhaSolicitacaoPontual[]> {
   "use step"
   const { execucaoId, itemOrigemId } = input
   const etapa = "monday_solicitacao"
   const temBoleto = (Number(plano.pessoa.pixVR) || 0) + (Number(plano.pessoa.pixVT) || 0) > 0
   const r = await reservarOuPular(input.modo, execucaoId, itemOrigemId, etapa)
-  if (r.acao === "pular") return null
+  if (r.acao === "pular") return []
   if (r.acao === "simular") {
     await simular(execucaoId, etapa, r.chave)
-    return null
+    return []
   }
   if (!temBoleto) {
     await confirmarEfeito(r.chave, "monday:solicitacao:sem_boleto")
     await log(execucaoId, etapa, "ok", { metadados: { pulado: "sem_boleto" } })
-    return null
+    return []
   }
   // Gaveta = mês da DATA_INICIO da convocação (não o mês corrente) — regra do WF5.
   const { anoComp, mesComp } = competenciaPontual(plano.snapshot.data_inicio)
@@ -738,15 +746,24 @@ async function etapaSolicitacao(
     dataIso: new Date().toISOString().slice(0, 10),
     itemPlanoId: itemOrigemId,
   }
-  const criado = await criarItemComValores(
-    "18393673859",
-    grupo,
-    montarNomeSolicitacaoPontual(plano.pessoa.nome),
-    montarValuesSolicitacaoPontual(inp),
-  )
-  await confirmarEfeito(r.chave, `monday:solicitacao:${criado.id}`)
-  await log(execucaoId, etapa, "ok", { metadados: { itemId: criado.id, resumo: montarResumoSolicitacaoPontual(inp).slice(0, 200) } })
-  return criado.id
+  // UMA LINHA POR BENEFÍCIO desde o split de 08/2026: o board deixou de ter um item com as duas
+  // colunas de valor. Sequencial de propósito — dois create_item, e escrita concorrente no Monday
+  // volta 200 com `errors` dentro; perder a segunda linha calado é o pior modo num #dinheiro-real.
+  const criadas: LinhaSolicitacaoPontual[] = []
+  for (const beneficio of beneficiosDaSolicitacaoPontual(inp)) {
+    const criado = await criarItemComValores(
+      "18393673859",
+      grupo,
+      montarNomeSolicitacaoPontual(plano.pessoa.nome, beneficio),
+      montarValuesSolicitacaoPontual(inp, beneficio),
+    )
+    criadas.push({ beneficio, id: criado.id })
+    await log(execucaoId, etapa, "ok", {
+      metadados: { beneficio, itemId: criado.id, resumo: montarResumoSolicitacaoPontual(inp, beneficio).slice(0, 200) },
+    })
+  }
+  await confirmarEfeito(r.chave, `monday:solicitacao:${criadas.map((c) => `${c.beneficio}=${c.id}`).join(";")}`)
+  return criadas
 }
 etapaSolicitacao.maxRetries = 5
 
@@ -930,21 +947,23 @@ etapaBalao.maxRetries = 5
 // Step 18 — AUTOMAÇÃO-OK na Solicitação (só depois de TUDO).
 // ---------------------------------------------------------------------------
 
-async function etapaStatusOk(input: PontualWorkflowInput, solicitacaoId: string | null): Promise<void> {
+async function etapaStatusOk(input: PontualWorkflowInput, solicitacoes: LinhaSolicitacaoPontual[]): Promise<void> {
   "use step"
   const { execucaoId, itemOrigemId } = input
   const etapa = "monday_status_ok"
   const r = await reservarOuPular(input.modo, execucaoId, itemOrigemId, etapa)
   if (r.acao === "pular") return
   if (r.acao === "simular") return simular(execucaoId, etapa, r.chave)
-  if (!solicitacaoId) {
+  if (!solicitacoes.length) {
     await confirmarEfeito(r.chave, "monday:status_ok:sem_solicitacao")
     await log(execucaoId, etapa, "ok", { metadados: { pulado: "sem_solicitacao" } })
     return
   }
-  await setarStatusAutomacaoOk(solicitacaoId)
-  await confirmarEfeito(r.chave, `monday:status_ok:${solicitacaoId}`)
-  await log(execucaoId, etapa, "ok", { metadados: { solicitacaoId } })
+  // TODAS as linhas: deixar a do VT em NÃO INICIADO faria o DP tratar como pendente.
+  for (const s of solicitacoes) await setarStatusAutomacaoOk(s.id)
+  const ids = solicitacoes.map((s) => s.id)
+  await confirmarEfeito(r.chave, `monday:status_ok:${ids.join(";")}`)
+  await log(execucaoId, etapa, "ok", { metadados: { solicitacaoIds: ids } })
 }
 etapaStatusOk.maxRetries = 5
 
@@ -1064,7 +1083,10 @@ export async function executarPontualWorkflow(input: PontualWorkflowInput): Prom
       idVR,
       idVT,
     }
-    const solicitacaoId = await etapaSolicitacao(input, plano, refsSemSolicitacao)
+    const solicitacoes = await etapaSolicitacao(input, plano, refsSemSolicitacao)
+    // Drive e notas linkam UM item — a linha do VR quando existe, senão a do VT. São as duas
+    // linhas do mesmo pagamento, então o rastro não se perde.
+    const solicitacaoId = solicitacoes[0]?.id ?? null
     const refs = { ...refsSemSolicitacao, solicitacaoId }
     // O Drive vem antes das notas: a linha do board carrega o link do PDF que sobe aqui.
     const { relatorioUrl } = await etapaDrive(input, plano, {
@@ -1076,7 +1098,7 @@ export async function executarPontualWorkflow(input: PontualWorkflowInput): Prom
     }, abatimentos)
     await etapaNotasCaju(input, plano, refs, abatimentos, relatorioUrl)
     await etapaBalao(input, plano, abatimentos)
-    await etapaStatusOk(input, solicitacaoId)
+    await etapaStatusOk(input, solicitacoes)
     await etapaFechamento(input, plano, refs, "ok")
     return { desfecho: "pago" }
   } catch (e) {

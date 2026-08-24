@@ -17,6 +17,7 @@ import {
 } from "../auth-backend/src/clients/caju.js"
 import {
   criarSolicitacaoMensal,
+  type LinhaSolicitacaoCriada,
   executarUpdatesDescontos,
   executarUpdatesPlano,
   garantirGrupoCaixa,
@@ -717,7 +718,10 @@ async function etapaMondayControleCaju(
 }
 etapaMondayControleCaju.maxRetries = 5
 
-/** monday_solicitacao: cria a Solicitação de Pagamento. Retorna o itemId (p/ status OK). */
+/**
+ * monday_solicitacao: cria a Solicitação de Pagamento — UMA LINHA POR BENEFÍCIO desde o split de
+ * 08/2026. Retorna as linhas criadas (o status OK marca todas).
+ */
 async function etapaMondaySolicitacao(
   runId: string,
   modo: ModoExec,
@@ -727,18 +731,18 @@ async function etapaMondaySolicitacao(
   grupoSolicitacao: string | null,
   caixa: string | undefined,
   refs: PedidosCajuIds & { idVR?: string | null; idVT?: string | null },
-): Promise<string | null> {
+): Promise<LinhaSolicitacaoCriada[]> {
   "use step"
   const etapa = "monday_solicitacao"
   const metadata = getStepMetadata()
   await registrarEvento({ runId, contrato: contrato.contrato, etapa, estado: "rodando", tentativa: metadata.attempt })
   const r = await reservarOuPular(runId, modo, competencia, contrato.contrato, etapa, metadata.attempt)
-  if (r.acao === "pular") return null
-  if (r.acao === "simular") { await simularEfeito(runId, contrato.contrato, etapa, r.chave, metadata.attempt); return null }
+  if (r.acao === "pular") return []
+  if (r.acao === "simular") { await simularEfeito(runId, contrato.contrato, etapa, r.chave, metadata.attempt); return [] }
   // Gaveta de caixa: cria o grupo do mês se a prévia (read-only) não achou.
   const grupoDestino = grupoSolicitacao ?? (await garantirGrupoCaixa("solicitacao", caixa))
   const { mes, ano } = competenciaPartes(competencia)
-  const criado = await criarSolicitacaoMensal({
+  const criadas = await criarSolicitacaoMensal({
     contrato: contrato.contrato,
     nomePrefixo: modo === "teste" ? "TESTE - " : undefined,
     competenciaLabel: MESES_LABEL[mes - 1]!,
@@ -754,12 +758,14 @@ async function etapaMondaySolicitacao(
     planBoardId: boardId,
     dataIso: new Date().toISOString().slice(0, 10),
   }, grupoDestino)
-  await confirmarEfeito(r.chave, `monday:solicitacao:${criado.id}`)
+  // A referência do efeito lista as duas linhas: uma reexecução precisa saber o que já existe no
+  // board, e um id só esconderia a linha do outro benefício.
+  await confirmarEfeito(r.chave, `monday:solicitacao:${criadas.map((c) => `${c.beneficio}=${c.id}`).join(";")}`)
   await registrarEvento({
     runId, contrato: contrato.contrato, etapa, estado: "concluido", tentativa: metadata.attempt,
-    metadados: { itemId: criado.id, url: criado.url },
+    metadados: { linhas: criadas.map((c) => ({ beneficio: c.beneficio, itemId: c.id, url: c.url })) },
   })
-  return criado.id
+  return criadas
 }
 etapaMondaySolicitacao.maxRetries = 5
 
@@ -769,7 +775,7 @@ async function etapaMondayStatusOk(
   modo: ModoExec,
   competencia: string,
   contrato: string,
-  solicitacaoId: string | null,
+  solicitacoes: LinhaSolicitacaoCriada[],
 ): Promise<void> {
   "use step"
   const etapa = "monday_status_ok"
@@ -778,10 +784,12 @@ async function etapaMondayStatusOk(
   const r = await reservarOuPular(runId, modo, competencia, contrato, etapa, metadata.attempt)
   if (r.acao === "pular") return
   if (r.acao === "simular") return simularEfeito(runId, contrato, etapa, r.chave, metadata.attempt)
-  if (!solicitacaoId) throw new FatalError("solicitacao_id_ausente_para_status_ok")
-  await setarStatusAutomacaoOk(solicitacaoId)
-  await confirmarEfeito(r.chave, `monday:status_ok:${solicitacaoId}`)
-  await registrarEvento({ runId, contrato, etapa, estado: "concluido", tentativa: metadata.attempt, metadados: { solicitacaoId } })
+  if (!solicitacoes.length) throw new FatalError("solicitacao_id_ausente_para_status_ok")
+  // TODAS as linhas do contrato: deixar a do VT em NÃO INICIADO faria o DP tratar como pendente.
+  for (const s of solicitacoes) await setarStatusAutomacaoOk(s.id)
+  const ids = solicitacoes.map((s) => s.id)
+  await confirmarEfeito(r.chave, `monday:status_ok:${ids.join(";")}`)
+  await registrarEvento({ runId, contrato, etapa, estado: "concluido", tentativa: metadata.attempt, metadados: { solicitacaoIds: ids } })
 }
 etapaMondayStatusOk.maxRetries = 5
 
@@ -1080,11 +1088,14 @@ async function processarContrato(
       pedidoPixVR: pixVR.orderId,
       pedidoPixVT: pixVT.orderId,
     }
-    const solicitacaoId = await etapaMondaySolicitacao(
+    const solicitacoes = await etapaMondaySolicitacao(
       runId, modo, competencia, contrato, snapshot.boardId, snapshot.apoio.grupoSolicitacao ?? null,
       snapshot.apoio.caixa,
       { idVR: rmIds.idVR, idVT: rmIds.idVT, ...pedidos },
     )
+    // Drive e relatório linkam UM item — a linha do VR quando existe, senão a do VT. O Drive grava
+    // a pasta numa coluna do item, e são as duas linhas do mesmo pagamento: o link não se perde.
+    const solicitacaoId = solicitacoes[0]?.id ?? null
 
     const refsPagamento = { ...pedidos, idVR: rmIds.idVR, idVT: rmIds.idVT, solicitacaoId }
 
@@ -1102,11 +1113,13 @@ async function processarContrato(
     await etapaMondayBalao(runId, modo, competencia, contrato)
 
     // AUTOMAÇÃO - OK só depois de TODAS as etapas do contrato confirmadas.
-    await etapaMondayStatusOk(runId, modo, competencia, contrato.contrato, solicitacaoId)
+    await etapaMondayStatusOk(runId, modo, competencia, contrato.contrato, solicitacoes)
 
     const referencias: Record<string, unknown> = {}
     for (const [k, v] of Object.entries(pedidos)) if (v) referencias[k] = v
-    if (solicitacaoId) referencias.solicitacaoId = solicitacaoId
+    // Uma referência por linha: com um `solicitacaoId` só, a linha do outro benefício ficaria
+    // fora da lista de artefatos do run.
+    for (const s of solicitacoes) referencias[`solicitacaoId${s.beneficio}`] = s.id
     await marcarContratoFinal(runId, contrato.contrato, "ok", undefined, Object.keys(referencias).length ? referencias : undefined)
   } catch (e) {
     const mensagem = e instanceof Error ? e.message : "erro_desconhecido"

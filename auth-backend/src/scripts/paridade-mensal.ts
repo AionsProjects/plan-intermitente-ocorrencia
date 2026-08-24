@@ -218,33 +218,54 @@ async function main(): Promise<void> {
       sd: { mensalContratoAtual: { ...lc, mesComp: 7, anoComp: 2026, competenciaLabel: "JULHO", groupIdSolicitacao: legado.groupIdSolicitacao, pedidoCreditoId: refs.pedidoCreditoId, pedidoPixId: refs.pedidoPixId, summaryCredito: refs.summaryCredito, summaryPix: refs.summaryPix } },
       ...(sd && {}),
     })) as { column_values_json: string }
-    const nossoValues = montarValuesSolicitacao({
+    // Desde 08/2026 o board tem UMA LINHA POR BENEFÍCIO, então a comparação 1:1 com o item único
+    // do legado não existe mais. O que continua tendo de bater são as colunas que NÃO dependem do
+    // benefício — contrato, gaveta, referência, competência, status, link do Plan. As colunas de
+    // dinheiro são conferidas por linha, logo abaixo.
+    const entrada = {
       contrato: nc.contrato, competenciaLabel: "JULHO", anoComp: 2026,
       totais: { vr: nc.totais.vr ?? 0, vt: nc.totais.vt ?? 0, credito: nc.totais.credito ?? 0, pix: nc.totais.pix ?? 0 },
       pessoas: nc.pessoas, idVR: refs.idVR, idVT: refs.idVT,
-      pedidoCreditoVR: refs.pedidoCreditoId, pedidoPixVR: refs.pedidoPixId,
+      pedidoCreditoVR: refs.pedidoCreditoId, pedidoPixVR: "ord-vr", pedidoPixVT: "ord-vt",
       planBoardId: "18408773953", dataIso: new Date().toISOString().slice(0, 10),
-    })
+    }
+    const linhaVR = montarValuesSolicitacao(entrada, "VR") as Record<string, unknown>
+    const linhaVT = montarValuesSolicitacao(entrada, "VT") as Record<string, unknown>
     const legadoValues = JSON.parse(lp.column_values_json) as Record<string, unknown>
-    // resumo (long_text) comparado à parte — formatação de itens_plan difere só se itemIds divergirem
-    const { long_text_mkre1qa0: lvResumo, ...lvResto } = legadoValues
-    const { long_text_mkre1qa0: nvResumo, ...nvResto } = nossoValues as Record<string, unknown>
-    cmp(`${lc.contrato} · solicitacao · values`, lvResto, nvResto)
-    // O resumo lista os 4 pedidos desde o split — divergência esperada e não comparável 1:1.
-    void lvResumo; void nvResumo
 
-    // Formato de dois ids na mesma célula (o board segue com UM item por contrato).
-    const doisPedidos = montarValuesSolicitacao({
-      contrato: nc.contrato, competenciaLabel: "JULHO", anoComp: 2026,
-      totais: { vr: nc.totais.vr ?? 0, vt: nc.totais.vt ?? 0, credito: nc.totais.credito ?? 0, pix: nc.totais.pix ?? 0 },
-      pessoas: nc.pessoas, idVR: refs.idVR, idVT: refs.idVT,
-      pedidoPixVR: "ord-vr", pedidoPixVT: "ord-vt",
-      planBoardId: "18408773953", dataIso: new Date().toISOString().slice(0, 10),
-    })
-    cmp(`${lc.contrato} · solicitacao · dois ids na coluna`, "ord-vr; ord-vt", doisPedidos.text_mm1zyhcw)
-    cmp(`${lc.contrato} · solicitacao · dois summaries na coluna`,
-      "https://empresa.caju.com.br/classic/#/order/ord-vr/summary; https://empresa.caju.com.br/classic/#/order/ord-vt/summary",
-      doisPedidos.text_mm395p8s)
+    // Colunas por benefício + resumo saem da comparação de bloco; cada uma é conferida à parte.
+    const POR_BENEFICIO = [
+      "dropdown_mkwhxxs2", "numeric_mkrek29b", "numeric_mkwhk2xr",
+      "text_mkrenhm", "text_mkwhg4dn", "text_mm1zyhcw", "text_mm395p8s", "long_text_mkre1qa0",
+    ]
+    const semBeneficio = (v: Record<string, unknown>): Record<string, unknown> =>
+      Object.fromEntries(Object.entries(v).filter(([k]) => !POR_BENEFICIO.includes(k)))
+
+    cmp(`${lc.contrato} · solicitacao · colunas comuns (linha VR)`, semBeneficio(legadoValues), semBeneficio(linhaVR))
+    cmp(`${lc.contrato} · solicitacao · colunas comuns (linha VT)`, semBeneficio(legadoValues), semBeneficio(linhaVT))
+
+    // Valor: a soma das duas linhas tem de dar o que o item único trazia — o split muda
+    // empacotamento, não dinheiro.
+    cmp(`${lc.contrato} · solicitacao · VALOR CAJU (VR)`, legadoValues.numeric_mkrek29b, linhaVR.numeric_mkrek29b)
+    cmp(`${lc.contrato} · solicitacao · VALOR CAJU VT`, legadoValues.numeric_mkwhk2xr, linhaVT.numeric_mkwhk2xr)
+    cmp(`${lc.contrato} · solicitacao · VALOR CAJU ausente na linha VT`, undefined, linhaVT.numeric_mkrek29b)
+    cmp(`${lc.contrato} · solicitacao · VALOR CAJU VT ausente na linha VR`, undefined, linhaVR.numeric_mkwhk2xr)
+
+    // IDFINANC do RM: cada linha carrega só o evento dela.
+    cmp(`${lc.contrato} · solicitacao · IDFINANC VR`, legadoValues.text_mkrenhm, linhaVR.text_mkrenhm)
+    cmp(`${lc.contrato} · solicitacao · IDFINANC VT`, legadoValues.text_mkwhg4dn, linhaVT.text_mkwhg4dn)
+
+    // Id do pedido: UM por linha — o "; " na mesma célula morreu com o split do board.
+    cmp(`${lc.contrato} · solicitacao · id do pedido (VR)`, "ord-vr", linhaVR.text_mm1zyhcw)
+    cmp(`${lc.contrato} · solicitacao · id do pedido (VT)`, "ord-vt", linhaVT.text_mm1zyhcw)
+    cmp(`${lc.contrato} · solicitacao · summary (VR)`,
+      "https://empresa.caju.com.br/classic/#/order/ord-vr/summary", linhaVR.text_mm395p8s)
+    cmp(`${lc.contrato} · solicitacao · summary (VT)`,
+      "https://empresa.caju.com.br/classic/#/order/ord-vt/summary", linhaVT.text_mm395p8s)
+
+    // Tipo pgto: uma label por linha, contra as duas do item único do legado.
+    cmp(`${lc.contrato} · solicitacao · tipo pgto (VR)`, { labels: ["CAJU"] }, linhaVR.dropdown_mkwhxxs2)
+    cmp(`${lc.contrato} · solicitacao · tipo pgto (VT)`, { labels: ["CAJU VT"] }, linhaVT.dropdown_mkwhxxs2)
   }
 
   // --- Relatório -------------------------------------------------------------
