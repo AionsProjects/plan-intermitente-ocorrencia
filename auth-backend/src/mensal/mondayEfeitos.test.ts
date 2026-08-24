@@ -10,6 +10,7 @@ const {
   montarValuesPlanUpdate, montarMutationPlanUpdates, montarValuesDesconto, montarMutationDescontos,
   montarResumoSolicitacao, montarValuesSolicitacao, saldoAnteriorControleCaju,
   montarNomeDebitoControle, montarValuesDebitoControle,
+  beneficiosDaSolicitacao, montarNomeSolicitacaoMensal,
 } = await import("./mondayEfeitos.js")
 
 const planUpdate = {
@@ -77,25 +78,55 @@ const solicitacaoInput = {
   planBoardId: "18418191275", dataIso: "2026-07-11",
 }
 
-test("montarValuesSolicitacao espelha o nó Preparar Solicitação", () => {
-  const v = montarValuesSolicitacao(solicitacaoInput) as Record<string, unknown>
-  assert.deepEqual(v["dropdown_mkwhxxs2"], { labels: ["CAJU", "CAJU VT"] })
-  assert.deepEqual(v["dropdown_mkretdvv"], { labels: ["TRE PB"] })
-  assert.deepEqual(v["date_mkrer5tv"], { date: "2026-07-11" })
-  assert.deepEqual(v["status"], { label: "NÃO INICIADO" })
-  assert.deepEqual(v["color_mkref5wt"], { label: "MENSAL" })
-  assert.deepEqual(v["color_mks0yady"], { label: "JULHO" })
+test("solicitação: uma linha por benefício, cada uma só com as colunas dela", () => {
+  assert.deepEqual(beneficiosDaSolicitacao(solicitacaoInput), ["VR", "VT"])
+
+  const vr = montarValuesSolicitacao(solicitacaoInput, "VR") as Record<string, unknown>
+  const vt = montarValuesSolicitacao(solicitacaoInput, "VT") as Record<string, unknown>
+
+  // Colunas comuns: iguais nas duas linhas — é o mesmo pagamento, do mesmo contrato.
+  for (const v of [vr, vt]) {
+    assert.deepEqual(v["dropdown_mkretdvv"], { labels: ["TRE PB"] })
+    assert.deepEqual(v["date_mkrer5tv"], { date: "2026-07-11" })
+    assert.deepEqual(v["status"], { label: "NÃO INICIADO" })
+    assert.deepEqual(v["color_mkref5wt"], { label: "MENSAL" })
+    assert.deepEqual(v["color_mks0yady"], { label: "JULHO" })
+    assert.deepEqual(v["link_mkre40qn"], { url: "https://contato-serv.monday.com/boards/18418191275", text: "Plan Intermitentes" })
+  }
+
+  // Tipo pgto: UMA label por linha. As duas juntas no mesmo item morreram com o split.
+  assert.deepEqual(vr["dropdown_mkwhxxs2"], { labels: ["CAJU"] })
+  assert.deepEqual(vt["dropdown_mkwhxxs2"], { labels: ["CAJU VT"] })
+
   // VALOR CAJU / VALOR CAJU VT vão na base do PIX (pós-crédito), igual ao RM e ao boleto —
   // não em totais.vr/vt, que são pré-crédito. Fixture: 660 - 66 = 594 e 250,70 - 32,70 = 218.
-  assert.equal(v["numeric_mkrek29b"], "594")
-  assert.equal(v["numeric_mkwhk2xr"], "218")
-  assert.equal(v["text_mkrenhm"], "555")
-  // Pedido separado por benefício: os dois ids de BOLETO dividem a mesma célula, "; " como nos
-  // IDFINANC. O pedido de crédito não entra na coluna (nasce Rascunho, não confirmado).
-  assert.equal(v["text_mm1zyhcw"], "ord-pvr; ord-pvt")
-  assert.equal(v["text_mm395p8s"],
-    "https://empresa.caju.com.br/classic/#/order/ord-pvr/summary; https://empresa.caju.com.br/classic/#/order/ord-pvt/summary")
-  assert.deepEqual(v["link_mkre40qn"], { url: "https://contato-serv.monday.com/boards/18418191275", text: "Plan Intermitentes" })
+  assert.equal(vr["numeric_mkrek29b"], "594")
+  assert.equal(vr["numeric_mkwhk2xr"], undefined, "linha de VR não escreve a coluna do VT")
+  assert.equal(vt["numeric_mkwhk2xr"], "218")
+  assert.equal(vt["numeric_mkrek29b"], undefined, "linha de VT não escreve a coluna do VR")
+
+  // IDFINANC do RM: cada linha carrega só o evento dela.
+  assert.equal(vr["text_mkrenhm"], "555")
+  assert.equal(vr["text_mkwhg4dn"], undefined)
+  assert.equal(vt["text_mkwhg4dn"], "")
+  assert.equal(vt["text_mkrenhm"], undefined)
+
+  // Id do pedido: UM por linha. O "; " na mesma célula era do tempo do item único; segue valendo
+  // para IDFINANC, que pode ser lista de verdade (um PFINANCEIRO por seção).
+  // O pedido de crédito não entra na coluna (nasce Rascunho, não confirmado).
+  assert.equal(vr["text_mm1zyhcw"], "ord-pvr")
+  assert.equal(vt["text_mm1zyhcw"], "ord-pvt")
+  assert.equal(vr["text_mm395p8s"], "https://empresa.caju.com.br/classic/#/order/ord-pvr/summary")
+  assert.equal(vt["text_mm395p8s"], "https://empresa.caju.com.br/classic/#/order/ord-pvt/summary")
+})
+
+test("nome do item carrega o benefício — senão o board fica com dois itens iguais", () => {
+  assert.equal(montarNomeSolicitacaoMensal(solicitacaoInput, "VR"), "TRE PB - VR")
+  assert.equal(montarNomeSolicitacaoMensal(solicitacaoInput, "VT"), "TRE PB - VT")
+  assert.equal(
+    montarNomeSolicitacaoMensal({ ...solicitacaoInput, nomePrefixo: "TESTE - " }, "VT"),
+    "TESTE - TRE PB - VT",
+  )
 })
 
 test("VALOR CAJU fica na base do RM/boleto — caso real DETRAN 08/2026", () => {
@@ -111,11 +142,12 @@ test("VALOR CAJU fica na base do RM/boleto — caso real DETRAN 08/2026", () => 
         creditoVR: 448.35, creditoVT: 0, pixVR: 3883.25, pixVT: 630 },
     ],
   }
-  const v = montarValuesSolicitacao(detran) as Record<string, unknown>
-  assert.equal(v["numeric_mkrek29b"], "3883.25")
-  assert.equal(v["numeric_mkwhk2xr"], "630")
-  // VR + VT do board somam o boleto, que é o que a Caju cobra.
-  assert.equal(Number(v["numeric_mkrek29b"]) + Number(v["numeric_mkwhk2xr"]), 4513.25)
+  const vr = montarValuesSolicitacao(detran, "VR") as Record<string, unknown>
+  const vt = montarValuesSolicitacao(detran, "VT") as Record<string, unknown>
+  assert.equal(vr["numeric_mkrek29b"], "3883.25")
+  assert.equal(vt["numeric_mkwhk2xr"], "630")
+  // As duas LINHAS somam o boleto, que é o que a Caju cobra. O split mudou empacotamento, não valor.
+  assert.equal(Number(vr["numeric_mkrek29b"]) + Number(vt["numeric_mkwhk2xr"]), 4513.25)
 })
 
 test("VALOR CAJU: contrato cujo VR coube todo no crédito vai a zero, mas segue rotulado CAJU", () => {
@@ -125,27 +157,35 @@ test("VALOR CAJU: contrato cujo VR coube todo no crédito vai a zero, mas segue 
     pessoas: [{ ...solicitacaoInput.pessoas[0]!, liquidoVR: 58.8, liquidoVT: 0,
       creditoVR: 58.8, creditoVT: 0, pixVR: 0, pixVT: 0 }],
   }
-  const v = montarValuesSolicitacao(tudoCredito) as Record<string, unknown>
+  // A LINHA existe mesmo com boleto zero — o critério é o benefício apurado, não o que sobra pro
+  // boleto. Sumir do board o pagamento que coube inteiro no crédito seria perder o rastro.
+  assert.deepEqual(beneficiosDaSolicitacao(tudoCredito), ["VR"])
+  const v = montarValuesSolicitacao(tudoCredito, "VR") as Record<string, unknown>
   assert.equal(v["numeric_mkrek29b"], "0")
-  // A label segue o benefício apurado, não o que sobra pro boleto.
   assert.deepEqual(v["dropdown_mkwhxxs2"], { labels: ["CAJU"] })
 })
 
-test("coluna de pedido: só VT preenchido não deixa separador solto", () => {
-  const v = montarValuesSolicitacao({ ...solicitacaoInput, pedidoPixVR: null }) as Record<string, unknown>
-  assert.equal(v["text_mm1zyhcw"], "ord-pvt")
-  assert.equal(v["text_mm395p8s"], "https://empresa.caju.com.br/classic/#/order/ord-pvt/summary")
+test("coluna de pedido fica vazia na linha cujo benefício não gerou boleto", () => {
+  const v = montarValuesSolicitacao({ ...solicitacaoInput, pedidoPixVR: null }, "VR") as Record<string, unknown>
+  assert.equal(v["text_mm1zyhcw"], "")
+  assert.equal(v["text_mm395p8s"], "")
+  // E a linha do VT continua com o id dela — uma não contamina a outra.
+  const vt = montarValuesSolicitacao({ ...solicitacaoInput, pedidoPixVR: null }, "VT") as Record<string, unknown>
+  assert.equal(vt["text_mm1zyhcw"], "ord-pvt")
 })
 
 test("coluna de pedido fica vazia quando nenhum boleto saiu", () => {
-  const v = montarValuesSolicitacao({ ...solicitacaoInput, pedidoPixVR: null, pedidoPixVT: null }) as Record<string, unknown>
-  assert.equal(v["text_mm1zyhcw"], "")
-  assert.equal(v["text_mm395p8s"], "")
+  const semBoleto = { ...solicitacaoInput, pedidoPixVR: null, pedidoPixVT: null }
+  for (const b of ["VR", "VT"] as const) {
+    const v = montarValuesSolicitacao(semBoleto, b) as Record<string, unknown>
+    assert.equal(v["text_mm1zyhcw"], "")
+    assert.equal(v["text_mm395p8s"], "")
+  }
 })
 
 test("resumo lista pessoas com itens do Plan", () => {
-  const r = montarResumoSolicitacao(solicitacaoInput)
-  assert.ok(r.startsWith("MENSAL AGRUPADO - TRE PB - JULHO/2026"))
+  const r = montarResumoSolicitacao(solicitacaoInput, "VR")
+  assert.ok(r.startsWith("MENSAL AGRUPADO VR - TRE PB - JULHO/2026"))
   assert.ok(r.includes("01. Fulana | Chapa: 006534"))
   assert.ok(r.includes("Plan: 1, 2"))
   assert.ok(r.includes("RM idVR: 555 | idVT: -"))
@@ -154,8 +194,10 @@ test("resumo lista pessoas com itens do Plan", () => {
   assert.ok(r.includes("Pedido PIX VR: ord-pvr | VT: ord-pvt"))
 })
 
-test("VT zerado não gera label CAJU VT", () => {
-  const v = montarValuesSolicitacao({ ...solicitacaoInput, totais: { ...solicitacaoInput.totais, vt: 0 } }) as Record<string, unknown>
+test("VT zerado não gera linha de VT no board", () => {
+  const semVT = { ...solicitacaoInput, totais: { ...solicitacaoInput.totais, vt: 0 } }
+  assert.deepEqual(beneficiosDaSolicitacao(semVT), ["VR"])
+  const v = montarValuesSolicitacao(semVT, "VR") as Record<string, unknown>
   assert.deepEqual(v["dropdown_mkwhxxs2"], { labels: ["CAJU"] })
 })
 

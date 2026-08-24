@@ -12,7 +12,12 @@ import {
 } from "./pagamento.js"
 import { montarNomePedidoPontual, montarPedidoCajuPontual } from "./cajuPontual.js"
 import { competenciaPontual, eventosPontual, registrosHistoricoPontual } from "./rmPontual.js"
-import { montarTextoBalao, montarValuesSolicitacaoPontual } from "./mondayPontual.js"
+import {
+  beneficiosDaSolicitacaoPontual,
+  montarNomeSolicitacaoPontual,
+  montarTextoBalao,
+  montarValuesSolicitacaoPontual,
+} from "./mondayPontual.js"
 import type { PrePagamentoCompleto } from "./prepagamento.js"
 import type { PessoaPreviaMensal } from "../mensal/types.js"
 
@@ -194,17 +199,27 @@ test("histórico: TPBEN=0 no boleto, TPBEN=1 no crédito; 1 registro por benefí
 // ---------- Monday ----------
 
 test("values da Solicitação: INTERMITENTE + link pro pulse + resumo pontual", () => {
-  const v = montarValuesSolicitacaoPontual({
+  const inp = {
     contrato: "SEMSA", competenciaLabel: "AGOSTO", anoComp: 2026,
     totais: { vr: 39, vt: 20, credito: 59, pix: 90 },
     pessoas: [pessoaCaju({ liquidoVR: 39, liquidoVT: 20 })],
     idVR: "24253", idVT: null, planBoardId: "18418191275", dataIso: "2026-08-19",
-    itemPlanoId: "111", pedidoPixVR: "ord-1",
-  })
+    itemPlanoId: "111", pedidoPixVR: "ord-1", pedidoPixVT: "ord-2",
+  }
+  const v = montarValuesSolicitacaoPontual(inp, "VR")
   assert.deepEqual(v.color_mkref5wt, { label: "INTERMITENTE" })
   assert.equal((v.link_mkre40qn as { url: string }).url, "https://contato-serv.monday.com/boards/18418191275/pulses/111")
-  assert.match((v.long_text_mkre1qa0 as { text: string }).text, /INTERMITENTE PONTUAL - VALCLEBER/)
+  assert.match((v.long_text_mkre1qa0 as { text: string }).text, /INTERMITENTE PONTUAL VR - VALCLEBER/)
   assert.equal(v.text_mkrenhm, "24253")
+  assert.equal(v.text_mm1zyhcw, "ord-1")
+
+  // Uma linha por benefício desde o split de 08/2026 — a do VT leva só o que é dela.
+  assert.deepEqual(beneficiosDaSolicitacaoPontual(inp), ["VR", "VT"])
+  const vt = montarValuesSolicitacaoPontual(inp, "VT")
+  assert.deepEqual(vt.dropdown_mkwhxxs2, { labels: ["CAJU VT"] })
+  assert.equal(vt.text_mm1zyhcw, "ord-2")
+  assert.equal(vt.numeric_mkrek29b, undefined, "linha de VT não escreve a coluna do VR")
+  assert.equal(montarNomeSolicitacaoPontual("valcleber", "VT"), "INTERMITENTE - VALCLEBER - VT")
 })
 
 test("balão: null quando não houve desconto", () => {

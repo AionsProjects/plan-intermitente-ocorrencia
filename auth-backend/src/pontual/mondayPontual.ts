@@ -1,9 +1,11 @@
 // Monday do PONTUAL — Solicitação de Pagamento, débito do Controle Caju e o balãozinho
 // de desconto. Builders puros; quem executa é o workflow.
 import {
+  beneficiosDaSolicitacao,
   montarValuesSolicitacao,
   type SolicitacaoMensalInput,
 } from "../mensal/mondayEfeitos.js"
+import type { BeneficioCaju } from "../clients/caju.js"
 import type { PessoaPreviaMensal } from "../mensal/types.js"
 
 const r2 = (v: number): number => Math.round((Number(v) || 0) * 100) / 100
@@ -15,10 +17,18 @@ export interface SolicitacaoPontualInput extends SolicitacaoMensalInput {
   itemPlanoId: string
 }
 
-/** Nome do item na Solicitação — WF5-fiel: `INTERMITENTE - {NOME}`. */
-export function montarNomeSolicitacaoPontual(nome: string): string {
-  return `INTERMITENTE - ${String(nome).trim().toUpperCase()}`
+/**
+ * Nome do item na Solicitação: `INTERMITENTE - {NOME} - {BENEFÍCIO}`.
+ *
+ * O sufixo entrou com o split de 08/2026 — o board passou a ter uma linha de VR e uma de VT por
+ * pagamento, e sem ele o DP veria dois itens de nome idêntico.
+ */
+export function montarNomeSolicitacaoPontual(nome: string, beneficio: BeneficioCaju): string {
+  return `INTERMITENTE - ${String(nome).trim().toUpperCase()} - ${beneficio}`
 }
+
+/** Benefícios que geram linha no board para este pagamento pontual. Mesma regra do mensal. */
+export const beneficiosDaSolicitacaoPontual = beneficiosDaSolicitacao
 
 /**
  * Values da Solicitação do pontual = values do mensal com 3 sobrescritas:
@@ -29,8 +39,11 @@ export function montarNomeSolicitacaoPontual(nome: string): string {
  * IDFINANCs, ids de pedido) têm regra de negócio própria no mensal (base PIX, formato "; ")
  * e é exatamente onde os dois fluxos NÃO podem divergir.
  */
-export function montarValuesSolicitacaoPontual(inp: SolicitacaoPontualInput): Record<string, unknown> {
-  const base = montarValuesSolicitacao(inp)
+export function montarValuesSolicitacaoPontual(
+  inp: SolicitacaoPontualInput,
+  beneficio: BeneficioCaju,
+): Record<string, unknown> {
+  const base = montarValuesSolicitacao(inp, beneficio)
   return {
     ...base,
     color_mkref5wt: { label: "INTERMITENTE" },
@@ -38,15 +51,18 @@ export function montarValuesSolicitacaoPontual(inp: SolicitacaoPontualInput): Re
       url: `https://contato-serv.monday.com/boards/${inp.planBoardId}/pulses/${inp.itemPlanoId}`,
       text: "Tratativa",
     },
-    long_text_mkre1qa0: { text: montarResumoSolicitacaoPontual(inp) },
+    long_text_mkre1qa0: { text: montarResumoSolicitacaoPontual(inp, beneficio) },
   }
 }
 
-export function montarResumoSolicitacaoPontual(inp: SolicitacaoPontualInput): string {
+export function montarResumoSolicitacaoPontual(
+  inp: SolicitacaoPontualInput,
+  beneficio: BeneficioCaju,
+): string {
   const p = inp.pessoas[0]
   if (!p) return "PONTUAL — sem pessoa (bug: resumo requisitado sem dados)"
   return [
-    `INTERMITENTE PONTUAL - ${p.nome}`,
+    `INTERMITENTE PONTUAL ${beneficio} - ${p.nome}`,
     `Chapa: ${p.chapa || "-"} | CPF: ${p.cpf || "-"} | Contrato: ${p.contrato}`,
     `Período: ${p.dataInicio} a ${p.dataFim}`,
     `VR: R$ ${r2(p.liquidoVR || 0)} | VT: R$ ${r2(p.liquidoVT || 0)}`,

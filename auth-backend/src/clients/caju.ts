@@ -352,3 +352,16 @@ export function juntarSummariesCaju(ids: Array<string | null | undefined>): stri
 export function idsPedidoParaSolicitacao(p: PedidosCajuIds): string[] {
   return [p.pedidoPixVR, p.pedidoPixVT].filter((x): x is string => Boolean(x))
 }
+
+export const BENEFICIOS_CAJU: readonly BeneficioCaju[] = ["VR", "VT"] as const
+
+/**
+ * Id do pedido de BOLETO de UM benefício.
+ *
+ * Desde 08/2026 o board de Solicitação tem uma LINHA POR BENEFÍCIO, então a célula de pedido
+ * carrega um id só — o `"; "` de `juntarIdsCaju` continua valendo para os IDFINANC do RM (uma
+ * pessoa pode gerar vários PFINANCEIRO), não mais para o pedido Caju.
+ */
+export function idPedidoParaSolicitacao(p: PedidosCajuIds, beneficio: BeneficioCaju): string | null {
+  return (beneficio === "VR" ? p.pedidoPixVR : p.pedidoPixVT) ?? null
+}

@@ -10,9 +10,10 @@
 // o comportamento do legado n8n (new Date()) estava certo.
 import { mondayGraphql } from "../monday.js"
 import {
-  idsPedidoParaSolicitacao,
-  juntarIdsCaju,
-  juntarSummariesCaju,
+  BENEFICIOS_CAJU,
+  idPedidoParaSolicitacao,
+  summaryUrlCaju,
+  type BeneficioCaju,
   type PedidosCajuIds,
 } from "../clients/caju.js"
 import type { DescontoUpdatePrevia, PessoaPreviaMensal, PlanUpdatePrevia } from "./types.js"
@@ -142,7 +143,7 @@ export interface SolicitacaoMensalInput extends PedidosCajuIds {
   dataIso: string // hoje (passar de fora — workflow não pode usar new Date())
 }
 
-export function montarResumoSolicitacao(inp: SolicitacaoMensalInput): string {
+export function montarResumoSolicitacao(inp: SolicitacaoMensalInput, beneficio: BeneficioCaju): string {
   const pessoasResumo = inp.pessoas.map((p, idx) => {
     const valorCredito = r2((p.creditoVR || 0) + (p.creditoVT || 0))
     const valorPix = r2((p.pixVR || 0) + (p.pixVT || 0))
@@ -152,7 +153,9 @@ export function montarResumoSolicitacao(inp: SolicitacaoMensalInput): string {
       ` | Plan: ${(p.itemIds ?? [p.itemId]).join(", ") || "-"}`
   })
   return [
-    `MENSAL AGRUPADO - ${inp.contrato} - ${inp.competenciaLabel}/${inp.anoComp}`,
+    // O benefício entra no título porque o board agora tem DUAS linhas por contrato, e o resumo é
+    // o que distingue uma da outra quando o DP abre o item.
+    `MENSAL AGRUPADO ${beneficio} - ${inp.contrato} - ${inp.competenciaLabel}/${inp.anoComp}`,
     `Colaboradores: ${inp.pessoas.length}`,
     `VR: R$ ${r2(inp.totais.vr)}`,
     `VT: R$ ${r2(inp.totais.vt)}`,
@@ -188,31 +191,51 @@ function pixPorBeneficio(inp: SolicitacaoMensalInput): { vr: number; vt: number 
   }
 }
 
-export function montarValuesSolicitacao(inp: SolicitacaoMensalInput): Record<string, unknown> {
+/** Coluna e label de cada benefício no board de Solicitação. Uma linha só preenche as suas. */
+const PERFIL_BENEFICIO = {
+  VR: { labelPgto: "CAJU", colValor: "numeric_mkrek29b", colIdfinanc: "text_mkrenhm" },
+  VT: { labelPgto: "CAJU VT", colValor: "numeric_mkwhk2xr", colIdfinanc: "text_mkwhg4dn" },
+} as const satisfies Record<BeneficioCaju, { labelPgto: string; colValor: string; colIdfinanc: string }>
+
+/**
+ * Benefícios que geram linha no board — os que foram APURADOS, não os que sobraram pro boleto.
+ * Contrato cujo VR coube inteiro no crédito tem VALOR CAJU 0,00 e ainda assim é um pagamento de VR:
+ * some do board se o critério for o PIX.
+ */
+export function beneficiosDaSolicitacao(inp: SolicitacaoMensalInput): BeneficioCaju[] {
+  return BENEFICIOS_CAJU.filter((b) => ((b === "VR" ? inp.totais.vr : inp.totais.vt) || 0) > 0)
+}
+
+/**
+ * Values de UMA linha do board de Solicitação — a do benefício pedido.
+ *
+ * Desde 08/2026 o pedido na Caju é separado (um de VR, um de VT) e o board acompanhou: UMA LINHA
+ * POR BENEFÍCIO, em vez de um item com as duas colunas de valor, duas labels de tipo pgto e os
+ * dois ids de pedido dividindo a mesma célula. Cada linha leva o seu id, o seu summary, o seu
+ * IDFINANC e o seu valor; as colunas do outro benefício ficam de fora do payload.
+ */
+export function montarValuesSolicitacao(
+  inp: SolicitacaoMensalInput,
+  beneficio: BeneficioCaju,
+): Record<string, unknown> {
   const pix = pixPorBeneficio(inp)
-  const labelsPgto: string[] = []
-  // A label segue o benefício APURADO, não o que sobra pro boleto: contrato cujo VR coube inteiro
-  // no crédito continua sendo um pagamento de VR.
-  if ((inp.totais.vr || 0) > 0) labelsPgto.push("CAJU")
-  if ((inp.totais.vt || 0) > 0) labelsPgto.push("CAJU VT")
-  // O board continua com UM item por contrato, então os dois ids de pedido (VR e VT) dividem a
-  // mesma célula, separados por "; " — mesmo formato dos IDFINANC.
-  const idsPedido = idsPedidoParaSolicitacao(inp)
+  const perfil = PERFIL_BENEFICIO[beneficio]
+  const idPedido = idPedidoParaSolicitacao(inp, beneficio)
   return {
-    dropdown_mkwhxxs2: { labels: labelsPgto.length ? labelsPgto : ["CAJU"] },
+    dropdown_mkwhxxs2: { labels: [perfil.labelPgto] },
     dropdown_mkretdvv: { labels: [inp.contrato] },
     date_mkrer5tv: { date: inp.dataIso },
     status: { label: "NÃO INICIADO" },
     color_mkref5wt: { label: "MENSAL" },
     color_mks0yady: { label: inp.competenciaLabel },
-    numeric_mkrek29b: String(pix.vr),
-    numeric_mkwhk2xr: String(pix.vt),
-    text_mkrenhm: String(inp.idVR || ""),
-    text_mkwhg4dn: String(inp.idVT || ""),
-    text_mm1zyhcw: juntarIdsCaju(idsPedido),
-    text_mm395p8s: juntarSummariesCaju(idsPedido),
+    [perfil.colValor]: String(beneficio === "VR" ? pix.vr : pix.vt),
+    // IDFINANC do RM: continua podendo ser lista ("24007; 24009") — o RM cria um PFINANCEIRO por
+    // seção de funcionário. O que deixou de ser lista é o id do PEDIDO Caju.
+    [perfil.colIdfinanc]: String((beneficio === "VR" ? inp.idVR : inp.idVT) || ""),
+    text_mm1zyhcw: idPedido ?? "",
+    text_mm395p8s: idPedido ? summaryUrlCaju(idPedido) : "",
     link_mkre40qn: { url: `https://contato-serv.monday.com/boards/${inp.planBoardId}`, text: "Plan Intermitentes" },
-    long_text_mkre1qa0: { text: montarResumoSolicitacao(inp) },
+    long_text_mkre1qa0: { text: montarResumoSolicitacao(inp, beneficio) },
   }
 }
 
@@ -335,14 +358,40 @@ export async function garantirGrupoTitulo(boardId: string, titulo: string): Prom
   return criado.create_group.id
 }
 
+/** Nome do item do mensal: contrato + benefício, porque agora são duas linhas por contrato. */
+export function montarNomeSolicitacaoMensal(inp: SolicitacaoMensalInput, beneficio: BeneficioCaju): string {
+  return `${inp.nomePrefixo ?? ""}${inp.contrato} - ${beneficio}`
+}
+
+export interface LinhaSolicitacaoCriada {
+  beneficio: BeneficioCaju
+  id: string
+  url: string
+}
+
+/**
+ * Cria UMA linha por benefício apurado. Contrato só com VR gera uma linha só — nada de item
+ * zerado no board.
+ *
+ * Sequencial de propósito: são no máximo dois create_item, e o Monday responde 200 com `errors`
+ * dentro em escrita concorrente. Perder a segunda linha em silêncio num fluxo #dinheiro-real
+ * custa mais que os ~300ms economizados.
+ */
 export async function criarSolicitacaoMensal(
   inp: SolicitacaoMensalInput,
   grupoSolicitacao: string,
-): Promise<{ id: string; url: string }> {
-  const { id } = await criarItemComValores(
-    BOARD_SOLICITACAO, grupoSolicitacao, `${inp.nomePrefixo ?? ""}${inp.contrato}`, montarValuesSolicitacao(inp),
-  )
-  return { id, url: `https://contato-serv.monday.com/boards/${BOARD_SOLICITACAO}/pulses/${id}` }
+): Promise<LinhaSolicitacaoCriada[]> {
+  const criadas: LinhaSolicitacaoCriada[] = []
+  for (const beneficio of beneficiosDaSolicitacao(inp)) {
+    const { id } = await criarItemComValores(
+      BOARD_SOLICITACAO,
+      grupoSolicitacao,
+      montarNomeSolicitacaoMensal(inp, beneficio),
+      montarValuesSolicitacao(inp, beneficio),
+    )
+    criadas.push({ beneficio, id, url: `https://contato-serv.monday.com/boards/${BOARD_SOLICITACAO}/pulses/${id}` })
+  }
+  return criadas
 }
 
 export async function setarStatusAutomacaoOk(solicitacaoId: string): Promise<void> {
