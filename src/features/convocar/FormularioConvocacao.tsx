@@ -9,7 +9,7 @@ import {
   Send,
   X,
 } from "lucide-react"
-import { format, parseISO } from "date-fns"
+import { addDays, format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
 import { GlassDatePicker } from "./GlassDatePicker"
@@ -81,6 +81,13 @@ const initialState = (empregado: EmpregadoRM): FormState => ({
 type AlertaConflito = {
   mensagem: string
   conflito?: ConvocacaoConflito
+  /**
+   * O período que o OP PEDIU. É o que separa os dois desfechos: pedido que passa do fim
+   * da convocação existente dá emenda (tem data nova a oferecer); pedido que cabe inteiro
+   * dentro dela não tem o que lançar. Sem isto a caixa fala igual nos dois casos.
+   */
+  pedidoInicio?: string
+  pedidoFim?: string
 }
 
 export function FormularioConvocacao({
@@ -206,8 +213,10 @@ export function FormularioConvocacao({
         setAlertaConflito({
           mensagem:
             err.message ||
-            "Data divergente: este intermitente já foi convocado neste período.",
+            "Este intermitente já tem convocação no período informado.",
           conflito: err.conflito,
+          pedidoInicio: form.dataInicio,
+          pedidoFim: form.dataFim,
         })
         return
       }
@@ -413,7 +422,21 @@ export function FormularioConvocacao({
         />
       </section>
 
-      {alertaConflito && <AlertaConflito alerta={alertaConflito} />}
+      {alertaConflito && (
+        <AlertaConflito
+          alerta={alertaConflito}
+          onUsarData={(iso) => {
+            // Arrasta o fim junto quando ele ficou atrás do novo início — senão o próprio
+            // form barra em "data início > data fim" e o atalho viraria um segundo erro.
+            setForm((f) => ({
+              ...f,
+              dataInicio: iso,
+              dataFim: f.dataFim && f.dataFim >= iso ? f.dataFim : iso,
+            }))
+            setAlertaConflito(null)
+          }}
+        />
+      )}
 
       {erroGeral && (
         <p className="rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-xs text-rose-700 dark:text-rose-200">
@@ -451,25 +474,89 @@ function formatarDataConflito(data?: string): string | null {
   }
 }
 
-function AlertaConflito({ alerta }: { alerta: AlertaConflito }) {
+/** Primeiro dia livre depois da convocação que já existe (ISO), ou null se não der. */
+function proximoDiaLivre(fimExistente?: string): string | null {
+  if (!fimExistente) return null
+  try {
+    return format(addDays(parseISO(fimExistente), 1), "yyyy-MM-dd")
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Recusa da trava de período. NÃO é erro: a regra rodou e decidiu não agir — por isso
+ * âmbar e não vermelho, o mesmo sinal da lâmpada neutra que o /atividade usa em
+ * 'recusado'. O texto diz três coisas que a versão anterior não dizia: QUEM já está
+ * convocado, POR QUE o dia não pode repetir (ele já está pago, lançar de novo pagaria em
+ * dobro) e QUAL data usar — com botão, pra o OP não ter que somar um dia na cabeça.
+ */
+function AlertaConflito({
+  alerta,
+  onUsarData,
+}: {
+  alerta: AlertaConflito
+  onUsarData?: (iso: string) => void
+}) {
   const inicio = formatarDataConflito(alerta.conflito?.data_inicio)
   const fim = formatarDataConflito(alerta.conflito?.data_fim)
   const periodo = inicio && fim ? `${inicio} a ${fim}` : null
+  const quem = alerta.conflito?.nome?.trim() || "Este intermitente"
+
+  // Emenda só faz sentido quando o pedido PASSA do fim do que já existe. Pedido que cabe
+  // inteiro dentro da convocação atual não tem data nova a oferecer — não há o que lançar.
+  const fimExistente = alerta.conflito?.data_fim
+  const podeEmendar = !!fimExistente && !!alerta.pedidoFim && alerta.pedidoFim > fimExistente
+  const sugestao = podeEmendar ? proximoDiaLivre(fimExistente) : null
+  const sugestaoFmt = formatarDataConflito(sugestao ?? undefined)
+  const pedidoFmt = (() => {
+    const a = formatarDataConflito(alerta.pedidoInicio)
+    const b = formatarDataConflito(alerta.pedidoFim)
+    if (!a || !b) return null
+    return a === b ? a : `${a} a ${b}`
+  })()
 
   return (
-    <div className="rounded-2xl border border-rose-300/35 bg-rose-300/10 px-4 py-4 text-sm text-rose-700 dark:text-rose-100 shadow-[0_0_35px_rgba(251,113,133,0.12)]">
+    <div className="rounded-2xl border border-amber-300/35 bg-amber-300/10 px-4 py-4 text-sm text-amber-800 dark:text-amber-100 shadow-[0_0_35px_rgba(251,191,36,0.12)]">
       <div className="flex gap-3">
-        <AlertTriangle className="mt-0.5 size-5 shrink-0 text-rose-700 dark:text-rose-200" />
+        <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-700 dark:text-amber-200" />
         <div className="min-w-0 space-y-2">
-          <p className="font-medium text-rose-700 dark:text-rose-100">Data divergente</p>
-          <p className="text-xs leading-relaxed text-rose-700/85 dark:text-rose-100/85">
-            Este intermitente já foi convocado para um período que cruza com as
-            datas informadas.
+          <p className="font-medium text-amber-800 dark:text-amber-100">Período já convocado</p>
+          <p className="text-xs leading-relaxed text-amber-800/85 dark:text-amber-100/85">
+            {quem} já tem convocação
+            {periodo ? (
+              <>
+                {" de "}
+                <span className="font-medium text-amber-900 dark:text-amber-50">{periodo}</span>
+              </>
+            ) : (
+              " em um período que cruza com as datas informadas"
+            )}
+            .
           </p>
-          {periodo && (
-            <p className="text-xs leading-relaxed text-rose-700/85 dark:text-rose-100/85">
-              Convocação existente:{" "}
-              <span className="font-medium text-rose-700 dark:text-rose-50">{periodo}</span>.
+          {podeEmendar && fim && sugestaoFmt ? (
+            <>
+              <p className="text-xs leading-relaxed text-amber-800/85 dark:text-amber-100/85">
+                O dia <span className="font-medium text-amber-900 dark:text-amber-50">{fim}</span>{" "}
+                já está pago nessa convocação — lançar de novo pagaria em dobro. Para emendar,
+                comece em{" "}
+                <span className="font-medium text-amber-900 dark:text-amber-50">{sugestaoFmt}</span>.
+              </p>
+              {onUsarData && sugestao && (
+                <button
+                  type="button"
+                  onClick={() => onUsarData(sugestao)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/50 bg-amber-300/15 px-3 py-1.5 text-xs font-medium text-amber-900 dark:text-amber-50 transition hover:bg-amber-300/25"
+                >
+                  Usar {sugestaoFmt}
+                </button>
+              )}
+            </>
+          ) : (
+            <p className="text-xs leading-relaxed text-amber-800/85 dark:text-amber-100/85">
+              {pedidoFmt
+                ? `O período que você pediu (${pedidoFmt}) está dentro dessa convocação — não há nada a lançar.`
+                : "O período informado está dentro dessa convocação — não há nada a lançar."}
             </p>
           )}
           {alerta.conflito?.item_url && (
@@ -477,7 +564,7 @@ function AlertaConflito({ alerta }: { alerta: AlertaConflito }) {
               href={alerta.conflito.item_url}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-rose-700 dark:text-rose-50 underline-offset-4 transition hover:underline"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-900 dark:text-amber-50 underline-offset-4 transition hover:underline"
             >
               Abrir convocação existente
               <ExternalLink className="size-3.5" />
