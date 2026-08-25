@@ -4,7 +4,11 @@
 // ABERTA antes de qualquer efeito, que uma recusa de negócio fecha 'erro' (e não fica
 // 'aberta' até a varredura de abandonadas), e que o alerta sai com pessoa e contrato.
 //
-// Usa uma convocação descartável no espelho PG — nada de Monday, nada de RM.
+// Usa uma convocação descartável no espelho PG. Ela NÃO tem item no Histórico do Monday,
+// e isso é parte do cenário: a rota resolve o item por uuid, não acha, empilha
+// `historico_nao_encontrado` e fecha 'parcial'. Por isso o caminho feliz aqui afirma
+// 'parcial' com o motivo, e não 'ok' — o que este arquivo garante é o FECHAMENTO
+// EXPLÍCITO (o defeito seria a linha ficar 'aberta' até a varredura de abandonadas).
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { randomUUID } from "node:crypto"
@@ -43,7 +47,7 @@ const execucaoDe = (uuid: string) =>
 
 test("setup", async () => { app = await construirApp() })
 
-test("registro: execucao abre com pessoa/contrato e fecha ok com fases e artefatos", async () => {
+test("registro: execucao abre com pessoa/contrato e FECHA, com fases e artefatos", async () => {
   const uuid = randomUUID()
   try {
     await semearConvocacao(uuid)
@@ -57,9 +61,15 @@ test("registro: execucao abre com pessoa/contrato e fecha ok com fases e artefat
     const ex = await execucaoDe(uuid)
     assert.ok(ex, "nao abriu execucao")
     assert.equal(ex!.acao, "registro")
-    // 'ok' e não 'aberta': é o fechamento explícito que faz a linha sair do radar da
-    // varredura de abandonadas.
-    assert.equal(ex!.estado, "ok")
+    // O que importa é ter FECHADO: 'aberta' é que seria o defeito, porque deixaria a linha
+    // na mão da varredura de abandonadas. 'parcial' porque a convocação semeada só existe
+    // no espelho PG e a rota não acha o item do Histórico — asserir o motivo é o que
+    // impede este teste de virar "aceita qualquer desfecho".
+    assert.equal(ex!.estado, "parcial")
+    const { rows: fechamento } = await query<{ payload_resumo: { monday_falhas?: string[] } }>(
+      "SELECT payload_resumo FROM audit_lancamentos WHERE id=$1", [ex!.id],
+    )
+    assert.deepEqual(fechamento[0]!.payload_resumo.monday_falhas, ["historico_nao_encontrado"])
     assert.equal(ex!.pessoa_nome, "MISSILENE ALENCAR")
     assert.equal(ex!.contrato, "CETAM")
 
@@ -184,7 +194,9 @@ test("execucao_id do front reataca em vez de criar cabecalho novo", async () => 
     assert.equal(rows[0]!.n, 1, "criou cabecalho duplicado")
     const ex = await execucaoDe(uuid)
     assert.equal(ex!.id, aberta.id)
-    assert.equal(ex!.estado, "ok")
+    // 'parcial' pelo mesmo motivo do primeiro teste (sem item de Histórico). O ponto aqui
+    // é o reataque no cabeçalho existente — e que ele foi FECHADO, não deixado 'aberta'.
+    assert.equal(ex!.estado, "parcial")
   } finally { await limpar(uuid) }
 })
 
