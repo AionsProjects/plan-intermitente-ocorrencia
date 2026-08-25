@@ -197,12 +197,74 @@ test("abandonada NAO alerta quando outra execucao do mesmo alvo fechou ok", asyn
   } finally { await limpar() }
 })
 
-test("abandonada SEM irma ok ainda alerta (o caso legitimo)", async () => {
+// 25/08: `abandonada` PAROU de alertar, mesmo sozinha. As 4 de produção tinham TODAS
+// `uuid_alvo` preenchido — o item existia no board. Alerta é pra falha da automação; isto
+// é conferência, e o `erro_msg` é que diz o que conferir.
+test("abandonada NAO alerta nem sozinha, e o erro_msg aponta o item a conferir", async () => {
   try {
     const ex = await abrir({ alvo: "sozinha-999" })
     await query("UPDATE audit_lancamentos SET criado_em = now() - interval '30 minutes' WHERE id=$1", [ex.id])
     const r = await varrerAbandonadas(PISO, 15)
-    assert.ok(r.alertadas >= 1, "deixou de alertar uma abandonada legitima")
+    assert.equal(r.alertadas, 0, "voltou a alertar abandonada")
+    assert.ok(r.comEfeito >= 1, "nao contou a abandonada que deixou item pra tras")
+    const { rows } = await query<{ estado: string; erro_msg: string }>(
+      "SELECT estado, erro_msg FROM audit_lancamentos WHERE id=$1", [ex.id],
+    )
+    assert.equal(rows[0]!.estado, "abandonada")
+    assert.match(rows[0]!.erro_msg, /item sozinha-999 criado, fim nao confirmado/)
+    const al = await query<{ n: number }>("SELECT count(*)::int n FROM alerta_falha WHERE execucao_id=$1", [ex.id])
+    assert.equal(al.rows[0]!.n, 0, "gravou alerta de abandonada")
+  } finally { await limpar() }
+})
+
+// O outro lado do par: sem item nenhum criado, não há o que conferir — e a mensagem tem
+// que dizer isso, senão a lista de conferência nasce cheia de linha inofensiva.
+test("abandonada sem alvo nenhum registra que nao houve efeito", async () => {
+  try {
+    const ex = await abrir()
+    await query("UPDATE audit_lancamentos SET criado_em = now() - interval '30 minutes' WHERE id=$1", [ex.id])
+    const r = await varrerAbandonadas(PISO, 15)
+    assert.equal(r.alertadas, 0)
+    assert.equal(r.comEfeito, 0, "contou como efeito uma execucao sem alvo")
+    const { rows } = await query<{ erro_msg: string }>(
+      "SELECT erro_msg FROM audit_lancamentos WHERE id=$1", [ex.id],
+    )
+    assert.match(rows[0]!.erro_msg, /nenhum efeito registrado/)
+  } finally { await limpar() }
+})
+
+// A assinatura sem a pessoa colapsava duas falhas de gente DIFERENTE numa mensagem só,
+// que nomeava apenas a primeira. Medido em 25/08 nas 15 linhas de assinatura b3e13358….
+test("clique unico de pessoas diferentes NAO colapsa numa mensagem", async () => {
+  try {
+    const ex = await abrir()
+    const base = {
+      execucaoId: ex.id, origem: "execucao" as const, acao: "convocacao",
+      etapa: "teste_fase", erro: "rm_indisponivel: HTTP 504",
+    }
+    const a = await alertarFalha({ ...base, pessoa: "PESSOA UM" })
+    const b = await alertarFalha({ ...base, pessoa: "PESSOA DOIS" })
+    assert.equal(a.deduplicado, false)
+    assert.equal(b.deduplicado, false, "colapsou falha de outra pessoa na primeira")
+    const { rows } = await query<{ n: number }>(
+      "SELECT count(*)::int n FROM alerta_falha WHERE etapa='teste_fase'",
+    )
+    assert.equal(rows[0]!.n, 2)
+  } finally { await limpar() }
+})
+
+// E o contrário continua valendo: processo em massa ('job') fica FORA da assinatura por
+// pessoa, senão RM fora do ar no mensal manda uma mensagem por contrato.
+test("job em massa ainda colapsa mesmo com pessoas diferentes", async () => {
+  try {
+    const base = {
+      origem: "job" as const, acao: "convocacao", sempre: true,
+      etapa: "teste_massa", erro: "rm_indisponivel: HTTP 504",
+    }
+    const a = await alertarFalha({ ...base, pessoa: "PESSOA UM" })
+    const b = await alertarFalha({ ...base, pessoa: "PESSOA DOIS" })
+    assert.equal(a.deduplicado, false)
+    assert.equal(b.deduplicado, true, "deixou de colapsar falha em massa")
   } finally { await limpar() }
 })
 

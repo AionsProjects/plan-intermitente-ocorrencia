@@ -57,8 +57,11 @@ export async function rotasJobs(app: FastifyInstance): Promise<void> {
       bloqueio = { erro: (e as Error).message.slice(0, 160) }
     }
     // Execuções que abriram e nunca fecharam (aba fechada no meio, função encerrada
-    // antes do fim). Também de carona: Hobby só dá dois crons.
-    let abandonadas: { marcadas: number; alertadas: number } | { erro: string }
+    // antes do fim). Também de carona: Hobby só dá dois crons. Não alerta no WhatsApp:
+    // `comEfeito` é a contagem que pede conferência no /atividade.
+    let abandonadas:
+      | { marcadas: number; comEfeito: number; fantasmas: number; alertadas: number }
+      | { erro: string }
     try {
       abandonadas = await varrerAbandonadas(PISO_ABANDONADAS)
     } catch (e) {

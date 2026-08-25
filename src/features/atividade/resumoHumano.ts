@@ -141,7 +141,12 @@ export function fraseDesfecho(exec: Execucao): string {
     return `Não permitida por regra de negócio. ${exec.erro_msg ?? ""}`.trim()
   }
   if (exec.estado === "abandonada") {
-    return "Começou e não terminou — ninguém confirmou o fim. Pode ter sido aba fechada no meio."
+    // Com alvo o item JÁ EXISTE no board — o desfecho aqui é "vai conferir", não "deu
+    // errado". Sem alvo nada foi criado, e aí não há o que fazer.
+    if (exec.uuid_alvo) {
+      return `Começou e não confirmou o fim, mas o item ${exec.uuid_alvo} foi criado. Confira no board se o resto (RM, pré-pagamento) fechou.`
+    }
+    return "Começou e não terminou — ninguém confirmou o fim, e nenhum efeito foi registrado. Pode ter sido aba fechada no meio."
   }
   if (exec.estado === "aberta") return "Em andamento."
 

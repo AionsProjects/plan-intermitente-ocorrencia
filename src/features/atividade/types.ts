@@ -132,8 +132,11 @@ export const rotuloAcao = (a: string): string => LABEL_ACAO[a] ?? a.replaceAll("
  */
 export function lampDoEstado(e: EstadoExecucao): string {
   if (e === "ok") return "lamp--green"
-  if (e === "erro" || e === "abandonada") return "lamp--red"
-  if (e === "parcial") return "lamp--yellow"
+  if (e === "erro") return "lamp--red"
+  // 'abandonada' saiu do vermelho em 25/08: ou é linha fantasma de algo que deu certo, ou
+  // é execução que criou o item e parou de reportar. Nos dois casos é PENDÊNCIA a conferir,
+  // não quebra — e desde então ela também não alerta mais no WhatsApp.
+  if (e === "parcial" || e === "abandonada") return "lamp--yellow"
   if (e === "aberta") return "lamp--yellow"
   // 'recusado' cai no neutro de propósito: a regra funcionou e decidiu não agir.
   // Vermelho leria como quebra; verde leria como feito. Nenhum dos dois é verdade.

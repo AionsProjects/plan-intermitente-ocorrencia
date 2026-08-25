@@ -51,8 +51,15 @@ export interface ResultadoAlerta {
   motivo?: string
 }
 
-const assinaturaDe = (acao: string, etapa: string, erro: string): string =>
-  createHash("md5").update(`${acao}|${etapa}|${normalizarErro(erro)}`).digest("hex")
+/**
+ * Assinatura do dedupe. O `alvo` só entra em alerta de CLIQUE ÚNICO (ver chamador): sem
+ * ele, duas falhas do mesmo tipo na mesma janela colapsam numa mensagem só, que nomeia
+ * apenas a primeira pessoa — as outras desaparecem do grupo. Medido em 25/08: 15 linhas
+ * de `abandonada` com a assinatura b3e13358…, todas com o corpo da MESMA pessoa e `qtd`
+ * até 6.
+ */
+const assinaturaDe = (acao: string, etapa: string, erro: string, alvo: string): string =>
+  createHash("md5").update(`${acao}|${etapa}|${normalizarErro(erro)}|${alvo}`).digest("hex")
 
 const textoErro = (e: unknown): string =>
   (e instanceof Error ? limparTexto(e.message, 240) : limparTexto(e, 240)) ?? ""
@@ -70,7 +77,11 @@ export async function alertarFalha(inp: EntradaAlerta): Promise<ResultadoAlerta>
     }
     const etapa = inp.etapa ?? ""
     const erro = textoErro(inp.erro)
-    const assinatura = assinaturaDe(acao, etapa, erro)
+    // Alerta de clique único ('execucao') leva a pessoa na assinatura — é um por ação de
+    // gente, não tem como inundar. Processo em massa ('job'/'workflow') fica SEM: é
+    // justamente ali que 100 falhas idênticas do RM PRECISAM colapsar numa mensagem.
+    const alvo = inp.origem === "execucao" ? (inp.pessoa ?? "") : ""
+    const assinatura = assinaturaDe(acao, etapa, erro, alvo)
 
     const dados: DadosFalha = {
       execucaoId: inp.execucaoId ?? null,
@@ -200,51 +211,58 @@ async function marcar(id: string, erro: string | null): Promise<void> {
 export async function varrerAbandonadas(
   pisoIso: string,
   minutos = 15,
-): Promise<{ marcadas: number; alertadas: number }> {
+): Promise<{ marcadas: number; comEfeito: number; fantasmas: number; alertadas: number }> {
   const { rows } = await query<{
-    id: string; acao: string; etapa_atual: string | null
-    pessoa_nome: string | null; contrato: string | null; irma_ok: boolean
+    id: string; uuid_alvo: string | null; fantasma: boolean
   }>(
-    `UPDATE audit_lancamentos a
+    // O CTE existe pra classificar ANTES de escrever: a mesma linha precisa decidir o
+    // texto do `erro_msg` e voltar no RETURNING, e repetir o EXISTS nos dois lugares
+    // convidava a eles divergirem.
+    `WITH alvo AS (
+       SELECT a.id, a.uuid_alvo, a.erro_msg, a.etapa_atual,
+         -- O trabalho foi feito por OUTRA execução do mesmo alvo? Então isto é linha
+         -- fantasma de algo que DEU CERTO, e não entra na lista de conferência.
+         --
+         -- Dois casos reais: (1) o front abre a execucao, o teto de tempo cancela tarde e
+         -- a rota abre a propria — sobra uma linha fantasma pra uma convocacao que deu
+         -- certo (aconteceu em 12/08 20:08, item 12788484122); (2) o operador tenta,
+         -- falha, tenta de novo e funciona.
+         EXISTS (
+           SELECT 1 FROM audit_lancamentos irma
+            WHERE irma.id <> a.id
+              AND irma.acao = a.acao
+              AND irma.uuid_alvo IS NOT NULL
+              AND irma.uuid_alvo = a.uuid_alvo
+              AND irma.estado IN ('ok', 'parcial')
+              AND irma.criado_em BETWEEN a.criado_em - interval '1 hour'
+                                     AND a.criado_em + interval '1 hour'
+         ) AS fantasma
+         FROM audit_lancamentos a
+        WHERE a.estado = 'aberta'
+          AND a.criado_em < now() - ($2 || ' minutes')::interval
+          AND a.criado_em > $1::timestamptz
+     )
+     UPDATE audit_lancamentos a
         SET estado = 'abandonada', finalizado_em = now(),
-            erro_etapa = COALESCE(erro_etapa, etapa_atual),
-            erro_msg = COALESCE(erro_msg, 'execucao_abandonada: aberta sem fechar')
-      WHERE a.estado = 'aberta'
-        AND a.criado_em < now() - ($2 || ' minutes')::interval
-        AND a.criado_em > $1::timestamptz
-      RETURNING a.id, a.acao, a.etapa_atual, a.pessoa_nome, a.contrato,
-        -- O trabalho foi feito por OUTRA execução do mesmo alvo? Então marca como
-        -- abandonada (é história) mas NÃO alerta.
-        --
-        -- Dois casos reais: (1) o front abre a execucao, o teto de tempo cancela tarde e a
-        -- rota abre a propria — sobra uma linha fantasma pra uma convocacao que deu certo
-        -- (aconteceu em 12/08 20:08, item 12788484122); (2) o operador tenta, falha, tenta
-        -- de novo e funciona. Nos dois o alerta seria mentira.
-        EXISTS (
-          SELECT 1 FROM audit_lancamentos irma
-           WHERE irma.id <> a.id
-             AND irma.acao = a.acao
-             AND irma.uuid_alvo IS NOT NULL
-             AND irma.uuid_alvo = a.uuid_alvo
-             AND irma.estado IN ('ok', 'parcial')
-             AND irma.criado_em BETWEEN a.criado_em - interval '1 hour'
-                                    AND a.criado_em + interval '1 hour'
-        ) AS irma_ok`,
+            erro_etapa = COALESCE(a.erro_etapa, v.etapa_atual),
+            erro_msg = COALESCE(v.erro_msg, CASE
+              WHEN v.fantasma THEN 'execucao_abandonada: linha fantasma, outra execucao do mesmo item fechou ok'
+              WHEN v.uuid_alvo IS NOT NULL THEN 'execucao_abandonada: item ' || v.uuid_alvo || ' criado, fim nao confirmado - conferir'
+              ELSE 'execucao_abandonada: aberta sem fechar, nenhum efeito registrado'
+            END)
+       FROM alvo v
+      WHERE a.id = v.id
+      RETURNING a.id, v.uuid_alvo, v.fantasma`,
     [pisoIso, String(minutos)],
   )
-  let alertadas = 0
-  for (const r of rows) {
-    if (r.irma_ok) continue
-    const res = await alertarFalha({
-      execucaoId: r.id,
-      origem: "abandonada",
-      acao: r.acao,
-      etapa: r.etapa_atual,
-      erro: "a execução abriu e nunca fechou",
-      pessoa: r.pessoa_nome,
-      contrato: r.contrato,
-    })
-    if (res.gravado) alertadas++
-  }
-  return { marcadas: rows.length, alertadas }
+  // NÃO ALERTA — decisão de 25/08. `abandonada` não é falha da automação: ou é linha
+  // fantasma de algo que deu certo, ou é execução que criou o item e parou de reportar
+  // (aba fechada, teto de tempo da função). Nenhum dos dois é alguém pra acordar no
+  // WhatsApp. As 4 abandonadas de produção tinham TODAS `uuid_alvo` preenchido — o item
+  // existia no board. O que elas pedem é CONFERÊNCIA no /atividade, e o `erro_msg` acima
+  // diz qual conferir. O que continua alertando é efeito de dinheiro pela metade, que
+  // fecha 'erro' pela própria rota, não por esta varredura.
+  const comEfeito = rows.filter((r) => !r.fantasma && r.uuid_alvo).length
+  const fantasmas = rows.filter((r) => r.fantasma).length
+  return { marcadas: rows.length, comEfeito, fantasmas, alertadas: 0 }
 }
