@@ -225,11 +225,54 @@ test("abandonada sem alvo nenhum registra que nao houve efeito", async () => {
     await query("UPDATE audit_lancamentos SET criado_em = now() - interval '30 minutes' WHERE id=$1", [ex.id])
     const r = await varrerAbandonadas(PISO, 15)
     assert.equal(r.alertadas, 0)
-    assert.equal(r.comEfeito, 0, "contou como efeito uma execucao sem alvo")
+    // Assere na LINHA, não no contador: a varredura é global, e outra execução aberta
+    // qualquer entraria na contagem e faria este teste falhar sem culpa.
     const { rows } = await query<{ erro_msg: string }>(
       "SELECT erro_msg FROM audit_lancamentos WHERE id=$1", [ex.id],
     )
     assert.match(rows[0]!.erro_msg, /nenhum efeito registrado/)
+  } finally { await limpar() }
+})
+
+// 26/08 11:01, alerta da FABIANA — o furo que ESTE par existe pra fechar. A fantasma
+// nasceu 19:10:45 sem uuid_alvo e com zero fases; a irmã 'ok' nasceu 19:10:46 com o item
+// 12895813874. O guarda comparava só `irma.uuid_alvo = a.uuid_alvo`, e com `a.uuid_alvo`
+// NULL isso nunca é verdade — NULL não casa nem com outro NULL. Resultado: alerta no
+// WhatsApp sobre uma convocação que DEU CERTO.
+test("fantasma SEM uuid_alvo casa a irma por pessoa+periodo", async () => {
+  try {
+    const resumo = { chapa: "007209", data_inicio: "2026-08-26", data_fim: "2026-08-31" }
+    const boa = await abrir({ alvo: "12895813874", resumo })
+    await boa.fechar("ok")
+    const fantasma = await abrir({ resumo })
+    await query("UPDATE audit_lancamentos SET criado_em = now() - interval '30 minutes' WHERE id=$1", [fantasma.id])
+
+    const r = await varrerAbandonadas(PISO, 15)
+    assert.equal(r.alertadas, 0)
+    assert.ok(r.fantasmas >= 1, "nao reconheceu a fantasma sem alvo")
+    const { rows } = await query<{ erro_msg: string }>(
+      "SELECT erro_msg FROM audit_lancamentos WHERE id=$1", [fantasma.id],
+    )
+    assert.match(rows[0]!.erro_msg, /linha fantasma/)
+    const al = await query<{ n: number }>("SELECT count(*)::int n FROM alerta_falha WHERE execucao_id=$1", [fantasma.id])
+    assert.equal(al.rows[0]!.n, 0, "gravou alerta de uma convocacao que deu certo")
+  } finally { await limpar() }
+})
+
+// Controle do par: mesma pessoa, período DIFERENTE, não é fantasma — senão a regra nova
+// engoliria abandonada legítima de quem foi convocado duas vezes no mesmo dia.
+test("mesma pessoa com periodo diferente NAO conta como fantasma", async () => {
+  try {
+    const boa = await abrir({ alvo: "12895813874", resumo: { data_inicio: "2026-08-26", data_fim: "2026-08-31" } })
+    await boa.fechar("ok")
+    const outra = await abrir({ resumo: { data_inicio: "2026-09-10", data_fim: "2026-09-12" } })
+    await query("UPDATE audit_lancamentos SET criado_em = now() - interval '30 minutes' WHERE id=$1", [outra.id])
+
+    await varrerAbandonadas(PISO, 15)
+    const { rows } = await query<{ erro_msg: string }>(
+      "SELECT erro_msg FROM audit_lancamentos WHERE id=$1", [outra.id],
+    )
+    assert.doesNotMatch(rows[0]!.erro_msg, /linha fantasma/, "casou fantasma com periodo diferente")
   } finally { await limpar() }
 })
 

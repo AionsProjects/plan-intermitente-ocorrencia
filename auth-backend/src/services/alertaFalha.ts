@@ -231,11 +231,27 @@ export async function varrerAbandonadas(
            SELECT 1 FROM audit_lancamentos irma
             WHERE irma.id <> a.id
               AND irma.acao = a.acao
-              AND irma.uuid_alvo IS NOT NULL
-              AND irma.uuid_alvo = a.uuid_alvo
               AND irma.estado IN ('ok', 'parcial')
+              AND irma.uuid_alvo IS NOT NULL
               AND irma.criado_em BETWEEN a.criado_em - interval '1 hour'
                                      AND a.criado_em + interval '1 hour'
+              AND (
+                -- as duas linhas conhecem o item
+                irma.uuid_alvo = a.uuid_alvo
+                -- ...OU a fantasma morreu antes de gravar o proprio uuid_alvo. Aí ele é
+                -- NULL, e a igualdade acima NUNCA é verdade — NULL não casa
+                -- com nada, nem com outro NULL. Foi esse furo que deixou o alerta da
+                -- FABIANA sair em 26/08 11:01: fantasma às 19:10:45 com zero fases, irmã
+                -- 'ok' às 19:10:46 com o item 12895813874, e o guarda cego porque a
+                -- fantasma não tinha alvo. Casa então pela INTENÇÃO — pessoa e período —
+                -- que é o que as duas linhas do mesmo clique compartilham.
+                OR (a.uuid_alvo IS NULL
+                    AND a.pessoa_nome IS NOT NULL
+                    AND irma.pessoa_nome = a.pessoa_nome
+                    AND a.payload_resumo->>'data_inicio' IS NOT NULL
+                    AND irma.payload_resumo->>'data_inicio' = a.payload_resumo->>'data_inicio'
+                    AND irma.payload_resumo->>'data_fim' = a.payload_resumo->>'data_fim')
+              )
          ) AS fantasma
          FROM audit_lancamentos a
         WHERE a.estado = 'aberta'
