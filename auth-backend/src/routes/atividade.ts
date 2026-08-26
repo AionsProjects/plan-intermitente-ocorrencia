@@ -16,6 +16,12 @@ import { gerarRelatorioPdf } from "../services/relatorioAtividade.js"
 // contadores. O detalhe sai em `GET /api/atividade/:id`, buscado apenas da linha que
 // o operador expandiu. 200 painéis abertos = 200 requests = auto-DDoS.
 
+/**
+ * Forma do id que o front pode cunhar. Estrito de propósito: o valor entra num `::uuid`
+ * e depois num ON CONFLICT, então recusar aqui é mais barato que confiar no cast.
+ */
+const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
 const NIVEL: Record<Papel, number> = { operacional: 0, rh: 1, dp: 2, admin: 3 }
 const podeVerTodos = (papel: Papel): boolean => (NIVEL[papel] ?? 0) >= NIVEL.dp
 
@@ -91,6 +97,13 @@ export async function rotasAtividade(app: FastifyInstance): Promise<void> {
     async (
       req: FastifyRequest<{
         Body: {
+          /**
+           * Id cunhado pelo FRONT. É o que mata a linha fantasma: o front não depende mais
+           * da resposta desta rota pra saber o id, então abertura lenta ou abortada não
+           * gera segunda linha — quem chegar primeiro cria, o outro se anexa pelo
+           * ON CONFLICT de `abrirExecucao`. Ver o comentário em src/lib/atividade.ts.
+           */
+          id?: string | null
           acao?: string
           alvo?: string | null
           pessoa?: string | null
@@ -107,7 +120,33 @@ export async function rotasAtividade(app: FastifyInstance): Promise<void> {
       const acao = (req.body?.acao ?? "").trim()
       if (!acao) return reply.code(400).send({ erro: "acao_obrigatoria" })
       const nomeOperador = [u.nome, u.sobrenome].filter(Boolean).join(" ").trim() || u.email
+      // Id de FORA: aceita só UUID, e só se a linha ainda não existir ou já for desta
+      // pessoa. O ON CONFLICT desta abertura mexe em motor, correlacao e payload_resumo —
+      // deixar id arbitrario passar daria a um usuario autenticado o poder de mexer na
+      // execucao de outro. Id recusado nao e erro: o servidor cunha o dele e a linha nasce
+      // normal (o front e que perde o reatache).
+      const idPedido = typeof req.body?.id === "string" && RE_UUID.test(req.body.id.trim())
+        ? req.body.id.trim()
+        : null
+      let idAceito: string | null = null
+      if (idPedido) {
+        const { rows } = await query<{ user_id: string | null }>(
+          `SELECT user_id FROM audit_lancamentos WHERE id = $1::uuid`, [idPedido],
+        )
+        if (rows.length === 0) {
+          idAceito = idPedido
+        } else if (rows[0]!.user_id === u.id) {
+          // A linha JÁ existe e é desta pessoa: é a abertura chegando atrasada, depois de a
+          // rota do processo ter criado a linha com o mesmo id. Não há o que abrir — e
+          // reabrir custaria caro, porque o ON CONFLICT de `abrirExecucao` sobrescreve o
+          // `motor` (relabelaria um run de `backend` como `app`) e mescla resumo pobre em
+          // cima do rico. Devolve o id e sai.
+          return { ok: true, id: idPedido, jaExistia: true }
+        }
+        // Linha de outra pessoa: ignora o id e deixa o servidor cunhar o dele.
+      }
       const ex = await abrirExecucao({
+        id: idAceito,
         acao,
         motor: "app",
         operador: { userId: u.id, email: u.email, nome: nomeOperador },
