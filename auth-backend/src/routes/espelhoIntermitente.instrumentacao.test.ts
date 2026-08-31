@@ -204,3 +204,26 @@ test("cleanup", async () => {
   await query("DELETE FROM alerta_falha WHERE acao IN ('registro','cancelamento','split')")
   await query("DELETE FROM audit_lancamentos WHERE operador_email = $1", [MARCA])
 })
+
+// A adoção existe porque `pi.convocacoes` só é povoada por `/api/monday/ativar`, e o webhook
+// `ativar` do board ainda dispara o WF1 — então toda convocação viva nasceu só no Monday e o
+// registro pelo código respondia 404 (PRISCILA CASTRO, 31/08/2026, seis tentativas).
+// Aqui o uuid não existe em lugar NENHUM: nem no espelho, nem no board. O 404 tem de sobreviver
+// à adoção, senão a rota passaria a aceitar uuid inventado.
+test("registro: uuid que não existe nem no espelho nem no board segue 404", async () => {
+  const uuid = randomUUID()
+  try {
+    const r = await postar(`/api/intermitente-finalizar?uuid=${uuid}`, {
+      protocolo: "PROT-ZZZZ-9999",
+      respostas: [{ data: "2026-08-03", tipo: "falta" }],
+      operador: { email: MARCA, nome: "Operador Teste" },
+    })
+    assert.equal(r.statusCode, 404, r.payload)
+    assert.equal(JSON.parse(r.payload).erro, "nao_encontrado")
+    // E nada foi adotado: 404 antes de qualquer escrita.
+    const { rows } = await query(`SELECT 1 FROM convocacoes WHERE uuid = $1`, [uuid])
+    assert.equal(rows.length, 0, "não pode ter criado linha no espelho")
+  } finally {
+    await limpar(uuid)
+  }
+})

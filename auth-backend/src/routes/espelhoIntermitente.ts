@@ -135,6 +135,55 @@ interface LinhaConvocacao {
   editado_em: string | null
 }
 
+/**
+ * Adota no Postgres uma convocação que só existe no board Monday.
+ *
+ * O `registro` resolve a convocação em `pi.convocacoes`, mas quem POVOA essa tabela é
+ * `/api/monday/ativar` — e o webhook `ativar` do board ainda dispara o WF1 do n8n. Resultado:
+ * TODA convocação viva nasceu só no Monday, e o registro pelo código respondia **404**. Foi o
+ * que aconteceu em 31/08/2026 com a PRISCILA CASTRO: seis tentativas, seis 404, nada gravado.
+ *
+ * A dependência estava invertida. Em todo o resto do fluxo o **board é a fonte** e o Postgres é o
+ * espelho — `cancelar` e `split` leem o Histórico e por isso nunca quebraram. Aqui o registro
+ * passa a fazer o mesmo: não achou no espelho, lê o board e adota.
+ *
+ * `DO NOTHING` no conflito, não `DO UPDATE`: adoção é para linha AUSENTE. Se ela existe, o que
+ * está no Postgres é mais novo que o board (o próprio registro acabou de gravar lá) e
+ * sobrescrever com o board seria andar para trás.
+ */
+async function adotarConvocacaoDoMonday(uuid: string): Promise<LinhaConvocacao | null> {
+  const item = await buscarHistoricoPorUuid(uuid)
+  if (!item) return null
+  const origem = parseItemOrigem(item)
+  const t = (col: string): string => textoCol(item, col) ?? ""
+  const ehSim = (v: string): boolean => v.trim().toUpperCase().startsWith("SIM")
+  const ouNulo = (v: string): string | null => (v.trim() ? v.trim() : null)
+  await query(
+    `INSERT INTO convocacoes (
+       uuid, monday_item_id, item_origem_id, chapa, contrato, data_inicio, data_fim,
+       protocolo, status, status_cancelamento, optante_vt, trabalha_sabado, nome, atualizado_em
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,now())
+     ON CONFLICT (uuid) DO NOTHING`,
+    [
+      uuid,
+      item.id,
+      origem.itemId,
+      t(COL_HIST.chapa),
+      ouNulo(t(COL_HIST.contrato)),
+      ouNulo(t(COL_HIST.dataInicio)),
+      ouNulo(t(COL_HIST.dataFim)),
+      ouNulo(t(COL_HIST.protocolo)),
+      ouNulo(t(COL_HIST.status)) ?? "Aguardando",
+      ouNulo(t(COL_HIST.statusCancel)),
+      ehSim(t(COL_HIST.optanteVt)),
+      ehSim(t(COL_HIST.trabalhaSabado)),
+      item.name,
+    ],
+  )
+  const { rows } = await query<LinhaConvocacao>(`SELECT * FROM convocacoes WHERE uuid = $1`, [uuid])
+  return rows[0] ?? null
+}
+
 // Status do board (texto) -> enum do front.
 function statusFront(s: string | null): "aguardando" | "concluido" | "expirado" {
   const n = String(s ?? "").toLowerCase()
@@ -396,7 +445,17 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
         return reply.code(400).send({ ok: false, erro: "protocolo_invalido" })
 
       const { rows } = await query<LinhaConvocacao>(`SELECT * FROM convocacoes WHERE uuid = $1`, [uuid])
-      const c = rows[0]
+      // Espelho primeiro (barato); board depois. A adoção cobre toda convocação nascida no WF1 —
+      // hoje, todas. Ver `adotarConvocacaoDoMonday`.
+      let adotada = false
+      let c = rows[0]
+      if (!c) {
+        const doBoard = await adotarConvocacaoDoMonday(uuid)
+        if (doBoard) {
+          c = doBoard
+          adotada = true
+        }
+      }
       if (!c) return reply.code(404).send({ ok: false, erro: "nao_encontrado" })
 
       // Execução aberta com a ficha já em mão (pessoa/contrato preenchem o cabeçalho) e
@@ -417,6 +476,10 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
           data_fim: soData(c.data_fim),
           eh_correcao: ehCorrecao,
           respostas: respostas.length,
+          // Visível no /atividade: diz que esta convocação não existia no espelho e foi adotada
+          // do board agora. Enquanto o webhook `ativar` apontar pro WF1, isso vai aparecer em
+          // TODAS — e o dia em que parar de aparecer é o dia em que o WF1 saiu do caminho.
+          ...(adotada ? { adotada_do_board: true } : {}),
         },
       })
       await ex.artefato({ tipo: "convocacao_uuid", chave: uuid, rotulo: "Convocação" })
