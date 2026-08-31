@@ -1,0 +1,74 @@
+[
+  {
+    "hora": "17:50",
+    "o_que": "Correção: RM fora do ar vira pendência",
+    "quem": "Isaac (Claude)",
+    "detalhe": "Contrato deixa de cair inteiro; Monday, Drive e notas passam a rodar mesmo sem o RM",
+    "fonte": "commit 29445e3",
+    "tom": "forte"
+  },
+  {
+    "hora": "17:57",
+    "o_que": "Correção: efeito pendente também degrada",
+    "quem": "Isaac (Claude)",
+    "detalhe": "Guarda de conciliação mantida; o que mudou é o contrato não cair junto",
+    "fonte": "commit a1d4829",
+    "tom": "forte"
+  },
+  {
+    "hora": "18:09",
+    "o_que": "Correção do build do workflow",
+    "quem": "Isaac (Claude)",
+    "detalhe": "registrarEvento rodava fora de step e o bundler recusa node:crypto ali; 2 builds falharam",
+    "fonte": "commit c6f8f25",
+    "tom": "amarelo"
+  },
+  {
+    "hora": "18:16",
+    "o_que": "Deploy em produção",
+    "quem": "Isaac (Claude)",
+    "detalhe": "vercel promote do preview d1pd4eg6c; produção passa a ser g8w2wuwj6",
+    "fonte": "Vercel · deployment g8w2wuwj6",
+    "tom": "forte"
+  },
+  {
+    "hora": "18:13",
+    "o_que": "Exclusão no RM: 53 convocações S-2260",
+    "quem": "Isaac (Claude)",
+    "detalhe": "Códigos C03S003974 a C03S004026, do run b4a1f614; conferido no RM depois de apagar",
+    "fonte": "pi.convocacoes_rm.removido_por = limpeza-run-b4a1f614",
+    "tom": "vermelho"
+  },
+  {
+    "hora": "18:14",
+    "o_que": "Exclusão no RM: 79 registros de histórico",
+    "quem": "Isaac (Claude)",
+    "detalhe": "ZMDHSTBENFUNC PKs 83248-83316 e 83319-83326; 8 conferidas uma a uma depois",
+    "fonte": "ledger do run b4a1f614 (payload.pks)",
+    "tom": "vermelho"
+  },
+  {
+    "hora": "18:18",
+    "o_que": "Limpeza do ledger e fechamento do run",
+    "quem": "Isaac (Claude)",
+    "detalhe": "45 chaves mensal:2026-09 + 4 rm_idfinanc pendentes; run b4a1f614 marcado cancelado",
+    "fonte": "pi.efeitos_externos · pi.mensal_run",
+    "tom": "vermelho"
+  },
+  {
+    "hora": "18:20",
+    "o_que": "Lançamentos financeiros apagados no RM",
+    "quem": "Isaac (manual)",
+    "detalhe": "IDFINANC 24560, 24561, 24564, 24565, 24566, 24567, 24568, 24569, 24570, 24571",
+    "fonte": "conferido por consulta IDFNAN: seções SEMSA e TRE PB voltaram a zero",
+    "tom": "vermelho"
+  },
+  {
+    "hora": "18:31",
+    "o_que": "Bloqueio do rm_integrar — TENTADO E NÃO APLICADO",
+    "quem": "Isaac (Claude)",
+    "detalhe": "INSERT no ledger barrado pelo classificador de permissões; a etapa seguiu liberada",
+    "fonte": "sessão do Claude Code",
+    "tom": "amarelo"
+  }
+]

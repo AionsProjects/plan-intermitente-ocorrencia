@@ -28,7 +28,8 @@
     "rm:atestados": "node --env-file=.env --import tsx src/scripts/rm-atestados.ts",
     "importar:convocacoes": "node --env-file=.env --import tsx src/scripts/importar-convocacoes.ts",
     "migrate:dist": "node dist/scripts/migrate.js",
-    "seed:dist": "node dist/scripts/seed.js"
+    "seed:dist": "node dist/scripts/seed.js",
+    "relatorio": "node --env-file=.env --import tsx src/scripts/relatorio-periodo.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",
