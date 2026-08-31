@@ -30,7 +30,36 @@ function base(): string {
   return config.rmBridgeUrl.replace(/\/$/, "")
 }
 
+// Timeout da ponte. Sem isto, uma ponte pendurada (lenta, sem recusar) prendia a função até a
+// plataforma matá-la — SEM exceção, então nenhum `catch` rodava e o efeito ficava `pendente` no
+// ledger para sempre. Foi o que produziu os dois `efeito_pendente_requer_conciliacao:rm_integrar`
+// de 31/08/2026 (ANGELA e ALCINEI): reserva feita, `integrarIdfinanc` pendurado, morte silenciosa,
+// e o retry do workflow batendo na guarda. O caminho SOAP direto já tinha timeout; a ponte não.
+const TIMEOUT_PONTE_LEITURA_MS = 30_000
+const TIMEOUT_PONTE_ESCRITA_MS = 120_000
+
+/** Só `/consultar-rm` lê; todo o resto executa processo, envia registro ou apaga. */
+export function ehLeituraPonte(path: string): boolean {
+  return path === "/consultar-rm"
+}
+
+/** AbortSignal.timeout dispara TimeoutError; rede lenta também pode vir como AbortError. */
+export function ehTimeout(e: unknown): boolean {
+  const nome = (e as { name?: string } | null)?.name ?? ""
+  return nome === "TimeoutError" || nome === "AbortError"
+}
+
+/**
+ * Repetir depois de um timeout é seguro na LEITURA e proibido na ESCRITA — o `AbortSignal` corta
+ * o nosso lado, não o do RM, então o processo pode ter executado. Repetir ali duplicaria histórico
+ * ou lançamento financeiro. É a mesma assimetria que `seguroCairPraPonte` aplica ao fallback.
+ */
+export function podeRepetirAposFalha(path: string, e: unknown): boolean {
+  return ehLeituraPonte(path) || !ehTimeout(e)
+}
+
 async function post<T = unknown>(path: string, body: unknown, tentativas = 3): Promise<T> {
+  const timeoutMs = ehLeituraPonte(path) ? TIMEOUT_PONTE_LEITURA_MS : TIMEOUT_PONTE_ESCRITA_MS
   let ultimo: unknown
   for (let i = 0; i < tentativas; i++) {
     try {
@@ -38,13 +67,19 @@ async function post<T = unknown>(path: string, body: unknown, tentativas = 3): P
         method: "POST",
         headers: { "Content-Type": "application/json", "AIONS-AUTH": config.rmAionsAuth },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(timeoutMs),
       })
       const txt = await r.text()
       const json = txt ? safeJson(txt) : null
       if (!r.ok) throw erro(`RM ${path} HTTP ${r.status}`, r.status, json ?? txt.slice(0, 300))
       return json as T
     } catch (e) {
-      ultimo = e
+      // Mensagem própria: "TimeoutError: signal timed out" não diz nem a rota nem o tempo, e é
+      // exatamente a linha que faltava para diagnosticar a morte silenciosa.
+      ultimo = ehTimeout(e)
+        ? erro(`RM ${path} timeout apos ${timeoutMs}ms — desfecho DESCONHECIDO no RM`)
+        : e
+      if (!podeRepetirAposFalha(path, e)) break
       if (i < tentativas - 1) await sleep(800 * (i + 1)) // backoff linear
     }
   }
