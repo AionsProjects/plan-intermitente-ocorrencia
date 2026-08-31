@@ -1100,9 +1100,10 @@ async function processarContrato(
         if (i < nLotesCredito - 1 && esperaLoteMs > 0) await sleep(esperaLoteMs)
       }
     } catch (e) {
-      // FatalError NÃO degrada: efeito pendente à espera de conciliação e convocação que exige
-      // decisão do DP continuam derrubando o contrato. Degradar apagaria a única coisa que faz
-      // alguém olhar — e são justamente os casos em que seguir gravando seria mentir.
+      // Só a convocação que exige decisão do DP ainda derruba o contrato: gravar board e Drive
+      // por cima dela seria registrar um pagamento que talvez não devesse existir. Efeito pendente
+      // DEGRADA (decisão do Isaac, 31/08) — a guarda que impede re-chamar o RM continua de pé, o
+      // que deixou de acontecer é o contrato inteiro cair junto e o board ficar vazio.
       if (ehFatal(e)) throw e
       rmPendencia = mensagemErro(e)
       await registrarEvento({

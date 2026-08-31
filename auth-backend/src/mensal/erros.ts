@@ -23,16 +23,33 @@ export function mensagemErro(e: unknown): string {
 }
 
 /**
- * `FatalError` é o erro que EXIGE gente: efeito pendente à espera de conciliação, convocação do RM
- * com pendência que o DP tem de resolver. Ele NÃO degrada para pendência — degradar apagaria a
- * única coisa que faz alguém olhar.
+ * Efeito que ficou reservado sem confirmação — o step morreu entre reservar e confirmar, e o
+ * desfecho no sistema externo é DESCONHECIDO.
+ *
+ * A guarda que estoura isso continua certa e continua no lugar: ninguém re-chama o RM por cima de
+ * um efeito pendente. O que mudou (decisão do Isaac, 31/08/2026) é o que o CONTRATO faz com ela:
+ * antes derrubava o contrato inteiro e o board ficava vazio; agora vira pendência e as pernas que
+ * não dependem do RM seguem. A conciliação continua sendo trabalho de gente — só deixou de levar
+ * o resto do pagamento junto.
+ */
+export function ehPendenciaDeEfeito(e: unknown): boolean {
+  return /efeito_pendente_requer_conciliacao/.test(mensagemErro(e))
+}
+
+/**
+ * `FatalError` é o erro que EXIGE gente ANTES de qualquer outra escrita — hoje, convocação do RM
+ * com pendência que o DP tem de resolver. Ele NÃO degrada: seguir gravando board e Drive por cima
+ * de uma convocação irresolvida seria registrar um pagamento que talvez não devesse existir.
  *
  * Por nome, não por `instanceof`: a classe não sobrevive à serialização do step, mas o `name` sim
  * (é o que a Vercel mostra em `errorName`).
+ *
+ * Efeito pendente é a EXCEÇÃO explícita: também chega como FatalError, e desde 31/08 degrada.
  */
 export function ehFatal(e: unknown): boolean {
+  if (ehPendenciaDeEfeito(e)) return false
   const nome = (e as { name?: unknown } | null)?.name
   if (nome === "FatalError") return true
   // Rede/timeout do RM não é fatal — é exatamente o caso que deve virar pendência.
-  return /efeito_pendente_requer_conciliacao|requer_decisao/.test(mensagemErro(e))
+  return /requer_decisao/.test(mensagemErro(e))
 }
