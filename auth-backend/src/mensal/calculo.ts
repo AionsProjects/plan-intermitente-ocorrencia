@@ -169,15 +169,11 @@ function resolverRegra(regras: RegraBeneficioMensal[], pessoa: ConvocacaoMensal)
 // vez de × 30 corridos). Espelha o nó "Code in JavaScript1" do WF5 Pontual, que faz
 // `if (__vrTodosDias && !__ehUtil) diasVR++`. Só o VR muda; o VT segue seg-sex (+sábado).
 //
-// TETO DO MÊS — o dia 31 NÃO conta no VR de regra mensal. O divisor é 30 fixo, então contar 31
-// dias corridos paga 31/30 do benefício: em agosto/2026 o MICHEL levou 607,60 de um mensal de
-// 588,00. Com o dia 31 fora, mês cheio fecha EXATAMENTE o mensal e período parcial segue
-// proporcional (03–31/08 = 28 dias, não 29). Regra do DP, apurada na correção manual do DETRAN
-// de 03/08/2026 (Thifany, board 08/26): pagamos 149,45 a mais em 8 pessoas — 1 dia cada — e o
-// TRE PB 22,00. Mês de 30 dias ou menos não é afetado. ✅ O WF5 Pontual TAMBÉM tem o teto desde
-// 07/08/2026 (`__vrForaDoTeto`, no mesmo `Code in JavaScript1`, aplicado via UPDATE na coluna
-// `nodes` do Postgres do n8n) — sem ele os 3 pontuais DETRAN de 08/2026 saíam com 28 dias em vez
-// de 27. Então nesta regra as duas pontas concordam; a divergência que sobra é o feriado (acima).
+// O TETO DO DIA 31 SAIU em 31/08/2026 (decisão do Isaac): o VR de regra mensal deixou de somar
+// dias e passou a SUBTRAIR do mensal cheio, como o motor celetista — ver `vrMensalCeletista`. Com
+// a forma subtrativa o dia 31 não paga 31/30 de nada (o que ele paga já está dentro do mensal),
+// então o teto virou remendo de um problema que não existe mais. A contagem de dias volta a ser
+// a real, e é ela que vai pras colunas de dias do board.
 function diasElegiveis(
   p: ConvocacaoMensal,
   feriados: FeriadoMensal[],
@@ -188,11 +184,40 @@ function diasElegiveis(
     const dia = Number(data.slice(-2)), dow = new Date(`${data}T00:00:00Z`).getUTCDay()
     if (p.escala12x36) return p.escala12x36 === "PAR" ? dia % 2 === 0 : dia % 2 === 1
     const corrido = vr && vrTodosDias
-    if (corrido && dia > 30) return false
     if (!corrido && (dow === 0 || (dow === 6 && (vr || !p.trabalhaSabado)))) return false
     const feriado = feriados.some((f) => f.data === data && (normMensal(f.tipo) === "NACIONAL" || f.contratos.map(normMensal).includes(normMensal(p.contrato))))
     return !feriado || normMensal(p.contrato).startsWith("SEDUC") || normMensal(p.contrato) === "DETRAN"
   })
+}
+
+/**
+ * VR de regra MENSAL na forma do motor celetista (decisão do Isaac, 31/08/2026): parte do mensal
+ * CHEIO e subtrai `mensal/30` por dia NÃO coberto, em vez de somar dia a dia.
+ *
+ *   VR = mensal − (mensal/30) × (diasBase − diasCobertos)
+ *
+ * `diasBase` são os dias 1..min(30, último dia do mês) — o dia 31 fica fora porque o divisor é 30
+ * fixo, exatamente o `corr30()` do celetista (FIX 13, v44). É isso que dispensa o antigo teto do
+ * dia 31: mês cheio de 31 dias fecha o mensal exato sem precisar descartar dia nenhum.
+ *
+ * Onde as duas formas divergem: **mês com menos de 31 dias**. Em fevereiro `diasBase` é 28, então
+ * o mês inteiro coberto paga o mensal CHEIO (588,00) onde a soma pagava 28/30 (548,80) — é a
+ * divergência que esta mudança fecha. A contrapartida é que período PARCIAL em fevereiro ganha
+ * (30 − diasBase) dias: 10 dias cobertos pagam como 12. É a aritmética da forma subtrativa, que
+ * pressupõe o mês como base; está registrado no Brain para o DP confirmar.
+ *
+ * Zero dias cobertos é 0, não `mensal − mensal/30 × diasBase` — sem esta guarda fevereiro inteiro
+ * bloqueado deixaria 39,20 de resíduo, que é o bug que o FIX 13 consertou no celetista.
+ */
+export function vrMensalCeletista(vrMensal: number, vrDia: number, diasBase: number, diasCobertos: number): number {
+  if (diasCobertos <= 0) return 0
+  return r2(Math.max(0, vrMensal - vrDia * Math.max(0, diasBase - diasCobertos)))
+}
+
+/** Dias do mês que entram na base do divisor 30: 1..min(30, último dia). */
+export function diasBase30(mesRef: string): number {
+  const [ano, mes] = mesRef.split("-").map(Number)
+  return Math.min(30, new Date(Date.UTC(ano!, mes!, 0)).getUTCDate())
 }
 
 /**
@@ -244,17 +269,38 @@ export function calcularMensal(
       else if (base.vtSoVolta) vtDia = r2(vtDia / 2)
       // Dias por LINHA (convocação) — necessário pros updates por item do Plano.
       // Paridade pontual: dias VT só contam quando vtDia > 0 (não-optante grava 0 dias).
-      const linhasDias = linhas.map((l) => ({
-        itemId: l.itemId,
-        inicio: l.inicio,
-        // Regra mensal -> VR por dias corridos (o /30 é mês corrido). VT nunca muda.
-        nVR: diasElegiveis(l, feriados, true, tipoVRMensal).length,
-        nVT: vtDia > 0 ? diasElegiveis(l, feriados, false).length : 0,
-      }))
+      const mesRef = linhas.map((l) => l.inicio).sort()[0]!.slice(0, 7)
+      const diasBase = diasBase30(mesRef)
+      /** Dias da linha que entram na BASE do divisor 30 (mês de referência, dia <= 30). É o peso
+       *  do rateio na regra mensal — `nVR` é a contagem real, que vai pras colunas de dias. */
+      const naBase = (dias: string[]): string[] =>
+        dias.filter((d) => d.slice(0, 7) === mesRef && Number(d.slice(-2)) <= diasBase)
+      const linhasDias = linhas.map((l) => {
+        const diasVR = diasElegiveis(l, feriados, true, tipoVRMensal)
+        return {
+          itemId: l.itemId,
+          inicio: l.inicio,
+          // Regra mensal -> VR por dias corridos (o /30 é mês corrido). VT nunca muda.
+          nVR: diasVR.length,
+          nVR30: tipoVRMensal ? naBase(diasVR).length : diasVR.length,
+          diasVR30: tipoVRMensal ? naBase(diasVR) : [],
+          nVT: vtDia > 0 ? diasElegiveis(l, feriados, false).length : 0,
+        }
+      })
       const totalDiasVR = linhasDias.reduce((n, l) => n + l.nVR, 0)
       const totalDiasVT = linhasDias.reduce((n, l) => n + l.nVT, 0)
-      let brutoVR = r2(vrDia * totalDiasVR)
+      // Regra MENSAL: forma subtrativa do celetista (mensal − mensal/30 × dias não cobertos).
+      // Os dias cobertos vêm da UNIÃO das convocações da pessoa no mês, sem contar data duas
+      // vezes — duas convocações que se sobrepõem não podem pagar o mesmo dia duas vezes.
+      // Regra DIÁRIA: segue somando dia × valor-dia; nada muda.
+      const cobertosVR = new Set(linhasDias.flatMap((l) => l.diasVR30))
+      let brutoVR = tipoVRMensal
+        ? vrMensalCeletista(regra.vrMensal, vrDia, diasBase, cobertosVR.size)
+        : r2(vrDia * totalDiasVR)
       let brutoVT = r2(vtDia * totalDiasVT)
+      // O bruto por LINHA (coluna `VR - MENSAL` e teto de crédito) é rateado a partir do total da
+      // pessoa: com a forma subtrativa, `vrDia × dias da linha` já não soma o total.
+      const brutoVRInicial = brutoVR
       let descontoVR = 0, descontoVT = 0
       for (const d of descontos.filter((x) => x.pessoaKey === key).sort((a, b) => a.inicio.localeCompare(b.inicio))) {
         const tiraVR = Math.min(brutoVR, d.residualVR), tiraVT = Math.min(brutoVT, d.residualVT)
@@ -289,8 +335,26 @@ export function calcularMensal(
       const creditoVR = r2(Math.min(brutoVR, tetoVR)), creditoVT = r2(Math.min(brutoVT, tetoVT))
       // Alocação do crédito por linha (ordem: inicio, itemId) — espelha o n8n.
       let remVR = creditoVR, remVT = creditoVT
-      for (const l of [...linhasDias].sort((a, b) => a.inicio.localeCompare(b.inicio) || a.itemId.localeCompare(b.itemId))) {
-        const maxVR = r2(vrDia * l.nVR), maxVT = r2(vtDia * l.nVT)
+      const linhasOrdenadas = [...linhasDias].sort((a, b) => a.inicio.localeCompare(b.inicio) || a.itemId.localeCompare(b.itemId))
+      // Rateio do bruto do VR entre as linhas, proporcional aos dias de cada uma; a sobra de
+      // arredondamento cai na última, para a soma das linhas bater com o total da pessoa ao
+      // centavo (é o número que o DP confere contra o board).
+      // Só a regra mensal rateia — na diária `vrDia × dias` já é exato e mexer nele mudaria
+      // centavo de contrato que não tem nada a ver com esta decisão.
+      const rateioVR = new Map<string, number>()
+      const pesoTotal = linhasOrdenadas.reduce((n, l) => n + l.nVR30, 0)
+      let alocado = 0
+      linhasOrdenadas.forEach((l, i) => {
+        const valor = !tipoVRMensal
+          ? r2(vrDia * l.nVR)
+          : i === linhasOrdenadas.length - 1
+            ? r2(brutoVRInicial - alocado)
+            : r2(pesoTotal > 0 ? (brutoVRInicial * l.nVR30) / pesoTotal : 0)
+        alocado = r2(alocado + valor)
+        rateioVR.set(l.itemId, valor)
+      })
+      for (const l of linhasOrdenadas) {
+        const maxVR = rateioVR.get(l.itemId) ?? 0, maxVT = r2(vtDia * l.nVT)
         const credVR = r2(Math.min(remVR, maxVR)), credVT = r2(Math.min(remVT, maxVT))
         remVR = r2(remVR - credVR); remVT = r2(remVT - credVT)
         planUpdates.push({

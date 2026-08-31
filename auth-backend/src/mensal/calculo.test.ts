@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { calcularMensal, type ConvocacaoMensal, type RegraBeneficioMensal } from "./calculo.js"
+import { calcularMensal, type ConvocacaoMensal, type RegraBeneficioMensal, diasBase30, vrMensalCeletista } from "./calculo.js"
 
 const pessoa = (extra: Partial<ConvocacaoMensal> = {}): ConvocacaoMensal => ({ itemId: "1", nome: "Teste", chapa: "1", cpf: "1",
   contrato: "CETAM", funcao: "AUXILIAR", interior: "NAO", inicio: "2026-07-01", fim: "2026-07-10",
@@ -42,7 +42,8 @@ test("regra VR Mensal: valor-dia mensal/30 x dias CORRIDOS — paridade com o WF
 
 test("VR - MENSAL leva o ganho por LINHA, não o parâmetro — caso real DETRAN 08/2026", () => {
   const rMensal: RegraBeneficioMensal = { ...regra, contrato: "DETRAN", vrDia: 0, vrMensal: 588 }
-  // Mesma pessoa com 2 convocações, como o MICHEL: 01-03/08 (3 dias) e 04-31/08 (27 com o teto).
+  // Mesma pessoa com 2 convocações, como o MICHEL: 01-03/08 (3 dias) e 04-31/08. O rateio pesa
+  // pelos dias DENTRO da base de 30, então o dia 31 não puxa valor pra linha B.
   const r = calcularMensal([
     pessoa({ itemId: "A", contrato: "DETRAN", inicio: "2026-08-01", fim: "2026-08-03" }),
     pessoa({ itemId: "B", contrato: "DETRAN", inicio: "2026-08-04", fim: "2026-08-31" }),
@@ -55,29 +56,32 @@ test("VR - MENSAL leva o ganho por LINHA, não o parâmetro — caso real DETRAN
   assert.equal(Math.round((porItem["A"]! + porItem["B"]!) * 100) / 100, 588)
 })
 
-test("regra VR Mensal: o dia 31 não conta — mês cheio fecha EXATAMENTE o mensal", () => {
+// --- VR mensal na forma do celetista (31/08/2026) -------------------------------------------
+// `mensal − mensal/30 × dias não cobertos`, com a base do divisor em 1..min(30, dias do mês).
+// O teto do dia 31 SAIU: a forma subtrativa não paga 31/30 de nada, então a contagem de dias
+// voltou a ser a real (é ela que vai pras colunas do board).
+
+test("VR Mensal: mês cheio de 31 dias fecha o mensal cravado, e os dias são os reais", () => {
   const rMensal: RegraBeneficioMensal = { ...regra, vrDia: 0, vrMensal: 588 }
-  // Agosto/2026 tem 31 dias corridos, mas o divisor é 30 fixo. Contar os 31 pagaria 607,60 —
-  // 31/30 do benefício. Foi o que pagamos a mais no DETRAN em 03/08/2026.
   const r = calcularMensal([pessoa({ inicio: "2026-08-01", fim: "2026-08-31" })], [rMensal], [], [])
   const p = r.contratos[0]!.pessoas[0]!
-  assert.equal(p.diasVR, 30)
-  assert.equal(p.brutoVR, 588) // 19,60 x 30 = o mensal cravado
-  // O teto é do VR. O VT segue dias úteis e o dia 31 (segunda) continua contando: 21 em agosto.
+  assert.equal(p.diasVR, 31, "dias reais — o dia 31 deixou de ser descartado")
+  assert.equal(p.brutoVR, 588, "nenhum dia não coberto -> mensal cheio, sem os 31/30 de antes")
+  // O VT segue dias úteis e o dia 31 (segunda) continua contando: 21 em agosto.
   assert.equal(p.diasVT, 21)
 })
 
-test("regra VR Mensal: período parcial que cruza o dia 31 segue proporcional, sem o 31", () => {
+test("VR Mensal: período parcial desconta só os dias não cobertos — caso JAMILE 03-31/08", () => {
   const rMensal: RegraBeneficioMensal = { ...regra, vrDia: 0, vrMensal: 588 }
-  // Caso real JAMILE (DETRAN, 03-31/08/2026): 29 dias corridos, 28 depois do teto.
-  // Não é teto de 30 no total da pessoa — se fosse, 29 < 30 e ela ficaria com 29.
+  // 01 e 02/08 fora do período = 2 dias não cobertos: 588 - 2 x 19,60 = 548,80. É o número que a
+  // Thifany digitou no board, e o mesmo que a forma antiga dava com o teto.
   const r = calcularMensal([pessoa({ inicio: "2026-08-03", fim: "2026-08-31" })], [rMensal], [], [])
   const p = r.contratos[0]!.pessoas[0]!
-  assert.equal(p.diasVR, 28)
+  assert.equal(p.diasVR, 29)
   assert.equal(p.brutoVR, 548.8)
 })
 
-test("regra VR Mensal: mês de 30 dias não é afetado pelo teto", () => {
+test("VR Mensal: mês de 30 dias inteiro paga o mensal cheio", () => {
   const rMensal: RegraBeneficioMensal = { ...regra, vrDia: 0, vrMensal: 588 }
   const r = calcularMensal([pessoa({ inicio: "2026-09-01", fim: "2026-09-30" })], [rMensal], [], [])
   const p = r.contratos[0]!.pessoas[0]!
@@ -85,8 +89,43 @@ test("regra VR Mensal: mês de 30 dias não é afetado pelo teto", () => {
   assert.equal(p.brutoVR, 588)
 })
 
-test("regra DIÁRIA ignora o teto — dia 31 útil continua contando no VR", () => {
-  // 31/08/2026 é segunda. O teto vale só pra regra mensal (vrMensal > 0).
+test("VR Mensal: FEVEREIRO inteiro paga o mensal CHEIO — é o que a forma subtrativa muda", () => {
+  const rMensal: RegraBeneficioMensal = { ...regra, vrDia: 0, vrMensal: 588 }
+  // Base de fevereiro/2027 = 28 dias; cobertos 28 -> nada a subtrair. A forma antiga somava
+  // 28 x 19,60 = 548,80 e divergia do celetista em 39,20 por pessoa.
+  const r = calcularMensal([pessoa({ inicio: "2027-02-01", fim: "2027-02-28" })], [rMensal], [], [])
+  assert.equal(r.contratos[0]!.pessoas[0]!.brutoVR, 588)
+})
+
+test("VR Mensal: em fevereiro o período parcial ganha os dias que faltam pra 30 (aritmética da forma)", () => {
+  const rMensal: RegraBeneficioMensal = { ...regra, vrDia: 0, vrMensal: 588 }
+  // 10 dias cobertos, 18 não cobertos: 588 - 18 x 19,60 = 235,20 = 12 x 19,60. Consequência
+  // conhecida de subtrair do mensal num mês com menos de 31 dias — decisão do Isaac (31/08),
+  // registrada no Brain pro DP confirmar.
+  const r = calcularMensal([pessoa({ inicio: "2027-02-01", fim: "2027-02-10" })], [rMensal], [], [])
+  const p = r.contratos[0]!.pessoas[0]!
+  assert.equal(p.diasVR, 10)
+  assert.equal(p.brutoVR, 235.2)
+})
+
+test("vrMensalCeletista: nenhum dia coberto é ZERO, não o resíduo de fevereiro", () => {
+  // Sem a guarda, mês inteiro sem cobertura deixaria 588 - 28 x 19,60 = 39,20 — o mesmo bug que
+  // o FIX 13 (v44) consertou no celetista.
+  assert.equal(vrMensalCeletista(588, 19.6, 28, 0), 0)
+  assert.equal(vrMensalCeletista(588, 19.6, 30, 0), 0)
+  // E nunca devolve negativo, mesmo com base maior que o mensal comporta.
+  assert.equal(vrMensalCeletista(588, 19.6, 60, 1), 0)
+})
+
+test("diasBase30: dia 31 fora da base; fevereiro entra com os dias que tem", () => {
+  assert.equal(diasBase30("2026-08"), 30) // 31 dias -> base 30
+  assert.equal(diasBase30("2026-09"), 30)
+  assert.equal(diasBase30("2027-02"), 28)
+  assert.equal(diasBase30("2028-02"), 29) // bissexto
+})
+
+test("regra DIÁRIA não muda: dia 31 útil continua contando no VR", () => {
+  // 31/08/2026 é segunda. A forma subtrativa vale só pra regra mensal (vrMensal > 0).
   const r = calcularMensal([pessoa({ inicio: "2026-08-31", fim: "2026-08-31" })], [regra], [], [])
   const p = r.contratos[0]!.pessoas[0]!
   assert.equal(p.diasVR, 1)
