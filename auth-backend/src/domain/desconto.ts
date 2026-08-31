@@ -27,7 +27,17 @@ export function norm(v: unknown): string {
 // 22,00 TRE PB. Antes o desconto era zerado e a pessoa recebia o mensal cheio mesmo faltando
 // (zero itens DETRAN/TRE no board Desconto provavam isso). SEDUC* continua sem desconto —
 // não entrou na decisão.
-export const CONTRATOS_NAO_DESCONTAM: string[] = []
+//
+// 🔁 O **DETRAN VOLTOU** em 31/08/2026, alinhando o intermitente à v56 do motor celetista
+// (20/08): no DETRAN, falta, atestado e declaração NÃO descontam — só afastamento e aviso
+// prévio, que aqui não são ocorrência de dia e sim ausência de convocação. Antes disso a mesma
+// pessoa era tratada de dois jeitos conforme o vínculo: celetista faltava e recebia o mensal
+// cheio, intermitente faltava e levava VR Mensal/30 no board Desconto.
+//
+// **TRE PB continua descontando** — a v56 apertou o escopo no DETRAN e deixou o grupo D de pé.
+// Cancelamento segue descontando em todos (chama com `aplicarRegraNaoDesconta: false`), igual ao
+// SEDUC: cancelar não é falta, é dia que não existiu.
+export const CONTRATOS_NAO_DESCONTAM: string[] = ["DETRAN"]
 export function naoDesconta(contrato: string): boolean {
   const c = norm(contrato)
   return CONTRATOS_NAO_DESCONTAM.includes(c) || c.startsWith("SEDUC")

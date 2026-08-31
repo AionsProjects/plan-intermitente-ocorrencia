@@ -108,13 +108,33 @@ test("calcularDesconto: vtSoVolta corta VT pela metade", () => {
 
 // Decisão do Isaac, 12/08/2026: DETRAN/TRE PB VOLTARAM a descontar — dia não trabalhado
 // tira (VR Mensal/30) por dia. A regra de "nunca desconta" ficou só pro SEDUC.
-test("calcularDesconto: DETRAN/TRE PB descontam por falta (12/08/2026)", () => {
-  assert.equal(naoDesconta("DETRAN"), false)
+test("calcularDesconto: TRE PB desconta por falta (12/08/2026)", () => {
   assert.equal(naoDesconta("TRE PB"), false)
   assert.equal(naoDesconta("CETAM"), false)
   const r = calcularDesconto({
-    // 17,15 = 514,50/30 — o valor-dia que resolverValores deriva do VR Mensal.
+    // 22,00 = 660,00/30 — o valor-dia que resolverValores deriva do VR Mensal.
+    vrDia: 22, vtDia: 10, optanteVT: true, contrato: "TRE PB",
+    descontosPorDia: [{ vr: true, vt: true, vr_percentual: 100 }],
+  })
+  assert.equal(r.descontoVR, 22)
+  assert.equal(r.descontoVT, 10)
+})
+
+test("calcularDesconto: DETRAN não desconta por falta/atestado (v56 do celetista, 31/08/2026)", () => {
+  assert.equal(naoDesconta("DETRAN"), true)
+  assert.equal(naoDesconta("detran"), true) // normalização
+  const r = calcularDesconto({
     vrDia: 17.15, vtDia: 10, optanteVT: true, contrato: "DETRAN",
+    descontosPorDia: [{ vr: true, vt: true, vr_percentual: 100 }],
+  })
+  assert.equal(r.descontoVR, 0)
+  assert.equal(r.descontoVT, 0)
+})
+
+test("calcularDesconto: cancelamento ainda desconta no DETRAN (não é falta, é dia inexistente)", () => {
+  const r = calcularDesconto({
+    vrDia: 17.15, vtDia: 10, optanteVT: true, contrato: "DETRAN",
+    aplicarRegraNaoDesconta: false,
     descontosPorDia: [{ vr: true, vt: true, vr_percentual: 100 }],
   })
   assert.equal(r.descontoVR, 17.15)
