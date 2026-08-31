@@ -13,7 +13,8 @@ export type StatusRunMensal =
   | "cancelado"
   | "cancelado_com_pendencia"
 
-export type StatusContratoMensal = "pendente" | "rodando" | "ok" | "erro" | "bloqueado" | "cancelado"
+/** `parcial` = as pernas que não dependem do RM fecharam; o lançamento no RM ficou pendente. */
+export type StatusContratoMensal = "pendente" | "rodando" | "ok" | "parcial" | "erro" | "bloqueado" | "cancelado"
 
 export interface PessoaPreviaMensal {
   itemId: string

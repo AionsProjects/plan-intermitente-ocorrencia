@@ -32,6 +32,7 @@ import {
   registrarEvento,
   runFoiCancelado,
 } from "../auth-backend/src/mensal/repo.js"
+import { ehFatal, mensagemErro } from "../auth-backend/src/mensal/erros.js"
 import {
   RM_COLIGADA,
   RM_DATA_SERVER_HISTORICO,
@@ -991,7 +992,7 @@ async function marcarContratoRodando(runId: string, contrato: string): Promise<v
 async function marcarContratoFinal(
   runId: string,
   contrato: string,
-  status: "ok" | "erro" | "bloqueado",
+  status: "ok" | "parcial" | "erro" | "bloqueado",
   erro?: string,
   referencias?: Record<string, unknown>,
 ): Promise<void> {
@@ -1042,42 +1043,73 @@ async function processarContrato(
     const pixVR = await executarPedidoCaju(runId, modo, competencia, contrato.contrato, "boleto", "VR", pessoasComId)
     const pixVT = await executarPedidoCaju(runId, modo, competencia, contrato.contrato, "boleto", "VT", pessoasComId)
 
-    // Convocação no RM (S-2260) ANTES do financeiro — decisão 2 do Isaac: a convocação precede o
-    // pagamento na ordem do eSocial. Pendência humana lança FatalError e o contrato marca erro
-    // (decisão 4): o pagamento deste contrato só roda depois que o DP resolver e retomar.
-    await executarConvocacaoRmContrato(runId, modo, competencia, contrato.contrato, snapshot.boardId)
+    // RM DEGRADÁVEL — decisão do Isaac (31/08/2026).
+    //
+    // Antes, qualquer falha aqui derrubava o contrato inteiro no `catch` lá embaixo e o Monday, o
+    // Drive, as notas e o status NÃO rodavam. Foi o que aconteceu no run `b4a1f614`: os 5
+    // contratos criaram pedido na Caju (dinheiro real), morreram no `rm_integrar` com o RM fora do
+    // ar, e o DP ficou com boleto emitido e NADA no board de Solicitação — o pior dos dois mundos,
+    // porque o dinheiro saiu e o rastro não existiu.
+    //
+    // O lançamento no RM é a única perna que depende do RM. As outras não têm por que esperar por
+    // ele. Então a falha aqui vira PENDÊNCIA, não aborto: o contrato segue, grava tudo o que
+    // consegue e fecha `parcial` com o motivo — em vez de `erro` sem board.
+    //
+    // O que NÃO muda: os ids do RM (IDFINANC) vão vazios pra Solicitação, e é por isso que o
+    // desfecho é `parcial` e não `ok`. Retomar o run refaz só a perna do RM (o ledger pula o
+    // resto), mas a linha da Solicitação já existirá e não recebe os ids sozinha — completar isso
+    // é trabalho à parte, e enquanto não existir o `parcial` é o aviso de que falta.
+    let rmIds: { idVR: string | null; idVT: string | null } = { idVR: null, idVT: null }
+    let rmPendencia: string | null = null
+    try {
+      // Convocação no RM (S-2260) ANTES do financeiro — decisão 2 do Isaac: a convocação precede o
+      // pagamento na ordem do eSocial. Pendência humana lança FatalError e o contrato marca erro
+      // (decisão 4): o pagamento deste contrato só roda depois que o DP resolver e retomar.
+      await executarConvocacaoRmContrato(runId, modo, competencia, contrato.contrato, snapshot.boardId)
 
-    // RM via ponte AIONS — SERIAL com esperas (a ponte não aguenta volume).
-    // Histórico ZMDHSTBENFUNC em lotes de 50 (contagem determinística a partir do snapshot).
-    // ORDEM (regra do DP): histórico PIX -> lançamento do boleto (FopRotinas+integrar)
-    // -> só DEPOIS o histórico de CRÉDITO. O crédito não pode existir no ZMD quando o
-    // FopRotinas roda, senão corre risco de ser somado no boleto.
-    const { mes, ano } = competenciaPartes(competencia)
-    const ctxContagem = { anoComp: ano, mesComp: mes, codSecao: "", dataImport: "1970-01-01" }
-    const lotesPorTipo = (tipo: "pix" | "credito") =>
-      lotesHistorico(montarRegistrosHistorico(contrato.pessoas, tipo, ctxContagem)).length
-    // Contado UMA vez: antes era reavaliado na condição do for, remontando todos os XMLs a cada volta.
-    const nLotesPix = lotesPorTipo("pix")
-    const nLotesCredito = lotesPorTipo("credito")
-    // Em homologação nada é enviado — esperar entre lotes é desperdício puro (custava 60s por lote).
-    // "teste" mantém a espera: o board sandbox escreve no RM de verdade.
-    const esperaLoteMs = modo === "homologacao" ? 0 : ESPERA_LOTE_MS
-    for (let i = 0; i < nLotesPix; i++) {
-      await etapaRmHistoricoLote(runId, modo, competencia, contrato, "pix", i)
-      if (i < nLotesPix - 1 && esperaLoteMs > 0) await sleep(esperaLoteMs)
-    }
-    const { temFinanceiro } = await etapaRmFopRotinas(
-      runId, modo, competencia, contrato,
-      snapshot.apoio.vencimentos?.[contrato.contrato],
-    )
-    // FopRotinas é job ASSÍNCRONO no RM (SyncExecution=false): o IDFNAN só lista depois que ele
-    // materializa. Não cortar — a leitura direta encurtou a janela, então isso ficou mais crítico.
-    if (modo !== "homologacao") await sleep("7s")
-    await etapaRmAguardar(runId, contrato.contrato)
-    const rmIds = await etapaRmIntegrar(runId, modo, competencia, contrato, temFinanceiro)
-    for (let i = 0; i < nLotesCredito; i++) {
-      await etapaRmHistoricoLote(runId, modo, competencia, contrato, "credito", i)
-      if (i < nLotesCredito - 1 && esperaLoteMs > 0) await sleep(esperaLoteMs)
+      // RM via ponte AIONS — SERIAL com esperas (a ponte não aguenta volume).
+      // Histórico ZMDHSTBENFUNC em lotes de 50 (contagem determinística a partir do snapshot).
+      // ORDEM (regra do DP): histórico PIX -> lançamento do boleto (FopRotinas+integrar)
+      // -> só DEPOIS o histórico de CRÉDITO. O crédito não pode existir no ZMD quando o
+      // FopRotinas roda, senão corre risco de ser somado no boleto.
+      const { mes, ano } = competenciaPartes(competencia)
+      const ctxContagem = { anoComp: ano, mesComp: mes, codSecao: "", dataImport: "1970-01-01" }
+      const lotesPorTipo = (tipo: "pix" | "credito") =>
+        lotesHistorico(montarRegistrosHistorico(contrato.pessoas, tipo, ctxContagem)).length
+      // Contado UMA vez: antes era reavaliado na condição do for, remontando todos os XMLs a cada volta.
+      const nLotesPix = lotesPorTipo("pix")
+      const nLotesCredito = lotesPorTipo("credito")
+      // Em homologação nada é enviado — esperar entre lotes é desperdício puro (custava 60s por lote).
+      // "teste" mantém a espera: o board sandbox escreve no RM de verdade.
+      const esperaLoteMs = modo === "homologacao" ? 0 : ESPERA_LOTE_MS
+      for (let i = 0; i < nLotesPix; i++) {
+        await etapaRmHistoricoLote(runId, modo, competencia, contrato, "pix", i)
+        if (i < nLotesPix - 1 && esperaLoteMs > 0) await sleep(esperaLoteMs)
+      }
+      const { temFinanceiro } = await etapaRmFopRotinas(
+        runId, modo, competencia, contrato,
+        snapshot.apoio.vencimentos?.[contrato.contrato],
+      )
+      // FopRotinas é job ASSÍNCRONO no RM (SyncExecution=false): o IDFNAN só lista depois que ele
+      // materializa. Não cortar — a leitura direta encurtou a janela, então isso ficou mais crítico.
+      if (modo !== "homologacao") await sleep("7s")
+      await etapaRmAguardar(runId, contrato.contrato)
+      rmIds = await etapaRmIntegrar(runId, modo, competencia, contrato, temFinanceiro)
+      for (let i = 0; i < nLotesCredito; i++) {
+        await etapaRmHistoricoLote(runId, modo, competencia, contrato, "credito", i)
+        if (i < nLotesCredito - 1 && esperaLoteMs > 0) await sleep(esperaLoteMs)
+      }
+    } catch (e) {
+      // FatalError NÃO degrada: efeito pendente à espera de conciliação e convocação que exige
+      // decisão do DP continuam derrubando o contrato. Degradar apagaria a única coisa que faz
+      // alguém olhar — e são justamente os casos em que seguir gravando seria mentir.
+      if (ehFatal(e)) throw e
+      rmPendencia = mensagemErro(e)
+      await registrarEvento({
+        runId, contrato: contrato.contrato, etapa: "rm_pendencia", estado: "aviso",
+        mensagem: rmPendencia,
+        metadados: { segue: "monday+drive+notas", idfinanc: "pendente" },
+      })
     }
 
     // Monday (adaptador real, gated por producao+ledger).
@@ -1124,10 +1156,16 @@ async function processarContrato(
     // Uma referência por linha: com um `solicitacaoId` só, a linha do outro benefício ficaria
     // fora da lista de artefatos do run.
     for (const s of solicitacoes) referencias[`solicitacaoId${rotuloLinha(s.beneficios)}`] = s.id
-    await marcarContratoFinal(runId, contrato.contrato, "ok", undefined, Object.keys(referencias).length ? referencias : undefined)
+    // `parcial` quando o RM ficou pra trás: tudo o que não depende dele foi gravado, e o motivo
+    // fica na linha do contrato em vez de sumir num log.
+    await marcarContratoFinal(
+      runId, contrato.contrato,
+      rmPendencia ? "parcial" : "ok",
+      rmPendencia ? `rm_pendente: ${rmPendencia}` : undefined,
+      Object.keys(referencias).length ? referencias : undefined,
+    )
   } catch (e) {
-    const mensagem = e instanceof Error ? e.message : "erro_desconhecido"
-    await marcarContratoFinal(runId, contrato.contrato, "erro", mensagem)
+    await marcarContratoFinal(runId, contrato.contrato, "erro", mensagemErro(e))
   }
 }
 

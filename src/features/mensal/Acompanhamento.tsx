@@ -141,11 +141,11 @@ export function Acompanhamento({
         }))
   const total = header?.total_contratos ?? itens.length
   const erroN = itens.filter((i) => i.status === "erro").length
-  const feitos = itens.filter((i) => ["ok", "erro", "bloqueado", "cancelado"].includes(i.status)).length
+  const feitos = itens.filter((i) => ["ok", "parcial", "erro", "bloqueado", "cancelado"].includes(i.status)).length
   const pct = total > 0 ? Math.round((feitos / total) * 100) : 0
 
   const atual = itens.find((i) => i.status === "rodando") ?? null
-  const concluidos = itens.filter((i) => ["ok", "erro", "bloqueado", "cancelado"].includes(i.status))
+  const concluidos = itens.filter((i) => ["ok", "parcial", "erro", "bloqueado", "cancelado"].includes(i.status))
   const pendentes = itens.filter((i) => i.status === "pendente")
   const comErro = itens.filter((i) => i.status === "erro")
   const totalPessoas = itens.reduce((n, i) => n + i.qtd, 0)

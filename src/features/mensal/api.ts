@@ -66,7 +66,7 @@ export interface PreviaResp {
   modo: "homologacao" | "producao"
 }
 
-export type RunItemStatus = "pendente" | "rodando" | "ok" | "erro" | "bloqueado" | "cancelado"
+export type RunItemStatus = "pendente" | "rodando" | "ok" | "parcial" | "erro" | "bloqueado" | "cancelado"
 export type RunStatusGeral =
   | "aguardando_aprovacao"
   | "fila"

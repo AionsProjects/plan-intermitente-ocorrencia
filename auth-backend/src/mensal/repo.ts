@@ -143,7 +143,7 @@ export async function vincularWorkflowRun(runId: string, workflowRunId: string):
  * no caminho crítico de um workflow de DINHEIRO, dentro de steps com retry — o filtro é
  * segurança, não otimização.
  */
-const ESTADOS_ESPELHADOS = new Set(["erro", "bloqueado", "pulado_idempotencia"])
+const ESTADOS_ESPELHADOS = new Set(["erro", "parcial", "bloqueado", "pulado_idempotencia"])
 /** Abre/fecha de contrato: dá o esqueleto da execução sem o detalhe de cada passo. */
 const ETAPAS_ESPELHADAS = new Set(["contrato", "finalizado"])
 
@@ -170,7 +170,7 @@ async function execucaoDoRun(runId: string): Promise<string | null> {
 /** Traduz estado do workflow pro vocabulário do log genérico. */
 function estadoParaAtividade(estado: string): "erro" | "aviso" | "ok" | "pulado" {
   if (estado === "erro") return "erro"
-  if (estado === "bloqueado") return "aviso"
+  if (estado === "bloqueado" || estado === "parcial") return "aviso"
   if (estado === "pulado_idempotencia") return "pulado"
   return "ok"
 }
@@ -223,7 +223,7 @@ export async function atualizarContrato(
     `UPDATE mensal_run_item SET status=$3,erro_msg=$4,
        referencias_externas=referencias_externas || $5::jsonb,
        iniciado_em=COALESCE(iniciado_em,now()),
-       finalizado_em=CASE WHEN $3 IN ('ok','erro','bloqueado','cancelado') THEN now() ELSE NULL END,
+       finalizado_em=CASE WHEN $3 IN ('ok','parcial','erro','bloqueado','cancelado') THEN now() ELSE NULL END,
        atualizado_em=now() WHERE run_id=$1 AND contrato=$2`,
     [runId, contrato, status, limparTexto(erro), JSON.stringify(limparMetadados(referencias))],
   )
