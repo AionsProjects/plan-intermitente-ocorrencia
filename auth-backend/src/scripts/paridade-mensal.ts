@@ -229,8 +229,8 @@ async function main(): Promise<void> {
       pedidoCreditoVR: refs.pedidoCreditoId, pedidoPixVR: "ord-vr", pedidoPixVT: "ord-vt",
       planBoardId: "18408773953", dataIso: new Date().toISOString().slice(0, 10),
     }
-    const linhaVR = montarValuesSolicitacao(entrada, "VR") as Record<string, unknown>
-    const linhaVT = montarValuesSolicitacao(entrada, "VT") as Record<string, unknown>
+    const linhaVR = montarValuesSolicitacao(entrada, ["VR"]) as Record<string, unknown>
+    const linhaVT = montarValuesSolicitacao(entrada, ["VT"]) as Record<string, unknown>
     const legadoValues = JSON.parse(lp.column_values_json) as Record<string, unknown>
 
     // Colunas por benefício + resumo saem da comparação de bloco; cada uma é conferida à parte.

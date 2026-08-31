@@ -31,6 +31,7 @@ import {
   garantirGrupoCaixa,
   montarValuesPlanUpdate,
   registrarDebitoControleCaju,
+  rotuloLinha,
   setarStatusAutomacaoOk,
 } from "../auth-backend/src/mensal/mondayEfeitos.js"
 import {
@@ -59,7 +60,7 @@ import {
 } from "../auth-backend/src/pontual/rmPontual.js"
 import {
   type AbatimentoBalao,
-  beneficiosDaSolicitacaoPontual,
+  linhasDaSolicitacaoPontual,
   montarNomeDebitoPontual,
   montarNomeSolicitacaoPontual,
   montarResumoSolicitacaoPontual,
@@ -67,6 +68,7 @@ import {
   montarValuesSolicitacaoPontual,
 } from "../auth-backend/src/pontual/mondayPontual.js"
 import type { BeneficioCaju } from "../auth-backend/src/clients/caju.js"
+import { gruposBeneficio, sufixoGrupo } from "../auth-backend/src/domain/splitBeneficio.js"
 import { arquivarDrivePontual, urlDoRelatorio } from "../auth-backend/src/pontual/drivePontual.js"
 import { montarDadosRelatorioPontual } from "../auth-backend/src/pontual/relatorioPontual.js"
 import {
@@ -82,9 +84,10 @@ import type { PessoaPreviaMensal } from "../auth-backend/src/mensal/types.js"
 const MESES_LABEL = ["JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO",
   "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"] as const
 
-/** Linha criada no board de Solicitação — uma por benefício desde o split de 08/2026. */
+/** Linha criada no board de Solicitação — uma por benefício da gaveta de 09/2026 em diante, uma
+ *  com os dois até 08/2026 (ver domain/splitBeneficio.ts). */
 interface LinhaSolicitacaoPontual {
-  beneficio: BeneficioCaju
+  beneficios: BeneficioCaju[]
   id: string
 }
 
@@ -385,28 +388,46 @@ etapaConsumirFifo.maxRetries = 5
 // confirm). DINHEIRO REAL — gated.
 // ---------------------------------------------------------------------------
 
+/** Gaveta (YYYY-MM) do pagamento pontual = mês da DATA_INICIO da convocação, a mesma que dá o
+ *  grupo do board. É ela que decide o formato junto × separado (domain/splitBeneficio.ts). */
+function caixaPontual(dataInicio: string): string {
+  const { anoComp, mesComp } = competenciaPontual(dataInicio)
+  return `${anoComp}-${String(mesComp).padStart(2, "0")}`
+}
+
 async function etapaPedidoCaju(
   input: PontualWorkflowInput,
   plano: PlanoPagamento,
   employeeId: string | null,
   tipo: TipoPedidoCaju,
+  grupo: BeneficioCaju[],
 ): Promise<{ orderId: string | null; qr: string; copiaECola: string }> {
   "use step"
   const { execucaoId, itemOrigemId } = input
-  const etapa = `caju_${tipo === "credito" ? "credito" : "pix"}`
+  const base = `caju_${tipo === "credito" ? "credito" : "pix"}`
+  const rotulo = sufixoGrupo(grupo)
+  // Grupo junto mantém a chave de hoje (`caju_credito`); o separado ganha o sufixo do benefício.
+  // A chave TEM de mudar com o formato: retomar um pagamento junto sob a chave separada criaria
+  // pedido novo em cima de um que já existe.
+  const etapa = rotulo ? `${base}_${rotulo.toLowerCase()}` : base
+  const chavesFormatoAntigo = ["_vr", "_vt"].map((sfx) => `pontual:${itemOrigemId}:${base}${sfx}`)
 
   // GUARDA CONTRA O FORMATO ANTIGO. Até 13/08 o pontual criava um pedido por benefício, com
   // as chaves `..._vr` e `..._vt`. Um item pago naquele formato e retomado agora não veria a
   // chave nova e criaria pedido em cima do que já existe — pagando duas vezes. Se qualquer
   // metade antiga está confirmada, este step não tem nada a fazer.
+  //
+  // A partir de 09/2026 o pedido voltou a ser por benefício e as chaves coincidem com as
+  // antigas. Item novo NÃO pode ter efeito de antes de 13/08 — se tiver, é sinal de chave
+  // reaproveitada e o certo é ESTOURAR: pular calado aqui deixaria o pagamento sem pedido.
   if (input.modo === "producao") {
-    for (const sufixo of ["_vr", "_vt"]) {
-      if ((await estadoEfeito(`pontual:${itemOrigemId}:${etapa}${sufixo}`)) === "confirmado") {
-        await log(execucaoId, etapa, "pulado", {
-          mensagem: `já pago no formato anterior (pedido por benefício${sufixo})`,
-        })
-        return { orderId: null, qr: "", copiaECola: "" }
-      }
+    for (const chave of chavesFormatoAntigo) {
+      if ((await estadoEfeito(chave)) !== "confirmado") continue
+      if (rotulo) throw new FatalError(`caju_chave_antiga_colide_com_split:${chave}`)
+      await log(execucaoId, etapa, "pulado", {
+        mensagem: `já pago no formato anterior (pedido por benefício${chave.slice(-3)})`,
+      })
+      return { orderId: null, qr: "", copiaECola: "" }
     }
   }
 
@@ -417,7 +438,7 @@ async function etapaPedidoCaju(
     return { orderId: null, qr: "", copiaECola: "" }
   }
 
-  const pedido = montarPedidoCajuPontual({ ...plano.pessoa, employeeId }, tipo)
+  const pedido = montarPedidoCajuPontual({ ...plano.pessoa, employeeId }, tipo, grupo)
   if (!pedido.tem || !pedido.payload) {
     await confirmarEfeito(r.chave, `caju:${etapa}:vazio`)
     await log(execucaoId, etapa, "ok", { metadados: { vazio: true } })
@@ -448,8 +469,9 @@ async function etapaPedidoCaju(
       centavos: pedido.totalCentavos,
       // Quanto foi de cada benefício DENTRO do pedido único — sem isto, um pedido de
       // R$ 172,50 não diz o que é VR e o que é VT, e é a conferência do DP.
-      centavosVR: Math.round((tipo === "credito" ? plano.pessoa.creditoVR : plano.pessoa.pixVR) ?? 0) * 100,
-      centavosVT: Math.round((tipo === "credito" ? plano.pessoa.creditoVT : plano.pessoa.pixVT) ?? 0) * 100,
+      beneficios: grupo.join("+"),
+      centavosVR: grupo.includes("VR") ? Math.round((tipo === "credito" ? plano.pessoa.creditoVR : plano.pessoa.pixVR) ?? 0) * 100 : 0,
+      centavosVT: grupo.includes("VT") ? Math.round((tipo === "credito" ? plano.pessoa.creditoVT : plano.pessoa.pixVT) ?? 0) * 100 : 0,
       temQr: qr.length > 0,
       temCopiaECola: copiaECola.length > 0,
       summary: summaryUrlCaju(orderId),
@@ -458,6 +480,38 @@ async function etapaPedidoCaju(
   return { orderId, qr, copiaECola }
 }
 etapaPedidoCaju.maxRetries = 5
+
+/**
+ * Os pedidos de UMA natureza (crédito ou boleto), um por grupo de benefício da gaveta.
+ *
+ * Até 08/2026 é um pedido só, com VR e VT juntos, e ele ocupa o slot do VR — é o formato que o
+ * board e o Drive já consomem (`idsPedidoParaSolicitacao` junta os não-nulos). De 09/2026 em
+ * diante são dois pedidos e cada um vai no seu slot.
+ *
+ * Sequencial de propósito: são dois `criarPedido` de DINHEIRO REAL e o segundo depende do
+ * primeiro ter reservado a sua chave no ledger.
+ */
+async function pedidosCajuDoTipo(
+  input: PontualWorkflowInput,
+  plano: PlanoPagamento,
+  employeeId: string | null,
+  tipo: TipoPedidoCaju,
+  grupos: BeneficioCaju[][],
+): Promise<{
+  vr: { orderId: string | null; qr: string; copiaECola: string }
+  vt: { orderId: string | null; qr: string; copiaECola: string }
+}> {
+  type Pedido = { orderId: string | null; qr: string; copiaECola: string }
+  const vazio: Pedido = { orderId: null, qr: "", copiaECola: "" }
+  const out: { vr: Pedido; vt: Pedido } = { vr: vazio, vt: vazio }
+  for (const grupo of grupos) {
+    const r = await etapaPedidoCaju(input, plano, employeeId, tipo, grupo)
+    // Grupo junto cai no slot do VR (VT fica null), igual ao formato de hoje.
+    if (sufixoGrupo(grupo) === "VT") out.vt = r
+    else out.vr = r
+  }
+  return out
+}
 
 // ---------------------------------------------------------------------------
 // Steps 8/11 — histórico ZMDHSTBENFUNC. TPBEN=0 no boleto, 1 no crédito.
@@ -723,7 +777,7 @@ async function etapaSolicitacao(
   }
   // Gaveta = mês da DATA_INICIO da convocação (não o mês corrente) — regra do WF5.
   const { anoComp, mesComp } = competenciaPontual(plano.snapshot.data_inicio)
-  const caixa = `${anoComp}-${String(mesComp).padStart(2, "0")}`
+  const caixa = caixaPontual(plano.snapshot.data_inicio)
   const grupo = await garantirGrupoCaixa("solicitacao", caixa)
   const inp = {
     contrato: plano.pessoa.contrato,
@@ -745,24 +799,31 @@ async function etapaSolicitacao(
     planBoardId: plano.snapshot.monday_board_id ?? "",
     dataIso: new Date().toISOString().slice(0, 10),
     itemPlanoId: itemOrigemId,
+    // Mesma gaveta do grupo — e é ela que decide se sai uma linha ou duas.
+    caixa,
   }
-  // UMA LINHA POR BENEFÍCIO desde o split de 08/2026: o board deixou de ter um item com as duas
-  // colunas de valor. Sequencial de propósito — dois create_item, e escrita concorrente no Monday
-  // volta 200 com `errors` dentro; perder a segunda linha calado é o pior modo num #dinheiro-real.
+  // UMA LINHA POR BENEFÍCIO da gaveta de 09/2026 em diante; até 08/2026 uma linha só com os dois,
+  // que é como agosto foi pago e conferido. Sequencial de propósito — escrita concorrente no
+  // Monday volta 200 com `errors` dentro, e perder a segunda linha calado é o pior modo num
+  // #dinheiro-real.
   const criadas: LinhaSolicitacaoPontual[] = []
-  for (const beneficio of beneficiosDaSolicitacaoPontual(inp)) {
+  for (const linha of linhasDaSolicitacaoPontual(inp)) {
     const criado = await criarItemComValores(
       "18393673859",
       grupo,
-      montarNomeSolicitacaoPontual(plano.pessoa.nome, beneficio),
-      montarValuesSolicitacaoPontual(inp, beneficio),
+      montarNomeSolicitacaoPontual(plano.pessoa.nome, linha),
+      montarValuesSolicitacaoPontual(inp, linha),
     )
-    criadas.push({ beneficio, id: criado.id })
+    criadas.push({ beneficios: linha, id: criado.id })
     await log(execucaoId, etapa, "ok", {
-      metadados: { beneficio, itemId: criado.id, resumo: montarResumoSolicitacaoPontual(inp, beneficio).slice(0, 200) },
+      metadados: {
+        beneficio: rotuloLinha(linha),
+        itemId: criado.id,
+        resumo: montarResumoSolicitacaoPontual(inp, linha).slice(0, 200),
+      },
     })
   }
-  await confirmarEfeito(r.chave, `monday:solicitacao:${criadas.map((c) => `${c.beneficio}=${c.id}`).join(";")}`)
+  await confirmarEfeito(r.chave, `monday:solicitacao:${criadas.map((c) => `${rotuloLinha(c.beneficios)}=${c.id}`).join(";")}`)
   return criadas
 }
 etapaSolicitacao.maxRetries = 5
@@ -1058,11 +1119,13 @@ export async function executarPontualWorkflow(input: PontualWorkflowInput): Prom
       return { desfecho: "sem_saldo" }
     }
 
-    // DOIS pedidos, não quatro: VR e VT viajam juntos em cada um (formato WF5, decisão do
-    // Isaac 13/08). O crédito nunca é confirmado (fica DRAFT); o boleto é confirmado e
-    // devolve o QR.
-    const credito = await etapaPedidoCaju(input, plano, employeeId, "credito")
-    const boleto = await etapaPedidoCaju(input, plano, employeeId, "boleto")
+    // Quantos pedidos por natureza depende da GAVETA (mês da DATA_INICIO da convocação, a mesma
+    // que decide o grupo do board): até 08/2026 um só, com VR e VT juntos (formato WF5, decisão
+    // do Isaac de 13/08); de 09/2026 em diante um por benefício, com boleto e conferência
+    // próprios. O crédito nunca é confirmado (fica DRAFT); o boleto é confirmado e devolve o QR.
+    const grupos = gruposBeneficio(caixaPontual(plano.snapshot.data_inicio))
+    const credito = await pedidosCajuDoTipo(input, plano, employeeId, "credito", grupos)
+    const boleto = await pedidosCajuDoTipo(input, plano, employeeId, "boleto", grupos)
 
     await etapaRmHistorico(input, plano, "pix")
     const { temFinanceiro } = await etapaRmFopRotinas(input, plano)
@@ -1071,15 +1134,15 @@ export async function executarPontualWorkflow(input: PontualWorkflowInput): Prom
     // A TRAVA: histórico do crédito SÓ depois do FopRotinas+integrar.
     await etapaRmHistorico(input, plano, "credito")
 
-    await etapaControleCaju(input, plano, { vr: credito.orderId, vt: null })
+    await etapaControleCaju(input, plano, { vr: credito.vr.orderId, vt: credito.vt.orderId })
     await etapaMondayPlano(input, plano)
-    // Pedido ÚNICO por tipo: o id vai no campo VR e o VT fica null. Quem consome junta os
-    // não-nulos (idsPedidoParaSolicitacao), então cada consumidor recebe um id por tipo.
+    // No formato junto o id fica só no campo VR e o VT null; quem consome junta os não-nulos
+    // (idsPedidoParaSolicitacao). No separado cada slot leva o seu.
     const refsSemSolicitacao = {
-      pedidoCreditoVR: credito.orderId,
-      pedidoCreditoVT: null,
-      pedidoPixVR: boleto.orderId,
-      pedidoPixVT: null,
+      pedidoCreditoVR: credito.vr.orderId,
+      pedidoCreditoVT: credito.vt.orderId,
+      pedidoPixVR: boleto.vr.orderId,
+      pedidoPixVT: boleto.vt.orderId,
       idVR,
       idVT,
     }
@@ -1091,10 +1154,15 @@ export async function executarPontualWorkflow(input: PontualWorkflowInput): Prom
     // O Drive vem antes das notas: a linha do board carrega o link do PDF que sobe aqui.
     const { relatorioUrl } = await etapaDrive(input, plano, {
       ...refs,
-      // Um boleto = um QR. O segundo slot existe pro mensal, que tem dois.
-      qrVR: boleto.qr,
-      qrVT: "",
-      copiaECola: boleto.copiaECola,
+      // Um QR por boleto: no formato junto só o slot VR vem preenchido.
+      qrVR: boleto.vr.qr,
+      qrVT: boleto.vt.qr,
+      // Dois boletos = dois copia-e-cola, e sem rótulo o DP não sabe qual paga o quê. Com um só
+      // o texto sai cru, idêntico ao arquivo que o Drive já guarda hoje.
+      copiaECola: boleto.vr.copiaECola && boleto.vt.copiaECola
+        ? `VR: ${boleto.vr.copiaECola}
+VT: ${boleto.vt.copiaECola}`
+        : boleto.vr.copiaECola || boleto.vt.copiaECola,
     }, abatimentos)
     await etapaNotasCaju(input, plano, refs, abatimentos, relatorioUrl)
     await etapaBalao(input, plano, abatimentos)

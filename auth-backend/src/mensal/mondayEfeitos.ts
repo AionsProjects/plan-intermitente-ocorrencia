@@ -12,10 +12,14 @@ import { mondayGraphql } from "../monday.js"
 import {
   BENEFICIOS_CAJU,
   idPedidoParaSolicitacao,
+  idsPedidoParaSolicitacao,
+  juntarIdsCaju,
+  juntarSummariesCaju,
   summaryUrlCaju,
   type BeneficioCaju,
   type PedidosCajuIds,
 } from "../clients/caju.js"
+import { caixaEfetiva, gruposBeneficio, sufixoGrupo } from "../domain/splitBeneficio.js"
 import type { DescontoUpdatePrevia, PessoaPreviaMensal, PlanUpdatePrevia } from "./types.js"
 
 /**
@@ -141,9 +145,13 @@ export interface SolicitacaoMensalInput extends PedidosCajuIds {
   idVT?: string | null
   planBoardId: string
   dataIso: string // hoje (passar de fora — workflow não pode usar new Date())
+  /** Gaveta do pagamento (YYYY-MM). Decide o grupo do board E o formato (junto × separado por
+   *  benefício, ver domain/splitBeneficio.ts). Ausente = mês de `dataIso`, igual ao grupo. */
+  caixa?: string
 }
 
-export function montarResumoSolicitacao(inp: SolicitacaoMensalInput, beneficio: BeneficioCaju): string {
+export function montarResumoSolicitacao(inp: SolicitacaoMensalInput, linha: BeneficioCaju[]): string {
+  const rotulo = sufixoGrupo(linha)
   const pessoasResumo = inp.pessoas.map((p, idx) => {
     const valorCredito = r2((p.creditoVR || 0) + (p.creditoVT || 0))
     const valorPix = r2((p.pixVR || 0) + (p.pixVT || 0))
@@ -153,9 +161,10 @@ export function montarResumoSolicitacao(inp: SolicitacaoMensalInput, beneficio: 
       ` | Plan: ${(p.itemIds ?? [p.itemId]).join(", ") || "-"}`
   })
   return [
-    // O benefício entra no título porque o board agora tem DUAS linhas por contrato, e o resumo é
-    // o que distingue uma da outra quando o DP abre o item.
-    `MENSAL AGRUPADO ${beneficio} - ${inp.contrato} - ${inp.competenciaLabel}/${inp.anoComp}`,
+    // O benefício entra no título porque o board passou a ter DUAS linhas por contrato, e o resumo
+    // é o que distingue uma da outra quando o DP abre o item. Na linha junta (até 08/2026) não há
+    // o que distinguir e o título fica como sempre foi.
+    `MENSAL AGRUPADO${rotulo ? ` ${rotulo}` : ""} - ${inp.contrato} - ${inp.competenciaLabel}/${inp.anoComp}`,
     `Colaboradores: ${inp.pessoas.length}`,
     `VR: R$ ${r2(inp.totais.vr)}`,
     `VT: R$ ${r2(inp.totais.vt)}`,
@@ -197,13 +206,27 @@ const PERFIL_BENEFICIO = {
   VT: { labelPgto: "CAJU VT", colValor: "numeric_mkwhk2xr", colIdfinanc: "text_mkwhg4dn" },
 } as const satisfies Record<BeneficioCaju, { labelPgto: string; colValor: string; colIdfinanc: string }>
 
+/** Benefício apurado (não o que sobrou pro boleto): contrato cujo VR coube inteiro no crédito tem
+ *  VALOR CAJU 0,00 e ainda assim é um pagamento de VR — sumiria do board se o critério fosse o PIX. */
+function apurado(inp: SolicitacaoMensalInput, b: BeneficioCaju): boolean {
+  return ((b === "VR" ? inp.totais.vr : inp.totais.vt) || 0) > 0
+}
+
 /**
- * Benefícios que geram linha no board — os que foram APURADOS, não os que sobraram pro boleto.
- * Contrato cujo VR coube inteiro no crédito tem VALOR CAJU 0,00 e ainda assim é um pagamento de VR:
- * some do board se o critério for o PIX.
+ * As LINHAS que este pagamento gera no board, cada uma com os benefícios que ela carrega.
+ *
+ * Da gaveta de 09/2026 em diante: uma linha por benefício apurado (`[["VR"],["VT"]]`), e contrato
+ * só com VR gera uma linha só — nada de item zerado. Até 08/2026: UMA linha com os dois
+ * (`[["VR","VT"]]`), formato em que agosto foi pago e conferido. Ver `domain/splitBeneficio.ts`.
+ *
+ * A linha junta sai mesmo sem benefício apurado — é o comportamento que o board tem hoje (label
+ * cai pra "CAJU"), e o pagamento existir sem linha é pior que uma linha zerada.
  */
-export function beneficiosDaSolicitacao(inp: SolicitacaoMensalInput): BeneficioCaju[] {
-  return BENEFICIOS_CAJU.filter((b) => ((b === "VR" ? inp.totais.vr : inp.totais.vt) || 0) > 0)
+export function linhasDaSolicitacao(inp: SolicitacaoMensalInput): BeneficioCaju[][] {
+  const grupos = gruposBeneficio(caixaEfetiva(inp.caixa, inp.dataIso))
+  // Junto: uma linha só, sempre — é o item único que o board tem até agosto/2026.
+  if (grupos.length === 1) return grupos
+  return grupos.filter((grupo) => apurado(inp, grupo[0]!))
 }
 
 /**
@@ -216,8 +239,10 @@ export function beneficiosDaSolicitacao(inp: SolicitacaoMensalInput): BeneficioC
  */
 export function montarValuesSolicitacao(
   inp: SolicitacaoMensalInput,
-  beneficio: BeneficioCaju,
+  linha: BeneficioCaju[],
 ): Record<string, unknown> {
+  if (linha.length !== 1) return montarValuesSolicitacaoJunta(inp)
+  const beneficio = linha[0]!
   const pix = pixPorBeneficio(inp)
   const perfil = PERFIL_BENEFICIO[beneficio]
   const idPedido = idPedidoParaSolicitacao(inp, beneficio)
@@ -235,7 +260,39 @@ export function montarValuesSolicitacao(
     text_mm1zyhcw: idPedido ?? "",
     text_mm395p8s: idPedido ? summaryUrlCaju(idPedido) : "",
     link_mkre40qn: { url: `https://contato-serv.monday.com/boards/${inp.planBoardId}`, text: "Plan Intermitentes" },
-    long_text_mkre1qa0: { text: montarResumoSolicitacao(inp, beneficio) },
+    long_text_mkre1qa0: { text: montarResumoSolicitacao(inp, [beneficio]) },
+  }
+}
+
+/**
+ * Formato ATÉ a gaveta de 08/2026: UM item com as duas colunas de valor, as duas labels de tipo
+ * pgto e os dois ids de pedido dividindo a mesma célula por `"; "`.
+ *
+ * Preservado byte a byte de propósito — é como agosto foi pago e conferido, e retomada de item
+ * antigo tem de reproduzir o formato do mês dele. Não estender: benefício novo entra no formato
+ * separado, este aqui só envelhece.
+ */
+function montarValuesSolicitacaoJunta(inp: SolicitacaoMensalInput): Record<string, unknown> {
+  const pix = pixPorBeneficio(inp)
+  const labelsPgto: string[] = []
+  if (apurado(inp, "VR")) labelsPgto.push(PERFIL_BENEFICIO.VR.labelPgto)
+  if (apurado(inp, "VT")) labelsPgto.push(PERFIL_BENEFICIO.VT.labelPgto)
+  const idsPedido = idsPedidoParaSolicitacao(inp)
+  return {
+    dropdown_mkwhxxs2: { labels: labelsPgto.length ? labelsPgto : [PERFIL_BENEFICIO.VR.labelPgto] },
+    dropdown_mkretdvv: { labels: [inp.contrato] },
+    date_mkrer5tv: { date: inp.dataIso },
+    status: { label: "NÃO INICIADO" },
+    color_mkref5wt: { label: "MENSAL" },
+    color_mks0yady: { label: inp.competenciaLabel },
+    numeric_mkrek29b: String(pix.vr),
+    numeric_mkwhk2xr: String(pix.vt),
+    text_mkrenhm: String(inp.idVR || ""),
+    text_mkwhg4dn: String(inp.idVT || ""),
+    text_mm1zyhcw: juntarIdsCaju(idsPedido),
+    text_mm395p8s: juntarSummariesCaju(idsPedido),
+    link_mkre40qn: { url: `https://contato-serv.monday.com/boards/${inp.planBoardId}`, text: "Plan Intermitentes" },
+    long_text_mkre1qa0: { text: montarResumoSolicitacao(inp, BENEFICIOS_CAJU.slice()) },
   }
 }
 
@@ -358,15 +415,23 @@ export async function garantirGrupoTitulo(boardId: string, titulo: string): Prom
   return criado.create_group.id
 }
 
-/** Nome do item do mensal: contrato + benefício, porque agora são duas linhas por contrato. */
-export function montarNomeSolicitacaoMensal(inp: SolicitacaoMensalInput, beneficio: BeneficioCaju): string {
-  return `${inp.nomePrefixo ?? ""}${inp.contrato} - ${beneficio}`
+/** Nome do item do mensal: contrato + benefício quando são duas linhas; só o contrato na linha
+ *  junta (até 08/2026), onde o sufixo não distinguiria nada. */
+export function montarNomeSolicitacaoMensal(inp: SolicitacaoMensalInput, linha: BeneficioCaju[]): string {
+  const rotulo = sufixoGrupo(linha)
+  return `${inp.nomePrefixo ?? ""}${inp.contrato}${rotulo ? ` - ${rotulo}` : ""}`
 }
 
 export interface LinhaSolicitacaoCriada {
-  beneficio: BeneficioCaju
+  /** Benefícios que ESTA linha carrega: um só no formato separado, os dois na linha junta. */
+  beneficios: BeneficioCaju[]
   id: string
   url: string
+}
+
+/** Rótulo da linha para ledger/artefato: "VR", "VT" ou "VR+VT" na linha junta. */
+export function rotuloLinha(linha: BeneficioCaju[]): string {
+  return linha.join("+") || "VR+VT"
 }
 
 /**
@@ -382,14 +447,14 @@ export async function criarSolicitacaoMensal(
   grupoSolicitacao: string,
 ): Promise<LinhaSolicitacaoCriada[]> {
   const criadas: LinhaSolicitacaoCriada[] = []
-  for (const beneficio of beneficiosDaSolicitacao(inp)) {
+  for (const linha of linhasDaSolicitacao(inp)) {
     const { id } = await criarItemComValores(
       BOARD_SOLICITACAO,
       grupoSolicitacao,
-      montarNomeSolicitacaoMensal(inp, beneficio),
-      montarValuesSolicitacao(inp, beneficio),
+      montarNomeSolicitacaoMensal(inp, linha),
+      montarValuesSolicitacao(inp, linha),
     )
-    criadas.push({ beneficio, id, url: `https://contato-serv.monday.com/boards/${BOARD_SOLICITACAO}/pulses/${id}` })
+    criadas.push({ beneficios: linha, id, url: `https://contato-serv.monday.com/boards/${BOARD_SOLICITACAO}/pulses/${id}` })
   }
   return criadas
 }

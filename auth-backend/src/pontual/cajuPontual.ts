@@ -17,47 +17,52 @@ import { config } from "../config.js"
 import type { PessoaPreviaMensal } from "../mensal/types.js"
 
 /**
- * `INTERMITENTE-PONTUAL-{NOME}-{CHAPA}-{dd.mm} CREDITO|BOLETO` — cap 100 (regra Caju).
+ * `INTERMITENTE-PONTUAL-{NOME}-{CHAPA}-{dd.mm} CREDITO|BOLETO [VR|VT]` — cap 100 (regra Caju).
  *
- * Sem sufixo de benefício: no pontual VR e VT vão no MESMO pedido (decisão do Isaac,
- * 13/08), então o nome não tem o que distinguir. O mensal segue com pedido por benefício
- * e nome próprio (`montarNomePedido` em clients/caju.ts).
+ * O sufixo de benefício entra da gaveta de 09/2026 em diante, quando o pontual passou a ter um
+ * pedido por benefício. Até 08/2026 VR e VT iam no MESMO pedido (decisão do Isaac de 13/08) e o
+ * nome não tinha o que distinguir — pagamento daquele mês continua saindo assim.
  */
 export function montarNomePedidoPontual(
   nome: string,
   chapa: string,
   dataInicio: string,
   tipo: TipoPedidoCaju,
+  beneficios: BeneficioCaju[] = [],
 ): string {
   const [, mm, dd] = String(dataInicio).split("-")
-  const sufixo = `${dd}.${mm} ${tipo === "credito" ? "CREDITO" : "BOLETO"}`
+  const rotulo = beneficios.length === 1 ? ` ${beneficios[0]}` : ""
+  const sufixo = `${dd}.${mm} ${tipo === "credito" ? "CREDITO" : "BOLETO"}${rotulo}`
   const base = `INTERMITENTE-PONTUAL-${String(nome).trim().toUpperCase()}-${chapa}-${sufixo}`
   return base.length <= 100 ? base : base.slice(0, 100)
 }
 
 /**
- * Monta UM pedido com VR e VT juntos (1 pessoa, 1 tipo, dois `amounts` no mesmo allowance).
+ * Monta o pedido de UM grupo de benefício (1 pessoa, 1 tipo).
  *
- * É o formato do WF5, retomado por decisão do Isaac (13/08) — só pro PONTUAL. O mensal
- * continua com um pedido por benefício (split de 08/2026), porque lá VR e VT têm boletos e
- * conferências separadas por contrato.
+ * `beneficios = ["VR","VT"]` é o formato do WF5 (dois `amounts` no mesmo allowance, um boleto
+ * só), que valeu até a gaveta de 08/2026 por decisão do Isaac de 13/08. Da gaveta de 09/2026 em
+ * diante o workflow chama duas vezes, `["VR"]` e `["VT"]`, e cada benefício tem pedido, boleto e
+ * conferência próprios — igual ao mensal. Ver `domain/splitBeneficio.ts`.
  *
- * `tem:false` quando os dois valores são zero — legítimo (ex.: pagamento 100% crédito não
- * tem boleto). Valor>0 SEM employeeId lança: é o conserto do descarte silencioso de
- * caju.ts:114 que, com 1 pessoa, termina "ok" sem pagar ninguém.
+ * `tem:false` quando o grupo soma zero — legítimo (ex.: pagamento 100% crédito não tem boleto,
+ * ou o VT desta pessoa é zero). Valor>0 SEM employeeId lança: é o conserto do descarte
+ * silencioso de caju.ts:114 que, com 1 pessoa, termina "ok" sem pagar ninguém.
  */
 export function montarPedidoCajuPontual(
   pessoa: PessoaPreviaMensal & { employeeId?: string | null },
   tipo: TipoPedidoCaju,
+  beneficios: BeneficioCaju[] = ["VR", "VT"],
 ): PedidoMontadoCaju {
-  const centavosVR = centsCaju(tipo === "credito" ? pessoa.creditoVR : pessoa.pixVR)
-  const centavosVT = centsCaju(tipo === "credito" ? pessoa.creditoVT : pessoa.pixVT)
+  const leva = (b: BeneficioCaju): boolean => beneficios.includes(b)
+  const centavosVR = leva("VR") ? centsCaju(tipo === "credito" ? pessoa.creditoVR : pessoa.pixVR) : 0
+  const centavosVT = leva("VT") ? centsCaju(tipo === "credito" ? pessoa.creditoVT : pessoa.pixVT) : 0
   const total = centavosVR + centavosVT
   const paymentType: PaymentTypeCaju = tipo === "credito" ? "EXISTING_BALANCE" : "PIX_CODE"
-  const name = montarNomePedidoPontual(pessoa.nome, pessoa.chapa, pessoa.dataInicio, tipo)
-  // `beneficio` fica no tipo por compatibilidade com PedidoMontadoCaju (o mensal usa), mas
-  // aqui o pedido carrega os dois: "VR+VT" documenta isso em log e em artefato.
-  const beneficio = "VR" as BeneficioCaju
+  const name = montarNomePedidoPontual(pessoa.nome, pessoa.chapa, pessoa.dataInicio, tipo, beneficios)
+  // No grupo junto o pedido carrega os dois e `beneficio` fica em "VR" só por compatibilidade
+  // com PedidoMontadoCaju; no grupo separado ele é o benefício de verdade.
+  const beneficio = (beneficios.length === 1 ? beneficios[0]! : "VR") as BeneficioCaju
 
   if (total <= 0) {
     return { tipoPedido: tipo, beneficio, tem: false, paymentType, totalCentavos: 0, name,

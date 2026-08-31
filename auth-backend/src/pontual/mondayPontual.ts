@@ -1,10 +1,11 @@
 // Monday do PONTUAL — Solicitação de Pagamento, débito do Controle Caju e o balãozinho
 // de desconto. Builders puros; quem executa é o workflow.
 import {
-  beneficiosDaSolicitacao,
+  linhasDaSolicitacao,
   montarValuesSolicitacao,
   type SolicitacaoMensalInput,
 } from "../mensal/mondayEfeitos.js"
+import { sufixoGrupo } from "../domain/splitBeneficio.js"
 import type { BeneficioCaju } from "../clients/caju.js"
 import type { PessoaPreviaMensal } from "../mensal/types.js"
 
@@ -20,15 +21,17 @@ export interface SolicitacaoPontualInput extends SolicitacaoMensalInput {
 /**
  * Nome do item na Solicitação: `INTERMITENTE - {NOME} - {BENEFÍCIO}`.
  *
- * O sufixo entrou com o split de 08/2026 — o board passou a ter uma linha de VR e uma de VT por
- * pagamento, e sem ele o DP veria dois itens de nome idêntico.
+ * O sufixo vale da gaveta de 09/2026 em diante — o board passou a ter uma linha de VR e uma de VT
+ * por pagamento, e sem ele o DP veria dois itens de nome idêntico. Na linha junta (até 08/2026) o
+ * nome fica `INTERMITENTE - {NOME}`, como o board tem hoje.
  */
-export function montarNomeSolicitacaoPontual(nome: string, beneficio: BeneficioCaju): string {
-  return `INTERMITENTE - ${String(nome).trim().toUpperCase()} - ${beneficio}`
+export function montarNomeSolicitacaoPontual(nome: string, linha: BeneficioCaju[]): string {
+  const rotulo = sufixoGrupo(linha)
+  return `INTERMITENTE - ${String(nome).trim().toUpperCase()}${rotulo ? ` - ${rotulo}` : ""}`
 }
 
-/** Benefícios que geram linha no board para este pagamento pontual. Mesma regra do mensal. */
-export const beneficiosDaSolicitacaoPontual = beneficiosDaSolicitacao
+/** Linhas que este pagamento pontual gera no board. Mesma regra do mensal (corte por gaveta). */
+export const linhasDaSolicitacaoPontual = linhasDaSolicitacao
 
 /**
  * Values da Solicitação do pontual = values do mensal com 3 sobrescritas:
@@ -41,9 +44,9 @@ export const beneficiosDaSolicitacaoPontual = beneficiosDaSolicitacao
  */
 export function montarValuesSolicitacaoPontual(
   inp: SolicitacaoPontualInput,
-  beneficio: BeneficioCaju,
+  linha: BeneficioCaju[],
 ): Record<string, unknown> {
-  const base = montarValuesSolicitacao(inp, beneficio)
+  const base = montarValuesSolicitacao(inp, linha)
   return {
     ...base,
     color_mkref5wt: { label: "INTERMITENTE" },
@@ -51,18 +54,19 @@ export function montarValuesSolicitacaoPontual(
       url: `https://contato-serv.monday.com/boards/${inp.planBoardId}/pulses/${inp.itemPlanoId}`,
       text: "Tratativa",
     },
-    long_text_mkre1qa0: { text: montarResumoSolicitacaoPontual(inp, beneficio) },
+    long_text_mkre1qa0: { text: montarResumoSolicitacaoPontual(inp, linha) },
   }
 }
 
 export function montarResumoSolicitacaoPontual(
   inp: SolicitacaoPontualInput,
-  beneficio: BeneficioCaju,
+  linha: BeneficioCaju[],
 ): string {
   const p = inp.pessoas[0]
   if (!p) return "PONTUAL — sem pessoa (bug: resumo requisitado sem dados)"
+  const rotulo = sufixoGrupo(linha)
   return [
-    `INTERMITENTE PONTUAL ${beneficio} - ${p.nome}`,
+    `INTERMITENTE PONTUAL${rotulo ? ` ${rotulo}` : ""} - ${p.nome}`,
     `Chapa: ${p.chapa || "-"} | CPF: ${p.cpf || "-"} | Contrato: ${p.contrato}`,
     `Período: ${p.dataInicio} a ${p.dataFim}`,
     `VR: R$ ${r2(p.liquidoVR || 0)} | VT: R$ ${r2(p.liquidoVT || 0)}`,

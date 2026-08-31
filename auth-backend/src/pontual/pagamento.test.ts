@@ -13,7 +13,7 @@ import {
 import { montarNomePedidoPontual, montarPedidoCajuPontual } from "./cajuPontual.js"
 import { competenciaPontual, eventosPontual, registrosHistoricoPontual } from "./rmPontual.js"
 import {
-  beneficiosDaSolicitacaoPontual,
+  linhasDaSolicitacaoPontual,
   montarNomeSolicitacaoPontual,
   montarTextoBalao,
   montarValuesSolicitacaoPontual,
@@ -129,13 +129,25 @@ test("motivosRecusa: chapa/cpf/codSecao só quando há líquido", () => {
 // ---------- Caju ----------
 
 test("nome do pedido segue o formato WF5 e trunca em 100", () => {
-  // Sem sufixo de benefício: VR e VT vão no MESMO pedido (decisão 13/08).
+  // Grupo junto (gaveta até 08/2026): sem sufixo de benefício — o pedido carrega os dois.
   assert.equal(
     montarNomePedidoPontual("Valcleber Costa", "007282", "2026-08-17", "credito"),
     "INTERMITENTE-PONTUAL-VALCLEBER COSTA-007282-17.08 CREDITO",
   )
   const longo = montarNomePedidoPontual("A".repeat(120), "007282", "2026-08-17", "boleto")
   assert.equal(longo.length, 100)
+})
+
+test("nome do pedido leva o benefício quando o grupo é separado (gaveta 09/2026+)", () => {
+  assert.equal(
+    montarNomePedidoPontual("Valcleber Costa", "007282", "2026-09-17", "boleto", ["VT"]),
+    "INTERMITENTE-PONTUAL-VALCLEBER COSTA-007282-17.09 BOLETO VT",
+  )
+  // Grupo com os dois não ganha sufixo — não haveria o que distinguir.
+  assert.equal(
+    montarNomePedidoPontual("Valcleber Costa", "007282", "2026-09-17", "boleto", ["VR", "VT"]),
+    "INTERMITENTE-PONTUAL-VALCLEBER COSTA-007282-17.09 BOLETO",
+  )
 })
 
 const pessoaCaju = (over: Partial<PessoaPreviaMensal> = {}): PessoaPreviaMensal & { employeeId?: string | null } => ({
@@ -169,6 +181,29 @@ test("pedido único junta VR e VT no mesmo allowance", () => {
   const capital = montarPedidoCajuPontual(pessoaCaju({ pixVR: 0, pixVT: 30, interior: "NAO", contrato: "SEMSA" }), "boleto")
   assert.equal(capital.payload!.allowances[0]!.amounts.length, 1, "VR zerado não entra")
   assert.equal(capital.payload!.allowances[0]!.amounts[0]!.category, "TRANSPORTATION_VOUCHER")
+})
+
+// Corte de 31/08/2026: da gaveta de 09/2026 em diante o pontual pede um por benefício, e cada um
+// tem boleto próprio. O grupo é quem filtra — o valor do outro benefício NÃO pode vazar pro pedido.
+test("pedido por grupo: cada benefício leva só o seu valor e a sua categoria", () => {
+  const p = pessoaCaju({ pixVR: 60, pixVT: 30, interior: "SIM" })
+  const vr = montarPedidoCajuPontual(p, "boleto", ["VR"])
+  assert.equal(vr.beneficio, "VR")
+  assert.equal(vr.totalCentavos, 6000)
+  assert.deepEqual(vr.payload!.allowances[0]!.amounts, [{ category: "FOOD_AID", amount: 6000 }])
+
+  const vt = montarPedidoCajuPontual(p, "boleto", ["VT"])
+  assert.equal(vt.beneficio, "VT")
+  assert.equal(vt.totalCentavos, 3000)
+  assert.deepEqual(vt.payload!.allowances[0]!.amounts, [{ category: "TRANSPORTATION", amount: 3000 }])
+
+  // Os dois pedidos somam o mesmo que o pedido junto: o corte muda empacotamento, não valor.
+  assert.equal(vr.totalCentavos + vt.totalCentavos, montarPedidoCajuPontual(p, "boleto").totalCentavos)
+
+  // Benefício zerado vira pedido vazio — não chama a Caju.
+  const semVT = montarPedidoCajuPontual(pessoaCaju({ pixVR: 60, pixVT: 0 }), "boleto", ["VT"])
+  assert.equal(semVT.tem, false)
+  assert.equal(semVT.payload, null)
 })
 
 // ---------- RM ----------
@@ -205,21 +240,35 @@ test("values da Solicitação: INTERMITENTE + link pro pulse + resumo pontual", 
     pessoas: [pessoaCaju({ liquidoVR: 39, liquidoVT: 20 })],
     idVR: "24253", idVT: null, planBoardId: "18418191275", dataIso: "2026-08-19",
     itemPlanoId: "111", pedidoPixVR: "ord-1", pedidoPixVT: "ord-2",
+    caixa: "2026-09", // gaveta de setembro: uma linha por benefício
   }
-  const v = montarValuesSolicitacaoPontual(inp, "VR")
+  const v = montarValuesSolicitacaoPontual(inp, ["VR"])
   assert.deepEqual(v.color_mkref5wt, { label: "INTERMITENTE" })
   assert.equal((v.link_mkre40qn as { url: string }).url, "https://contato-serv.monday.com/boards/18418191275/pulses/111")
   assert.match((v.long_text_mkre1qa0 as { text: string }).text, /INTERMITENTE PONTUAL VR - VALCLEBER/)
   assert.equal(v.text_mkrenhm, "24253")
   assert.equal(v.text_mm1zyhcw, "ord-1")
 
-  // Uma linha por benefício desde o split de 08/2026 — a do VT leva só o que é dela.
-  assert.deepEqual(beneficiosDaSolicitacaoPontual(inp), ["VR", "VT"])
-  const vt = montarValuesSolicitacaoPontual(inp, "VT")
+  // Uma linha por benefício da gaveta de 09/2026 em diante — a do VT leva só o que é dela.
+  assert.deepEqual(linhasDaSolicitacaoPontual(inp), [["VR"], ["VT"]])
+  const vt = montarValuesSolicitacaoPontual(inp, ["VT"])
   assert.deepEqual(vt.dropdown_mkwhxxs2, { labels: ["CAJU VT"] })
   assert.equal(vt.text_mm1zyhcw, "ord-2")
   assert.equal(vt.numeric_mkrek29b, undefined, "linha de VT não escreve a coluna do VR")
-  assert.equal(montarNomeSolicitacaoPontual("valcleber", "VT"), "INTERMITENTE - VALCLEBER - VT")
+  assert.equal(montarNomeSolicitacaoPontual("valcleber", ["VT"]), "INTERMITENTE - VALCLEBER - VT")
+
+  // Gaveta de agosto: UMA linha com os dois, nome sem sufixo e os dois ids na mesma célula —
+  // é como o board tem os pontuais de agosto, e retomada não pode reescrever aquilo.
+  const emAgosto = { ...inp, caixa: "2026-08" }
+  assert.deepEqual(linhasDaSolicitacaoPontual(emAgosto), [["VR", "VT"]])
+  const junta = montarValuesSolicitacaoPontual(emAgosto, ["VR", "VT"])
+  assert.deepEqual(junta.dropdown_mkwhxxs2, { labels: ["CAJU", "CAJU VT"] })
+  assert.equal(junta.text_mm1zyhcw, "ord-1; ord-2")
+  assert.equal(junta.numeric_mkrek29b, "60")
+  assert.equal(junta.numeric_mkwhk2xr, "30")
+  assert.deepEqual(junta.color_mkref5wt, { label: "INTERMITENTE" })
+  assert.match((junta.long_text_mkre1qa0 as { text: string }).text, /INTERMITENTE PONTUAL - VALCLEBER/)
+  assert.equal(montarNomeSolicitacaoPontual("valcleber", ["VR", "VT"]), "INTERMITENTE - VALCLEBER")
 })
 
 test("balão: null quando não houve desconto", () => {

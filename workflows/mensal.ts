@@ -17,6 +17,7 @@ import {
 } from "../auth-backend/src/clients/caju.js"
 import {
   criarSolicitacaoMensal,
+  rotuloLinha,
   type LinhaSolicitacaoCriada,
   executarUpdatesDescontos,
   executarUpdatesPlano,
@@ -757,13 +758,16 @@ async function etapaMondaySolicitacao(
     pedidoPixVR: refs.pedidoPixVR, pedidoPixVT: refs.pedidoPixVT,
     planBoardId: boardId,
     dataIso: new Date().toISOString().slice(0, 10),
+    // A gaveta decide o grupo E o formato: até 08/2026 uma linha com VR+VT, de 09/2026 em diante
+    // uma linha por benefício (domain/splitBeneficio.ts).
+    caixa,
   }, grupoDestino)
   // A referência do efeito lista as duas linhas: uma reexecução precisa saber o que já existe no
   // board, e um id só esconderia a linha do outro benefício.
-  await confirmarEfeito(r.chave, `monday:solicitacao:${criadas.map((c) => `${c.beneficio}=${c.id}`).join(";")}`)
+  await confirmarEfeito(r.chave, `monday:solicitacao:${criadas.map((c) => `${rotuloLinha(c.beneficios)}=${c.id}`).join(";")}`)
   await registrarEvento({
     runId, contrato: contrato.contrato, etapa, estado: "concluido", tentativa: metadata.attempt,
-    metadados: { linhas: criadas.map((c) => ({ beneficio: c.beneficio, itemId: c.id, url: c.url })) },
+    metadados: { linhas: criadas.map((c) => ({ beneficio: rotuloLinha(c.beneficios), itemId: c.id, url: c.url })) },
   })
   return criadas
 }
@@ -1119,7 +1123,7 @@ async function processarContrato(
     for (const [k, v] of Object.entries(pedidos)) if (v) referencias[k] = v
     // Uma referência por linha: com um `solicitacaoId` só, a linha do outro benefício ficaria
     // fora da lista de artefatos do run.
-    for (const s of solicitacoes) referencias[`solicitacaoId${s.beneficio}`] = s.id
+    for (const s of solicitacoes) referencias[`solicitacaoId${rotuloLinha(s.beneficios)}`] = s.id
     await marcarContratoFinal(runId, contrato.contrato, "ok", undefined, Object.keys(referencias).length ? referencias : undefined)
   } catch (e) {
     const mensagem = e instanceof Error ? e.message : "erro_desconhecido"

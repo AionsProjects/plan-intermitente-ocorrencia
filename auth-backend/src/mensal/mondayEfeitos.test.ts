@@ -10,7 +10,7 @@ const {
   montarValuesPlanUpdate, montarMutationPlanUpdates, montarValuesDesconto, montarMutationDescontos,
   montarResumoSolicitacao, montarValuesSolicitacao, saldoAnteriorControleCaju,
   montarNomeDebitoControle, montarValuesDebitoControle,
-  beneficiosDaSolicitacao, montarNomeSolicitacaoMensal,
+  linhasDaSolicitacao, montarNomeSolicitacaoMensal,
 } = await import("./mondayEfeitos.js")
 
 const planUpdate = {
@@ -76,13 +76,16 @@ const solicitacaoInput = {
   pedidoCreditoVR: "ord-cvr", pedidoCreditoVT: null,
   pedidoPixVR: "ord-pvr", pedidoPixVT: "ord-pvt",
   planBoardId: "18418191275", dataIso: "2026-07-11",
+  // Gaveta de 09/2026: formato SEPARADO (uma linha por benefício). Ver domain/splitBeneficio.ts —
+  // a gaveta é que decide, e agosto continua junto (teste próprio no fim do arquivo).
+  caixa: "2026-09",
 }
 
 test("solicitação: uma linha por benefício, cada uma só com as colunas dela", () => {
-  assert.deepEqual(beneficiosDaSolicitacao(solicitacaoInput), ["VR", "VT"])
+  assert.deepEqual(linhasDaSolicitacao(solicitacaoInput), [["VR"], ["VT"]])
 
-  const vr = montarValuesSolicitacao(solicitacaoInput, "VR") as Record<string, unknown>
-  const vt = montarValuesSolicitacao(solicitacaoInput, "VT") as Record<string, unknown>
+  const vr = montarValuesSolicitacao(solicitacaoInput, ["VR"]) as Record<string, unknown>
+  const vt = montarValuesSolicitacao(solicitacaoInput, ["VT"]) as Record<string, unknown>
 
   // Colunas comuns: iguais nas duas linhas — é o mesmo pagamento, do mesmo contrato.
   for (const v of [vr, vt]) {
@@ -121,10 +124,10 @@ test("solicitação: uma linha por benefício, cada uma só com as colunas dela"
 })
 
 test("nome do item carrega o benefício — senão o board fica com dois itens iguais", () => {
-  assert.equal(montarNomeSolicitacaoMensal(solicitacaoInput, "VR"), "TRE PB - VR")
-  assert.equal(montarNomeSolicitacaoMensal(solicitacaoInput, "VT"), "TRE PB - VT")
+  assert.equal(montarNomeSolicitacaoMensal(solicitacaoInput, ["VR"]), "TRE PB - VR")
+  assert.equal(montarNomeSolicitacaoMensal(solicitacaoInput, ["VT"]), "TRE PB - VT")
   assert.equal(
-    montarNomeSolicitacaoMensal({ ...solicitacaoInput, nomePrefixo: "TESTE - " }, "VT"),
+    montarNomeSolicitacaoMensal({ ...solicitacaoInput, nomePrefixo: "TESTE - " }, ["VT"]),
     "TESTE - TRE PB - VT",
   )
 })
@@ -142,8 +145,8 @@ test("VALOR CAJU fica na base do RM/boleto — caso real DETRAN 08/2026", () => 
         creditoVR: 448.35, creditoVT: 0, pixVR: 3883.25, pixVT: 630 },
     ],
   }
-  const vr = montarValuesSolicitacao(detran, "VR") as Record<string, unknown>
-  const vt = montarValuesSolicitacao(detran, "VT") as Record<string, unknown>
+  const vr = montarValuesSolicitacao(detran, ["VR"]) as Record<string, unknown>
+  const vt = montarValuesSolicitacao(detran, ["VT"]) as Record<string, unknown>
   assert.equal(vr["numeric_mkrek29b"], "3883.25")
   assert.equal(vt["numeric_mkwhk2xr"], "630")
   // As duas LINHAS somam o boleto, que é o que a Caju cobra. O split mudou empacotamento, não valor.
@@ -159,32 +162,32 @@ test("VALOR CAJU: contrato cujo VR coube todo no crédito vai a zero, mas segue 
   }
   // A LINHA existe mesmo com boleto zero — o critério é o benefício apurado, não o que sobra pro
   // boleto. Sumir do board o pagamento que coube inteiro no crédito seria perder o rastro.
-  assert.deepEqual(beneficiosDaSolicitacao(tudoCredito), ["VR"])
-  const v = montarValuesSolicitacao(tudoCredito, "VR") as Record<string, unknown>
+  assert.deepEqual(linhasDaSolicitacao(tudoCredito), [["VR"]])
+  const v = montarValuesSolicitacao(tudoCredito, ["VR"]) as Record<string, unknown>
   assert.equal(v["numeric_mkrek29b"], "0")
   assert.deepEqual(v["dropdown_mkwhxxs2"], { labels: ["CAJU"] })
 })
 
 test("coluna de pedido fica vazia na linha cujo benefício não gerou boleto", () => {
-  const v = montarValuesSolicitacao({ ...solicitacaoInput, pedidoPixVR: null }, "VR") as Record<string, unknown>
+  const v = montarValuesSolicitacao({ ...solicitacaoInput, pedidoPixVR: null }, ["VR"]) as Record<string, unknown>
   assert.equal(v["text_mm1zyhcw"], "")
   assert.equal(v["text_mm395p8s"], "")
   // E a linha do VT continua com o id dela — uma não contamina a outra.
-  const vt = montarValuesSolicitacao({ ...solicitacaoInput, pedidoPixVR: null }, "VT") as Record<string, unknown>
+  const vt = montarValuesSolicitacao({ ...solicitacaoInput, pedidoPixVR: null }, ["VT"]) as Record<string, unknown>
   assert.equal(vt["text_mm1zyhcw"], "ord-pvt")
 })
 
 test("coluna de pedido fica vazia quando nenhum boleto saiu", () => {
   const semBoleto = { ...solicitacaoInput, pedidoPixVR: null, pedidoPixVT: null }
   for (const b of ["VR", "VT"] as const) {
-    const v = montarValuesSolicitacao(semBoleto, b) as Record<string, unknown>
+    const v = montarValuesSolicitacao(semBoleto, [b]) as Record<string, unknown>
     assert.equal(v["text_mm1zyhcw"], "")
     assert.equal(v["text_mm395p8s"], "")
   }
 })
 
 test("resumo lista pessoas com itens do Plan", () => {
-  const r = montarResumoSolicitacao(solicitacaoInput, "VR")
+  const r = montarResumoSolicitacao(solicitacaoInput, ["VR"])
   assert.ok(r.startsWith("MENSAL AGRUPADO VR - TRE PB - JULHO/2026"))
   assert.ok(r.includes("01. Fulana | Chapa: 006534"))
   assert.ok(r.includes("Plan: 1, 2"))
@@ -196,9 +199,46 @@ test("resumo lista pessoas com itens do Plan", () => {
 
 test("VT zerado não gera linha de VT no board", () => {
   const semVT = { ...solicitacaoInput, totais: { ...solicitacaoInput.totais, vt: 0 } }
-  assert.deepEqual(beneficiosDaSolicitacao(semVT), ["VR"])
-  const v = montarValuesSolicitacao(semVT, "VR") as Record<string, unknown>
+  assert.deepEqual(linhasDaSolicitacao(semVT), [["VR"]])
+  const v = montarValuesSolicitacao(semVT, ["VR"]) as Record<string, unknown>
   assert.deepEqual(v["dropdown_mkwhxxs2"], { labels: ["CAJU"] })
+})
+
+// --- Corte do split por gaveta (31/08/2026) -------------------------------------------------
+// Agosto foi pago e conferido com UMA linha carregando os dois benefícios. Retomar um pagamento
+// daquele mês no formato novo colocaria o mesmo pagamento em dois formatos na mesma gaveta.
+
+const agosto = { ...solicitacaoInput, caixa: "2026-08", competenciaLabel: "AGOSTO" }
+
+test("gaveta até 08/2026: UMA linha com os dois benefícios, no formato antigo", () => {
+  assert.deepEqual(linhasDaSolicitacao(agosto), [["VR", "VT"]])
+
+  const v = montarValuesSolicitacao(agosto, ["VR", "VT"]) as Record<string, unknown>
+  // As duas labels e as duas colunas de valor no MESMO item.
+  assert.deepEqual(v["dropdown_mkwhxxs2"], { labels: ["CAJU", "CAJU VT"] })
+  assert.equal(v["numeric_mkrek29b"], "594")
+  assert.equal(v["numeric_mkwhk2xr"], "218")
+  // IDFINANC dos dois eventos, e os ids de pedido dividindo a célula por "; ".
+  assert.equal(v["text_mkrenhm"], "555")
+  assert.equal(v["text_mkwhg4dn"], "")
+  assert.equal(v["text_mm1zyhcw"], "ord-pvr; ord-pvt")
+  assert.ok(String(v["text_mm395p8s"]).includes("; "))
+  // Nome e resumo sem sufixo — não há o que distinguir numa linha só.
+  assert.equal(montarNomeSolicitacaoMensal(agosto, ["VR", "VT"]), "TRE PB")
+  assert.ok(montarResumoSolicitacao(agosto, ["VR", "VT"]).startsWith("MENSAL AGRUPADO - TRE PB - AGOSTO/2026"))
+})
+
+test("gaveta até 08/2026: a linha sai mesmo sem benefício apurado (é o item único de hoje)", () => {
+  const zerado = { ...agosto, totais: { vr: 0, vt: 0, credito: 0, pix: 0 } }
+  assert.deepEqual(linhasDaSolicitacao(zerado), [["VR", "VT"]])
+  const v = montarValuesSolicitacao(zerado, ["VR", "VT"]) as Record<string, unknown>
+  assert.deepEqual(v["dropdown_mkwhxxs2"], { labels: ["CAJU"] })
+})
+
+test("gaveta ausente cai no mês do dataIso — mesma queda do grupo do board", () => {
+  const { caixa: _ignorado, ...semCaixa } = solicitacaoInput
+  assert.deepEqual(linhasDaSolicitacao({ ...semCaixa, dataIso: "2026-08-31" }), [["VR", "VT"]])
+  assert.deepEqual(linhasDaSolicitacao({ ...semCaixa, dataIso: "2026-09-01" }), [["VR"], ["VT"]])
 })
 
 test("saldoAnteriorControleCaju: último item preenchido, entrada+aporte-débito", () => {
