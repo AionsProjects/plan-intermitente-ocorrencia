@@ -1012,6 +1012,20 @@ async function runCancelado(runId: string): Promise<boolean> {
   return runFoiCancelado(runId)
 }
 
+/**
+ * Registra a pendência do RM. É um STEP, e não uma chamada solta no corpo do workflow, porque
+ * `registrarEvento` puxa o espelho de eventos — que puxa `alertaFalha`, que usa `node:crypto`.
+ * Fora de um step o bundler recusa: "Node.js modules are not available in workflow functions".
+ * Foi o que quebrou os builds de 31/08 às 21:58 e 22:05.
+ */
+async function marcarRmPendencia(runId: string, contrato: string, mensagem: string): Promise<void> {
+  "use step"
+  await registrarEvento({
+    runId, contrato, etapa: "rm_pendencia", estado: "aviso", mensagem,
+    metadados: { segue: "monday+drive+notas", idfinanc: "pendente" },
+  })
+}
+
 async function processarContrato(
   runId: string,
   modo: ModoExec,
@@ -1106,11 +1120,7 @@ async function processarContrato(
       // que deixou de acontecer é o contrato inteiro cair junto e o board ficar vazio.
       if (ehFatal(e)) throw e
       rmPendencia = mensagemErro(e)
-      await registrarEvento({
-        runId, contrato: contrato.contrato, etapa: "rm_pendencia", estado: "aviso",
-        mensagem: rmPendencia,
-        metadados: { segue: "monday+drive+notas", idfinanc: "pendente" },
-      })
+      await marcarRmPendencia(runId, contrato.contrato, rmPendencia)
     }
 
     // Monday (adaptador real, gated por producao+ledger).
