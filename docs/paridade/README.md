@@ -42,9 +42,16 @@ Ação manual no flip: webhook create_item/ativar dos boards pro backend.
 - `MONDAY_TOKEN`, `RM_BRIDGE_URL`, `RM_AIONS_AUTH` — ok em prod.
 - `GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON` (ou `_BASE64`) + `GOOGLE_DRIVE_ROOT_FOLDER_ID` — **pendente (Isaac cria a service account e compartilha a pasta raiz).**
 
-Regra de não-desconto (03/07/2026, Isaac): **DETRAN, TRE PB e SEDUC*** (prefixo)
-declaram falta/atraso/atestado/PF mas desconto VR/VT = 0. **Cancelamento
-total/parcial desconta SEMPRE** (`aplicarRegraNaoDesconta: false`). Fonte:
+Regra de não-desconto — reescrita em **31/08/2026** (Isaac). Só o **DETRAN** declara
+falta/atraso sem descontar (alinhamento à v56 do motor celetista). **TRE PB e SEDUC***
+descontam. **Cancelamento total/parcial desconta SEMPRE**
+(`aplicarRegraNaoDesconta: false`).
+
+Duas listas, não uma: `naoDesconta` (falta/atraso) e `naoDescontaPontoFacultativo`
+(que mantém o SEDUC dentro). O princípio é desconta o que o EMPREGADO causou, não
+desconta o que o CALENDÁRIO causou — feriado e ponto facultativo. Feriado não depende
+de lista: `derivarDescontosPorDia` não deixa dia de feriado entrar no ledger de
+contrato nenhum. Fonte:
 `domain/desconto.ts::naoDesconta`. Os WFs (reserva) ainda precisam do patch
 `seduc_nao_desconta.cjs` (bloqueado por key n8n expirada — renovar).
 

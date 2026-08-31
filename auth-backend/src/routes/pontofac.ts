@@ -4,7 +4,7 @@ import { usuarioDaSessao } from "../session.js"
 import { abrirExecucao } from "../services/execucao.js"
 import { boardAtual } from "../repo/boards.js"
 import { lerValores } from "../repo/valores.js"
-import { resolverValores, naoDesconta, norm } from "../domain/desconto.js"
+import { resolverValores, naoDescontaPontoFacultativo, norm } from "../domain/desconto.js"
 import { isFeriadoNacional } from "../domain/feriado.js"
 import { upsertDesconto } from "../repo/descontos.js"
 import { reservarEfeito, confirmarEfeito } from "../jobs/repo.js"
@@ -254,8 +254,10 @@ async function selecionar(
         valorVT = vtMeiaVolta ? round2(vtDia / 2) : vtDia
       }
     }
-    // Contratos que NUNCA descontam (DETRAN/TRE PB + SEDUC*): declara, desconto 0.
-    if (naoDesconta(contrato)) {
+    // Contratos que não perdem benefício por decisão de calendário (DETRAN + SEDUC*): declara,
+    // desconto 0. NÃO é a mesma lista de falta/atraso — o SEDUC voltou a descontar aquelas em
+    // 31/08 e continua fora desta.
+    if (naoDescontaPontoFacultativo(contrato)) {
       aplicaVR = false
       aplicaVT = false
       valorVR = 0

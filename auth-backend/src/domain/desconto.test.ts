@@ -5,6 +5,7 @@ import {
   calcularDesconto,
   jaConsumido,
   naoDesconta,
+  naoDescontaPontoFacultativo,
   type LinhaValores,
 } from "./desconto.js"
 import { diasUteis, diasCorridos } from "./diasUteis.js"
@@ -141,18 +142,34 @@ test("calcularDesconto: cancelamento ainda desconta no DETRAN (não é falta, é
   assert.equal(r.descontoVT, 10)
 })
 
-test("calcularDesconto: SEDUC (3 subgrupos) não desconta por falta/atraso (03/07/2026)", () => {
-  assert.equal(naoDesconta("SEDUC ESCOLA"), true)
-  assert.equal(naoDesconta("SEDUC SEDE"), true)
-  assert.equal(naoDesconta("SEDUC INTERIOR"), true)
-  assert.equal(naoDesconta("seduc escola"), true) // normalização
+test("calcularDesconto: SEDUC volta a descontar falta e atraso (31/08/2026)", () => {
+  assert.equal(naoDesconta("SEDUC ESCOLA"), false)
+  assert.equal(naoDesconta("SEDUC SEDE"), false)
+  assert.equal(naoDesconta("SEDUC INTERIOR"), false)
+  assert.equal(naoDesconta("seduc escola"), false) // normalização
   assert.equal(naoDesconta("SEMSA"), false)
-  const r = calcularDesconto({
-    vrDia: 20, vtDia: 8, optanteVT: true, contrato: "SEDUC SEDE",
+  const falta = calcularDesconto({
+    vrDia: 24.5, vtDia: 10, optanteVT: true, contrato: "SEDUC SEDE",
     descontosPorDia: [{ vr: true, vt: true, vr_percentual: 100 }],
   })
-  assert.equal(r.descontoVR, 0)
-  assert.equal(r.descontoVT, 0)
+  assert.equal(falta.descontoVR, 24.5)
+  assert.equal(falta.descontoVT, 10)
+  // Atraso: VR proporcional, VT intacto (o ledger só marca vt no dia cheio).
+  const atraso = calcularDesconto({
+    vrDia: 24.5, vtDia: 10, optanteVT: true, contrato: "SEDUC INTERIOR",
+    descontosPorDia: [{ vr: true, vt: false, vr_tipo: "atraso", minutos_atraso: 60 }],
+  })
+  assert.equal(atraso.descontoVR, 3.06)
+  assert.equal(atraso.descontoVT, 0)
+})
+
+test("SEDUC não perde benefício por decisão de calendário — ponto facultativo segue isento", () => {
+  // Lista separada de propósito: o SEDUC saiu de `naoDesconta` sem sair desta.
+  assert.equal(naoDescontaPontoFacultativo("SEDUC SEDE"), true)
+  assert.equal(naoDescontaPontoFacultativo("SEDUC INTERIOR"), true)
+  assert.equal(naoDescontaPontoFacultativo("DETRAN"), true)
+  assert.equal(naoDescontaPontoFacultativo("SEMSA"), false)
+  assert.equal(naoDescontaPontoFacultativo("TRE PB"), false)
 })
 
 test("calcularDesconto: cancelamento desconta SEDUC (aplicarRegraNaoDesconta=false)", () => {

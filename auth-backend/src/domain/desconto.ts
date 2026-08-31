@@ -19,28 +19,41 @@ export function norm(v: unknown): string {
     .trim()
 }
 
-/** Contratos que declaram a falta mas NÃO geram desconto VR/VT.
- *  SEDUC (3 subgrupos, por prefixo) entrou em 03/07/2026 — só cancelamento
- *  desconta pra eles (cancelar chama com aplicarRegraNaoDesconta: false). */
-// DETRAN e TRE PB SAÍRAM desta lista em 12/08/2026, por decisão do Isaac: dia não trabalhado
-// nesses contratos passa a descontar (VR Mensal / 30) por dia — 17,15 portaria, 19,60 técnico,
-// 22,00 TRE PB. Antes o desconto era zerado e a pessoa recebia o mensal cheio mesmo faltando
-// (zero itens DETRAN/TRE no board Desconto provavam isso). SEDUC* continua sem desconto —
-// não entrou na decisão.
-//
-// 🔁 O **DETRAN VOLTOU** em 31/08/2026, alinhando o intermitente à v56 do motor celetista
-// (20/08): no DETRAN, falta, atestado e declaração NÃO descontam — só afastamento e aviso
-// prévio, que aqui não são ocorrência de dia e sim ausência de convocação. Antes disso a mesma
-// pessoa era tratada de dois jeitos conforme o vínculo: celetista faltava e recebia o mensal
-// cheio, intermitente faltava e levava VR Mensal/30 no board Desconto.
-//
-// **TRE PB continua descontando** — a v56 apertou o escopo no DETRAN e deixou o grupo D de pé.
-// Cancelamento segue descontando em todos (chama com `aplicarRegraNaoDesconta: false`), igual ao
-// SEDUC: cancelar não é falta, é dia que não existiu.
+/**
+ * Contratos que declaram a ocorrência mas NÃO geram desconto de VR/VT por ela.
+ *
+ * Histórico curto: SEDUC* entrou em 03/07/2026; DETRAN e TRE PB saíram em 12/08 (passaram a
+ * descontar VR Mensal/30 por dia); o DETRAN voltou em 31/08, alinhando o intermitente à v56 do
+ * motor celetista — lá falta, atestado e declaração não descontam, só afastamento e aviso
+ * prévio, que aqui não são ocorrência de dia e sim ausência de convocação. TRE PB segue
+ * descontando (a v56 apertou o escopo no DETRAN e deixou o grupo D de pé).
+ *
+ * 🔁 **SEDUC SAIU em 31/08/2026** (decisão do Isaac): falta e atraso VOLTAM a descontar nos três
+ * subgrupos. O que o SEDUC não perde é **feriado** — e isso não mora aqui: `derivarDescontosPorDia`
+ * já não deixa dia de feriado entrar no ledger, para contrato nenhum, então feriado não vira
+ * desconto nem por falta lançada em cima dele.
+ *
+ * O princípio que ficou, e que separa as duas regras do SEDUC: desconta o que o EMPREGADO causou
+ * (falta, atraso), não desconta o que o CALENDÁRIO causou (feriado, ponto facultativo — ver
+ * `naoDescontaPontoFacultativo`).
+ *
+ * Cancelamento desconta em TODOS, sempre: chama com `aplicarRegraNaoDesconta: false`, porque
+ * cancelar não é falta, é dia que não existiu.
+ */
 export const CONTRATOS_NAO_DESCONTAM: string[] = ["DETRAN"]
 export function naoDesconta(contrato: string): boolean {
+  return CONTRATOS_NAO_DESCONTAM.includes(norm(contrato))
+}
+
+/**
+ * Ponto facultativo é decisão de calendário, não ocorrência do empregado — segue a mesma lista
+ * de antes do 31/08, com o SEDUC dentro. Separado de `naoDesconta` de propósito: quando o SEDUC
+ * voltou a descontar falta, herdar essa lista faria o ponto facultativo passar a descontar junto,
+ * calado, num contrato que recebe até em feriado.
+ */
+export function naoDescontaPontoFacultativo(contrato: string): boolean {
   const c = norm(contrato)
-  return CONTRATOS_NAO_DESCONTAM.includes(c) || c.startsWith("SEDUC")
+  return naoDesconta(c) || c.startsWith("SEDUC")
 }
 
 // ---- Resolução de valores no board Valores ----

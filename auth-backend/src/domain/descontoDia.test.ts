@@ -96,3 +96,25 @@ test("agregados: dias_perde_vr é FRACIONÁRIO — atraso não custa um dia inte
   // VT é por DIA, não proporcional: o atraso não tira VT, só a falta.
   assert.equal(ag.dias_perde_vt, 1)
 })
+
+// Regra do SEDUC de 31/08/2026: desconta falta e atraso, NÃO desconta feriado. A segunda metade
+// não mora em `naoDesconta` — mora aqui, e vale para todo contrato: dia de feriado nem entra no
+// ledger, então falta lançada em cima de feriado não vira desconto de ninguém.
+test("feriado não entra no ledger — nem com falta lançada em cima", () => {
+  const respostas = [
+    { data: "2026-09-07", tipo: "falta" }, // Independência, segunda-feira
+    { data: "2026-09-08", tipo: "falta" },
+  ]
+  const ledger = derivarDescontosPorDia({
+    dataInicio: "2026-09-07", dataFim: "2026-09-11", trabalhaSabado: false, respostas,
+  })
+  assert.deepEqual(ledger.map((e) => e.data), ["2026-09-08"], "o feriado ficou de fora")
+
+  // E o dinheiro segue o ledger: um dia de VR/VT, não dois.
+  const seduc = calcularDesconto({
+    vrDia: 24.5, vtDia: 10, optanteVT: true, contrato: "SEDUC ESCOLA",
+    descontosPorDia: ledger,
+  })
+  assert.equal(seduc.descontoVR, 24.5)
+  assert.equal(seduc.descontoVT, 10)
+})
