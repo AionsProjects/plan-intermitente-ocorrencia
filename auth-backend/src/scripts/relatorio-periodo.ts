@@ -86,106 +86,197 @@ async function secaoExecucoes(de: Date, ate: Date): Promise<SecaoRelatorio> {
   }
 }
 
-// ── Seção 2 — runs do pagamento mensal ──────────────────────────────────────
-async function secaoMensal(de: Date, ate: Date): Promise<SecaoRelatorio> {
-  const { rows: runs } = await query<{
-    run_id: string; competencia: string; modo: string; status: string
-    operador_email: string | null; criado_em: Date; finalizado_em: Date | null
-  }>(
-    `SELECT run_id, competencia, modo, status, operador_email, criado_em, finalizado_em
-       FROM mensal_run WHERE criado_em >= $1 AND criado_em <= $2 ORDER BY criado_em`,
-    [de.toISOString(), ate.toISOString()],
-  )
-  const linhas: CelulaSecao[][] = []
-  for (const r of runs) {
-    const { rows: itens } = await query<{ contrato: string; qtd: number; status: string; etapa_atual: string | null; erro_msg: string | null }>(
-      `SELECT contrato, qtd, status, etapa_atual, erro_msg FROM mensal_run_item WHERE run_id = $1 ORDER BY ordem`,
-      [r.run_id],
-    )
-    linhas.push([
-      { texto: hora(r.criado_em) },
-      { texto: `RUN ${r.run_id.slice(0, 8)}`, tom: "forte" },
-      { texto: `${r.competencia} · ${r.modo}` },
-      { texto: rotuloEstadoExecucao(r.status), tom: TOM_ESTADO[r.status] ?? "apagado", lamp: true },
-      { texto: quem(null, r.operador_email), tom: "apagado" },
-      { texto: `${itens.length} contratos`, tom: "apagado" },
-    ])
-    for (const it of itens) {
-      linhas.push([
-        { texto: "" },
-        { texto: `   ${it.contrato}` },
-        { texto: `${it.qtd} pessoa(s)`, tom: "apagado" },
-        { texto: rotuloEstadoExecucao(it.status), tom: TOM_ESTADO[it.status] ?? "apagado", lamp: true },
-        { texto: it.etapa_atual ?? "—", tom: "apagado" },
-        { texto: it.erro_msg ?? "", tom: it.erro_msg ? "vermelho" : "apagado" },
-      ])
+// ── Log de alterações do Monday ─────────────────────────────────────────────
+// A fonte da verdade de "o que mudou no board" é o activity_log do próprio Monday, não as
+// nossas tabelas: ele registra TAMBÉM a edição feita à mão, que não passa por lugar nenhum
+// do nosso sistema. `created_at` vem em décimos de microssegundo — dividir por 10.000 dá ms.
+const BOARDS_LOG = [
+  { id: "", papel: "atual", rotulo: "Plano de Intermitentes" },
+  { id: "18411141462", papel: null, rotulo: "Histórico de Ocorrências" },
+  { id: "18400981023", papel: null, rotulo: "Base de Desconto" },
+]
+
+/** Colunas que carregam LANÇAMENTO de ocorrência — o que o Isaac pediu para ver primeiro. */
+const COLUNAS_OCORRENCIA = new Set([
+  "numeric", "texto5", "color_mm3a8ana", "date_mm3b88ta",                      // Entrada
+  "long_text_mm2xtcpw", "numeric_mm2xe2zk", "numeric_mm2x18hh",                // Histórico
+  "numeric_mm2x4fjj", "color_mm3b9v4n", "color_mm2xkqpc", "date_mm2x62fq",
+  "numeric_mm0rgsaw", "numeric_mm0r5tca", "color_mm0r8mjr",                    // Desconto
+])
+
+interface AlteracaoBoard {
+  quando: Date
+  board: string
+  pessoa: string
+  coluna: string
+  colunaId: string
+  de: string
+  para: string
+  autor: string
+  ocorrencia: boolean
+}
+
+/**
+ * Texto legível de um valor do log, que vem cru e em formato diferente por tipo de coluna.
+ *
+ * Status é o caso que obriga o `rotulos`: o log guarda só o ÍNDICE do rótulo
+ * (`{"index":2,...}`), e sem o mapa de labels da coluna o relatório imprimiria
+ * "[object Object]" — foi o que a primeira versão fez.
+ */
+function valorLegivel(v: unknown, rotulos?: Map<number, string>): string {
+  if (v == null) return "vazio"
+  if (typeof v === "string") return v.slice(0, 120)
+  if (typeof v === "number") return String(v)
+  const o = v as Record<string, unknown>
+  // Status: {label:{index,text}} no valor novo, {index} no anterior.
+  const lab = o.label as Record<string, unknown> | string | undefined
+  if (typeof lab === "string" && lab.trim()) return lab.slice(0, 120)
+  if (lab && typeof lab === "object") {
+    if (typeof lab.text === "string" && lab.text.trim()) return lab.text.slice(0, 120)
+    if (typeof lab.index === "number") return rotulos?.get(lab.index) ?? `índice ${lab.index}`
+  }
+  if (typeof o.index === "number") return rotulos?.get(o.index) ?? `índice ${o.index}`
+  for (const k of ["text", "name", "value"]) {
+    const x = o[k]
+    if (typeof x === "string" && x.trim()) return x.slice(0, 120)
+    if (typeof x === "number") return String(x)
+  }
+  if (typeof o.date === "string") return o.date
+  const j = JSON.stringify(v)
+  return j.length > 120 ? `${j.slice(0, 117)}…` : j
+}
+
+/** index -> rótulo das colunas de status, lido do `settings_str` do board. */
+function rotulosDeStatus(colunas: Array<{ id: string; settings_str?: string | null }>, boardId: string): Map<string, Map<number, string>> {
+  const fora = new Map<string, Map<number, string>>()
+  for (const c of colunas) {
+    if (!c.settings_str) continue
+    try {
+      const s = JSON.parse(c.settings_str) as { labels?: Record<string, string> }
+      if (!s.labels) continue
+      fora.set(`${boardId}:${c.id}`, new Map(Object.entries(s.labels).map(([i, t]) => [Number(i), t])))
+    } catch {
+      /* coluna sem settings utilizável */
     }
   }
+  return fora
+}
+
+async function lerAlteracoesBoard(de: Date, ate: Date): Promise<AlteracaoBoard[]> {
+  const { rows } = await query<{ monday_board_id: string }>(
+    `SELECT monday_board_id FROM boards WHERE papel = 'atual' AND ativo ORDER BY atualizado_em DESC LIMIT 1`,
+  )
+  const boards = BOARDS_LOG.map((b) => ({ ...b, id: b.id || rows[0]?.monday_board_id || "" })).filter((b) => b.id)
+
+  // Título das colunas por board: sem isso o relatório diria "color_mm3a8ana" ao DP.
+  const titulos = new Map<string, string>()
+  const nomes = new Map<number, string>()
+  const saida: AlteracaoBoard[] = []
+  for (const b of boards) {
+    const d = await mondayGraphql<{
+      boards: Array<{
+        columns: Array<{ id: string; title: string; settings_str: string | null }>
+        activity_logs: Array<{ event: string; created_at: string; data: string; user_id: number }>
+      }>
+    }>(
+      `query($b:[ID!],$de:ISO8601DateTime!,$ate:ISO8601DateTime!){
+         boards(ids:$b){ columns{ id title settings_str }
+           activity_logs(from:$de, to:$ate, limit:500){ event created_at data user_id } } }`,
+      { b: [b.id], de: de.toISOString(), ate: ate.toISOString() },
+    )
+    const board = d.boards?.[0]
+    if (!board) continue
+    for (const c of board.columns) titulos.set(`${b.id}:${c.id}`, c.title)
+    const rotulos = rotulosDeStatus(board.columns, b.id)
+    for (const l of board.activity_logs) {
+      if (l.event !== "update_column_value") continue
+      let j: Record<string, unknown>
+      try {
+        j = JSON.parse(l.data) as Record<string, unknown>
+      } catch {
+        continue
+      }
+      const colunaId = String(j.column_id ?? "")
+      saida.push({
+        quando: new Date(Number(l.created_at) / 10_000),
+        board: b.rotulo,
+        pessoa: String(j.pulse_name ?? "—"),
+        coluna: titulos.get(`${b.id}:${colunaId}`) ?? colunaId,
+        colunaId,
+        de: valorLegivel(j.previous_value, rotulos.get(`${b.id}:${colunaId}`)),
+        para: valorLegivel(j.value, rotulos.get(`${b.id}:${colunaId}`)),
+        autor: String(l.user_id),
+        ocorrencia: COLUNAS_OCORRENCIA.has(colunaId),
+      })
+      nomes.set(l.user_id, "")
+    }
+  }
+
+  // user_id -> nome. Ids negativos são a automação do próprio Monday, e a API recusa consultá-los.
+  const ids = [...nomes.keys()].filter((i) => i > 0)
+  if (ids.length) {
+    const u = await mondayGraphql<{ users: Array<{ id: string; name: string }> }>(
+      `query($ids:[ID!]){ users(ids:$ids){ id name } }`,
+      { ids: ids.map(String) },
+    )
+    for (const x of u.users) nomes.set(Number(x.id), x.name)
+  }
+  for (const a of saida) {
+    const n = nomes.get(Number(a.autor))
+    a.autor = Number(a.autor) < 0 ? "automação do Monday" : (n || `usuário ${a.autor}`)
+  }
+  return saida.sort((x, y) => x.quando.getTime() - y.quando.getTime())
+}
+
+function secaoOcorrencias(alteracoes: AlteracaoBoard[]): SecaoRelatorio {
+  const linhas = alteracoes.filter((a) => a.ocorrencia).map((a): CelulaSecao[] => [
+    { texto: hora(a.quando) },
+    { texto: a.pessoa, tom: "forte" },
+    { texto: a.board, tom: "apagado" },
+    { texto: a.coluna },
+    { texto: a.de, tom: "apagado" },
+    { texto: a.para, tom: "amarelo" },
+    { texto: a.autor },
+  ])
   return {
-    titulo: "Pagamento mensal — runs e contratos",
-    fonte: "pi.mensal_run + mensal_run_item",
-    colunas: [col("HORA", 46), col("RUN / CONTRATO", 150), col("COMPETÊNCIA / QTD", 110),
-      col("SITUAÇÃO", 96), col("QUEM / ETAPA", 150), col("OBSERVAÇÃO", LARGURA_UTIL - 552)],
-    vazio: "Nenhum run do mensal nesta janela.",
+    titulo: "Lançamentos de ocorrência (falta, atraso, cancelamento, desconto)",
+    fonte: "activity_log do Monday — inclui edição feita à mão no board",
+    colunas: [col("HORA", 44), col("PESSOA", 150), col("BOARD", 110), col("O QUE MUDOU", 120),
+      col("DE", 110), col("PARA", 110), col("QUEM ALTEROU", LARGURA_UTIL - 644)],
+    vazio: "Nenhum lançamento de falta, atraso ou cancelamento nesta janela.",
     linhas,
   }
 }
 
-// ── Seção 3 — convocações gravadas no RM ────────────────────────────────────
-async function secaoConvocacoesRm(de: Date, ate: Date): Promise<SecaoRelatorio> {
-  const { rows } = await query<{
-    contrato: string | null; origem_acao: string | null; criado_por: string | null
-    n: number; de_cod: string; ate_cod: string; removidas: number
-  }>(
-    `SELECT contrato, origem_acao, criado_por, COUNT(*)::int n,
-            MIN(codigo) de_cod, MAX(codigo) ate_cod,
-            COUNT(*) FILTER (WHERE removido_em IS NOT NULL)::int removidas
-       FROM convocacoes_rm
-      WHERE criado_em >= $1 AND criado_em <= $2
-      GROUP BY 1,2,3 ORDER BY 1,2,3`,
-    [de.toISOString(), ate.toISOString()],
-  )
-  return {
-    titulo: "Convocações gravadas no RM (evento S-2260)",
-    fonte: "pi.convocacoes_rm — agrupado por contrato, origem e autor",
-    colunas: [col("CONTRATO", 130), col("ORIGEM", 90), col("QUEM CRIOU", 160),
-      col("QTD", 50), col("FAIXA DE CÓDIGOS", 190), col("APAGADAS DEPOIS", LARGURA_UTIL - 620)],
-    vazio: "Nenhuma convocação gravada no RM nesta janela.",
-    linhas: rows.map((r): CelulaSecao[] => [
-      { texto: r.contrato ?? "—", tom: "forte" },
-      { texto: r.origem_acao ?? "—", tom: "apagado" },
-      { texto: quem(null, r.criado_por) },
-      { texto: String(r.n) },
-      { texto: r.de_cod === r.ate_cod ? r.de_cod : `${r.de_cod} … ${r.ate_cod}`, tom: "apagado" },
-      { texto: r.removidas ? `${r.removidas} apagada(s)` : "—", tom: r.removidas ? "amarelo" : "apagado" },
-    ]),
+function secaoOutrasAlteracoes(alteracoes: AlteracaoBoard[]): SecaoRelatorio {
+  // Agrupado: 100+ linhas de coluna administrativa afogariam o que interessa.
+  const mapa = new Map<string, { board: string; coluna: string; autor: string; n: number; primeiro: Date; ultimo: Date }>()
+  for (const a of alteracoes.filter((x) => !x.ocorrencia)) {
+    const k = `${a.board}|${a.coluna}|${a.autor}`
+    const atual = mapa.get(k)
+    if (atual) {
+      atual.n++
+      atual.ultimo = a.quando
+    } else {
+      mapa.set(k, { board: a.board, coluna: a.coluna, autor: a.autor, n: 1, primeiro: a.quando, ultimo: a.quando })
+    }
   }
-}
-
-// ── Seção 4 — efeitos de dinheiro (Caju e RM) ───────────────────────────────
-async function secaoEfeitos(de: Date, ate: Date): Promise<SecaoRelatorio> {
-  const { rows } = await query<{ familia: string; status: string; n: number; primeiro: Date; ultimo: Date }>(
-    `SELECT split_part(chave, ':', 1) || ' · ' ||
-            regexp_replace(split_part(chave, ':', array_length(string_to_array(chave, ':'), 1)), '_l\\d+$', '_lote') familia,
-            status, COUNT(*)::int n, MIN(criado_em) primeiro, MAX(criado_em) ultimo
-       FROM efeitos_externos
-      WHERE criado_em >= $1 AND criado_em <= $2
-      GROUP BY 1,2 ORDER BY 1,2`,
-    [de.toISOString(), ate.toISOString()],
-  )
   return {
-    titulo: "Efeitos externos registrados (Caju, RM, Monday, Drive)",
-    fonte: "pi.efeitos_externos — o ledger que impede pagar duas vezes",
-    colunas: [col("EFEITO", 300), col("SITUAÇÃO", 110), col("QTD", 60),
-      col("PRIMEIRO", 80), col("ÚLTIMO", LARGURA_UTIL - 550)],
-    vazio: "Nenhum efeito externo nesta janela.",
-    linhas: rows.map((r): CelulaSecao[] => [
-      { texto: r.familia, tom: "forte" },
-      { texto: r.status, tom: r.status === "confirmado" ? "verde" : "amarelo", lamp: true },
-      { texto: String(r.n) },
-      { texto: hora(r.primeiro), tom: "apagado" },
-      { texto: hora(r.ultimo), tom: "apagado" },
-    ]),
+    titulo: "Outras alterações no board",
+    fonte: "activity_log do Monday — agrupado por board, coluna e autor",
+    colunas: [col("BOARD", 170), col("COLUNA", 240), col("QUEM ALTEROU", 190),
+      col("QTD", 50), col("PRIMEIRA", 60), col("ÚLTIMA", LARGURA_UTIL - 710)],
+    vazio: "Nenhuma outra alteração no board nesta janela.",
+    linhas: [...mapa.values()]
+      .sort((a, b) => b.n - a.n)
+      .map((g): CelulaSecao[] => [
+        { texto: g.board, tom: "forte" },
+        { texto: g.coluna },
+        { texto: g.autor },
+        { texto: String(g.n) },
+        { texto: hora(g.primeiro), tom: "apagado" },
+        { texto: hora(g.ultimo), tom: "apagado" },
+      ]),
   }
 }
 
@@ -309,33 +400,33 @@ async function main(): Promise<void> {
   const intervencoes = arg("intervencoes")
     ?? path.resolve(process.cwd(), `../docs/relatorios/intervencoes-${diaIso}.json`)
 
-  const [execucoes, mensal, convocacoes, efeitos, retroativas] = await Promise.all([
+  const [execucoes, retroativas, alteracoes] = await Promise.all([
     secaoExecucoes(de, ate),
-    secaoMensal(de, ate),
-    secaoConvocacoesRm(de, ate),
-    secaoEfeitos(de, ate),
     secaoRetroativas(diaIso),
+    lerAlteracoesBoard(de, ate),
   ])
+  const ocorrencias = secaoOcorrencias(alteracoes)
+  const outras = secaoOutrasAlteracoes(alteracoes)
   const tecnicas = secaoIntervencoes(intervencoes)
 
   const pdf = gerarRelatorioPeriodo({
-    titulo: "Relatório de alterações",
-    subtitulo: "Execuções do app, pagamento mensal, RM, efeitos de dinheiro e intervenções técnicas",
+    titulo: "Alterações no board e lançamentos",
+    subtitulo: "O que mudou no Monday na janela, quem mudou, e as convocações retroativas do dia",
     periodoLabel: `${dataHora(de)} a ${dataHora(ate)}`,
     geradoPor: process.env.USER ?? process.env.USERNAME ?? "automação",
     resumo: [
-      { rotulo: "execuções", n: execucoes.linhas.length },
-      { rotulo: "runs do mensal", n: mensal.linhas.filter((l) => l[1]?.texto.startsWith("RUN")).length },
-      { rotulo: "convocações no RM", n: convocacoes.linhas.reduce((t, l) => t + Number(l[3]?.texto ?? 0), 0) },
+      { rotulo: "lançamentos de ocorrência", n: ocorrencias.linhas.length, tom: ocorrencias.linhas.length ? "amarelo" : undefined },
+      { rotulo: "outras alterações", n: alteracoes.length - ocorrencias.linhas.length },
+      { rotulo: "convocações retroativas", n: retroativas.linhas.length, tom: retroativas.linhas.length ? "amarelo" : undefined },
+      { rotulo: "execuções do app", n: execucoes.linhas.length },
       { rotulo: "intervenções técnicas", n: tecnicas.linhas.length },
-      { rotulo: "retroativas", n: retroativas.linhas.length, tom: retroativas.linhas.length ? "amarelo" : undefined },
     ],
-    secoes: [execucoes, mensal, convocacoes, efeitos, tecnicas, retroativas],
+    secoes: [ocorrencias, retroativas, outras, execucoes, tecnicas],
   })
   fs.writeFileSync(saida, pdf)
   console.log(`PDF: ${path.resolve(saida)} (${(pdf.length / 1024).toFixed(0)} KB)`)
   console.log(`janela: ${dataHora(de)} a ${dataHora(ate)} (Manaus) | dia das retroativas: ${dia(diaIso)}`)
-  for (const s of [execucoes, mensal, convocacoes, efeitos, tecnicas, retroativas]) {
+  for (const s of [ocorrencias, retroativas, outras, execucoes, tecnicas]) {
     console.log(`  ${String(s.linhas.length).padStart(4)} linha(s)  ${s.titulo}`)
   }
 }
