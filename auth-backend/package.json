@@ -29,7 +29,8 @@
     "importar:convocacoes": "node --env-file=.env --import tsx src/scripts/importar-convocacoes.ts",
     "migrate:dist": "node dist/scripts/migrate.js",
     "seed:dist": "node dist/scripts/seed.js",
-    "relatorio": "node --env-file=.env --import tsx src/scripts/relatorio-periodo.ts"
+    "relatorio": "node --env-file=.env --import tsx src/scripts/relatorio-periodo.ts",
+    "relatorio:atrasos": "node --env-file=.env --import tsx src/scripts/relatorio-atrasos.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",

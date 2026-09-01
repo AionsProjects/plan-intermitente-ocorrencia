@@ -37,6 +37,27 @@ export interface SecaoRelatorio {
   vazio?: string
 }
 
+export interface KpiItem {
+  rotulo: string
+  valor: string
+  /** Linha pequena embaixo do número — a leitura que o número sozinho não dá. */
+  nota?: string
+  tom?: TomCelula
+}
+
+export interface BarraItem {
+  rotulo: string
+  valor: number
+  nota?: string
+}
+
+export interface BlocoBarras {
+  titulo: string
+  itens: BarraItem[]
+  /** Sufixo da unidade no fim da barra (ex. "d" de dias). */
+  unidade?: string
+}
+
 export interface ResumoItem {
   rotulo: string
   n: number
@@ -49,6 +70,10 @@ export interface DadosRelatorioPeriodo {
   periodoLabel: string
   geradoPor: string
   resumo: ResumoItem[]
+  /** Cartões grandes no topo. Opcional: sem eles o documento sai como antes. */
+  kpis?: KpiItem[]
+  /** Barras horizontais, proporcionais ao maior valor do bloco. Opcional. */
+  barras?: BlocoBarras[]
   secoes: SecaoRelatorio[]
 }
 
@@ -129,6 +154,55 @@ function resumo(doc: DocumentoPdf, y: number, itens: ResumoItem[]): number {
   return y + 32
 }
 
+/**
+ * Cartões de KPI: número grande em serifa (eco do display do app) sobre poço claro.
+ *
+ * Quatro por linha na A4 paisagem — com cinco a largura fica menor que o número que ela carrega,
+ * e o cartão deixa de ser leitura de relance, que é a única razão dele existir.
+ */
+function kpis(doc: DocumentoPdf, y: number, itens: KpiItem[]): number {
+  if (!itens.length) return y
+  const porLinha = 4
+  const gap = 10
+  const w = (UTIL - gap * (porLinha - 1)) / porLinha
+  const h = 62
+  itens.forEach((k, i) => {
+    const linha = Math.floor(i / porLinha)
+    const x = MARGEM + (i % porLinha) * (w + gap)
+    const yy = y + linha * (h + gap)
+    doc.retangulo(x, yy, w, h, ZEBRA, 8)
+    // Fio de acento à esquerda: separa cartão de cartão sem precisar de borda inteira.
+    doc.retangulo(x, yy, 3, h, k.tom ? COR_TOM[k.tom] : OURO, 2)
+    doc.texto(x + 14, yy + 10, k.rotulo.toUpperCase(), { tamanho: 7, fonte: "helvB", cor: APAGADO })
+    doc.texto(x + 14, yy + 22, k.valor, { tamanho: 24, fonte: "timesB", cor: k.tom ? COR_TOM[k.tom] : TINTA })
+    if (k.nota) doc.texto(x + 14, yy + 50, truncar(k.nota, w - 24, 7.4, "helv"), { tamanho: 7.4, cor: APAGADO })
+  })
+  const linhas = Math.ceil(itens.length / porLinha)
+  return y + linhas * (h + gap) + 6
+}
+
+/**
+ * Barras horizontais proporcionais ao MAIOR valor do bloco (não a um teto fixo): o que interessa
+ * aqui é a comparação entre as linhas, e escala fixa achataria tudo quando os valores são baixos.
+ */
+function barras(doc: DocumentoPdf, y: number, bloco: BlocoBarras): number {
+  doc.texto(MARGEM, y, bloco.titulo.toUpperCase(), { tamanho: 8, fonte: "helvB", cor: APAGADO })
+  y += 14
+  const max = Math.max(1, ...bloco.itens.map((i) => i.valor))
+  const wRotulo = 170
+  const wBarra = UTIL - wRotulo - 90
+  for (const it of bloco.itens) {
+    doc.texto(MARGEM, y, truncar(it.rotulo, wRotulo - 8, 8.4, "helv"), { tamanho: 8.4, cor: TINTA })
+    const w = Math.max(2, (it.valor / max) * wBarra)
+    doc.retangulo(MARGEM + wRotulo, y - 1, wBarra, 11, ZEBRA, 3)
+    doc.retangulo(MARGEM + wRotulo, y - 1, w, 11, OURO, 3)
+    const rotulo = `${it.valor}${bloco.unidade ?? ""}${it.nota ? ` · ${it.nota}` : ""}`
+    doc.texto(MARGEM + wRotulo + wBarra + 8, y, rotulo, { tamanho: 8.4, fonte: "helvB", cor: TINTA })
+    y += 15
+  }
+  return y + 8
+}
+
 function tituloSecao(doc: DocumentoPdf, y: number, s: SecaoRelatorio, n: number): number {
   doc.texto(MARGEM, y, `${n}. ${s.titulo.toUpperCase()}`, { tamanho: 10, fonte: "helvB", cor: TINTA })
   doc.texto(0, y + 2, s.fonte, { tamanho: 7.5, cor: APAGADO, alinharDireita: LARG - MARGEM })
@@ -190,7 +264,8 @@ function montar(dados: DadosRelatorioPeriodo, totalPaginas: number | null): Docu
   doc.novaPagina()
   let pagina = 1
   let y = cabecalhoGrande(doc, dados)
-  y = resumo(doc, y, dados.resumo)
+  if (dados.kpis?.length) y = kpis(doc, y, dados.kpis)
+  if (dados.resumo.length) y = resumo(doc, y, dados.resumo)
   if (totalPaginas != null) rodape(doc, pagina, totalPaginas)
 
   const quebrar = (): void => {
@@ -198,6 +273,12 @@ function montar(dados: DadosRelatorioPeriodo, totalPaginas: number | null): Docu
     pagina++
     y = cabecalhoCurto(doc, dados)
     if (totalPaginas != null) rodape(doc, pagina, totalPaginas)
+  }
+
+  for (const b of dados.barras ?? []) {
+    // Bloco de barras não se parte no meio: título numa página e barras noutra mente sobre escala.
+    if (y + 14 + b.itens.length * 15 + 8 > RODAPE_Y - 14) quebrar()
+    y = barras(doc, y, b)
   }
 
   dados.secoes.forEach((s, i) => {
