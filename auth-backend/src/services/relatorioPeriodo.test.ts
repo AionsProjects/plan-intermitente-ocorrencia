@@ -59,3 +59,25 @@ test("quem: nome quando existe, senão o usuário do e-mail, senão automação"
   assert.equal(quem(null, "estefany.beatriz@contatoserv.com.br"), "estefany.beatriz")
   assert.equal(quem("  ", null), "automação")
 })
+
+// A regra que o Isaac cobrou: o log do Monday credita a escrita da automação ao dono do TOKEN.
+// Quem clicou de verdade só existe no app. Se o relatório imprimir o token, ele mente sobre
+// autoria — foi o que a segunda versão fez ("Isaac Raylen" no registro que a Karine lançou).
+test("autoria: quando há execução do app, o nome impresso é o do operador", () => {
+  const buf = gerarRelatorioPeriodo({
+    ...base,
+    secoes: [{
+      titulo: "Lançamentos",
+      fonte: "activity_log cruzado com o app",
+      colunas: [{ titulo: "QUEM ALTEROU", w: 200 }, { titulo: "POR ONDE", w: LARGURA_UTIL - 200 }],
+      linhas: [
+        [{ texto: "KARINE ROMASKEVIS DE", tom: "forte" }, { texto: "app · registro", tom: "apagado" }],
+        [{ texto: "Thifany Castro" }, { texto: "à mão no board · Thifany Castro", tom: "apagado" }],
+      ],
+    }],
+  })
+  const txt = buf.toString("latin1")
+  assert.match(txt, /KARINE/, "operador real não foi impresso")
+  assert.match(txt, /app \267 registro|app . registro/, "faltou dizer por onde veio")
+  assert.match(txt, /m\343o no board|mão no board/, "faltou distinguir a edição manual")
+})

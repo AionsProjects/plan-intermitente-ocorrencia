@@ -107,13 +107,89 @@ const COLUNAS_OCORRENCIA = new Set([
 interface AlteracaoBoard {
   quando: Date
   board: string
+  pulseId: string
   pessoa: string
   coluna: string
   colunaId: string
   de: string
   para: string
-  autor: string
+  /** Quem o Monday registra — na escrita da automação, é o dono do TOKEN, não quem clicou. */
+  gravadoPor: string
+  /** Quem clicou de verdade, quando dá para cruzar com uma execução do app. */
+  autorReal: string | null
+  via: string
   ocorrencia: boolean
+}
+
+/**
+ * Execução do app candidata a explicar uma alteração do board.
+ *
+ * Existe porque o log do Monday atribui TODA escrita da automação ao usuário do token (a conta
+ * de serviço). Sem este cruzamento o relatório diz "Isaac Raylen" em lançamento que a Karine
+ * fez pelo app — foi o que a versão anterior fez, e é justamente a pergunta que o relatório
+ * precisa responder: quem alterou DE VERDADE.
+ */
+interface ExecucaoApp {
+  quem: string
+  acao: string
+  pessoa: string | null
+  inicio: Date
+  fim: Date
+  itens: Set<string>
+}
+
+const norm = (v: string | null | undefined): string =>
+  String(v ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().trim()
+
+/** Execuções do app na janela (com folga), já com os ids de item do Monday que cada uma tocou. */
+async function lerExecucoesApp(de: Date, ate: Date): Promise<ExecucaoApp[]> {
+  const folga = 5 * 60_000
+  const { rows } = await query<{
+    id: string; acao: string; pessoa_nome: string | null; quem: string | null
+    criado_em: Date; finalizado_em: Date | null; itens: string[] | null
+  }>(
+    `SELECT l.id, l.acao, l.pessoa_nome,
+            COALESCE(l.operador_nome, l.operador_email) quem,
+            l.criado_em, l.finalizado_em,
+            ARRAY(SELECT a.chave FROM atividade_artefato a
+                   WHERE a.execucao_id = l.id AND a.chave ~ '^[0-9]{6,}$') itens
+       FROM audit_lancamentos l
+      WHERE l.criado_em >= $1 AND l.criado_em <= $2
+      ORDER BY l.criado_em`,
+    [new Date(de.getTime() - folga).toISOString(), new Date(ate.getTime() + folga).toISOString()],
+  )
+  return rows.map((r) => ({
+    quem: quem(r.quem, null),
+    acao: r.acao,
+    pessoa: r.pessoa_nome,
+    inicio: r.criado_em,
+    // Execução sem fim registrado: dá 3 minutos de janela, que cobre o mais lento que já vimos.
+    fim: r.finalizado_em ?? new Date(r.criado_em.getTime() + 180_000),
+    itens: new Set(r.itens ?? []),
+  }))
+}
+
+/**
+ * Casa uma alteração do board com a execução que a causou. Três chaves, da mais forte pra mais
+ * fraca — e quando nenhuma casa, o relatório NÃO inventa: fica com o autor do Monday.
+ */
+function casarExecucao(a: AlteracaoBoard, execs: ExecucaoApp[]): ExecucaoApp | null {
+  const dentro = (e: ExecucaoApp, folgaAntes = 60_000, folgaDepois = 180_000): boolean =>
+    a.quando.getTime() >= e.inicio.getTime() - folgaAntes &&
+    a.quando.getTime() <= e.fim.getTime() + folgaDepois
+  // 1) id do item registrado como artefato da execução — chave exata.
+  const porItem = execs.find((e) => e.itens.has(a.pulseId) && dentro(e))
+  if (porItem) return porItem
+  // 2) mesma pessoa, dentro da janela da execução.
+  const alvo = norm(a.pessoa)
+  const porPessoa = execs.find((e) => {
+    const p = norm(e.pessoa)
+    return p && alvo && (alvo.includes(p) || p.includes(alvo)) && dentro(e)
+  })
+  if (porPessoa) return porPessoa
+  // 3) uma ÚNICA execução cobrindo o instante — sem ambiguidade, vale; com duas, não.
+  const noTempo = execs.filter((e) => dentro(e, 5_000, 30_000))
+  return noTempo.length === 1 ? noTempo[0]! : null
 }
 
 /**
@@ -200,12 +276,15 @@ async function lerAlteracoesBoard(de: Date, ate: Date): Promise<AlteracaoBoard[]
       saida.push({
         quando: new Date(Number(l.created_at) / 10_000),
         board: b.rotulo,
+        pulseId: String(j.pulse_id ?? ""),
         pessoa: String(j.pulse_name ?? "—"),
         coluna: titulos.get(`${b.id}:${colunaId}`) ?? colunaId,
         colunaId,
         de: valorLegivel(j.previous_value, rotulos.get(`${b.id}:${colunaId}`)),
         para: valorLegivel(j.value, rotulos.get(`${b.id}:${colunaId}`)),
-        autor: String(l.user_id),
+        gravadoPor: String(l.user_id),
+        autorReal: null,
+        via: "",
         ocorrencia: COLUNAS_OCORRENCIA.has(colunaId),
       })
       nomes.set(l.user_id, "")
@@ -222,8 +301,20 @@ async function lerAlteracoesBoard(de: Date, ate: Date): Promise<AlteracaoBoard[]
     for (const x of u.users) nomes.set(Number(x.id), x.name)
   }
   for (const a of saida) {
-    const n = nomes.get(Number(a.autor))
-    a.autor = Number(a.autor) < 0 ? "automação do Monday" : (n || `usuário ${a.autor}`)
+    const n = nomes.get(Number(a.gravadoPor))
+    a.gravadoPor = Number(a.gravadoPor) < 0 ? "automação do Monday" : (n || `usuário ${a.gravadoPor}`)
+  }
+
+  // O cruzamento com o app: sem ele o relatório credita à conta de serviço o que a operação fez.
+  const execs = await lerExecucoesApp(de, ate)
+  for (const a of saida) {
+    const e = casarExecucao(a, execs)
+    if (e) {
+      a.autorReal = e.quem
+      a.via = `app · ${rotuloAcao(e.acao)}`
+    } else {
+      a.via = "à mão no board"
+    }
   }
   return saida.sort((x, y) => x.quando.getTime() - y.quando.getTime())
 }
@@ -236,13 +327,14 @@ function secaoOcorrencias(alteracoes: AlteracaoBoard[]): SecaoRelatorio {
     { texto: a.coluna },
     { texto: a.de, tom: "apagado" },
     { texto: a.para, tom: "amarelo" },
-    { texto: a.autor },
+    { texto: a.autorReal ?? a.gravadoPor, tom: a.autorReal ? "forte" : "normal" },
+    { texto: a.autorReal ? a.via : `${a.via} · ${a.gravadoPor}`, tom: "apagado" },
   ])
   return {
     titulo: "Lançamentos de ocorrência (falta, atraso, cancelamento, desconto)",
-    fonte: "activity_log do Monday — inclui edição feita à mão no board",
-    colunas: [col("HORA", 44), col("PESSOA", 150), col("BOARD", 110), col("O QUE MUDOU", 120),
-      col("DE", 110), col("PARA", 110), col("QUEM ALTEROU", LARGURA_UTIL - 644)],
+    fonte: "activity_log do Monday cruzado com pi.audit_lancamentos (quem clicou de verdade)",
+    colunas: [col("HORA", 40), col("PESSOA", 132), col("BOARD", 96), col("O QUE MUDOU", 104),
+      col("DE", 90), col("PARA", 90), col("QUEM ALTEROU", 118), col("POR ONDE", LARGURA_UTIL - 670)],
     vazio: "Nenhum lançamento de falta, atraso ou cancelamento nesta janela.",
     linhas,
   }
@@ -252,19 +344,20 @@ function secaoOutrasAlteracoes(alteracoes: AlteracaoBoard[]): SecaoRelatorio {
   // Agrupado: 100+ linhas de coluna administrativa afogariam o que interessa.
   const mapa = new Map<string, { board: string; coluna: string; autor: string; n: number; primeiro: Date; ultimo: Date }>()
   for (const a of alteracoes.filter((x) => !x.ocorrencia)) {
-    const k = `${a.board}|${a.coluna}|${a.autor}`
+    const autor = a.autorReal ? `${a.autorReal} (${a.via})` : `${a.gravadoPor} (à mão)`
+    const k = `${a.board}|${a.coluna}|${autor}`
     const atual = mapa.get(k)
     if (atual) {
       atual.n++
       atual.ultimo = a.quando
     } else {
-      mapa.set(k, { board: a.board, coluna: a.coluna, autor: a.autor, n: 1, primeiro: a.quando, ultimo: a.quando })
+      mapa.set(k, { board: a.board, coluna: a.coluna, autor, n: 1, primeiro: a.quando, ultimo: a.quando })
     }
   }
   return {
     titulo: "Outras alterações no board",
-    fonte: "activity_log do Monday — agrupado por board, coluna e autor",
-    colunas: [col("BOARD", 170), col("COLUNA", 240), col("QUEM ALTEROU", 190),
+    fonte: "activity_log do Monday cruzado com o app — agrupado por board, coluna e autor",
+    colunas: [col("BOARD", 150), col("COLUNA", 200), col("QUEM ALTEROU · POR ONDE", 250),
       col("QTD", 50), col("PRIMEIRA", 60), col("ÚLTIMA", LARGURA_UTIL - 710)],
     vazio: "Nenhuma outra alteração no board nesta janela.",
     linhas: [...mapa.values()]

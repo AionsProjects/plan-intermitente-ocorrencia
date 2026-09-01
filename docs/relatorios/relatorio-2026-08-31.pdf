@@ -10,7 +10,7 @@ endobj
 << /Type /Font /Subtype /Type1 /BaseFont /Times-Bold /Encoding /WinAnsiEncoding >>
 endobj
 4 0 obj
-<< /Length 17240 >>
+<< /Length 19111 >>
 stream
 0.063 0.082 0.122 rg 0 503.28 841.89 92 re f
 0.102 0.129 0.188 rg 0 503.28 841.89 4 re f
@@ -18,9 +18,9 @@ stream
 BT /helvB 8 Tf 0.91 0.761 0.459 rg 36 571.04 Td (PLANO DE INTERMITENTES) Tj ET
 BT /timesB 24 Tf 1 1 1 rg 36 542.56 Td (Alterações no board e lançamentos) Tj ET
 BT /helv 8.5 Tf 0.725 0.757 0.816 rg 36 522.65 Td (O que mudou no Monday na janela, quem mudou, e as convocações retroativas do dia) Tj ET
-BT /helv 9 Tf 1 1 1 rg 659.784 566.26 Td (Período  31/08, 14:00 a 31/08, 20:06) Tj ET
+BT /helv 9 Tf 1 1 1 rg 659.784 566.26 Td (Período  31/08, 14:00 a 31/08, 20:34) Tj ET
 BT /helv 9 Tf 0.725 0.757 0.816 rg 657.849 550.26 Td (Horários no fuso de Manaus \(UTC-4\)) Tj ET
-BT /helv 8 Tf 0.725 0.757 0.816 rg 638.25 535.04 Td (Gerado em 31/08/2026, 20:06 por NOTECS-89) Tj ET
+BT /helv 8 Tf 0.725 0.757 0.816 rg 638.25 535.04 Td (Gerado em 31/08/2026, 20:35 por NOTECS-89) Tj ET
 0.957 0.965 0.976 rg 46 465.28 m 185.051 465.28 l 190.574 465.28 195.051 469.757 195.051 475.28 c 195.051 475.28 l 195.051 480.803 190.574 485.28 185.051 485.28 c 46 485.28 l 40.477 485.28 36 480.803 36 475.28 c 36 475.28 l 36 469.757 40.477 465.28 46 465.28 c f
 0.659 0.478 0.086 rg 51 475.28 m 51 476.937 49.657 478.28 48 478.28 c 46.343 478.28 45 476.937 45 475.28 c 45 473.623 46.343 472.28 48 472.28 c 49.657 472.28 51 473.623 51 475.28 c f
 BT /helvB 9 Tf 0.102 0.114 0.141 rg 56 472.76 Td (21 lançamentos de ocorrência) Tj ET
@@ -37,185 +37,207 @@ BT /helvB 9 Tf 0.102 0.114 0.141 rg 597.679 472.76 Td (9 intervenções técnicas) 
 BT /helv 7.5 Tf 0.42 0.447 0.502 rg 36 26.15 Td (Plano de Intermitentes · horários no fuso de Manaus \(UTC-4\)) Tj ET
 BT /helv 7.5 Tf 0.42 0.447 0.502 rg 760.44 26.15 Td (página 1 de 4) Tj ET
 BT /helvB 10 Tf 0.102 0.114 0.141 rg 36 445.48 Td (1. LANÇAMENTOS DE OCORRÊNCIA \(FALTA, ATRASO, CANCELAMENTO, DESCONTO\)) Tj ET
-BT /helv 7.5 Tf 0.42 0.447 0.502 rg 609.128 445.43 Td (activity_log do Monday — inclui edição feita à mão no board) Tj ET
+BT /helv 7.5 Tf 0.42 0.447 0.502 rg 524.94 445.43 Td (activity_log do Monday cruzado com pi.audit_lancamentos \(quem clicou de verdade\)) Tj ET
 0.788 0.596 0.184 RG 1.1 w 36 438.28 m 805.89 438.28 l S
 BT /helvB 7 Tf 0.42 0.447 0.502 rg 36 427.82 Td (HORA) Tj ET
-BT /helvB 7 Tf 0.42 0.447 0.502 rg 80 427.82 Td (PESSOA) Tj ET
-BT /helvB 7 Tf 0.42 0.447 0.502 rg 230 427.82 Td (BOARD) Tj ET
-BT /helvB 7 Tf 0.42 0.447 0.502 rg 340 427.82 Td (O QUE MUDOU) Tj ET
-BT /helvB 7 Tf 0.42 0.447 0.502 rg 460 427.82 Td (DE) Tj ET
-BT /helvB 7 Tf 0.42 0.447 0.502 rg 570 427.82 Td (PARA) Tj ET
-BT /helvB 7 Tf 0.42 0.447 0.502 rg 680 427.82 Td (QUEM ALTEROU) Tj ET
+BT /helvB 7 Tf 0.42 0.447 0.502 rg 76 427.82 Td (PESSOA) Tj ET
+BT /helvB 7 Tf 0.42 0.447 0.502 rg 208 427.82 Td (BOARD) Tj ET
+BT /helvB 7 Tf 0.42 0.447 0.502 rg 304 427.82 Td (O QUE MUDOU) Tj ET
+BT /helvB 7 Tf 0.42 0.447 0.502 rg 408 427.82 Td (DE) Tj ET
+BT /helvB 7 Tf 0.42 0.447 0.502 rg 498 427.82 Td (PARA) Tj ET
+BT /helvB 7 Tf 0.42 0.447 0.502 rg 588 427.82 Td (QUEM ALTEROU) Tj ET
+BT /helvB 7 Tf 0.42 0.447 0.502 rg 706 427.82 Td (POR ONDE) Tj ET
 0.89 0.906 0.933 RG 0.7 w 36 422.28 m 805.89 422.28 l S
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 410.884 Td (15:16) Tj ET
-BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 80 410.884 Td (INTERMITENTE - SIRLENE LEMOS …) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 230 410.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 340 410.884 Td (Status) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 460 410.884 Td (Cancelada) Tj ET
-BT /helv 8.2 Tf 0.659 0.478 0.086 rg 570 410.884 Td (índice 5) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 680 410.884 Td (Thifany Castro) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 76 410.884 Td (INTERMITENTE - SIRLENE LE…) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 208 410.884 Td (Plano de Intermitentes) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 304 410.884 Td (Status) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 408 410.884 Td (Cancelada) Tj ET
+BT /helv 8.2 Tf 0.659 0.478 0.086 rg 498 410.884 Td (índice 5) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 588 410.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 706 410.884 Td (à mão no board · Thifa…) Tj ET
 0.957 0.965 0.976 rg 36 388.28 m 805.89 388.28 l 808.099 388.28 809.89 390.071 809.89 392.28 c 809.89 400.28 l 809.89 402.489 808.099 404.28 805.89 404.28 c 36 404.28 l 33.791 404.28 32 402.489 32 400.28 c 32 392.28 l 32 390.071 33.791 388.28 36 388.28 c f
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 394.884 Td (15:20) Tj ET
-BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 80 394.884 Td (INTERMITENTE) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 230 394.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 340 394.884 Td (Status) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 460 394.884 Td (Válida) Tj ET
-BT /helv 8.2 Tf 0.659 0.478 0.086 rg 570 394.884 Td (índice 5) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 680 394.884 Td (Thifany Castro) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 76 394.884 Td (INTERMITENTE) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 208 394.884 Td (Plano de Intermitentes) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 304 394.884 Td (Status) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 408 394.884 Td (Válida) Tj ET
+BT /helv 8.2 Tf 0.659 0.478 0.086 rg 498 394.884 Td (índice 5) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 588 394.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 706 394.884 Td (à mão no board · Thifa…) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 378.884 Td (15:53) Tj ET
-BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 80 378.884 Td (INTERMITENTE) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 230 378.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 340 378.884 Td (Status) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 460 378.884 Td (Válida) Tj ET
-BT /helv 8.2 Tf 0.659 0.478 0.086 rg 570 378.884 Td (índice 5) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 680 378.884 Td (Thifany Castro) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 76 378.884 Td (INTERMITENTE) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 208 378.884 Td (Plano de Intermitentes) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 304 378.884 Td (Status) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 408 378.884 Td (Válida) Tj ET
+BT /helv 8.2 Tf 0.659 0.478 0.086 rg 498 378.884 Td (índice 5) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 588 378.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 706 378.884 Td (à mão no board · Thifa…) Tj ET
 0.957 0.965 0.976 rg 36 356.28 m 805.89 356.28 l 808.099 356.28 809.89 358.071 809.89 360.28 c 809.89 368.28 l 809.89 370.489 808.099 372.28 805.89 372.28 c 36 372.28 l 33.791 372.28 32 370.489 32 368.28 c 32 360.28 l 32 358.071 33.791 356.28 36 356.28 c f
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 362.884 Td (16:04) Tj ET
-BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 80 362.884 Td (INTERMITENTE) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 230 362.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 340 362.884 Td (Status) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 460 362.884 Td (Válida) Tj ET
-BT /helv 8.2 Tf 0.659 0.478 0.086 rg 570 362.884 Td (índice 5) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 680 362.884 Td (Thifany Castro) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 76 362.884 Td (INTERMITENTE) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 208 362.884 Td (Plano de Intermitentes) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 304 362.884 Td (Status) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 408 362.884 Td (Válida) Tj ET
+BT /helv 8.2 Tf 0.659 0.478 0.086 rg 498 362.884 Td (índice 5) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 588 362.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 706 362.884 Td (à mão no board · Thifa…) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 346.884 Td (18:31) Tj ET
-BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 80 346.884 Td (INTERMITENTE) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 230 346.884 Td (Base de Desconto) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 340 346.884 Td (Status do Desconto) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 460 346.884 Td (PENDENTE) Tj ET
-BT /helv 8.2 Tf 0.659 0.478 0.086 rg 570 346.884 Td (FINALIZADO) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 680 346.884 Td (Isaac Raylen) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 76 346.884 Td (INTERMITENTE) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 208 346.884 Td (Base de Desconto) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 304 346.884 Td (Status do Desconto) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 408 346.884 Td (PENDENTE) Tj ET
+BT /helv 8.2 Tf 0.659 0.478 0.086 rg 498 346.884 Td (FINALIZADO) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 588 346.884 Td (Isaac Raylen) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 706 346.884 Td (à mão no board · Isaac…) Tj ET
 0.957 0.965 0.976 rg 36 324.28 m 805.89 324.28 l 808.099 324.28 809.89 326.071 809.89 328.28 c 809.89 336.28 l 809.89 338.489 808.099 340.28 805.89 340.28 c 36 340.28 l 33.791 340.28 32 338.489 32 336.28 c 32 328.28 l 32 326.071 33.791 324.28 36 324.28 c f
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 330.884 Td (18:31) Tj ET
-BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 80 330.884 Td (INTERMITENTE) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 230 330.884 Td (Base de Desconto) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 340 330.884 Td (Status do Desconto) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 460 330.884 Td (PENDENTE) Tj ET
-BT /helv 8.2 Tf 0.659 0.478 0.086 rg 570 330.884 Td (FINALIZADO) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 680 330.884 Td (Isaac Raylen) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 76 330.884 Td (INTERMITENTE) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 208 330.884 Td (Base de Desconto) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 304 330.884 Td (Status do Desconto) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 408 330.884 Td (PENDENTE) Tj ET
+BT /helv 8.2 Tf 0.659 0.478 0.086 rg 498 330.884 Td (FINALIZADO) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 588 330.884 Td (Isaac Raylen) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 706 330.884 Td (à mão no board · Isaac…) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 314.884 Td (18:31) Tj ET
-BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 80 314.884 Td (INTERMITENTE) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 230 314.884 Td (Base de Desconto) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 340 314.884 Td (Status do Desconto) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 460 314.884 Td (PENDENTE) Tj ET
-BT /helv 8.2 Tf 0.659 0.478 0.086 rg 570 314.884 Td (FINALIZADO) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 680 314.884 Td (Isaac Raylen) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 76 314.884 Td (INTERMITENTE) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 208 314.884 Td (Base de Desconto) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 304 314.884 Td (Status do Desconto) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 408 314.884 Td (PENDENTE) Tj ET
+BT /helv 8.2 Tf 0.659 0.478 0.086 rg 498 314.884 Td (FINALIZADO) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 588 314.884 Td (Isaac Raylen) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 706 314.884 Td (à mão no board · Isaac…) Tj ET
 0.957 0.965 0.976 rg 36 292.28 m 805.89 292.28 l 808.099 292.28 809.89 294.071 809.89 296.28 c 809.89 304.28 l 809.89 306.489 808.099 308.28 805.89 308.28 c 36 308.28 l 33.791 308.28 32 306.489 32 304.28 c 32 296.28 l 32 294.071 33.791 292.28 36 292.28 c f
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 298.884 Td (18:31) Tj ET
-BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 80 298.884 Td (ATESTADO) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 230 298.884 Td (Base de Desconto) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 340 298.884 Td (Status do Desconto) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 460 298.884 Td (PENDENTE) Tj ET
-BT /helv 8.2 Tf 0.659 0.478 0.086 rg 570 298.884 Td (FINALIZADO) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 680 298.884 Td (Isaac Raylen) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 76 298.884 Td (ATESTADO) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 208 298.884 Td (Base de Desconto) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 304 298.884 Td (Status do Desconto) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 408 298.884 Td (PENDENTE) Tj ET
+BT /helv 8.2 Tf 0.659 0.478 0.086 rg 498 298.884 Td (FINALIZADO) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 588 298.884 Td (Isaac Raylen) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 706 298.884 Td (à mão no board · Isaac…) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 282.884 Td (18:31) Tj ET
-BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 80 282.884 Td (INTERMITENTE) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 230 282.884 Td (Base de Desconto) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 340 282.884 Td (Status do Desconto) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 460 282.884 Td (PENDENTE) Tj ET
-BT /helv 8.2 Tf 0.659 0.478 0.086 rg 570 282.884 Td (FINALIZADO) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 680 282.884 Td (Isaac Raylen) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 76 282.884 Td (INTERMITENTE) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 208 282.884 Td (Base de Desconto) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 304 282.884 Td (Status do Desconto) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 408 282.884 Td (PENDENTE) Tj ET
+BT /helv 8.2 Tf 0.659 0.478 0.086 rg 498 282.884 Td (FINALIZADO) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 588 282.884 Td (Isaac Raylen) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 706 282.884 Td (à mão no board · Isaac…) Tj ET
 0.957 0.965 0.976 rg 36 260.28 m 805.89 260.28 l 808.099 260.28 809.89 262.071 809.89 264.28 c 809.89 272.28 l 809.89 274.489 808.099 276.28 805.89 276.28 c 36 276.28 l 33.791 276.28 32 274.489 32 272.28 c 32 264.28 l 32 262.071 33.791 260.28 36 260.28 c f
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 266.884 Td (18:31) Tj ET
-BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 80 266.884 Td (INTERMITENTE) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 230 266.884 Td (Base de Desconto) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 340 266.884 Td (Status do Desconto) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 460 266.884 Td (PENDENTE) Tj ET
-BT /helv 8.2 Tf 0.659 0.478 0.086 rg 570 266.884 Td (FINALIZADO) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 680 266.884 Td (Isaac Raylen) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 76 266.884 Td (INTERMITENTE) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 208 266.884 Td (Base de Desconto) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 304 266.884 Td (Status do Desconto) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 408 266.884 Td (PENDENTE) Tj ET
+BT /helv 8.2 Tf 0.659 0.478 0.086 rg 498 266.884 Td (FINALIZADO) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 588 266.884 Td (Isaac Raylen) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 706 266.884 Td (à mão no board · Isaac…) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 250.884 Td (18:31) Tj ET
-BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 80 250.884 Td (INTERMITENTE) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 230 250.884 Td (Base de Desconto) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 340 250.884 Td (Status do Desconto) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 460 250.884 Td (PENDENTE) Tj ET
-BT /helv 8.2 Tf 0.659 0.478 0.086 rg 570 250.884 Td (FINALIZADO) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 680 250.884 Td (Isaac Raylen) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 76 250.884 Td (INTERMITENTE) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 208 250.884 Td (Base de Desconto) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 304 250.884 Td (Status do Desconto) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 408 250.884 Td (PENDENTE) Tj ET
+BT /helv 8.2 Tf 0.659 0.478 0.086 rg 498 250.884 Td (FINALIZADO) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 588 250.884 Td (Isaac Raylen) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 706 250.884 Td (à mão no board · Isaac…) Tj ET
 0.957 0.965 0.976 rg 36 228.28 m 805.89 228.28 l 808.099 228.28 809.89 230.071 809.89 232.28 c 809.89 240.28 l 809.89 242.489 808.099 244.28 805.89 244.28 c 36 244.28 l 33.791 244.28 32 242.489 32 240.28 c 32 232.28 l 32 230.071 33.791 228.28 36 228.28 c f
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 234.884 Td (18:31) Tj ET
-BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 80 234.884 Td (INTERMITENTE) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 230 234.884 Td (Base de Desconto) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 340 234.884 Td (Status do Desconto) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 460 234.884 Td (PENDENTE) Tj ET
-BT /helv 8.2 Tf 0.659 0.478 0.086 rg 570 234.884 Td (FINALIZADO) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 680 234.884 Td (Isaac Raylen) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 76 234.884 Td (INTERMITENTE) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 208 234.884 Td (Base de Desconto) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 304 234.884 Td (Status do Desconto) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 408 234.884 Td (PENDENTE) Tj ET
+BT /helv 8.2 Tf 0.659 0.478 0.086 rg 498 234.884 Td (FINALIZADO) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 588 234.884 Td (Isaac Raylen) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 706 234.884 Td (à mão no board · Isaac…) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 218.884 Td (18:31) Tj ET
-BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 80 218.884 Td (INTERMITENTE) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 230 218.884 Td (Base de Desconto) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 340 218.884 Td (Status do Desconto) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 460 218.884 Td (PARCIAL) Tj ET
-BT /helv 8.2 Tf 0.659 0.478 0.086 rg 570 218.884 Td (FINALIZADO) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 680 218.884 Td (Isaac Raylen) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 76 218.884 Td (INTERMITENTE) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 208 218.884 Td (Base de Desconto) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 304 218.884 Td (Status do Desconto) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 408 218.884 Td (PARCIAL) Tj ET
+BT /helv 8.2 Tf 0.659 0.478 0.086 rg 498 218.884 Td (FINALIZADO) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 588 218.884 Td (Isaac Raylen) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 706 218.884 Td (à mão no board · Isaac…) Tj ET
 0.957 0.965 0.976 rg 36 196.28 m 805.89 196.28 l 808.099 196.28 809.89 198.071 809.89 200.28 c 809.89 208.28 l 809.89 210.489 808.099 212.28 805.89 212.28 c 36 212.28 l 33.791 212.28 32 210.489 32 208.28 c 32 200.28 l 32 198.071 33.791 196.28 36 196.28 c f
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 202.884 Td (18:42) Tj ET
-BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 80 202.884 Td (INTERMITENTE) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 230 202.884 Td (Base de Desconto) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 340 202.884 Td (Status do Desconto) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 460 202.884 Td (PENDENTE) Tj ET
-BT /helv 8.2 Tf 0.659 0.478 0.086 rg 570 202.884 Td (FINALIZADO) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 680 202.884 Td (Isaac Raylen) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 76 202.884 Td (INTERMITENTE) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 208 202.884 Td (Base de Desconto) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 304 202.884 Td (Status do Desconto) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 408 202.884 Td (PENDENTE) Tj ET
+BT /helv 8.2 Tf 0.659 0.478 0.086 rg 498 202.884 Td (FINALIZADO) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 588 202.884 Td (Isaac Raylen) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 706 202.884 Td (à mão no board · Isaac…) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 186.884 Td (18:42) Tj ET
-BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 80 186.884 Td (PONTO FACULTATIVO) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 230 186.884 Td (Base de Desconto) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 340 186.884 Td (Status do Desconto) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 460 186.884 Td (PENDENTE) Tj ET
-BT /helv 8.2 Tf 0.659 0.478 0.086 rg 570 186.884 Td (FINALIZADO) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 680 186.884 Td (Isaac Raylen) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 76 186.884 Td (PONTO FACULTATIVO) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 208 186.884 Td (Base de Desconto) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 304 186.884 Td (Status do Desconto) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 408 186.884 Td (PENDENTE) Tj ET
+BT /helv 8.2 Tf 0.659 0.478 0.086 rg 498 186.884 Td (FINALIZADO) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 588 186.884 Td (Isaac Raylen) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 706 186.884 Td (à mão no board · Isaac…) Tj ET
 0.957 0.965 0.976 rg 36 164.28 m 805.89 164.28 l 808.099 164.28 809.89 166.071 809.89 168.28 c 809.89 176.28 l 809.89 178.489 808.099 180.28 805.89 180.28 c 36 180.28 l 33.791 180.28 32 178.489 32 176.28 c 32 168.28 l 32 166.071 33.791 164.28 36 164.28 c f
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 170.884 Td (19:11) Tj ET
-BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 80 170.884 Td (SUZIANE DA SILVA VASQUE) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 230 170.884 Td (Histórico de Ocorrências) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 340 170.884 Td (Qtd. Faltas) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 460 170.884 Td (2) Tj ET
-BT /helv 8.2 Tf 0.659 0.478 0.086 rg 570 170.884 Td (0) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 680 170.884 Td (Isaac Raylen) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 76 170.884 Td (SUZIANE DA SILVA VASQUE) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 208 170.884 Td (Histórico de Ocorrênci…) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 304 170.884 Td (Qtd. Faltas) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 408 170.884 Td (2) Tj ET
+BT /helv 8.2 Tf 0.659 0.478 0.086 rg 498 170.884 Td (0) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 588 170.884 Td (KARINE ROMASKEVIS DE) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 706 170.884 Td (app · Registro de ocorr…) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 154.884 Td (19:11) Tj ET
-BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 80 154.884 Td (SUZIANE DA SILVA VASQUE) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 230 154.884 Td (Histórico de Ocorrências) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 340 154.884 Td (Respostas JSON) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 460 154.884 Td ([{"data":"2026-08-03","tipo…) Tj ET
-BT /helv 8.2 Tf 0.659 0.478 0.086 rg 570 154.884 Td ([{"data":"2026-08-03","tipo…) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 680 154.884 Td (Isaac Raylen) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 76 154.884 Td (SUZIANE DA SILVA VASQUE) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 208 154.884 Td (Histórico de Ocorrênci…) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 304 154.884 Td (Respostas JSON) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 408 154.884 Td ([{"data":"2026-08-03"…) Tj ET
+BT /helv 8.2 Tf 0.659 0.478 0.086 rg 498 154.884 Td ([{"data":"2026-08-03"…) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 588 154.884 Td (KARINE ROMASKEVIS DE) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 706 154.884 Td (app · Registro de ocorr…) Tj ET
 0.957 0.965 0.976 rg 36 132.28 m 805.89 132.28 l 808.099 132.28 809.89 134.071 809.89 136.28 c 809.89 144.28 l 809.89 146.489 808.099 148.28 805.89 148.28 c 36 148.28 l 33.791 148.28 32 146.489 32 144.28 c 32 136.28 l 32 134.071 33.791 132.28 36 132.28 c f
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 138.884 Td (19:11) Tj ET
-BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 80 138.884 Td (SUZIANE DA SILVA VASQUE) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 230 138.884 Td (Histórico de Ocorrências) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 340 138.884 Td (Editado Em) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 460 138.884 Td (vazio) Tj ET
-BT /helv 8.2 Tf 0.659 0.478 0.086 rg 570 138.884 Td (2026-08-31) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 680 138.884 Td (Isaac Raylen) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 76 138.884 Td (SUZIANE DA SILVA VASQUE) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 208 138.884 Td (Histórico de Ocorrênci…) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 304 138.884 Td (Editado Em) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 408 138.884 Td (vazio) Tj ET
+BT /helv 8.2 Tf 0.659 0.478 0.086 rg 498 138.884 Td (2026-08-31) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 588 138.884 Td (KARINE ROMASKEVIS DE) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 706 138.884 Td (app · Registro de ocorr…) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 122.884 Td (19:11) Tj ET
-BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 80 122.884 Td (INTERMITENTE) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 230 122.884 Td (Base de Desconto) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 340 122.884 Td (VR - Desconto) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 460 122.884 Td (49) Tj ET
-BT /helv 8.2 Tf 0.659 0.478 0.086 rg 570 122.884 Td (0) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 680 122.884 Td (Isaac Raylen) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 76 122.884 Td (INTERMITENTE) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 208 122.884 Td (Base de Desconto) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 304 122.884 Td (VR - Desconto) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 408 122.884 Td (49) Tj ET
+BT /helv 8.2 Tf 0.659 0.478 0.086 rg 498 122.884 Td (0) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 588 122.884 Td (KARINE ROMASKEVIS DE) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 706 122.884 Td (app · Registro de ocorr…) Tj ET
 0.957 0.965 0.976 rg 36 100.28 m 805.89 100.28 l 808.099 100.28 809.89 102.071 809.89 104.28 c 809.89 112.28 l 809.89 114.489 808.099 116.28 805.89 116.28 c 36 116.28 l 33.791 116.28 32 114.489 32 112.28 c 32 104.28 l 32 102.071 33.791 100.28 36 100.28 c f
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 106.884 Td (19:11) Tj ET
-BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 80 106.884 Td (INTERMITENTE) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 230 106.884 Td (Base de Desconto) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 340 106.884 Td (VT - Desconto) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 460 106.884 Td (20) Tj ET
-BT /helv 8.2 Tf 0.659 0.478 0.086 rg 570 106.884 Td (0) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 680 106.884 Td (Isaac Raylen) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 76 106.884 Td (INTERMITENTE) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 208 106.884 Td (Base de Desconto) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 304 106.884 Td (VT - Desconto) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 408 106.884 Td (20) Tj ET
+BT /helv 8.2 Tf 0.659 0.478 0.086 rg 498 106.884 Td (0) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 588 106.884 Td (KARINE ROMASKEVIS DE) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 706 106.884 Td (app · Registro de ocorr…) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 90.884 Td (19:11) Tj ET
-BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 80 90.884 Td (INTERMITENTE) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 230 90.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 340 90.884 Td (OP - Falta - Mês Atual) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 460 90.884 Td (2) Tj ET
-BT /helv 8.2 Tf 0.659 0.478 0.086 rg 570 90.884 Td (0) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 680 90.884 Td (Isaac Raylen) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 76 90.884 Td (INTERMITENTE) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 208 90.884 Td (Plano de Intermitentes) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 304 90.884 Td (OP - Falta - Mês Atual) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 408 90.884 Td (2) Tj ET
+BT /helv 8.2 Tf 0.659 0.478 0.086 rg 498 90.884 Td (0) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 588 90.884 Td (KARINE ROMASKEVIS DE) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 706 90.884 Td (app · Registro de ocorr…) Tj ET
 endstream
 endobj
 5 0 obj
 << /Type /Page /Parent 12 0 R /MediaBox [0 0 841.89 595.28] /Resources << /Font << /helv 1 0 R /helvB 2 0 R /timesB 3 0 R >> >> /Contents 4 0 R >>
 endobj
 6 0 obj
-<< /Length 16534 >>
+<< /Length 16773 >>
 stream
 0.063 0.082 0.122 rg 0 561.28 841.89 34 re f
 0.788 0.596 0.184 rg 0 559.68 841.89 1.6 re f
 BT /timesB 12 Tf 1 1 1 rg 36 575.92 Td (Alterações no board e lançamentos) Tj ET
-BT /helv 8 Tf 0.725 0.757 0.816 rg 708.034 576.04 Td (31/08, 14:00 a 31/08, 20:06) Tj ET
+BT /helv 8 Tf 0.725 0.757 0.816 rg 708.034 576.04 Td (31/08, 14:00 a 31/08, 20:34) Tj ET
 0.89 0.906 0.933 RG 0.7 w 36 38 m 805.89 38 l S
 BT /helv 7.5 Tf 0.42 0.447 0.502 rg 36 26.15 Td (Plano de Intermitentes · horários no fuso de Manaus \(UTC-4\)) Tj ET
 BT /helv 7.5 Tf 0.42 0.447 0.502 rg 760.44 26.15 Td (página 2 de 4) Tj ET
@@ -268,148 +290,148 @@ BT /helv 8.2 Tf 0.659 0.478 0.086 rg 372 440.884 Td (24/08/2026 a 25/08/2026) Tj
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 522 440.884 Td (estefany.beatriz) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 672 440.884 Td (pontual) Tj ET
 BT /helvB 10 Tf 0.102 0.114 0.141 rg 36 409.48 Td (3. OUTRAS ALTERAÇÕES NO BOARD) Tj ET
-BT /helv 7.5 Tf 0.42 0.447 0.502 rg 603.698 409.43 Td (activity_log do Monday — agrupado por board, coluna e autor) Tj ET
+BT /helv 7.5 Tf 0.42 0.447 0.502 rg 537.833 409.43 Td (activity_log do Monday cruzado com o app — agrupado por board, coluna e autor) Tj ET
 0.788 0.596 0.184 RG 1.1 w 36 402.28 m 805.89 402.28 l S
 BT /helvB 7 Tf 0.42 0.447 0.502 rg 36 391.82 Td (BOARD) Tj ET
-BT /helvB 7 Tf 0.42 0.447 0.502 rg 206 391.82 Td (COLUNA) Tj ET
-BT /helvB 7 Tf 0.42 0.447 0.502 rg 446 391.82 Td (QUEM ALTEROU) Tj ET
+BT /helvB 7 Tf 0.42 0.447 0.502 rg 186 391.82 Td (COLUNA) Tj ET
+BT /helvB 7 Tf 0.42 0.447 0.502 rg 386 391.82 Td (QUEM ALTEROU · POR ONDE) Tj ET
 BT /helvB 7 Tf 0.42 0.447 0.502 rg 636 391.82 Td (QTD) Tj ET
 BT /helvB 7 Tf 0.42 0.447 0.502 rg 686 391.82 Td (PRIMEIRA) Tj ET
 BT /helvB 7 Tf 0.42 0.447 0.502 rg 746 391.82 Td (ÚLTIMA) Tj ET
 0.89 0.906 0.933 RG 0.7 w 36 386.28 m 805.89 386.28 l S
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 374.884 Td (Base de Desconto) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 374.884 Td (VR - Valor Descontado) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 374.884 Td (Isaac Raylen) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 374.884 Td (12) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 374.884 Td (VR - Valor Residual) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 374.884 Td (Isaac Raylen \(à mão\)) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 374.884 Td (11) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 374.884 Td (18:31) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 374.884 Td (19:11) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 374.884 Td (18:42) Tj ET
 0.957 0.965 0.976 rg 36 352.28 m 805.89 352.28 l 808.099 352.28 809.89 354.071 809.89 356.28 c 809.89 364.28 l 809.89 366.489 808.099 368.28 805.89 368.28 c 36 368.28 l 33.791 368.28 32 366.489 32 364.28 c 32 356.28 l 32 354.071 33.791 352.28 36 352.28 c f
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 358.884 Td (Base de Desconto) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 358.884 Td (VR - Valor Residual) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 358.884 Td (Isaac Raylen) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 358.884 Td (VR - Valor Descontado) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 358.884 Td (Isaac Raylen \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 358.884 Td (11) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 358.884 Td (18:31) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 358.884 Td (18:42) Tj ET
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 342.884 Td (Base de Desconto) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 342.884 Td (VT - Valor Descontado) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 342.884 Td (Isaac Raylen) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 342.884 Td (11) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 342.884 Td (VT - Valor Residual) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 342.884 Td (Isaac Raylen \(à mão\)) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 342.884 Td (10) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 342.884 Td (18:31) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 342.884 Td (19:11) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 342.884 Td (18:42) Tj ET
 0.957 0.965 0.976 rg 36 320.28 m 805.89 320.28 l 808.099 320.28 809.89 322.071 809.89 324.28 c 809.89 332.28 l 809.89 334.489 808.099 336.28 805.89 336.28 c 36 336.28 l 33.791 336.28 32 334.489 32 332.28 c 32 324.28 l 32 322.071 33.791 320.28 36 320.28 c f
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 326.884 Td (Base de Desconto) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 326.884 Td (VT - Valor Residual) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 326.884 Td (Isaac Raylen) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 326.884 Td (VT - Valor Descontado) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 326.884 Td (Isaac Raylen \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 326.884 Td (10) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 326.884 Td (18:31) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 326.884 Td (18:42) Tj ET
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 310.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 310.884 Td (OP - Data/Inicio) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 310.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 310.884 Td (OP - Data/Inicio) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 310.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 310.884 Td (5) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 310.884 Td (14:05) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 310.884 Td (16:04) Tj ET
 0.957 0.965 0.976 rg 36 288.28 m 805.89 288.28 l 808.099 288.28 809.89 290.071 809.89 292.28 c 809.89 300.28 l 809.89 302.489 808.099 304.28 805.89 304.28 c 36 304.28 l 33.791 304.28 32 302.489 32 300.28 c 32 292.28 l 32 290.071 33.791 288.28 36 288.28 c f
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 294.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 294.884 Td (OP - Data/Fim) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 294.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 294.884 Td (OP - Data/Fim) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 294.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 294.884 Td (5) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 294.884 Td (14:05) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 294.884 Td (16:04) Tj ET
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 278.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 278.884 Td (OP - Empregado Substituído) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 278.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 278.884 Td (OP - Empregado Substituído) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 278.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 278.884 Td (4) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 278.884 Td (15:15) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 278.884 Td (16:03) Tj ET
 0.957 0.965 0.976 rg 36 256.28 m 805.89 256.28 l 808.099 256.28 809.89 258.071 809.89 260.28 c 809.89 268.28 l 809.89 270.489 808.099 272.28 805.89 272.28 c 36 272.28 l 33.791 272.28 32 270.489 32 268.28 c 32 260.28 l 32 258.071 33.791 256.28 36 256.28 c f
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 262.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 262.884 Td (Escala) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 262.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 262.884 Td (Escala) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 262.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 262.884 Td (4) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 262.884 Td (15:15) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 262.884 Td (16:03) Tj ET
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 246.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 246.884 Td (OP - Sábado?) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 246.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 246.884 Td (OP - Sábado?) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 246.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 246.884 Td (4) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 246.884 Td (15:15) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 246.884 Td (16:03) Tj ET
 0.957 0.965 0.976 rg 36 224.28 m 805.89 224.28 l 808.099 224.28 809.89 226.071 809.89 228.28 c 809.89 236.28 l 809.89 238.489 808.099 240.28 805.89 240.28 c 36 240.28 l 33.791 240.28 32 238.489 32 236.28 c 32 228.28 l 32 226.071 33.791 224.28 36 224.28 c f
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 230.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 230.884 Td (Solicitante) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 230.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 230.884 Td (Solicitante) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 230.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 230.884 Td (4) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 230.884 Td (15:15) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 230.884 Td (16:04) Tj ET
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 214.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 214.884 Td (Op - Contrato) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 214.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 214.884 Td (Op - Contrato) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 214.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 214.884 Td (4) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 214.884 Td (15:15) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 214.884 Td (16:04) Tj ET
 0.957 0.965 0.976 rg 36 192.28 m 805.89 192.28 l 808.099 192.28 809.89 194.071 809.89 196.28 c 809.89 204.28 l 809.89 206.489 808.099 208.28 805.89 208.28 c 36 208.28 l 33.791 208.28 32 206.489 32 204.28 c 32 196.28 l 32 194.071 33.791 192.28 36 192.28 c f
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 198.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 198.884 Td (Op - Insalubridade?) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 198.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 198.884 Td (Op - Insalubridade?) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 198.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 198.884 Td (4) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 198.884 Td (15:15) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 198.884 Td (16:04) Tj ET
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 182.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 182.884 Td (OP - Tipo Convocação) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 182.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 182.884 Td (OP - Tipo Convocação) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 182.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 182.884 Td (4) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 182.884 Td (15:15) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 182.884 Td (16:04) Tj ET
 0.957 0.965 0.976 rg 36 160.28 m 805.89 160.28 l 808.099 160.28 809.89 162.071 809.89 164.28 c 809.89 172.28 l 809.89 174.489 808.099 176.28 805.89 176.28 c 36 176.28 l 33.791 176.28 32 174.489 32 172.28 c 32 164.28 l 32 162.071 33.791 160.28 36 160.28 c f
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 166.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 166.884 Td (OP - Justificativa) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 166.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 166.884 Td (OP - Justificativa) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 166.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 166.884 Td (4) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 166.884 Td (15:15) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 166.884 Td (16:04) Tj ET
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 150.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 150.884 Td (CREDITO VT) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 150.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 150.884 Td (CREDITO VT) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 150.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 150.884 Td (4) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 150.884 Td (15:15) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 150.884 Td (16:04) Tj ET
 0.957 0.965 0.976 rg 36 128.28 m 805.89 128.28 l 808.099 128.28 809.89 130.071 809.89 132.28 c 809.89 140.28 l 809.89 142.489 808.099 144.28 805.89 144.28 c 36 144.28 l 33.791 144.28 32 142.489 32 140.28 c 32 132.28 l 32 130.071 33.791 128.28 36 128.28 c f
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 134.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 134.884 Td (CREDITO CAJU) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 134.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 134.884 Td (CREDITO CAJU) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 134.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 134.884 Td (4) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 134.884 Td (15:15) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 134.884 Td (16:04) Tj ET
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 118.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 118.884 Td (Dias Úteis/Mês - VT) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 118.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 118.884 Td (Dias Úteis/Mês - VT) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 118.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 118.884 Td (4) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 118.884 Td (15:15) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 118.884 Td (16:04) Tj ET
 0.957 0.965 0.976 rg 36 96.28 m 805.89 96.28 l 808.099 96.28 809.89 98.071 809.89 100.28 c 809.89 108.28 l 809.89 110.489 808.099 112.28 805.89 112.28 c 36 112.28 l 33.791 112.28 32 110.489 32 108.28 c 32 100.28 l 32 98.071 33.791 96.28 36 96.28 c f
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 102.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 102.884 Td (Dias Úteis/Mês - VR) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 102.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 102.884 Td (Dias Úteis/Mês - VR) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 102.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 102.884 Td (4) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 102.884 Td (15:15) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 102.884 Td (16:04) Tj ET
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 86.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 86.884 Td (Vale Transporte) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 86.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 86.884 Td (Vale Transporte) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 86.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 86.884 Td (4) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 86.884 Td (15:15) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 86.884 Td (16:04) Tj ET
 0.957 0.965 0.976 rg 36 64.28 m 805.89 64.28 l 808.099 64.28 809.89 66.071 809.89 68.28 c 809.89 76.28 l 809.89 78.489 808.099 80.28 805.89 80.28 c 36 80.28 l 33.791 80.28 32 78.489 32 76.28 c 32 68.28 l 32 66.071 33.791 64.28 36 64.28 c f
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 70.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 70.884 Td (VR - Unitário) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 70.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 70.884 Td (VR - Unitário) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 70.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 70.884 Td (4) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 70.884 Td (15:16) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 70.884 Td (16:04) Tj ET
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 54.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 54.884 Td (Pasta Pessoa Drive) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 54.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 54.884 Td (Pasta Pessoa Drive) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 54.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 54.884 Td (4) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 54.884 Td (15:16) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 54.884 Td (16:04) Tj ET
@@ -419,228 +441,224 @@ endobj
 << /Type /Page /Parent 12 0 R /MediaBox [0 0 841.89 595.28] /Resources << /Font << /helv 1 0 R /helvB 2 0 R /timesB 3 0 R >> >> /Contents 6 0 R >>
 endobj
 8 0 obj
-<< /Length 17569 >>
+<< /Length 17583 >>
 stream
 0.063 0.082 0.122 rg 0 561.28 841.89 34 re f
 0.788 0.596 0.184 rg 0 559.68 841.89 1.6 re f
 BT /timesB 12 Tf 1 1 1 rg 36 575.92 Td (Alterações no board e lançamentos) Tj ET
-BT /helv 8 Tf 0.725 0.757 0.816 rg 708.034 576.04 Td (31/08, 14:00 a 31/08, 20:06) Tj ET
+BT /helv 8 Tf 0.725 0.757 0.816 rg 708.034 576.04 Td (31/08, 14:00 a 31/08, 20:34) Tj ET
 0.89 0.906 0.933 RG 0.7 w 36 38 m 805.89 38 l S
 BT /helv 7.5 Tf 0.42 0.447 0.502 rg 36 26.15 Td (Plano de Intermitentes · horários no fuso de Manaus \(UTC-4\)) Tj ET
 BT /helv 7.5 Tf 0.42 0.447 0.502 rg 760.44 26.15 Td (página 3 de 4) Tj ET
 BT /helvB 7 Tf 0.42 0.447 0.502 rg 36 541.82 Td (BOARD) Tj ET
-BT /helvB 7 Tf 0.42 0.447 0.502 rg 206 541.82 Td (COLUNA) Tj ET
-BT /helvB 7 Tf 0.42 0.447 0.502 rg 446 541.82 Td (QUEM ALTEROU) Tj ET
+BT /helvB 7 Tf 0.42 0.447 0.502 rg 186 541.82 Td (COLUNA) Tj ET
+BT /helvB 7 Tf 0.42 0.447 0.502 rg 386 541.82 Td (QUEM ALTEROU · POR ONDE) Tj ET
 BT /helvB 7 Tf 0.42 0.447 0.502 rg 636 541.82 Td (QTD) Tj ET
 BT /helvB 7 Tf 0.42 0.447 0.502 rg 686 541.82 Td (PRIMEIRA) Tj ET
 BT /helvB 7 Tf 0.42 0.447 0.502 rg 746 541.82 Td (ÚLTIMA) Tj ET
 0.89 0.906 0.933 RG 0.7 w 36 536.28 m 805.89 536.28 l S
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 524.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 524.884 Td (Pasta Convocacao Drive) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 524.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 524.884 Td (Pasta Convocacao Drive) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 524.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 524.884 Td (4) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 524.884 Td (15:16) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 524.884 Td (16:04) Tj ET
 0.957 0.965 0.976 rg 36 502.28 m 805.89 502.28 l 808.099 502.28 809.89 504.071 809.89 506.28 c 809.89 514.28 l 809.89 516.489 808.099 518.28 805.89 518.28 c 36 518.28 l 33.791 518.28 32 516.489 32 514.28 c 32 506.28 l 32 504.071 33.791 502.28 36 502.28 c f
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 508.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 508.884 Td (Pasta Convocacao Drive ID) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 508.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 508.884 Td (Pasta Convocacao Drive ID) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 508.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 508.884 Td (4) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 508.884 Td (15:16) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 508.884 Td (16:05) Tj ET
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 492.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 492.884 Td (Pasta Pessoa Drive ID) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 492.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 492.884 Td (Pasta Pessoa Drive ID) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 492.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 492.884 Td (4) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 492.884 Td (15:16) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 492.884 Td (16:05) Tj ET
 0.957 0.965 0.976 rg 36 470.28 m 805.89 470.28 l 808.099 470.28 809.89 472.071 809.89 474.28 c 809.89 482.28 l 809.89 484.489 808.099 486.28 805.89 486.28 c 36 486.28 l 33.791 486.28 32 484.489 32 482.28 c 32 474.28 l 32 472.071 33.791 470.28 36 470.28 c f
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 476.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 476.884 Td (OP - Local/Unidade) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 476.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 476.884 Td (OP - Local/Unidade) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 476.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 476.884 Td (4) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 476.884 Td (15:16) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 476.884 Td (16:05) Tj ET
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 460.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 460.884 Td (VT - Diário) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 460.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 460.884 Td (VT - Diário) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 460.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 460.884 Td (3) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 460.884 Td (15:16) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 460.884 Td (16:04) Tj ET
 0.957 0.965 0.976 rg 36 438.28 m 805.89 438.28 l 808.099 438.28 809.89 440.071 809.89 442.28 c 809.89 450.28 l 809.89 452.489 808.099 454.28 805.89 454.28 c 36 454.28 l 33.791 454.28 32 452.489 32 450.28 c 32 442.28 l 32 440.071 33.791 438.28 36 438.28 c f
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 444.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 444.884 Td (Local/Unidade) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 444.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 444.884 Td (Local/Unidade) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 444.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 444.884 Td (3) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 444.884 Td (15:19) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 444.884 Td (16:04) Tj ET
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 428.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 428.884 Td (Função) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 428.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 428.884 Td (Função) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 428.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 428.884 Td (3) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 428.884 Td (15:19) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 428.884 Td (16:04) Tj ET
 0.957 0.965 0.976 rg 36 406.28 m 805.89 406.28 l 808.099 406.28 809.89 408.071 809.89 410.28 c 809.89 418.28 l 809.89 420.489 808.099 422.28 805.89 422.28 c 36 422.28 l 33.791 422.28 32 420.489 32 418.28 c 32 410.28 l 32 408.071 33.791 406.28 36 406.28 c f
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 412.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 412.884 Td (DESCONTO - VR) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 412.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 412.884 Td (DESCONTO - VR) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 412.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 412.884 Td (3) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 412.884 Td (15:19) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 412.884 Td (16:04) Tj ET
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 396.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 396.884 Td (DESCONTO - VT) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 396.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 396.884 Td (DESCONTO - VT) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 396.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 396.884 Td (3) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 396.884 Td (15:19) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 396.884 Td (16:04) Tj ET
 0.957 0.965 0.976 rg 36 374.28 m 805.89 374.28 l 808.099 374.28 809.89 376.071 809.89 378.28 c 809.89 386.28 l 809.89 388.489 808.099 390.28 805.89 390.28 c 36 390.28 l 33.791 390.28 32 388.489 32 386.28 c 32 378.28 l 32 376.071 33.791 374.28 36 374.28 c f
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 380.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 380.884 Td (Status Pedido) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 380.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 380.884 Td (Status Pedido) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 380.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 380.884 Td (3) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 380.884 Td (15:20) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 380.884 Td (16:04) Tj ET
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 364.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 364.884 Td (OP - Compareceu?) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 364.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 364.884 Td (OP - Compareceu?) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 364.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 364.884 Td (3) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 364.884 Td (15:20) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 364.884 Td (16:05) Tj ET
 0.957 0.965 0.976 rg 36 342.28 m 805.89 342.28 l 808.099 342.28 809.89 344.071 809.89 346.28 c 809.89 354.28 l 809.89 356.489 808.099 358.28 805.89 358.28 c 36 358.28 l 33.791 358.28 32 356.489 32 354.28 c 32 346.28 l 32 344.071 33.791 342.28 36 342.28 c f
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 348.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 348.884 Td (Código Convocação RM) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 348.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 348.884 Td (Código Convocação RM) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 348.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 348.884 Td (2) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 348.884 Td (15:20) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 348.884 Td (15:53) Tj ET
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 332.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 332.884 Td (OP - Status) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 332.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 332.884 Td (OP - Status) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 332.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 332.884 Td (2) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 332.884 Td (15:52) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 332.884 Td (16:04) Tj ET
 0.957 0.965 0.976 rg 36 310.28 m 805.89 310.28 l 808.099 310.28 809.89 312.071 809.89 314.28 c 809.89 322.28 l 809.89 324.489 808.099 326.28 805.89 326.28 c 36 326.28 l 33.791 326.28 32 324.489 32 322.28 c 32 314.28 l 32 312.071 33.791 310.28 36 310.28 c f
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 316.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 316.884 Td (Link) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 316.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 316.884 Td (Link) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 316.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 316.884 Td (1) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 316.884 Td (15:16) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 316.884 Td (15:16) Tj ET
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 300.884 Td (Plano de Intermitentes) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 300.884 Td (ativar) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 300.884 Td (Thifany Castro) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 300.884 Td (ativar) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 300.884 Td (Thifany Castro \(à mão\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 300.884 Td (1) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 300.884 Td (15:16) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 300.884 Td (15:16) Tj ET
 0.957 0.965 0.976 rg 36 278.28 m 805.89 278.28 l 808.099 278.28 809.89 280.071 809.89 282.28 c 809.89 290.28 l 809.89 292.489 808.099 294.28 805.89 294.28 c 36 294.28 l 33.791 294.28 32 292.489 32 290.28 c 32 282.28 l 32 280.071 33.791 278.28 36 278.28 c f
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 284.884 Td (Histórico de Ocorrências) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 284.884 Td (Concluído Em) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 284.884 Td (Isaac Raylen) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 284.884 Td (Concluído Em) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 284.884 Td (KARINE ROMASKEVIS DE \(app · Registro de ocorrência\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 284.884 Td (1) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 284.884 Td (19:11) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 284.884 Td (19:11) Tj ET
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 268.884 Td (Histórico de Ocorrências) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 268.884 Td (Editado) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 268.884 Td (Isaac Raylen) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 268.884 Td (Editado) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 268.884 Td (KARINE ROMASKEVIS DE \(app · Registro de ocorrência\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 268.884 Td (1) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 268.884 Td (19:11) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 268.884 Td (19:11) Tj ET
 0.957 0.965 0.976 rg 36 246.28 m 805.89 246.28 l 808.099 246.28 809.89 248.071 809.89 250.28 c 809.89 258.28 l 809.89 260.489 808.099 262.28 805.89 262.28 c 36 262.28 l 33.791 262.28 32 260.489 32 258.28 c 32 250.28 l 32 248.071 33.791 246.28 36 246.28 c f
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 252.884 Td (Histórico de Ocorrências) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 252.884 Td (Total Min Devidos) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 252.884 Td (Isaac Raylen) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 252.884 Td (Total Min Devidos) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 252.884 Td (KARINE ROMASKEVIS DE \(app · Registro de ocorrência\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 252.884 Td (1) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 252.884 Td (19:11) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 252.884 Td (19:11) Tj ET
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 236.884 Td (Histórico de Ocorrências) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 236.884 Td (Qtd. Dias Perde VR) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 236.884 Td (Isaac Raylen) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 236.884 Td (Qtd. Dias Perde VR) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 236.884 Td (KARINE ROMASKEVIS DE \(app · Registro de ocorrência\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 236.884 Td (1) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 236.884 Td (19:11) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 236.884 Td (19:11) Tj ET
 0.957 0.965 0.976 rg 36 214.28 m 805.89 214.28 l 808.099 214.28 809.89 216.071 809.89 218.28 c 809.89 226.28 l 809.89 228.489 808.099 230.28 805.89 230.28 c 36 230.28 l 33.791 230.28 32 228.489 32 226.28 c 32 218.28 l 32 216.071 33.791 214.28 36 214.28 c f
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 220.884 Td (Histórico de Ocorrências) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 220.884 Td (Qtd. Dias Perde VT) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 220.884 Td (Isaac Raylen) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 220.884 Td (Qtd. Dias Perde VT) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 220.884 Td (KARINE ROMASKEVIS DE \(app · Registro de ocorrência\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 220.884 Td (1) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 220.884 Td (19:11) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 220.884 Td (19:11) Tj ET
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 204.884 Td (Histórico de Ocorrências) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 204.884 Td (Benefícios Descontados JSON) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 204.884 Td (Isaac Raylen) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 204.884 Td (Benefícios Descontados JSON) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 204.884 Td (KARINE ROMASKEVIS DE \(app · Registro de ocorrência\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 204.884 Td (1) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 204.884 Td (19:11) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 204.884 Td (19:11) Tj ET
 0.957 0.965 0.976 rg 36 182.28 m 805.89 182.28 l 808.099 182.28 809.89 184.071 809.89 186.28 c 809.89 194.28 l 809.89 196.489 808.099 198.28 805.89 198.28 c 36 198.28 l 33.791 198.28 32 196.489 32 194.28 c 32 186.28 l 32 184.071 33.791 182.28 36 182.28 c f
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 188.884 Td (Base de Desconto) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 188.884 Td (Qtd. Dias Perde VT) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 188.884 Td (Isaac Raylen) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 188.884 Td (Qtd. Dias Perde VT) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 188.884 Td (KARINE ROMASKEVIS DE \(app · Registro de ocorrência\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 188.884 Td (1) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 188.884 Td (19:11) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 188.884 Td (19:11) Tj ET
 BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 172.884 Td (Base de Desconto) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 206 172.884 Td (Qtd. Dias Perde VR) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 446 172.884 Td (Isaac Raylen) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 172.884 Td (Qtd. Dias Perde VR) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 172.884 Td (KARINE ROMASKEVIS DE \(app · Registro de ocorrência\)) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 172.884 Td (1) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 172.884 Td (19:11) Tj ET
 BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 172.884 Td (19:11) Tj ET
-BT /helvB 10 Tf 0.102 0.114 0.141 rg 36 141.48 Td (4. EXECUÇÕES DO APLICATIVO) Tj ET
-BT /helv 7.5 Tf 0.42 0.447 0.502 rg 735.023 141.43 Td (pi.audit_lancamentos) Tj ET
-0.788 0.596 0.184 RG 1.1 w 36 134.28 m 805.89 134.28 l S
-BT /helvB 7 Tf 0.42 0.447 0.502 rg 36 123.82 Td (HORA) Tj ET
-BT /helvB 7 Tf 0.42 0.447 0.502 rg 82 123.82 Td (AÇÃO) Tj ET
-BT /helvB 7 Tf 0.42 0.447 0.502 rg 190 123.82 Td (DESFECHO) Tj ET
-BT /helvB 7 Tf 0.42 0.447 0.502 rg 276 123.82 Td (PESSOA) Tj ET
-BT /helvB 7 Tf 0.42 0.447 0.502 rg 444 123.82 Td (CONTRATO) Tj ET
-BT /helvB 7 Tf 0.42 0.447 0.502 rg 520 123.82 Td (QUEM EXECUTOU) Tj ET
-BT /helvB 7 Tf 0.42 0.447 0.502 rg 650 123.82 Td (OBSERVAÇÃO) Tj ET
-0.89 0.906 0.933 RG 0.7 w 36 118.28 m 805.89 118.28 l S
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 106.884 Td (15:54) Tj ET
-BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 82 106.884 Td (Convocação) Tj ET
-0.09 0.541 0.314 rg 196.4 106.78 m 196.4 108.437 195.057 109.78 193.4 109.78 c 191.743 109.78 190.4 108.437 190.4 106.78 c 190.4 105.123 191.743 103.78 193.4 103.78 c 195.057 103.78 196.4 105.123 196.4 106.78 c f
-BT /helv 8.2 Tf 0.09 0.541 0.314 rg 202 106.884 Td (concluída) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 276 106.884 Td (KAREN CRISTIANE CAVALCANTE RAM…) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 444 106.884 Td (SEMSA) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 520 106.884 Td (Mayra Jaqueline.) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 650 106.884 Td (motor backend) Tj ET
-0.957 0.965 0.976 rg 36 84.28 m 805.89 84.28 l 808.099 84.28 809.89 86.071 809.89 88.28 c 809.89 96.28 l 809.89 98.489 808.099 100.28 805.89 100.28 c 36 100.28 l 33.791 100.28 32 98.489 32 96.28 c 32 88.28 l 32 86.071 33.791 84.28 36 84.28 c f
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 90.884 Td (17:29) Tj ET
-BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 82 90.884 Td (Pagamento mensal) Tj ET
-0.09 0.541 0.314 rg 196.4 90.78 m 196.4 92.437 195.057 93.78 193.4 93.78 c 191.743 93.78 190.4 92.437 190.4 90.78 c 190.4 89.123 191.743 87.78 193.4 87.78 c 195.057 87.78 196.4 89.123 196.4 90.78 c f
-BT /helv 8.2 Tf 0.09 0.541 0.314 rg 202 90.884 Td (concluída) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 276 90.884 Td (—) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 444 90.884 Td (—) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 520 90.884 Td (THIFANY CASTRO DE) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 650 90.884 Td (motor workflow) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 74.884 Td (18:25) Tj ET
-BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 82 74.884 Td (Pagamento mensal) Tj ET
+0.957 0.965 0.976 rg 36 150.28 m 805.89 150.28 l 808.099 150.28 809.89 152.071 809.89 154.28 c 809.89 162.28 l 809.89 164.489 808.099 166.28 805.89 166.28 c 36 166.28 l 33.791 166.28 32 164.489 32 162.28 c 32 154.28 l 32 152.071 33.791 150.28 36 150.28 c f
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 156.884 Td (Base de Desconto) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 156.884 Td (VR - Valor Descontado) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 156.884 Td (KARINE ROMASKEVIS DE \(app · Registro de ocorrência\)) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 156.884 Td (1) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 156.884 Td (19:11) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 156.884 Td (19:11) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 36 140.884 Td (Base de Desconto) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 186 140.884 Td (VT - Valor Descontado) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 386 140.884 Td (KARINE ROMASKEVIS DE \(app · Registro de ocorrência\)) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 636 140.884 Td (1) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 686 140.884 Td (19:11) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 746 140.884 Td (19:11) Tj ET
+BT /helvB 10 Tf 0.102 0.114 0.141 rg 36 109.48 Td (4. EXECUÇÕES DO APLICATIVO) Tj ET
+BT /helv 7.5 Tf 0.42 0.447 0.502 rg 735.023 109.43 Td (pi.audit_lancamentos) Tj ET
+0.788 0.596 0.184 RG 1.1 w 36 102.28 m 805.89 102.28 l S
+BT /helvB 7 Tf 0.42 0.447 0.502 rg 36 91.82 Td (HORA) Tj ET
+BT /helvB 7 Tf 0.42 0.447 0.502 rg 82 91.82 Td (AÇÃO) Tj ET
+BT /helvB 7 Tf 0.42 0.447 0.502 rg 190 91.82 Td (DESFECHO) Tj ET
+BT /helvB 7 Tf 0.42 0.447 0.502 rg 276 91.82 Td (PESSOA) Tj ET
+BT /helvB 7 Tf 0.42 0.447 0.502 rg 444 91.82 Td (CONTRATO) Tj ET
+BT /helvB 7 Tf 0.42 0.447 0.502 rg 520 91.82 Td (QUEM EXECUTOU) Tj ET
+BT /helvB 7 Tf 0.42 0.447 0.502 rg 650 91.82 Td (OBSERVAÇÃO) Tj ET
+0.89 0.906 0.933 RG 0.7 w 36 86.28 m 805.89 86.28 l S
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 74.884 Td (15:54) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 82 74.884 Td (Convocação) Tj ET
 0.09 0.541 0.314 rg 196.4 74.78 m 196.4 76.437 195.057 77.78 193.4 77.78 c 191.743 77.78 190.4 76.437 190.4 74.78 c 190.4 73.123 191.743 71.78 193.4 71.78 c 195.057 71.78 196.4 73.123 196.4 74.78 c f
 BT /helv 8.2 Tf 0.09 0.541 0.314 rg 202 74.884 Td (concluída) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 276 74.884 Td (—) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 444 74.884 Td (—) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 520 74.884 Td (ISAAC RAYLEN FEIJO) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 650 74.884 Td (motor workflow) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 276 74.884 Td (KAREN CRISTIANE CAVALCANTE RAM…) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 444 74.884 Td (SEMSA) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 520 74.884 Td (Mayra Jaqueline.) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 650 74.884 Td (motor backend) Tj ET
 0.957 0.965 0.976 rg 36 52.28 m 805.89 52.28 l 808.099 52.28 809.89 54.071 809.89 56.28 c 809.89 64.28 l 809.89 66.489 808.099 68.28 805.89 68.28 c 36 68.28 l 33.791 68.28 32 66.489 32 64.28 c 32 56.28 l 32 54.071 33.791 52.28 36 52.28 c f
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 58.884 Td (18:34) Tj ET
-BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 82 58.884 Td (Convocação) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 58.884 Td (17:29) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 82 58.884 Td (Pagamento mensal) Tj ET
 0.09 0.541 0.314 rg 196.4 58.78 m 196.4 60.437 195.057 61.78 193.4 61.78 c 191.743 61.78 190.4 60.437 190.4 58.78 c 190.4 57.123 191.743 55.78 193.4 55.78 c 195.057 55.78 196.4 57.123 196.4 58.78 c f
 BT /helv 8.2 Tf 0.09 0.541 0.314 rg 202 58.884 Td (concluída) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 276 58.884 Td (RAIMUNDA NONATA DE SOUZA E SOU…) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 444 58.884 Td (SEMSA) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 520 58.884 Td (KARINE ROMASKEVIS DE) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 650 58.884 Td (motor backend) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 276 58.884 Td (—) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 444 58.884 Td (—) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 520 58.884 Td (THIFANY CASTRO DE) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 650 58.884 Td (motor workflow) Tj ET
 endstream
 endobj
 9 0 obj
 << /Type /Page /Parent 12 0 R /MediaBox [0 0 841.89 595.28] /Resources << /Font << /helv 1 0 R /helvB 2 0 R /timesB 3 0 R >> >> /Contents 8 0 R >>
 endobj
 10 0 obj
-<< /Length 7843 >>
+<< /Length 9529 >>
 stream
 0.063 0.082 0.122 rg 0 561.28 841.89 34 re f
 0.788 0.596 0.184 rg 0 559.68 841.89 1.6 re f
 BT /timesB 12 Tf 1 1 1 rg 36 575.92 Td (Alterações no board e lançamentos) Tj ET
-BT /helv 8 Tf 0.725 0.757 0.816 rg 708.034 576.04 Td (31/08, 14:00 a 31/08, 20:06) Tj ET
+BT /helv 8 Tf 0.725 0.757 0.816 rg 708.034 576.04 Td (31/08, 14:00 a 31/08, 20:34) Tj ET
 0.89 0.906 0.933 RG 0.7 w 36 38 m 805.89 38 l S
 BT /helv 7.5 Tf 0.42 0.447 0.502 rg 36 26.15 Td (Plano de Intermitentes · horários no fuso de Manaus \(UTC-4\)) Tj ET
 BT /helv 7.5 Tf 0.42 0.447 0.502 rg 760.44 26.15 Td (página 4 de 4) Tj ET
@@ -652,74 +670,91 @@ BT /helvB 7 Tf 0.42 0.447 0.502 rg 444 541.82 Td (CONTRATO) Tj ET
 BT /helvB 7 Tf 0.42 0.447 0.502 rg 520 541.82 Td (QUEM EXECUTOU) Tj ET
 BT /helvB 7 Tf 0.42 0.447 0.502 rg 650 541.82 Td (OBSERVAÇÃO) Tj ET
 0.89 0.906 0.933 RG 0.7 w 36 536.28 m 805.89 536.28 l S
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 524.884 Td (19:11) Tj ET
-BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 82 524.884 Td (Registro de ocorrência) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 524.884 Td (18:25) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 82 524.884 Td (Pagamento mensal) Tj ET
 0.09 0.541 0.314 rg 196.4 524.78 m 196.4 526.437 195.057 527.78 193.4 527.78 c 191.743 527.78 190.4 526.437 190.4 524.78 c 190.4 523.123 191.743 521.78 193.4 521.78 c 195.057 521.78 196.4 523.123 196.4 524.78 c f
 BT /helv 8.2 Tf 0.09 0.541 0.314 rg 202 524.884 Td (concluída) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 276 524.884 Td (SUZIANE DA SILVA VASQUE) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 444 524.884 Td (SEMSA) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 520 524.884 Td (KARINE ROMASKEVIS DE) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 650 524.884 Td (motor backend) Tj ET
-BT /helvB 10 Tf 0.102 0.114 0.141 rg 36 493.48 Td (5. INTERVENÇÕES TÉCNICAS) Tj ET
-BT /helv 7.5 Tf 0.42 0.447 0.502 rg 706.68 493.43 Td (intervencoes-2026-08-31.json) Tj ET
-0.788 0.596 0.184 RG 1.1 w 36 486.28 m 805.89 486.28 l S
-BT /helvB 7 Tf 0.42 0.447 0.502 rg 36 475.82 Td (HORA) Tj ET
-BT /helvB 7 Tf 0.42 0.447 0.502 rg 82 475.82 Td (O QUE FOI FEITO) Tj ET
-BT /helvB 7 Tf 0.42 0.447 0.502 rg 332 475.82 Td (QUEM) Tj ET
-BT /helvB 7 Tf 0.42 0.447 0.502 rg 452 475.82 Td (DETALHE) Tj ET
-BT /helvB 7 Tf 0.42 0.447 0.502 rg 682 475.82 Td (ONDE CONFERIR) Tj ET
-0.89 0.906 0.933 RG 0.7 w 36 470.28 m 805.89 470.28 l S
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 458.884 Td (17:50) Tj ET
-BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 82 458.884 Td (Correção: RM fora do ar vira pendência) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 332 458.884 Td (Isaac \(Claude\)) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 452 458.884 Td (Contrato deixa de cair inteiro; Monday, Drive e notas passa…) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 682 458.884 Td (commit 29445e3) Tj ET
-0.957 0.965 0.976 rg 36 436.28 m 805.89 436.28 l 808.099 436.28 809.89 438.071 809.89 440.28 c 809.89 448.28 l 809.89 450.489 808.099 452.28 805.89 452.28 c 36 452.28 l 33.791 452.28 32 450.489 32 448.28 c 32 440.28 l 32 438.071 33.791 436.28 36 436.28 c f
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 442.884 Td (17:57) Tj ET
-BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 82 442.884 Td (Correção: efeito pendente também degrada) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 332 442.884 Td (Isaac \(Claude\)) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 452 442.884 Td (Guarda de conciliação mantida; o que mudou é o contrato …) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 682 442.884 Td (commit a1d4829) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 426.884 Td (18:09) Tj ET
-BT /helv 8.2 Tf 0.659 0.478 0.086 rg 82 426.884 Td (Correção do build do workflow) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 276 524.884 Td (—) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 444 524.884 Td (—) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 520 524.884 Td (ISAAC RAYLEN FEIJO) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 650 524.884 Td (motor workflow) Tj ET
+0.957 0.965 0.976 rg 36 502.28 m 805.89 502.28 l 808.099 502.28 809.89 504.071 809.89 506.28 c 809.89 514.28 l 809.89 516.489 808.099 518.28 805.89 518.28 c 36 518.28 l 33.791 518.28 32 516.489 32 514.28 c 32 506.28 l 32 504.071 33.791 502.28 36 502.28 c f
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 508.884 Td (18:34) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 82 508.884 Td (Convocação) Tj ET
+0.09 0.541 0.314 rg 196.4 508.78 m 196.4 510.437 195.057 511.78 193.4 511.78 c 191.743 511.78 190.4 510.437 190.4 508.78 c 190.4 507.123 191.743 505.78 193.4 505.78 c 195.057 505.78 196.4 507.123 196.4 508.78 c f
+BT /helv 8.2 Tf 0.09 0.541 0.314 rg 202 508.884 Td (concluída) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 276 508.884 Td (RAIMUNDA NONATA DE SOUZA E SOU…) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 444 508.884 Td (SEMSA) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 520 508.884 Td (KARINE ROMASKEVIS DE) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 650 508.884 Td (motor backend) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 492.884 Td (19:11) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 82 492.884 Td (Registro de ocorrência) Tj ET
+0.09 0.541 0.314 rg 196.4 492.78 m 196.4 494.437 195.057 495.78 193.4 495.78 c 191.743 495.78 190.4 494.437 190.4 492.78 c 190.4 491.123 191.743 489.78 193.4 489.78 c 195.057 489.78 196.4 491.123 196.4 492.78 c f
+BT /helv 8.2 Tf 0.09 0.541 0.314 rg 202 492.884 Td (concluída) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 276 492.884 Td (SUZIANE DA SILVA VASQUE) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 444 492.884 Td (SEMSA) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 520 492.884 Td (KARINE ROMASKEVIS DE) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 650 492.884 Td (motor backend) Tj ET
+BT /helvB 10 Tf 0.102 0.114 0.141 rg 36 461.48 Td (5. INTERVENÇÕES TÉCNICAS) Tj ET
+BT /helv 7.5 Tf 0.42 0.447 0.502 rg 706.68 461.43 Td (intervencoes-2026-08-31.json) Tj ET
+0.788 0.596 0.184 RG 1.1 w 36 454.28 m 805.89 454.28 l S
+BT /helvB 7 Tf 0.42 0.447 0.502 rg 36 443.82 Td (HORA) Tj ET
+BT /helvB 7 Tf 0.42 0.447 0.502 rg 82 443.82 Td (O QUE FOI FEITO) Tj ET
+BT /helvB 7 Tf 0.42 0.447 0.502 rg 332 443.82 Td (QUEM) Tj ET
+BT /helvB 7 Tf 0.42 0.447 0.502 rg 452 443.82 Td (DETALHE) Tj ET
+BT /helvB 7 Tf 0.42 0.447 0.502 rg 682 443.82 Td (ONDE CONFERIR) Tj ET
+0.89 0.906 0.933 RG 0.7 w 36 438.28 m 805.89 438.28 l S
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 426.884 Td (17:50) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 82 426.884 Td (Correção: RM fora do ar vira pendência) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 332 426.884 Td (Isaac \(Claude\)) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 452 426.884 Td (registrarEvento rodava fora de step e o bundler recusa nod…) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 682 426.884 Td (commit c6f8f25) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 452 426.884 Td (Contrato deixa de cair inteiro; Monday, Drive e notas passa…) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 682 426.884 Td (commit 29445e3) Tj ET
 0.957 0.965 0.976 rg 36 404.28 m 805.89 404.28 l 808.099 404.28 809.89 406.071 809.89 408.28 c 809.89 416.28 l 809.89 418.489 808.099 420.28 805.89 420.28 c 36 420.28 l 33.791 420.28 32 418.489 32 416.28 c 32 408.28 l 32 406.071 33.791 404.28 36 404.28 c f
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 410.884 Td (18:16) Tj ET
-BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 82 410.884 Td (Deploy em produção) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 410.884 Td (17:57) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 82 410.884 Td (Correção: efeito pendente também degrada) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 332 410.884 Td (Isaac \(Claude\)) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 452 410.884 Td (vercel promote do preview d1pd4eg6c; produção passa a s…) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 682 410.884 Td (Vercel · deployment g8w2wu…) Tj ET
-0.984 0.933 0.933 rg 36 388.28 m 805.89 388.28 l 808.099 388.28 809.89 390.071 809.89 392.28 c 809.89 400.28 l 809.89 402.489 808.099 404.28 805.89 404.28 c 36 404.28 l 33.791 404.28 32 402.489 32 400.28 c 32 392.28 l 32 390.071 33.791 388.28 36 388.28 c f
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 394.884 Td (18:13) Tj ET
-BT /helv 8.2 Tf 0.769 0.239 0.239 rg 82 394.884 Td (Exclusão no RM: 53 convocações S-2260) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 452 410.884 Td (Guarda de conciliação mantida; o que mudou é o contrato …) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 682 410.884 Td (commit a1d4829) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 394.884 Td (18:09) Tj ET
+BT /helv 8.2 Tf 0.659 0.478 0.086 rg 82 394.884 Td (Correção do build do workflow) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 332 394.884 Td (Isaac \(Claude\)) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 452 394.884 Td (Códigos C03S003974 a C03S004026, do run b4a1f614; co…) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 682 394.884 Td (pi.convocacoes_rm.removido_…) Tj ET
-0.984 0.933 0.933 rg 36 372.28 m 805.89 372.28 l 808.099 372.28 809.89 374.071 809.89 376.28 c 809.89 384.28 l 809.89 386.489 808.099 388.28 805.89 388.28 c 36 388.28 l 33.791 388.28 32 386.489 32 384.28 c 32 376.28 l 32 374.071 33.791 372.28 36 372.28 c f
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 378.884 Td (18:14) Tj ET
-BT /helv 8.2 Tf 0.769 0.239 0.239 rg 82 378.884 Td (Exclusão no RM: 79 registros de histórico) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 452 394.884 Td (registrarEvento rodava fora de step e o bundler recusa nod…) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 682 394.884 Td (commit c6f8f25) Tj ET
+0.957 0.965 0.976 rg 36 372.28 m 805.89 372.28 l 808.099 372.28 809.89 374.071 809.89 376.28 c 809.89 384.28 l 809.89 386.489 808.099 388.28 805.89 388.28 c 36 388.28 l 33.791 388.28 32 386.489 32 384.28 c 32 376.28 l 32 374.071 33.791 372.28 36 372.28 c f
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 378.884 Td (18:16) Tj ET
+BT /helvB 8.2 Tf 0.102 0.114 0.141 rg 82 378.884 Td (Deploy em produção) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 332 378.884 Td (Isaac \(Claude\)) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 452 378.884 Td (ZMDHSTBENFUNC PKs 83248-83316 e 83319-83326; 8 c…) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 682 378.884 Td (ledger do run b4a1f614 \(paylo…) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 452 378.884 Td (vercel promote do preview d1pd4eg6c; produção passa a s…) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 682 378.884 Td (Vercel · deployment g8w2wu…) Tj ET
 0.984 0.933 0.933 rg 36 356.28 m 805.89 356.28 l 808.099 356.28 809.89 358.071 809.89 360.28 c 809.89 368.28 l 809.89 370.489 808.099 372.28 805.89 372.28 c 36 372.28 l 33.791 372.28 32 370.489 32 368.28 c 32 360.28 l 32 358.071 33.791 356.28 36 356.28 c f
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 362.884 Td (18:18) Tj ET
-BT /helv 8.2 Tf 0.769 0.239 0.239 rg 82 362.884 Td (Limpeza do ledger e fechamento do run) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 362.884 Td (18:13) Tj ET
+BT /helv 8.2 Tf 0.769 0.239 0.239 rg 82 362.884 Td (Exclusão no RM: 53 convocações S-2260) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 332 362.884 Td (Isaac \(Claude\)) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 452 362.884 Td (45 chaves mensal:2026-09 + 4 rm_idfinanc pendentes; run …) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 682 362.884 Td (pi.efeitos_externos · pi.mensa…) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 452 362.884 Td (Códigos C03S003974 a C03S004026, do run b4a1f614; co…) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 682 362.884 Td (pi.convocacoes_rm.removido_…) Tj ET
 0.984 0.933 0.933 rg 36 340.28 m 805.89 340.28 l 808.099 340.28 809.89 342.071 809.89 344.28 c 809.89 352.28 l 809.89 354.489 808.099 356.28 805.89 356.28 c 36 356.28 l 33.791 356.28 32 354.489 32 352.28 c 32 344.28 l 32 342.071 33.791 340.28 36 340.28 c f
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 346.884 Td (18:20) Tj ET
-BT /helv 8.2 Tf 0.769 0.239 0.239 rg 82 346.884 Td (Lançamentos financeiros apagados no RM) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 332 346.884 Td (Isaac \(manual\)) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 452 346.884 Td (IDFINANC 24560, 24561, 24564, 24565, 24566, 24567, 24…) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 682 346.884 Td (conferido por consulta IDFNA…) Tj ET
-BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 330.884 Td (18:31) Tj ET
-BT /helv 8.2 Tf 0.659 0.478 0.086 rg 82 330.884 Td (Bloqueio do rm_integrar — TENTADO E NÃO APLICADO) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 346.884 Td (18:14) Tj ET
+BT /helv 8.2 Tf 0.769 0.239 0.239 rg 82 346.884 Td (Exclusão no RM: 79 registros de histórico) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 332 346.884 Td (Isaac \(Claude\)) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 452 346.884 Td (ZMDHSTBENFUNC PKs 83248-83316 e 83319-83326; 8 c…) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 682 346.884 Td (ledger do run b4a1f614 \(paylo…) Tj ET
+0.984 0.933 0.933 rg 36 324.28 m 805.89 324.28 l 808.099 324.28 809.89 326.071 809.89 328.28 c 809.89 336.28 l 809.89 338.489 808.099 340.28 805.89 340.28 c 36 340.28 l 33.791 340.28 32 338.489 32 336.28 c 32 328.28 l 32 326.071 33.791 324.28 36 324.28 c f
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 330.884 Td (18:18) Tj ET
+BT /helv 8.2 Tf 0.769 0.239 0.239 rg 82 330.884 Td (Limpeza do ledger e fechamento do run) Tj ET
 BT /helv 8.2 Tf 0.102 0.114 0.141 rg 332 330.884 Td (Isaac \(Claude\)) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 452 330.884 Td (INSERT no ledger barrado pelo classificador de permissõe…) Tj ET
-BT /helv 8.2 Tf 0.42 0.447 0.502 rg 682 330.884 Td (sessão do Claude Code) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 452 330.884 Td (45 chaves mensal:2026-09 + 4 rm_idfinanc pendentes; run …) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 682 330.884 Td (pi.efeitos_externos · pi.mensa…) Tj ET
+0.984 0.933 0.933 rg 36 308.28 m 805.89 308.28 l 808.099 308.28 809.89 310.071 809.89 312.28 c 809.89 320.28 l 809.89 322.489 808.099 324.28 805.89 324.28 c 36 324.28 l 33.791 324.28 32 322.489 32 320.28 c 32 312.28 l 32 310.071 33.791 308.28 36 308.28 c f
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 314.884 Td (18:20) Tj ET
+BT /helv 8.2 Tf 0.769 0.239 0.239 rg 82 314.884 Td (Lançamentos financeiros apagados no RM) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 332 314.884 Td (Isaac \(manual\)) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 452 314.884 Td (IDFINANC 24560, 24561, 24564, 24565, 24566, 24567, 24…) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 682 314.884 Td (conferido por consulta IDFNA…) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 36 298.884 Td (18:31) Tj ET
+BT /helv 8.2 Tf 0.659 0.478 0.086 rg 82 298.884 Td (Bloqueio do rm_integrar — TENTADO E NÃO APLICADO) Tj ET
+BT /helv 8.2 Tf 0.102 0.114 0.141 rg 332 298.884 Td (Isaac \(Claude\)) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 452 298.884 Td (INSERT no ledger barrado pelo classificador de permissõe…) Tj ET
+BT /helv 8.2 Tf 0.42 0.447 0.502 rg 682 298.884 Td (sessão do Claude Code) Tj ET
 endstream
 endobj
 11 0 obj
@@ -738,17 +773,17 @@ xref
 0000000112 00000 n 
 0000000214 00000 n 
 0000000312 00000 n 
-0000017605 00000 n 
-0000017767 00000 n 
-0000034354 00000 n 
-0000034516 00000 n 
-0000052138 00000 n 
-0000052300 00000 n 
-0000060196 00000 n 
-0000060360 00000 n 
-0000060437 00000 n 
+0000019476 00000 n 
+0000019638 00000 n 
+0000036464 00000 n 
+0000036626 00000 n 
+0000054262 00000 n 
+0000054424 00000 n 
+0000064006 00000 n 
+0000064170 00000 n 
+0000064247 00000 n 
 trailer
 << /Size 14 /Root 13 0 R >>
 startxref
-60488
+64298
 %%EOF
