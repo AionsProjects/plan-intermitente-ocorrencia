@@ -90,18 +90,20 @@ async function secaoExecucoes(de: Date, ate: Date): Promise<SecaoRelatorio> {
 // A fonte da verdade de "o que mudou no board" é o activity_log do próprio Monday, não as
 // nossas tabelas: ele registra TAMBÉM a edição feita à mão, que não passa por lugar nenhum
 // do nosso sistema. `created_at` vem em décimos de microssegundo — dividir por 10.000 dá ms.
-const BOARDS_LOG = [
-  { id: "", papel: "atual", rotulo: "Plano de Intermitentes" },
-  { id: "18411141462", papel: null, rotulo: "Histórico de Ocorrências" },
-  { id: "18400981023", papel: null, rotulo: "Base de Desconto" },
-]
+// SÓ o board do Plano do mês (decisão do Isaac, 31/08): o Histórico de Ocorrências não é mais
+// usado pela operação, e a Base de Desconto não conta como alteração de lançamento — as duas
+// enchiam o relatório de linha que ninguém lê. O que interessa do lançamento aparece aqui
+// mesmo: falta, minutos de atraso, status da convocação e início do cancelamento.
+const BOARDS_LOG = [{ id: "", papel: "atual", rotulo: "Plano de Intermitentes" }]
 
 /** Colunas que carregam LANÇAMENTO de ocorrência — o que o Isaac pediu para ver primeiro. */
 const COLUNAS_OCORRENCIA = new Set([
-  "numeric", "texto5", "color_mm3a8ana", "date_mm3b88ta",                      // Entrada
-  "long_text_mm2xtcpw", "numeric_mm2xe2zk", "numeric_mm2x18hh",                // Histórico
-  "numeric_mm2x4fjj", "color_mm3b9v4n", "color_mm2xkqpc", "date_mm2x62fq",
-  "numeric_mm0rgsaw", "numeric_mm0r5tca", "color_mm0r8mjr",                    // Desconto
+  "numeric",           // Faltas registradas / OP - Falta
+  "texto5",            // Minutos de atraso registrados
+  "color_mm3a8ana",    // Status Convocação (cancelada / cancelada parcialmente)
+  "date_mm3b88ta",     // Cancelamento Início
+  "color_mkta71ex",    // OP - Tipo Convocação
+  "color_mktarrgs",    // OP - Justificativa
 ])
 
 interface AlteracaoBoard {
@@ -404,6 +406,44 @@ function secaoIntervencoes(arquivo: string | undefined): SecaoRelatorio {
   }
 }
 
+// ── Convocações criadas na janela ───────────────────────────────────────────
+// Voltou ao relatório: é o VOLUME do dia. Vem de pi.convocacoes_rm, onde `criado_por` já é o
+// operador do app (não a conta de serviço), então aqui não há o problema de autoria do board.
+// Uma linha por pessoa seriam ~74; o DP quer ver quem convocou quanto, então agrupa por
+// contrato + origem + autor e mostra a faixa de códigos.
+async function secaoConvocacoes(de: Date, ate: Date): Promise<SecaoRelatorio> {
+  const { rows } = await query<{
+    contrato: string | null; origem_acao: string | null; criado_por: string | null
+    n: number; de_cod: string; ate_cod: string; removidas: number; primeiro: Date; ultimo: Date
+  }>(
+    `SELECT contrato, origem_acao, criado_por, COUNT(*)::int n,
+            MIN(codigo) de_cod, MAX(codigo) ate_cod,
+            COUNT(*) FILTER (WHERE removido_em IS NOT NULL)::int removidas,
+            MIN(criado_em) primeiro, MAX(criado_em) ultimo
+       FROM convocacoes_rm
+      WHERE criado_em >= $1 AND criado_em <= $2
+      GROUP BY 1,2,3 ORDER BY 4 DESC`,
+    [de.toISOString(), ate.toISOString()],
+  )
+  const total = rows.reduce((t, r) => t + r.n, 0)
+  return {
+    titulo: `Convocações criadas na janela — ${total} no total`,
+    fonte: "pi.convocacoes_rm — agrupado por contrato, origem e quem criou",
+    colunas: [col("CONTRATO", 130), col("ORIGEM", 84), col("QUEM CRIOU", 150), col("QTD", 44),
+      col("FAIXA DE CÓDIGOS", 176), col("HORÁRIO", 92), col("APAGADAS", LARGURA_UTIL - 676)],
+    vazio: "Nenhuma convocação criada nesta janela.",
+    linhas: rows.map((r): CelulaSecao[] => [
+      { texto: r.contrato ?? "—", tom: "forte" },
+      { texto: r.origem_acao ?? "—", tom: "apagado" },
+      { texto: quem(null, r.criado_por) },
+      { texto: String(r.n) },
+      { texto: r.de_cod === r.ate_cod ? r.de_cod : `${r.de_cod} … ${r.ate_cod}`, tom: "apagado" },
+      { texto: `${hora(r.primeiro)}–${hora(r.ultimo)}`, tom: "apagado" },
+      { texto: r.removidas ? `${r.removidas}` : "—", tom: r.removidas ? "amarelo" : "apagado" },
+    ]),
+  }
+}
+
 // ── Seção 6 — convocações retroativas ───────────────────────────────────────
 /**
  * Criada no dia, para período que COMEÇA antes do dia.
@@ -493,8 +533,9 @@ async function main(): Promise<void> {
   const intervencoes = arg("intervencoes")
     ?? path.resolve(process.cwd(), `../docs/relatorios/intervencoes-${diaIso}.json`)
 
-  const [execucoes, retroativas, alteracoes] = await Promise.all([
+  const [execucoes, convocacoes, retroativas, alteracoes] = await Promise.all([
     secaoExecucoes(de, ate),
+    secaoConvocacoes(de, ate),
     secaoRetroativas(diaIso),
     lerAlteracoesBoard(de, ate),
   ])
@@ -504,22 +545,23 @@ async function main(): Promise<void> {
 
   const pdf = gerarRelatorioPeriodo({
     titulo: "Alterações no board e lançamentos",
-    subtitulo: "O que mudou no Monday na janela, quem mudou, e as convocações retroativas do dia",
+    subtitulo: "Board do Plano do mês · quem alterou de verdade · convocações criadas e retroativas",
     periodoLabel: `${dataHora(de)} a ${dataHora(ate)}`,
     geradoPor: process.env.USER ?? process.env.USERNAME ?? "automação",
     resumo: [
       { rotulo: "lançamentos de ocorrência", n: ocorrencias.linhas.length, tom: ocorrencias.linhas.length ? "amarelo" : undefined },
-      { rotulo: "outras alterações", n: alteracoes.length - ocorrencias.linhas.length },
+      { rotulo: "convocações criadas", n: convocacoes.linhas.reduce((t, l) => t + Number(l[3]?.texto ?? 0), 0) },
       { rotulo: "convocações retroativas", n: retroativas.linhas.length, tom: retroativas.linhas.length ? "amarelo" : undefined },
+      { rotulo: "outras alterações no Plano", n: alteracoes.length - ocorrencias.linhas.length },
       { rotulo: "execuções do app", n: execucoes.linhas.length },
       { rotulo: "intervenções técnicas", n: tecnicas.linhas.length },
     ],
-    secoes: [ocorrencias, retroativas, outras, execucoes, tecnicas],
+    secoes: [ocorrencias, convocacoes, retroativas, outras, execucoes, tecnicas],
   })
   fs.writeFileSync(saida, pdf)
   console.log(`PDF: ${path.resolve(saida)} (${(pdf.length / 1024).toFixed(0)} KB)`)
   console.log(`janela: ${dataHora(de)} a ${dataHora(ate)} (Manaus) | dia das retroativas: ${dia(diaIso)}`)
-  for (const s of [ocorrencias, retroativas, outras, execucoes, tecnicas]) {
+  for (const s of [ocorrencias, convocacoes, retroativas, outras, execucoes, tecnicas]) {
     console.log(`  ${String(s.linhas.length).padStart(4)} linha(s)  ${s.titulo}`)
   }
 }
