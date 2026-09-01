@@ -17,6 +17,23 @@ import type { BeneficioCaju } from "../clients/caju.js"
 /** Primeira gaveta (YYYY-MM) que sai com uma linha e um pedido por benefício. */
 export const SPLIT_BENEFICIO_A_PARTIR_DE = "2026-09"
 
+/**
+ * Instante em que morreu o PRIMEIRO formato por benefício do pontual — aquele que, até 13/08/2026,
+ * criava um pedido de VR e um de VT sob as chaves `..._vr` / `..._vt`.
+ *
+ * Existe porque a partir de 09/2026 essas MESMAS chaves voltaram a valer. Sem uma data separando
+ * as duas eras, o step do VT lê a chave que o step do VR acabou de confirmar e conclui que o item
+ * foi pago no formato antigo — o que é falso. A data do efeito no ledger é o único desempate.
+ */
+export const FIM_FORMATO_ANTIGO_POR_BENEFICIO = new Date("2026-08-14T00:00:00Z")
+
+/** true = este efeito é do formato antigo por benefício (e não de um pagamento de agora). */
+export function ehEfeitoFormatoAntigo(criadoEm: Date | string | null | undefined): boolean {
+  if (!criadoEm) return false
+  const t = new Date(criadoEm).getTime()
+  return Number.isFinite(t) && t < FIM_FORMATO_ANTIGO_POR_BENEFICIO.getTime()
+}
+
 /** Gaveta efetiva: a explícita quando existe, senão o mês de `dataIso` (mesma queda do grupo). */
 export function caixaEfetiva(caixa: string | undefined | null, dataIso: string): string {
   const c = String(caixa ?? "").slice(0, 7)

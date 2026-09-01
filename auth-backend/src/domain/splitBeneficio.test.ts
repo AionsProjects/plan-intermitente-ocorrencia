@@ -1,8 +1,10 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 import {
+  FIM_FORMATO_ANTIGO_POR_BENEFICIO,
   SPLIT_BENEFICIO_A_PARTIR_DE,
   caixaEfetiva,
+  ehEfeitoFormatoAntigo,
   gruposBeneficio,
   splitPorBeneficio,
   sufixoGrupo,
@@ -46,4 +48,23 @@ test("sufixoGrupo: rótulo só quando o grupo é de um benefício só", () => {
   assert.equal(sufixoGrupo(["VR"]), "VR")
   assert.equal(sufixoGrupo(["VT"]), "VT")
   assert.equal(sufixoGrupo(["VR", "VT"]), "")
+})
+
+test("ehEfeitoFormatoAntigo: só efeito de antes de 14/08/2026 é da era antiga", () => {
+  assert.equal(ehEfeitoFormatoAntigo(new Date("2026-08-12T10:00:00Z")), true)
+  assert.equal(ehEfeitoFormatoAntigo("2026-08-13T23:59:59Z"), true)
+  assert.equal(ehEfeitoFormatoAntigo(FIM_FORMATO_ANTIGO_POR_BENEFICIO), false)
+  assert.equal(ehEfeitoFormatoAntigo(new Date("2026-09-01T14:09:07Z")), false)
+})
+
+test("efeito de agora NÃO é formato antigo — foi o que derrubou o pagamento de 01/09", () => {
+  // O step do VT lia a chave `caju_credito_vr` que o step do VR tinha acabado de confirmar
+  // (14:09:07Z) e a tratava como pagamento da era antiga, estourando no meio do dinheiro.
+  assert.equal(ehEfeitoFormatoAntigo(new Date("2026-09-01T14:09:07.914Z")), false)
+})
+
+test("ehEfeitoFormatoAntigo: sem data e data ilegível não inventam colisão", () => {
+  assert.equal(ehEfeitoFormatoAntigo(null), false)
+  assert.equal(ehEfeitoFormatoAntigo(undefined), false)
+  assert.equal(ehEfeitoFormatoAntigo("nao-e-data"), false)
 })

@@ -174,18 +174,23 @@ export async function detalheEfeito(chave: string): Promise<{
   status: "confirmado" | "pendente"
   refExterna: string | null
   payload: Record<string, unknown> | null
+  criadoEm: Date | null
 } | null> {
   const { rows } = await query<{
     status: string
     ref_externa: string | null
     payload: Record<string, unknown> | null
-  }>(`SELECT status, ref_externa, payload FROM efeitos_externos WHERE chave=$1`, [chave])
+    criado_em: Date | null
+  }>(`SELECT status, ref_externa, payload, criado_em FROM efeitos_externos WHERE chave=$1`, [chave])
   const r = rows[0]
   if (!r) return null
   return {
     status: r.status === "confirmado" ? "confirmado" : "pendente",
     refExterna: r.ref_externa,
     payload: r.payload,
+    // QUANDO o efeito entrou. Duas eras do pontual usam a mesma chave (`caju_credito_vr`): a de
+    // antes de 13/08/2026 e a de 09/2026 em diante. Só a data distingue uma da outra.
+    criadoEm: r.criado_em,
   }
 }
 

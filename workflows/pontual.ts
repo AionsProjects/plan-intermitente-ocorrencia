@@ -68,7 +68,7 @@ import {
   montarValuesSolicitacaoPontual,
 } from "../auth-backend/src/pontual/mondayPontual.js"
 import type { BeneficioCaju } from "../auth-backend/src/clients/caju.js"
-import { gruposBeneficio, sufixoGrupo } from "../auth-backend/src/domain/splitBeneficio.js"
+import { ehEfeitoFormatoAntigo, gruposBeneficio, sufixoGrupo } from "../auth-backend/src/domain/splitBeneficio.js"
 import { arquivarDrivePontual, urlDoRelatorio } from "../auth-backend/src/pontual/drivePontual.js"
 import { montarDadosRelatorioPontual } from "../auth-backend/src/pontual/relatorioPontual.js"
 import {
@@ -395,6 +395,12 @@ function caixaPontual(dataInicio: string): string {
   return `${anoComp}-${String(mesComp).padStart(2, "0")}`
 }
 
+/** `caju:<etapa>:<orderId>` -> orderId. `:vazio` e `:sem-id` não têm pedido nenhum. */
+function orderIdDaRef(ref: string | null | undefined): string | null {
+  const id = String(ref ?? "").split(":").pop() ?? ""
+  return id && id !== "vazio" && id !== "sem-id" ? id : null
+}
+
 async function etapaPedidoCaju(
   input: PontualWorkflowInput,
   plano: PlanoPagamento,
@@ -417,12 +423,17 @@ async function etapaPedidoCaju(
   // chave nova e criaria pedido em cima do que já existe — pagando duas vezes. Se qualquer
   // metade antiga está confirmada, este step não tem nada a fazer.
   //
-  // A partir de 09/2026 o pedido voltou a ser por benefício e as chaves coincidem com as
-  // antigas. Item novo NÃO pode ter efeito de antes de 13/08 — se tiver, é sinal de chave
-  // reaproveitada e o certo é ESTOURAR: pular calado aqui deixaria o pagamento sem pedido.
+  // A DATA é o que separa as duas eras: de 09/2026 em diante o pedido voltou a ser por benefício
+  // e as chaves são LITERALMENTE as mesmas. Sem o filtro por data o step do VT lê a chave que o
+  // step do VR acabou de gravar, conclui "formato antigo" e estoura no meio do pagamento — foi o
+  // que derrubou o item 12940817903 em 01/09/2026, depois do pedido de VR já criado.
   if (input.modo === "producao") {
     for (const chave of chavesFormatoAntigo) {
-      if ((await estadoEfeito(chave)) !== "confirmado") continue
+      const det = await detalheEfeito(chave)
+      if (det?.status !== "confirmado") continue
+      if (!ehEfeitoFormatoAntigo(det.criadoEm)) continue
+      // Efeito realmente velho num item que hoje sai separado: chave reaproveitada. Pular calado
+      // aqui deixaria o pagamento sem pedido, então estoura.
       if (rotulo) throw new FatalError(`caju_chave_antiga_colide_com_split:${chave}`)
       await log(execucaoId, etapa, "pulado", {
         mensagem: `já pago no formato anterior (pedido por benefício${chave.slice(-3)})`,
@@ -432,7 +443,20 @@ async function etapaPedidoCaju(
   }
 
   const r = await reservarOuPular(input.modo, execucaoId, itemOrigemId, etapa)
-  if (r.acao === "pular") return { orderId: null, qr: "", copiaECola: "" }
+  // Retomada: o pedido já existe na Caju e o id dele só sobrevive na `ref_externa` do ledger.
+  // Devolver null aqui faria a Solicitação de Pagamento e o Controle Caju nascerem sem o número
+  // do pedido que ESTÁ lá — o dinheiro sai e ninguém acha o comprovante.
+  if (r.acao === "pular") {
+    const det = await detalheEfeito(r.chave)
+    const orderId = orderIdDaRef(det?.refExterna)
+    // QR e copia-e-cola não são gravados no ledger, mas o GET da Caju devolve os dois — reler é
+    // leitura pura. Sem isto a retomada de um boleto sobe pro Drive sem o PNG que o empregado paga.
+    if (orderId && tipo === "boleto") {
+      const resp = await buscarPedido(orderId)
+      return { orderId, qr: extrairQrBase64(resp), copiaECola: extrairPixCopiaECola(resp) }
+    }
+    return { orderId, qr: "", copiaECola: "" }
+  }
   if (r.acao === "simular") {
     await simular(execucaoId, etapa, r.chave)
     return { orderId: null, qr: "", copiaECola: "" }
