@@ -39,16 +39,40 @@ async function colunaCompareceuDoBoard(boardId: string): Promise<string | null> 
   return rows[0]?.column_id ?? null
 }
 
+/**
+ * "Não dispare de novo" — separado e puro porque a regra tem uma exceção que custou dois
+ * pagamentos travados.
+ *
+ * `fechamento` confirmado é o ÚNICO sinal de que o pagamento terminou, e vale sempre.
+ *
+ * Snapshot `consumido` NÃO significa "o dinheiro saiu": ele é gravado no step do FIFO, no
+ * COMEÇO do pagamento. Serve pro webhook (re-marcar SIM não paga de novo) e não pode valer na
+ * retomada manual — run que morre depois do FIFO (Caju, Monday, Drive, RM) ficaria irretomável
+ * pela rota que existe justamente pra retomá-lo, mesmo com a causa do erro já corrigida. Foi o
+ * que travou RAIMUNDA (12940817903) e NATALIA (12951063085) em 09/2026.
+ *
+ * O que impede pagar duas vezes na retomada é a idempotência por etapa (`efeitos_externos`):
+ * ela faz o step PULAR o pedido Caju que já existe e reaproveitar o `orderId` do ledger.
+ */
+export function jaPago(
+  fechamento: "ausente" | "confirmado" | "pendente",
+  snapshotEstado: string | null | undefined,
+  retomadaManual: boolean,
+): boolean {
+  if (fechamento === "confirmado") return true
+  return !retomadaManual && snapshotEstado === "consumido"
+}
+
 async function dispararPagamento(
   itemId: string,
   modo: "producao" | "simulacao",
   operador?: { userId?: string; email?: string; nome?: string },
+  retomadaManual = false,
 ): Promise<{ status: "iniciado" | "em_curso" | "ja_pago"; execucaoId?: string }> {
-  // No-op de re-marcação: fechamento confirmado OU snapshot consumido = já pago.
   if (modo === "producao") {
-    if ((await estadoEfeito(`pontual:${itemId}:fechamento`)) === "confirmado") return { status: "ja_pago" }
-    const vivo = await lerPrePagamentoVivo(itemId)
-    if (vivo?.estado === "consumido") return { status: "ja_pago" }
+    const fechamento = await estadoEfeito(`pontual:${itemId}:fechamento`)
+    const vivo = fechamento === "confirmado" ? null : await lerPrePagamentoVivo(itemId)
+    if (jaPago(fechamento, vivo?.estado, retomadaManual)) return { status: "ja_pago" }
     // Dedupe de concorrência (webhook duplicado, SIM→NÃO→SIM em segundos).
     const gatilho = await reservarEfeito(`pontual:gatilho:${itemId}`, "pontual_gatilho", { modo })
     if (gatilho === "confirmado") return { status: "ja_pago" }
@@ -134,9 +158,15 @@ export async function rotasComparecimento(app: FastifyInstance): Promise<void> {
         // Solta gatilho órfão (nunca solta confirmado) — é o destravamento manual.
         await liberarEfeito(`pontual:gatilho:${itemId}`).catch(() => {})
       }
-      const r = await dispararPagamento(itemId, simular ? "simulacao" : "producao", {
-        userId: u.id, email: u.email, nome: [u.nome, u.sobrenome].filter(Boolean).join(" ").trim() || u.email,
-      })
+      const r = await dispararPagamento(
+        itemId,
+        simular ? "simulacao" : "producao",
+        {
+          userId: u.id, email: u.email, nome: [u.nome, u.sobrenome].filter(Boolean).join(" ").trim() || u.email,
+        },
+        // Retomada de admin ignora o snapshot `consumido` — ver `jaPago`.
+        !simular,
+      )
       return { ok: true, ...r, simulacao: simular }
     },
   )

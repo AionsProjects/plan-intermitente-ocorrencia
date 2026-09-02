@@ -4,6 +4,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { construirApp } from "../app.js"
+import { jaPago } from "./comparecimento.js"
 import { query } from "../db.js"
 
 const BOARD = "99900001"
@@ -64,6 +65,21 @@ test("label NÃO / outra coluna: 200 e nenhum efeito", async () => {
     `SELECT count(*)::int n FROM efeitos_externos WHERE chave = 'pontual:gatilho:12345678'`,
   )
   assert.equal(rows[0]!.n, 0, "criou gatilho sem ser SIM")
+})
+
+// A regra que travou dois pagamentos em 09/2026: `consumido` é do FIFO, não do fim do
+// pagamento. Webhook trata como já pago; retomada manual NÃO pode.
+test("jaPago: fechamento manda sempre; snapshot consumido só barra o webhook", () => {
+  assert.equal(jaPago("confirmado", "consumido", false), true)
+  assert.equal(jaPago("confirmado", "consumido", true), true, "fechamento confirmado barra até a retomada")
+  assert.equal(jaPago("confirmado", null, true), true)
+
+  assert.equal(jaPago("ausente", "consumido", false), true, "webhook: re-marcar SIM não paga de novo")
+  assert.equal(jaPago("ausente", "consumido", true), false, "retomada tem de passar por cima do FIFO")
+
+  assert.equal(jaPago("ausente", "reservado", false), false)
+  assert.equal(jaPago("ausente", undefined, false), false)
+  assert.equal(jaPago("pendente", "consumido", true), false, "pendente não é pagamento concluído")
 })
 
 test("retomar exige admin", async () => {
