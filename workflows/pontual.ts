@@ -12,6 +12,7 @@
 // é a ORDEM (não um if) que impede lançamento financeiro sobre o crédito.
 import { FatalError, sleep } from "workflow"
 import { confirmarEfeito, detalheEfeito, estadoEfeito, liberarEfeito, reservarEfeito } from "../auth-backend/src/jobs/repo.js"
+import { ehFatal, mensagemErro } from "../auth-backend/src/mensal/erros.js"
 import {
   buscarEmployeeId,
   buscarPedido,
@@ -1064,6 +1065,8 @@ async function etapaFechamento(
   plano: PlanoPagamento | null,
   refs: { pedidoCreditoVR?: string | null; pedidoCreditoVT?: string | null; pedidoPixVR?: string | null; pedidoPixVT?: string | null; idVR?: string | null; idVT?: string | null; solicitacaoId?: string | null },
   desfecho: "ok" | "ja_pago",
+  /** Motivo da perna do RM não ter fechado. Presente = desfecho `parcial`. */
+  rmPendencia?: string | null,
 ): Promise<void> {
   "use step"
   const { execucaoId, itemOrigemId } = input
@@ -1095,6 +1098,16 @@ async function etapaFechamento(
       url: `https://drive.google.com/drive/folders/${pastaId}`,
     })
   }
+  if (rmPendencia) {
+    // `parcial` NÃO alerta (é desfecho conhecido, não surpresa) mas grava o motivo, e é o que
+    // distingue no /atividade o pagamento completo do que ficou faltando o lançamento no RM.
+    await ex.fechar("parcial", { erro: rmPendencia, etapaErro: "rm_integrar" })
+    // NÃO confirma `fechamento` e SOLTA o gatilho: o pagamento não terminou, e as duas marcas
+    // são exatamente o que bloquearia a retomada depois da conciliação no RM. Retomar é
+    // idempotente — as chaves de etapa já confirmadas fazem o resto ser pulado.
+    if (input.modo === "producao") await liberarEfeito(`pontual:gatilho:${itemOrigemId}`)
+    return
+  }
   await ex.fechar("ok", desfecho === "ja_pago" ? { erro: undefined } : undefined)
   if (input.modo === "producao") {
     // A marca de "pagamento concluído", e ela precisa EXISTIR: a rota do webhook consulta
@@ -1111,6 +1124,22 @@ async function etapaFechamento(
   }
 }
 etapaFechamento.maxRetries = 5
+
+/**
+ * Registra que a perna do RM não fechou e o pagamento seguiu sem ela.
+ *
+ * É um STEP de propósito: `log` puxa o espelho de eventos, que puxa `alertaFalha`, que usa
+ * `node:crypto` — no corpo do workflow o bundler recusa ("Node.js modules are not available in
+ * workflow functions"). Mesma armadilha que derrubou os builds de 31/08.
+ */
+async function marcarRmPendencia(input: PontualWorkflowInput, mensagem: string): Promise<void> {
+  "use step"
+  await log(input.execucaoId, "rm_pendencia", "aviso", {
+    mensagem,
+    metadados: { segue: "controle_caju+plano+solicitacao+drive+notas", idfinanc: "pendente", statusOk: "nao" },
+  })
+}
+marcarRmPendencia.maxRetries = 5
 
 /** Erro fatal: fecha a execução com erro (dispara o alerta WhatsApp) e SOLTA o gatilho. */
 async function etapaErro(input: PontualWorkflowInput, mensagem: string): Promise<void> {
@@ -1154,12 +1183,39 @@ export async function executarPontualWorkflow(input: PontualWorkflowInput): Prom
     const credito = await pedidosCajuDoTipo(input, plano, employeeId, "credito", grupos)
     const boleto = await pedidosCajuDoTipo(input, plano, employeeId, "boleto", grupos)
 
-    await etapaRmHistorico(input, plano, "pix")
-    const { temFinanceiro } = await etapaRmFopRotinas(input, plano)
-    if (temFinanceiro) await sleep("7s") // FopRotinas é assíncrono no RM
-    const { idVR, idVT } = await etapaRmIntegrar(input, plano, temFinanceiro)
-    // A TRAVA: histórico do crédito SÓ depois do FopRotinas+integrar.
-    await etapaRmHistorico(input, plano, "credito")
+    // RM DEGRADÁVEL — mesma decisão que o mensal tomou em 31/08/2026, replicada aqui em 02/09
+    // depois de RAIMUNDA (12940817903) e NATALIA (12955946005) ficarem com boleto emitido e NADA
+    // no board: os dois morreram no `rm_integrar` e o catch geral abortou Controle Caju,
+    // Solicitação, Drive, notas e balão. Dinheiro fora, rastro nenhum — o pior dos dois mundos.
+    //
+    // O lançamento financeiro é a ÚNICA perna que depende do RM. As outras não têm por que cair
+    // com ela. Falha aqui vira PENDÊNCIA: grava tudo o que não depende do RM e fecha `parcial`.
+    //
+    // A guarda de efeito pendente continua de pé — ninguém re-chama o RM por cima de uma chave
+    // reservada, e a conciliação segue sendo trabalho de gente. O que mudou é o alcance da queda.
+    //
+    // Consequência conhecida: os IDFINANC vão VAZIOS pra Solicitação e o AUTOMAÇÃO-OK não é
+    // marcado — é assim que o DP vê que falta algo nessa linha.
+    let idVR: string | null = null
+    let idVT: string | null = null
+    let rmPendencia: string | null = null
+    try {
+      await etapaRmHistorico(input, plano, "pix")
+      const { temFinanceiro } = await etapaRmFopRotinas(input, plano)
+      if (temFinanceiro) await sleep("7s") // FopRotinas é assíncrono no RM
+      const ids = await etapaRmIntegrar(input, plano, temFinanceiro)
+      idVR = ids.idVR
+      idVT = ids.idVT
+      // A TRAVA: histórico do crédito SÓ depois do FopRotinas+integrar.
+      await etapaRmHistorico(input, plano, "credito")
+    } catch (e) {
+      // FatalError que exige gente ANTES de gravar continua derrubando. Efeito pendente e
+      // rede/timeout do RM degradam — a classificação é a do mensal (`ehFatal`), por NOME, porque
+      // a classe não sobrevive à serialização do step.
+      if (ehFatal(e)) throw e
+      rmPendencia = mensagemErro(e)
+      await marcarRmPendencia(input, rmPendencia)
+    }
 
     await etapaControleCaju(input, plano, { vr: credito.vr.orderId, vt: credito.vt.orderId })
     await etapaMondayPlano(input, plano)
@@ -1193,9 +1249,12 @@ VT: ${boleto.vt.copiaECola}`
     }, abatimentos)
     await etapaNotasCaju(input, plano, refs, abatimentos, relatorioUrl)
     await etapaBalao(input, plano, abatimentos)
-    await etapaStatusOk(input, solicitacoes)
-    await etapaFechamento(input, plano, refs, "ok")
-    return { desfecho: "pago" }
+    // AUTOMAÇÃO-OK só com 100% (decisão 4 do mensal): linha sem IDFINANC fica NÃO INICIADO, que é
+    // como o DP enxerga pendência. A chave do step não é reservada, então a retomada depois da
+    // conciliação marca o status.
+    if (!rmPendencia) await etapaStatusOk(input, solicitacoes)
+    await etapaFechamento(input, plano, refs, "ok", rmPendencia)
+    return { desfecho: rmPendencia ? "pago_sem_rm" : "pago" }
   } catch (e) {
     const msg = e instanceof Error ? e.message.slice(0, 300) : String(e).slice(0, 300)
     await etapaErro(input, msg)

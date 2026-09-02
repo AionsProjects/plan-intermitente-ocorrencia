@@ -42,3 +42,22 @@ test("ehFatal: RM fora do ar NÃO é fatal — é o caso que vira pendência", (
   assert.equal(ehFatal({ name: "Error", message: "fetch failed" }), false)
   assert.equal(ehFatal(new Error("RM /consultar-rm HTTP 502")), false)
 })
+
+// O pontual passou a usar a MESMA classificação (02/09/2026), então as mensagens dele entram aqui.
+test("ehFatal: mensagens do pontual — RM degrada, guarda de dinheiro não", () => {
+  for (const msg of [
+    "efeito_pendente_requer_conciliacao:rm_integrar",
+    "efeito_pendente_requer_conciliacao:rm_idfinanc:24594",
+  ]) {
+    assert.equal(ehFatal({ name: "FatalError", message: msg }), false, `${msg} tem de degradar`)
+  }
+  // Guardas que precisam parar o pagamento ANTES de gravar board, Drive ou notas.
+  for (const msg of [
+    "caju_chave_antiga_colide_com_split:pontual:12951063085:caju_credito_vr",
+    "item_nao_existe_no_monday",
+    "convocacao_cancelada",
+  ]) {
+    assert.equal(ehFatal({ name: "FatalError", message: msg }), true, `${msg} NÃO pode degradar`)
+  }
+})
+
