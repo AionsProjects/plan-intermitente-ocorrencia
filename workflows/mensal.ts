@@ -36,11 +36,13 @@ import { ehFatal, mensagemErro } from "../auth-backend/src/mensal/erros.js"
 import {
   RM_COLIGADA,
   RM_DATA_SERVER_HISTORICO,
+  chapasComHistoricoNoRm,
   chapasEventosPix,
   codSecaoBase,
   consultarIdfinanc,
   enviarHistoricoRm,
   executarFopRotinas,
+  filtrarJaGravados,
   integrarIdfinanc,
   lotesHistorico,
   montarRegistrosHistorico,
@@ -257,9 +259,23 @@ async function etapaRmHistoricoLote(
   if (r.acao === "simular") return simularEfeito(runId, contrato.contrato, etapa, r.chave, metadata.attempt)
   const { mes, ano } = competenciaPartes(competencia)
   const codSecao = codSecaoBase(codigoSecaoContrato(contrato.contrato))
-  const registros: RegistroHistoricoRm[] = lotesHistorico(montarRegistrosHistorico(contrato.pessoas, tipo, {
+  const doLote: RegistroHistoricoRm[] = lotesHistorico(montarRegistrosHistorico(contrato.pessoas, tipo, {
     anoComp: ano, mesComp: mes, codSecao, dataImport: new Date().toISOString().slice(0, 10),
   }))[loteIdx] ?? []
+  // TRAVA POR FATO — o ledger é por MOTOR e não vê o que outro sistema gravou. Em 26/08+31/08 de
+  // 2026 dois motores processaram a competência 09 e o RM ficou com 532 benefícios em dobro
+  // (R$ 185.031,50); em 08/2026, 1.443. Os dois ledgers diziam, corretamente, "eu nunca fiz isso".
+  // Só o RM sabe o fato, então é ele que decide. Se a leitura falhar, o step ESTOURA (retry, e
+  // depois pendência degradável) — gravar às cegas é o que produziu a dobra.
+  const jaNoRm = await chapasComHistoricoNoRm({ coligada: RM_COLIGADA, anoComp: ano, mesComp: mes })
+  const { enviar: registros, pulados } = filtrarJaGravados(doLote, jaNoRm)
+  if (pulados.length) {
+    await registrarEvento({
+      runId, contrato: contrato.contrato, etapa, estado: "aviso", tentativa: metadata.attempt,
+      mensagem: `${pulados.length} benefício(s) já tinham histórico no RM nesta competência — não regravado`,
+      metadados: { sub: `hist_${tipo}_lote${loteIdx}`, pulados },
+    })
+  }
   // Guarda a PK de CADA SaveRecord: é o caminho de volta do lote. Antes só a contagem ia pro
   // ledger, e desfazer o run de 01/08 exigiu redescobrir 225 registros por ReadView.
   const pks: string[] = []
@@ -269,15 +285,24 @@ async function etapaRmHistoricoLote(
     if (res.chave) pks.push(res.chave)
     else viaPonte++
   }
-  await confirmarEfeito(r.chave, `rm:hist:${tipo}:l${loteIdx}:${registros.length}`, {
+  await confirmarEfeito(
+    r.chave,
+    // A contagem é a de ENVIADOS, não a do lote: o ref precisa bater com o que existe no RM.
+    `rm:hist:${tipo}:l${loteIdx}:${registros.length}${pulados.length ? `:pulados=${pulados.length}` : ""}`,
+    {
     dataServer: RM_DATA_SERVER_HISTORICO,
     pks,
     // >0 significa lote sem PK registrada (ponte não devolve chave) -> desfazer exige ReadView.
     semPk: viaPonte,
-  })
+    ...(pulados.length ? { puladosPorJaExistir: pulados } : {}),
+    },
+  )
   await registrarEvento({
     runId, contrato: contrato.contrato, etapa, estado: "concluido", tentativa: metadata.attempt,
-    metadados: { sub: `hist_${tipo}_lote${loteIdx}`, registros: registros.length, pks: pks.length, semPk: viaPonte },
+    metadados: {
+      sub: `hist_${tipo}_lote${loteIdx}`, registros: registros.length, pks: pks.length, semPk: viaPonte,
+      ...(pulados.length ? { pulados: pulados.length } : {}),
+    },
   })
 }
 etapaRmHistoricoLote.maxRetries = 3

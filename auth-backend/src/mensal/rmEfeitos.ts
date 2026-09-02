@@ -7,6 +7,8 @@
 // Builders puros exportados p/ teste. Executores GATED: só via workflow (producao+ledger).
 // AIONS V5: aceita `ambiente` ("producao"|"teste") e `dry_run` — homologação futura usa teste.
 import { consultarSqlBruto, enviarRm, executarProcesso } from "../clients/rm.js"
+import { contextoDataServer, desescaparXml, readViewDireto } from "../clients/rmSoap.js"
+import { config } from "../config.js"
 import type { ContratoPreviaMensal, PessoaPreviaMensal } from "./types.js"
 
 export const RM_COLIGADA = 3
@@ -504,6 +506,62 @@ export async function enviarHistoricoRm(registro: RegistroHistoricoRm, opts: Opc
   })) as Record<string, unknown> | null
   const chave = typeof r?.chave === "string" && r.chave.trim() ? r.chave.trim() : undefined
   return { via: r?.via === "direto" ? "direto" : "ponte", chave }
+}
+
+/**
+ * Trava por FATO: quem já tem histórico desta competência no RM.
+ *
+ * A idempotência do ledger é por MOTOR (`mensal:<comp>:<CONTRATO>:<etapa>`) — ela não vê o que
+ * OUTRO sistema gravou. Em 26/08 e 31/08 de 2026 dois motores processaram a competência 09 e o
+ * RM ficou com 532 benefícios contados em dobro (R$ 185.031,50); em 08/2026 foram 1.443. Cada
+ * ledger dizia, corretamente, "eu nunca fiz isso".
+ *
+ * O RM é a única fonte que sabe o fato. Devolve `chapa|codBeneficio` do que já está lá.
+ *
+ * READ-ONLY. Só para fluxo MENSAL: no pontual um registro por convocação paga é o normal
+ * (medido: MICHELE GALVAO, chapa 007425, teve 7 pagamentos em 08/2026 e 7 registros legítimos).
+ */
+export async function chapasComHistoricoNoRm(p: {
+  coligada: number
+  anoComp: number
+  mesComp: number
+}): Promise<Set<string>> {
+  const xml = desescaparXml(
+    await readViewDireto(
+      RM_DATA_SERVER_HISTORICO,
+      `ZMDHSTBENFUNC.CODCOLIGADA=${p.coligada} AND ZMDHSTBENFUNC.ANOCOMP=${p.anoComp} AND ZMDHSTBENFUNC.MESCOMP=${p.mesComp}`,
+      contextoDataServer(p.coligada),
+      config.rmSoapTimeoutProcessoMs,
+    ),
+  )
+  const achados = new Set<string>()
+  for (const bloco of xml.split("<ZMDHSTBENFUNC>").slice(1)) {
+    const corpo = bloco.split("</ZMDHSTBENFUNC>")[0] ?? ""
+    const chapa = /<CHAPA>([^<]*)<\/CHAPA>/.exec(corpo)?.[1]?.trim()
+    const ben = /<CODBENEFICIO>([^<]*)<\/CODBENEFICIO>/.exec(corpo)?.[1]?.trim()
+    if (chapa && ben) achados.add(`${chapa6(chapa)}|${ben}`)
+  }
+  return achados
+}
+
+/**
+ * Tira do lote quem o RM já tem. Puro, pra ficar provado em teste em vez de comentado.
+ *
+ * O que fica de fora NÃO é erro: é a prova de que outro motor já pagou aquele benefício naquela
+ * competência. Quem chama registra os pulados — silêncio aqui esconderia pagamento faltando.
+ */
+export function filtrarJaGravados(
+  registros: RegistroHistoricoRm[],
+  existentes: Set<string>,
+): { enviar: RegistroHistoricoRm[]; pulados: string[] } {
+  const enviar: RegistroHistoricoRm[] = []
+  const pulados: string[] = []
+  for (const r of registros) {
+    const k = `${chapa6(r.chapa)}|${r.codBeneficio}`
+    if (existentes.has(k)) pulados.push(k)
+    else enviar.push(r)
+  }
+  return { enviar, pulados }
 }
 
 /** Dispara FopRotinas (Geração de Lançamentos Financeiros) do contrato. */

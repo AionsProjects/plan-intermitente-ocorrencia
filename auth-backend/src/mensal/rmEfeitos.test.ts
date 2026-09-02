@@ -9,7 +9,7 @@ process.env.OAUTH_REDIRECT_URI ??= "http://localhost/cb"
 const {
   montarXmlHistorico, montarRegistrosHistorico, lotesHistorico, chapasEventosPix,
   montarXmlFopRotinas, montarSoapExecuteProcess, montarXmlIntegrarBackOffices,
-  rotularIdfinanc, chapa6, codSecaoBase,
+  rotularIdfinanc, chapa6, codSecaoBase, filtrarJaGravados,
 } = await import("./rmEfeitos.js")
 
 test("montarXmlHistorico: vírgula, mesRef, escape, TPBEN=1", () => {
@@ -122,4 +122,25 @@ test("chapa6 e codSecaoBase", () => {
   assert.equal(chapa6("65-34"), "006534")
   assert.equal(codSecaoBase("01.01.0079.01.0001"), "01.01.0079")
   assert.equal(codSecaoBase("01.01"), "01.01")
+})
+
+// ---------- trava por FATO: duplicidade entre motores ----------
+
+test("filtrarJaGravados: tira do lote quem o RM ja tem, e diz quem ficou de fora", () => {
+  const reg = (chapa, codBeneficio) => ({
+    tipo: "HIST_CREDITO", chapa, nome: "X", valor: 10, codBeneficio, dadosXml: "<x/>",
+  })
+  const registros = [reg("007425", 1), reg("007425", 2), reg("6534", 1)]
+  // Chave normalizada por chapa6: "6534" e "006534" sao a MESMA pessoa.
+  const existentes = new Set(["007425|1", "006534|1"])
+  const { enviar, pulados } = filtrarJaGravados(registros, existentes)
+  assert.deepEqual(enviar.map((r) => `${r.chapa}|${r.codBeneficio}`), ["007425|2"])
+  assert.deepEqual(pulados, ["007425|1", "006534|1"])
+})
+
+test("filtrarJaGravados: RM vazio deixa o lote inteiro passar", () => {
+  const registros = [{ tipo: "HIST_PIX", chapa: "000001", nome: "A", valor: 1, codBeneficio: 1, dadosXml: "<x/>" }]
+  const { enviar, pulados } = filtrarJaGravados(registros, new Set())
+  assert.equal(enviar.length, 1)
+  assert.equal(pulados.length, 0)
 })
