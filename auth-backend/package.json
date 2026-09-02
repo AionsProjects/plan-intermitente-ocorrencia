@@ -32,7 +32,8 @@
     "relatorio": "node --env-file=.env --import tsx src/scripts/relatorio-periodo.ts",
     "relatorio:atrasos": "node --env-file=.env --import tsx src/scripts/relatorio-atrasos.ts",
     "rm:pendentes": "node --env-file=.env --import tsx src/scripts/rm-pendentes.ts",
-    "rm:zmd": "node --env-file=.env --import tsx src/scripts/rm-zmd.ts"
+    "rm:zmd": "node --env-file=.env --import tsx src/scripts/rm-zmd.ts",
+    "rm:dup-celetista": "node --env-file=.env --import tsx src/scripts/rm-dup-celetista.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",
