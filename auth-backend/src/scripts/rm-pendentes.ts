@@ -67,4 +67,11 @@ async function main(): Promise<void> {
   )
 }
 
-main().catch((e) => { console.error("FALHOU:", (e as Error).message); process.exit(1) })
+
+
+// Só roda quando chamado COMO SCRIPT. Sem esta guarda, importar os helpers daqui dispara a
+// consulta no RM — foi o que aconteceu ao reaproveitar `linhasPfinanceiro` num teste.
+// `includes` em vez de basename: o caminho vem com separador de Windows ou de POSIX.
+if ((process.argv[1] ?? "").includes("rm-pendentes")) {
+  main().catch((e) => { console.error("FALHOU:", (e as Error).message); process.exit(1) })
+}
