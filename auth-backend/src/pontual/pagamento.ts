@@ -133,12 +133,19 @@ const normV = (v: unknown): string =>
 export function validarPagamento(
   snapshot: PrePagamentoCompleto | null,
   item: ItemBoardValidacao,
+  /** Retomada manual de admin — ver o comentário do `consumido` abaixo. */
+  retomadaManual = false,
 ): VeredictoValidacao {
   const status = normV(item.statusConvocacao)
   const canceladaTotal = status.includes("CANCELADA") && !status.includes("PARCIAL")
   if (canceladaTotal) return { acao: "recusar", motivo: "convocacao_cancelada" }
 
-  if (snapshot?.estado === "consumido") return { acao: "ja_pago" }
+  // `consumido` diz que o snapshot foi LIDO pelo step do FIFO, não que o dinheiro saiu. No
+  // webhook é o sinal certo (re-marcar SIM na coluna não paga de novo). Na retomada manual de um
+  // run que morreu no meio é o que impede a recuperação — e só apagar a checagem seria pior: a
+  // linha de baixo jogaria no RECÁLCULO, que re-reserva desconto de um pagamento cujas reservas
+  // o consumo já apagou. Na retomada o snapshot consumido vale COMO ESTÁ.
+  if (snapshot?.estado === "consumido" && !retomadaManual) return { acao: "ja_pago" }
 
   // Período EFETIVO do board: cancelamento parcial trunca o fim (mesma regra da antifraude).
   let fimEfetivo = item.dataFim
@@ -149,7 +156,8 @@ export function validarPagamento(
   }
 
   if (!snapshot) return { acao: "recalcular", motivo: "snapshot_ausente" }
-  if (snapshot.estado !== "reservado") {
+  const estadoUtil = snapshot.estado === "reservado" || (retomadaManual && snapshot.estado === "consumido")
+  if (!estadoUtil) {
     return { acao: "recalcular", motivo: `snapshot_${snapshot.estado}` }
   }
   if (item.dataInicio && snapshot.data_inicio !== item.dataInicio) {

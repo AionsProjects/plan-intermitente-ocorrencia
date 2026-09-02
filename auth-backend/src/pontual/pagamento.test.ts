@@ -100,6 +100,25 @@ test("consumido é ja_pago mesmo com período divergente", () => {
   assert.deepEqual(v, { acao: "ja_pago" })
 })
 
+test("retomada manual paga o snapshot consumido como está — não recalcula", () => {
+  // Run que morreu depois do FIFO: o snapshot está `consumido` e as reservas de desconto já
+  // foram apagadas pelo consumo. Recalcular re-reservaria dívida; `ja_pago` deixaria o
+  // pagamento pela metade pra sempre. O único destino correto é pagar o que está salvo.
+  const v = validarPagamento(snapshot({ estado: "consumido" }), itemBoard(), true)
+  assert.equal(v.acao, "pagar", `veio ${JSON.stringify(v)}`)
+})
+
+test("retomada não passa por cima de divergência de período nem de cancelamento", () => {
+  assert.deepEqual(
+    validarPagamento(snapshot({ estado: "consumido" }), itemBoard({ dataFim: "2026-08-25" }), true),
+    { acao: "recalcular", motivo: "data_fim_divergente" },
+  )
+  assert.deepEqual(
+    validarPagamento(snapshot({ estado: "consumido" }), itemBoard({ statusConvocacao: "Cancelada" }), true),
+    { acao: "recusar", motivo: "convocacao_cancelada" },
+  )
+})
+
 test("snapshot ausente ou período divergente recalcula", () => {
   assert.equal(validarPagamento(null, itemBoard()).acao, "recalcular")
   const v = validarPagamento(snapshot(), itemBoard({ dataFim: "2026-08-20" }))

@@ -4,6 +4,7 @@ interface PontualWorkflowInput {
   itemOrigemId: string
   execucaoId: string
   modo: "producao" | "simulacao"
+  retomada?: boolean
 }
 
 type WorkflowClient = ((input: PontualWorkflowInput) => Promise<{ desfecho: string }>) & {

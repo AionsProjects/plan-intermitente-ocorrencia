@@ -87,7 +87,9 @@ async function dispararPagamento(
     resumo: { item_origem_id: itemId, modo },
   })
   try {
-    await start(executarPontualWorkflowClient, [{ itemOrigemId: itemId, execucaoId: ex.id, modo }])
+    await start(executarPontualWorkflowClient, [
+      { itemOrigemId: itemId, execucaoId: ex.id, modo, retomada: retomadaManual },
+    ])
   } catch (e) {
     // start() falhou = workflow nem nasceu. Solta o gatilho pro retry e registra o erro
     // (fechar erro → alerta WhatsApp).

@@ -96,6 +96,9 @@ export interface PontualWorkflowInput {
   /** Execução aberta pela rota — todos os steps logam nela. */
   execucaoId: string
   modo: "producao" | "simulacao"
+  /** Disparo pela rota admin de retomada — libera o snapshot `consumido` de um run que morreu
+   *  no meio. Não afeta idempotência: cada etapa continua com a chave dela. */
+  retomada?: boolean
 }
 
 // Kill switch do dinheiro. Lido no MÓDULO (env no corpo quebra o replay determinístico).
@@ -187,7 +190,7 @@ async function etapaValidacao(input: PontualWorkflowInput): Promise<PlanoPagamen
     chapa: val("Funcionário"),
     cancelamentoInicio: cancelIni,
   }
-  const veredicto = validarPagamento(snapshot, itemVal)
+  const veredicto = validarPagamento(snapshot, itemVal, input.retomada === true)
 
   if (veredicto.acao === "recusar") throw new FatalError(veredicto.motivo)
   if (veredicto.acao === "ja_pago") {
