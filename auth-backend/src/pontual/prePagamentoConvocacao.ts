@@ -1,7 +1,7 @@
 // Pré-pagamento na criação da convocação: lê o apoio, calcula, e devolve os valores prontos
 // pra entrarem no `column_values` do próprio `createItem`.
 //
-// Escrever os 7 valores DENTRO do create (em vez de numa mutation depois) tem dois motivos:
+// Escrever os 9 valores DENTRO do create (em vez de numa mutation depois) tem dois motivos:
 // não existe janela em que o item nasce sem valores — que é literalmente o pedido, "já deve
 // vir calculado para o 2 só pagar" — e as colunas de valor estão em
 // `pi.bloqueio_coluna_critica`, então escrevê-las na MESMA execução faz o monitor de
@@ -24,7 +24,8 @@ const norm = (v: unknown): string =>
   String(v ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/\s+/g, " ").trim()
 
 export interface ResultadoPrePagamento {
-  /** `column_values` das 7 colunas de valor, pronto pra fundir no `createItem`. */
+  /** `column_values` das 9 colunas de valor (7 de benefício + DESCONTO VR/VT), pronto pra
+   *  fundir no `createItem`. */
   valoresColunas: Record<string, string>
   pessoa?: PessoaCalculadaMensal
   reservas: ReservaCalculada[]
@@ -82,6 +83,41 @@ function valorColuna(item: RawItem, titulo: string): string {
   return item.column_values.find((c) => norm(c.column?.title ?? c.id) === alvo)?.text?.trim() ?? ""
 }
 
+/** Títulos e ids legados de `DESCONTO - VR/VT` no Plan — os mesmos do step do pagamento. */
+const COL_DESCONTO_PLANO = [
+  { chave: "descontoVR", titulo: "DESCONTO - VR", fallback: "numeric_mkrz4ye5" },
+  { chave: "descontoVT", titulo: "DESCONTO - VT", fallback: "numeric_mkrz9c4e" },
+] as const
+
+/**
+ * `DESCONTO - VR/VT` na CRIAÇÃO, com o que o FIFO acabou de reservar do board de Desconto.
+ *
+ * Por que faltava: até a felipeta, o pontual disparava no `create_item` e pagava na hora — o
+ * step `monday_plano` do pagamento escrevia as duas colunas no mesmo instante em que o item
+ * nascia. Com o pagamento adiado para o "Compareceu? SIM", a escrita foi junto: convocação
+ * criada hoje fica com as células VAZIAS até alguém marcar a felipeta, mesmo com o desconto já
+ * calculado e reservado. Medido em 18/09/2026 — LINCON (196/80) e GLAUCIENE (0/10,90) tinham o
+ * valor no snapshot e nada no board.
+ *
+ * O valor daqui é o RESERVADO; o do pagamento é o CONSUMIDO. Mesma coluna, sobrescrita — é a
+ * regra que o step do pagamento já seguia ("sobrescreve com o total calculado, nunca incrementa").
+ *
+ * Vai junto do `createItem` de propósito: as duas são `bloqueio_coluna_critica`, e uma mutation
+ * separada viraria `api_inexplicada` no monitor de alteração — um WhatsApp falso por convocação.
+ */
+export function montarValuesDescontoPlano(
+  pessoa: PessoaCalculadaMensal | undefined,
+  colunas: Record<string, string>,
+): Record<string, string> {
+  if (!pessoa) return {}
+  const out: Record<string, string> = {}
+  for (const c of COL_DESCONTO_PLANO) {
+    const id = colunas[norm(c.titulo)] ?? c.fallback
+    out[id] = String(Number(pessoa[c.chave]) || 0)
+  }
+  return out
+}
+
 /**
  * Calcula o pré-pagamento de uma convocação que está sendo criada.
  *
@@ -112,7 +148,10 @@ export async function calcularPrePagamentoConvocacao(
     const r = calcularPontual(entrada, apoio.regras, apoio.feriados, apoio.descontos)
     const colunas = Object.fromEntries([...colunasPlano].map(([nome, id]) => [norm(nome), id]))
     return {
-      valoresColunas: montarValuesPlanUpdate(r.planUpdate, colunas),
+      valoresColunas: {
+        ...montarValuesPlanUpdate(r.planUpdate, colunas),
+        ...montarValuesDescontoPlano(r.pessoa, colunas),
+      },
       pessoa: r.pessoa,
       reservas: r.reservas,
       semSaldo: r.semSaldo,
