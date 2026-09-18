@@ -12,6 +12,7 @@ import {
 import { addDays, format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
+import { BuscarSubstituido, type PessoaCoberta } from "./BuscarSubstituido"
 import { GlassDatePicker } from "./GlassDatePicker"
 import { GlassSelect } from "./GlassSelect"
 import { ComboboxFiltravel } from "@/components/ui/combobox-filtravel"
@@ -99,6 +100,9 @@ export function FormularioConvocacao({
   onSucesso,
 }: Props) {
   const [form, setForm] = useState<FormState>(() => initialState(empregado))
+  // Pessoa coberta escolhida no RM. Fora do `form` de propósito: o board não tem coluna pra
+  // função nem pra unidade DELA — o que o payload leva continua sendo só o nome.
+  const [substituidoRm, setSubstituidoRm] = useState<PessoaCoberta | null>(null)
   const [erroGeral, setErroGeral] = useState<string | null>(null)
   const [alertaConflito, setAlertaConflito] =
     useState<AlertaConflito | null>(null)
@@ -140,6 +144,33 @@ export function FormularioConvocacao({
       form.empregadoSubstituido.trim().length > 0
     )
   }, [form])
+
+  /**
+   * Escolher a pessoa coberta no RM traz UNIDADE e FUNÇÃO — é o trabalho que o intermitente vai
+   * cobrir, e é o que o operacional redigitava à mão.
+   *
+   * A unidade só entra se ela existir na lista DO CONTRATO já escolhido: unidade que o select não
+   * oferece viraria label nova no board na hora de criar o item. Comparação normalizada porque o
+   * RM e o board escrevem a mesma unidade com acento e caixa diferentes.
+   *
+   * Horário/escala NÃO vem — nenhuma SQL do RM disponível devolve jornada (medido em 18/09/2026).
+   * Enquanto não vier, o campo Escala segue digitado.
+   */
+  function selecionarSubstituido(p: PessoaCoberta) {
+    setErroGeral(null)
+    setAlertaConflito(null)
+    setSubstituidoRm(p)
+    const norm = (v: string) =>
+      v.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/\s+/g, " ").trim()
+    const daLista = p.localUnidade
+      ? unidadesDoContrato.find((u) => norm(u) === norm(p.localUnidade ?? ""))
+      : undefined
+    setForm((f) => ({
+      ...f,
+      empregadoSubstituido: p.nome,
+      ...(daLista ? { localUnidade: daLista } : {}),
+    }))
+  }
 
   function set<K extends keyof FormState>(k: K, v: FormState[K]) {
     setErroGeral(null)
@@ -407,13 +438,19 @@ export function FormularioConvocacao({
           />
         </FieldWrap>
 
-        <FieldText
+        <FieldWrap
           label="OP - Empregado Substituído"
-          hint="Informe o nome da pessoa substituída."
-          value={form.empregadoSubstituido}
-          onChange={(v) => set("empregadoSubstituido", v)}
+          hint="Busque no RM para trazer unidade e função da pessoa coberta. Horário o RM não devolve."
           required
-        />
+        >
+          <BuscarSubstituido
+            valor={form.empregadoSubstituido}
+            onChange={(v) => set("empregadoSubstituido", v)}
+            selecionado={substituidoRm}
+            onLimparSelecao={() => setSubstituidoRm(null)}
+            onSelecionar={selecionarSubstituido}
+          />
+        </FieldWrap>
 
         <FieldFile
           label="Termo de Convocação"
