@@ -74,6 +74,7 @@ import {
 } from "../auth-backend/src/pontual/mondayPontual.js"
 import type { BeneficioCaju } from "../auth-backend/src/clients/caju.js"
 import { ehEfeitoFormatoAntigo, gruposBeneficio, sufixoGrupo } from "../auth-backend/src/domain/splitBeneficio.js"
+import { dataPagamentoSolicitacao } from "../auth-backend/src/domain/dataPagamento.js"
 import { arquivarDrivePontual, urlDoRelatorio } from "../auth-backend/src/pontual/drivePontual.js"
 import { montarDadosRelatorioPontual } from "../auth-backend/src/pontual/relatorioPontual.js"
 import {
@@ -898,7 +899,9 @@ async function etapaSolicitacao(
     pedidoPixVR: refs.pedidoPixVR,
     pedidoPixVT: refs.pedidoPixVT,
     planBoardId: plano.snapshot.monday_board_id ?? "",
-    dataIso: new Date().toISOString().slice(0, 10),
+    // Data que o financeiro vê, não a data de hoje: depois do corte bancário (14h de Manaus) o
+    // crédito Caju já saiu, mas o boleto só é pago no próximo dia útil. Ver domain/dataPagamento.
+    dataIso: dataPagamentoSolicitacao(new Date()),
     itemPlanoId: itemOrigemId,
     // Mesma gaveta do grupo — e é ela que decide se sai uma linha ou duas.
     caixa,
