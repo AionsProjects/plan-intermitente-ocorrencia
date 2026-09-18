@@ -116,6 +116,8 @@ async function amarrarJob(ex: Execucao, jobId: string, req: FastifyRequest): Pro
 interface LinhaConvocacao {
   uuid: string
   nome?: string | null
+  /** Item da ENTRADA (o Plano). Espelho do board — é por ele que o snapshot do pré-pagamento casa. */
+  item_origem_id?: string | null
   chapa: string
   contrato: string | null
   data_inicio: string | null
@@ -302,6 +304,30 @@ async function colunaCodigoRm(boardId: string): Promise<string | null> {
     [boardId],
   )
   return rows[0]?.column_id ?? null
+}
+
+/**
+ * Colunas de sábado extra no board do Plano. Elas EXISTEM no board desde sempre e nunca tiveram
+ * escritor — o sábado só aparecia no Histórico, que não é onde o operacional e o DP olham.
+ *
+ * Por TÍTULO (o board do mês é cópia), com os ids observados como rede: sem eles, um registry
+ * desatualizado faria o sábado sumir da vista de novo, calado.
+ */
+const COL_PLANO_SABADO = {
+  qtd: { nome: "qtd de sabados extras", id: "numeric_mm3t92cx" },
+  datas: { nome: "sábados extras", id: "text_mm3twqvt" },
+} as const
+
+async function colunasSabadoDoPlano(boardId: string): Promise<{ qtd: string; datas: string }> {
+  const { rows } = await query<{ nome: string; column_id: string }>(
+    `SELECT nome, column_id FROM board_colunas WHERE monday_board_id = $1 AND nome = ANY($2)`,
+    [boardId, [COL_PLANO_SABADO.qtd.nome, COL_PLANO_SABADO.datas.nome]],
+  )
+  const porNome = new Map(rows.map((r) => [r.nome, r.column_id]))
+  return {
+    qtd: porNome.get(COL_PLANO_SABADO.qtd.nome) ?? COL_PLANO_SABADO.qtd.id,
+    datas: porNome.get(COL_PLANO_SABADO.datas.nome) ?? COL_PLANO_SABADO.datas.id,
+  }
 }
 
 /**
@@ -510,9 +536,19 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
 
       const di = soData(c.data_inicio)!
       const df = soData(c.data_fim)!
+      // Sábado extra marcado no link chega AQUI, no corpo, e este é o único lugar que grava a
+      // coluna — nada mais escreve `convocacoes.sabados_extras` desde que o WF3 saiu do ar.
+      // Enquanto isso não era persistido, o sábado não entrava no ledger, não ia pro Histórico
+      // e o job do boleto de VT nunca via sábado nenhum (medido: 0 registro em 30 dias).
+      //
+      // A lista do corpo é AUTORITATIVA (o front manda todos os tiles extras ativos, e o já
+      // pago ele não deixa remover); corpo sem a chave = cliente velho, mantém o que está lá.
+      const sabadosExtras = Array.isArray(b.sabados_extras)
+        ? [...new Set(b.sabados_extras.map((d) => String(d).slice(0, 10)))].sort()
+        : (c.sabados_extras ?? [])
       const ledger = derivarDescontosPorDia({
         dataInicio: di, dataFim: df, trabalhaSabado: c.trabalha_sabado === true,
-        sabadosExtras: c.sabados_extras ?? [], diasExtras: b.dias_extras ?? [],
+        sabadosExtras, diasExtras: b.dias_extras ?? [],
         diasDesativados: b.dias_desativados ?? [], respostas,
       })
       const ag = agregados(respostas, ledger)
@@ -555,13 +591,14 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
            dias_descontados = COALESCE(dias_descontados,'{}'::jsonb) || $5::jsonb,
            qtd_faltas=$6, qtd_atrasos=$7, total_minutos=$8, dias_perde_vr=$9, dias_perde_vt=$10,
            concluido_em = COALESCE(concluido_em, $11), editado=$12,
+           sabados_extras=$13,
            editado_em = CASE WHEN $12 THEN $11 ELSE editado_em END,
            atualizado_em=now()
          WHERE uuid=$1`,
         [
           uuid, protocolo, JSON.stringify(respostas), JSON.stringify(ledgerObj),
           JSON.stringify(diasDesc), ag.qtd_faltas, ag.qtd_atrasos, ag.total_minutos,
-          ag.dias_perde_vr, ag.dias_perde_vt, agoraIso, editado,
+          ag.dias_perde_vr, ag.dias_perde_vt, agoraIso, editado, sabadosExtras,
         ],
       ))
       if (desc.descontoVR > 0 || desc.descontoVT > 0) {
@@ -619,8 +656,8 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
           [COL_HIST.diasExtras]: { text: JSON.stringify(b.dias_extras ?? []) },
           [COL_HIST.diasDesativados]: { text: JSON.stringify(b.dias_desativados ?? []) },
           [COL_HIST.respostas]: { text: JSON.stringify(respostas) },
-          [COL_HIST.qtdSabadosExtras]: String((c.sabados_extras ?? []).length),
-          [COL_HIST.sabadosExtras]: (c.sabados_extras ?? []).join(", "),
+          [COL_HIST.qtdSabadosExtras]: String(sabadosExtras.length),
+          [COL_HIST.sabadosExtras]: sabadosExtras.join(", "),
           [COL_HIST.ledgerBeneficios]: { text: JSON.stringify(ledgerObj) },
         }
         // Só em reedição, como o WF3: `Editado Em` numa primeira finalização mentiria.
@@ -686,7 +723,7 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
             const partes = particionarSplit({
               dataInicio: di, dataFim: df, split,
               respostas, diasExtras: b.dias_extras ?? [],
-              diasDesativados: b.dias_desativados ?? [], sabadosExtras: c.sabados_extras ?? [],
+              diasDesativados: b.dias_desativados ?? [], sabadosExtras,
             })
             const propaga = {
               empregadoSubstituido: pai?.item.cv[COL_PAI_PROPAGA.empregadoSubstituido]?.text ?? null,
@@ -721,10 +758,18 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
         // 3) Espelho no item do Plano — faltas, minutos e protocolo (WF3 "Atualizar Plan
         //    Falta/Atraso"). SOBRESCREVE com o total calculado; nunca incrementa.
         if (origem.itemId && origem.boardId) {
+          // Sábado extra vai JUNTO: é o board que o operacional e o DP abrem, e o dia trabalhado
+          // fora da escala não aparecia em lugar nenhum aqui. A convocação no RM já cobre o dia
+          // (FopConvocacao é PERÍODO, `DTINIPRESTSERV`→`DTFIMPRESTSERV`, e o sábado extra é
+          // sempre dentro do período), então o que faltava era mesmo a vista.
+          const colSab = await colunasSabadoDoPlano(origem.boardId).catch(() => null)
           await comEtapa(ex, "monday_plano", () => mudarColunas(Number(origem.boardId), Number(origem.itemId), {
             numeric: String(ag.qtd_faltas),
             texto5: String(ag.total_minutos),
             text_mm3zezw: protocolo,
+            ...(colSab
+              ? { [colSab.qtd]: String(sabadosExtras.length), [colSab.datas]: sabadosExtras.join(", ") }
+              : {}),
           })).catch((e) => {
             mondayFalhas.push("plano")
             req.log.warn(e, "finalizar: espelho no Plano falhou")
@@ -738,16 +783,26 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
       // no meio de um pagamento não deixa retomada — a fila deixa. Idempotência real é a
       // chave por conjunto de sábados (`chaveEfeitoSabados`), então job duplicado por
       // refinalização encontra 'confirmado' e não paga de novo.
-      const sabados = c.sabados_extras ?? []
+      const sabados = sabadosExtras
+      // Espelho PG primeiro: ele tem o id do item da Entrada sem depender do Histórico do Monday
+      // estar lá e do link estar íntegro. O Histórico fica como segunda fonte.
+      const itemOrigemSabado = c.item_origem_id ?? (item ? parseItemOrigem(item).itemId : null)
       if (sabados.length > 0) {
         // cpf e cod_secao vêm do snapshot do pré-pagamento, criado pelo /convocar. É a única
         // fonte que já tem os dois; `convocacoes` não guarda seção, e sem seção o lançamento
         // financeiro do RM não tem onde cair.
+        //
+        // Casa por ITEM DA ENTRADA, não por uuid: o snapshot nasce no /convocar, onde o UUID
+        // da convocação ainda não existe (quem o cria é o preparar, depois). `uuid_convocacao`
+        // está NULL nos 155 snapshots já gravados, então a busca por uuid nunca achava nada e
+        // o job do boleto de VT nunca era enfileirado. Cai no uuid só como segunda tentativa,
+        // pra quando o campo passar a ser preenchido.
         const { rows: pre } = await query<{ cpf: string | null; cod_secao: string | null }>(
           `SELECT cpf, cod_secao FROM pontual_prepagamento
-            WHERE uuid_convocacao = $1 AND cod_secao IS NOT NULL
+            WHERE cod_secao IS NOT NULL
+              AND (($1::text IS NOT NULL AND item_origem_id::text = $1) OR uuid_convocacao = $2)
             ORDER BY criado_em DESC LIMIT 1`,
-          [uuid],
+          [itemOrigemSabado, uuid],
         )
         const cpf = pre[0]?.cpf ?? ""
         const codSecao = pre[0]?.cod_secao ?? ""
@@ -772,7 +827,7 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
         } else {
           const jobId = await enfileirar(TIPO_JOB_SABADO_EXTRA, {
             pedido, cpf, codSecao, dataImport: agoraIso.slice(0, 10),
-            item_origem_id: item ? parseItemOrigem(item).itemId : null,
+            item_origem_id: itemOrigemSabado,
           }).catch((e) => { req.log.warn(e, "finalizar: enfileirar sabado extra falhou"); return null })
           await ex.etapa("sabado_extra", jobId ? "ok" : "erro", {
             metadados: {
