@@ -567,14 +567,45 @@ export async function finalizarProcessamento(
     { tipo: "escrita" },
   )
   if (!res.ok) {
-    const err = new Error(`Erro ${res.status}`) as Error & { status?: number }
+    const corpo = (await res.json().catch(() => ({}))) as { erro?: string; mensagem?: string }
+    const err = new Error(mensagemErroProcesso(res.status, corpo.erro, corpo.mensagem)) as Error & {
+      status?: number
+      erro?: string
+    }
     err.status = res.status
+    err.erro = corpo.erro
     throw err
   }
   const data = await res.json().catch(() => ({}))
   return {
     protocolo: data.protocolo ?? payload.protocolo,
     editado: !!data.editado,
+  }
+}
+
+/**
+ * Mensagem legível pros códigos de recusa do backend. "Erro 409" não diz o que fazer — foi o
+ * que a Karine viu 6 vezes em 21/09 tentando registrar uma convocação parcialmente cancelada.
+ * O backend manda `mensagem` quando tem contexto (ex.: a data do corte vigente); aqui fica o
+ * fallback por código.
+ */
+export function mensagemErroProcesso(status: number, erro?: string, mensagem?: string): string {
+  if (mensagem) return mensagem
+  switch (erro) {
+    case "convocacao_cancelada":
+      return "Esta convocação foi cancelada por inteiro e não aceita mais registro."
+    case "convocacao_ja_cancelada":
+      return "Esta convocação já tem cancelamento registrado. Só é possível antecipar o corte para uma data anterior."
+    case "ja_concluido":
+      return "Este registro já foi concluído. Abra pelo protocolo em modo de correção."
+    case "desconto_em_consumo":
+      return "O desconto desta convocação já está em consumo. A alteração precisa passar pelo DP."
+    case "cancelamento_irreversivel":
+      return "Cancelamento registrado não pode ser revertido."
+    case "nao_encontrado":
+      return "Convocação não encontrada."
+    default:
+      return `Erro ${status}${erro ? ` (${erro})` : ""}`
   }
 }
 
@@ -654,7 +685,7 @@ export async function cancelarConvocacao(
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     throw new CancelarConvocacaoApiError(
-      data.mensagem || `Erro ${res.status}`,
+      mensagemErroProcesso(res.status, data.erro, data.mensagem),
       res.status,
       data.erro,
     )

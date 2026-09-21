@@ -6,6 +6,7 @@ import {
   aplicarCancelamento,
   rangeCancelamento,
   percentualDescontado,
+  antecipaCancelamento,
   type Ledger,
 } from "./ledgerBeneficios.js"
 
@@ -163,4 +164,20 @@ test("rangeCancelamento: parcial usa dataCancel até o fim", () => {
     sabadosExtras: [],
   })
   assert.deepEqual(r.dias, ["2026-07-08", "2026-07-09", "2026-07-10"])
+})
+
+// Parcial sobre parcial (21/09/2026): só antecipação passa.
+test("antecipaCancelamento: nova data anterior ao corte vigente antecipa", () => {
+  assert.equal(antecipaCancelamento("2026-09-23", "2026-09-09"), "antecipa")
+})
+
+test("antecipaCancelamento: mesma data ou posterior e postergar — recusado", () => {
+  assert.equal(antecipaCancelamento("2026-09-23", "2026-09-23"), "igual_ou_posterior")
+  assert.equal(antecipaCancelamento("2026-09-23", "2026-09-28"), "igual_ou_posterior")
+})
+
+test("antecipaCancelamento: sem data vigente legivel nao prova antecipacao", () => {
+  assert.equal(antecipaCancelamento(null, "2026-09-09"), "vigente_desconhecido")
+  assert.equal(antecipaCancelamento("", "2026-09-09"), "vigente_desconhecido")
+  assert.equal(antecipaCancelamento("23/09/2026", "2026-09-09"), "vigente_desconhecido")
 })

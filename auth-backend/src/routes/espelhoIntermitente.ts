@@ -10,6 +10,7 @@ import {
   reconstruirLedger,
   rangeCancelamento,
   aplicarCancelamento,
+  antecipaCancelamento,
   type Ledger,
 } from "../domain/ledgerBeneficios.js"
 import { lerValores } from "../repo/valores.js"
@@ -485,8 +486,19 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
       await ex.artefato({ tipo: "convocacao_uuid", chave: uuid, rotulo: "Convocação" })
       await ex.artefato({ tipo: "protocolo", chave: protocolo })
 
-      if (String(c.status_cancelamento ?? "").toLowerCase().includes("cancelad"))
-        return recusar(ex, reply, 409, { erro: "convocacao_cancelada" }, "validacao")
+      // Só o cancelamento TOTAL fecha a porta. "Cancelada parcialmente" continua sendo uma
+      // convocação viva nos dias que sobraram — e é nela que o operador precisa registrar e
+      // corrigir. O WF3 nunca teve esta trava; ela nasceu no port (04/07) como
+      // `includes("cancelad")` e barrou toda correção pós-parcial (incidente 21/09, ELIANA:
+      // 6 tentativas em 2 min, todas 409, tela mostrando só "Erro 409"). Os dias cancelados
+      // chegam em `dias_desativados` e o ledger deduplica por percentual, então refinalizar
+      // não desconta duas vezes.
+      const statusCancel = normTxt(c.status_cancelamento)
+      if (statusCancel.includes("CANCELAD") && !statusCancel.includes("PARCIAL"))
+        return recusar(ex, reply, 409, {
+          erro: "convocacao_cancelada",
+          mensagem: "Esta convocação foi cancelada por inteiro e não aceita mais registro.",
+        }, "validacao")
       const jaConcluido = statusFront(c.status) === "concluido"
       if (jaConcluido && !ehCorrecao)
         return recusar(ex, reply, 409, { erro: "ja_concluido" }, "validacao")
@@ -952,18 +964,52 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
       }
 
       // Bloqueios (paridade com o WF pós-fix 30/06): CANCELADA total bloqueia
-      // tudo; parcial-sobre-parcial bloqueia; TOTAL sobre parcial permite e
-      // cancela só os dias que faltavam (via ledger origem cancelamento:*).
+      // tudo; TOTAL sobre parcial permite e cancela só os dias que faltavam (via
+      // ledger origem cancelamento:*); parcial-sobre-parcial só como ANTECIPAÇÃO
+      // do corte (abaixo, depois de ler a data vigente na Entrada).
       const statusCancelAtual = normTxt(textoCol(item, COL_HIST.statusCancel))
       const eraParcial = statusCancelAtual === "CANCELADA PARCIALMENTE"
       if (statusCancelAtual === "CANCELADA")
-        return recusar(ex, reply, 409, { erro: "convocacao_ja_cancelada" }, "validacao")
-      if (eraParcial && tipo === "parcial")
-        return recusar(ex, reply, 409, { erro: "convocacao_ja_cancelada" }, "validacao")
+        return recusar(ex, reply, 409, {
+          erro: "convocacao_ja_cancelada",
+          mensagem: "Esta convocação já foi cancelada por inteiro.",
+        }, "validacao")
 
       const origem = parseItemOrigem(item)
       if (!origem.itemId)
         return recusar(ex, reply, 400, { erro: "item_origem_ausente" }, "validacao")
+
+      // Item origem (Entrada): cpf/função/optante — mais atual que o Histórico. Lido aqui
+      // porque a data do corte vigente também mora nele (`date_mm3b88ta`).
+      const origemItem = await lerItem(Number(origem.itemId))
+
+      // Parcial sobre parcial: só ANTECIPAÇÃO (21/09/2026). O caso real: corte em 23/09 já
+      // registrado, a pessoa parou em 09/09 e o operador precisa puxar o cancelamento pra trás.
+      // Postergar devolveria dias já cancelados — é "reverter", vedado desde 11/08. Sem data
+      // vigente legível no board nem no espelho, recusa: não dá pra provar que é antecipação.
+      // A dedupe por percentual do ledger garante que os dias já cancelados não descontam de novo.
+      if (eraParcial && tipo === "parcial") {
+        const vigenteBoard = (origemItem?.cv[COL_ENTRADA_DATA_CANCEL]?.text || "").trim() || null
+        const vigente = vigenteBoard ?? (await query<{ d: string | null }>(
+          `SELECT to_char(data_inicio_cancelamento, 'YYYY-MM-DD') AS d FROM convocacoes WHERE uuid = $1`,
+          [uuid],
+        ).then((r) => r.rows[0]?.d ?? null).catch(() => null))
+        const veredito = antecipaCancelamento(vigente, String(dataCancel))
+        if (veredito !== "antecipa") {
+          const vigenteBr = vigente ? vigente.split("-").reverse().join("/") : null
+          return recusar(ex, reply, 409, {
+            erro: "convocacao_ja_cancelada",
+            cancelamento_vigente: vigente,
+            mensagem: veredito === "vigente_desconhecido"
+              ? "Esta convocação já tem cancelamento parcial e a data vigente não pôde ser lida. Avise o DP."
+              : `Esta convocação já está cancelada a partir de ${vigenteBr}. Só é possível antecipar o corte para uma data anterior; postergar não é permitido.`,
+          }, "validacao")
+        }
+        await ex.etapa("antecipacao", "ok", {
+          mensagem: `corte antecipado de ${vigente} para ${dataCancel}`,
+          metadados: { de: vigente, para: dataCancel },
+        })
+      }
 
       const trabalhaSabado = normTxt(textoCol(item, COL_HIST.trabalhaSabado)) === "SIM"
       const sabadosExtras = (textoCol(item, COL_HIST.sabadosExtras) || "")
@@ -996,8 +1042,6 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
         sabadosExtras,
       })
 
-      // Item origem (Entrada): cpf/função/optante — mais atual que o Histórico.
-      const origemItem = await lerItem(Number(origem.itemId))
       const cpf = (origemItem?.cv["dup__of_matr_cula"]?.text || "").trim()
       const funcao = normTxt(origemItem?.cv["texto0"]?.text || "")
       const optanteRaw = normTxt(origemItem?.cv["optante___vt"]?.text || textoCol(item, COL_HIST.optanteVt) || "NAO")

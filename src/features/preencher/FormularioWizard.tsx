@@ -327,6 +327,12 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
     return new Set(dados.dias.filter((d) => d >= cancelamentoParcialEfetivo))
   }, [cancelamentoParcialEfetivo, dados.dias])
 
+  // Corte já REGISTRADO no backend (não o pendente local). É o teto do calendário de
+  // antecipação: só datas anteriores a ele podem virar novo corte — postergar é reverter.
+  const corteRegistrado =
+    dados.statusCancelamento === "cancelada_parcial" && dados.dataInicioCancelamento
+      ? dados.dataInicioCancelamento
+      : null
   // Flag: convocação já tem cancelamento parcial (banner + botão reverter
   // no header). Combina backend vigente + pendente local.
   const jaCanceladoParcial = !!cancelamentoParcialEfetivo
@@ -773,6 +779,12 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
   }
 
   function escolherDataCancelamento(data: string) {
+    if (corteRegistrado && data >= corteRegistrado) {
+      setCancelamentoErro(
+        `Escolha uma data anterior a ${formatarDataNumerica(corteRegistrado)}: só é possível antecipar o corte.`,
+      )
+      return
+    }
     setDataInicioCancelamento(data)
     setCancelamentoErro(null)
     if (data === primeiroDiaConvocacao) {
@@ -885,23 +897,21 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
                   type="button"
                   className="btn-action-expand btn-cancel-convocacao"
                   onClick={() => {
-                    // Reverter só antes do envio; registrado não volta.
+                    // Reverter só antes do envio; registrado não volta — mas ANTECIPAR o corte
+                    // pode (21/09): o calendário fica limitado a datas anteriores ao registrado.
                     if (cancelamentoParcialPendente) setReverterAberto(true)
-                    else if (!jaCanceladoParcial) abrirCancelamento()
+                    else abrirCancelamento()
                   }}
-                  // Registrado: botão inerte. Deixar clicável abriria um caminho que o sistema
-                  // não honra (o RM já foi tocado e delete não se desfaz).
-                  disabled={jaCanceladoParcial && !cancelamentoParcialPendente}
                   title={
-                    jaCanceladoParcial && !cancelamentoParcialPendente
-                      ? "Cancelamento registrado é irreversível"
+                    corteRegistrado && !cancelamentoParcialPendente
+                      ? `Corte registrado em ${formatarDataNumerica(corteRegistrado)}. Só é possível antecipar.`
                       : undefined
                   }
                   aria-label={
                     cancelamentoParcialPendente
                       ? "Reverter cancelamento"
-                      : jaCanceladoParcial
-                        ? "Cancelamento irreversível"
+                      : corteRegistrado
+                        ? "Antecipar cancelamento"
                         : "Cancelar convocação"
                   }
                 >
@@ -909,8 +919,8 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
                   <span className="btn-label text-red-700 dark:text-red-200">
                     {cancelamentoParcialPendente
                       ? "Reverter cancelamento"
-                      : jaCanceladoParcial
-                        ? "Cancelamento irreversível"
+                      : corteRegistrado
+                        ? "Antecipar cancelamento"
                         : "Cancelar convocação"}
                   </span>
                 </button>
@@ -986,7 +996,7 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
                 <p className="mt-1 text-xs text-amber-700/70 dark:text-amber-100/70">
                   {cancelamentoParcialPendente
                     ? "Será enviado quando você clicar em Finalizar e enviar. Toque em um dia cancelado para reverter — depois do envio não dá mais."
-                    : "Os dias a partir dessa data ficam bloqueados. Cancelamento registrado é irreversível."}
+                    : "Os dias a partir dessa data ficam bloqueados. Cancelamento registrado não volta atrás, mas dá para antecipar o corte em “Antecipar cancelamento”."}
                 </p>
               </div>
             </div>
@@ -1080,6 +1090,7 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
           onVoltarCalendario={() => setEtapaCancelamento("calendario")}
           onConfirmarTotal={executarCancelamentoTotal}
           onConfirmarParcial={confirmarCancelamentoParcial}
+          dataLimite={corteRegistrado}
         />
       )}
       {etapaSabados === "calendario" && (
@@ -1691,6 +1702,8 @@ type DialogCancelamentoProps = {
   etapa: EtapaCancelamento
   dias: string[]
   dataInicioCancelamento: string | null
+  /** Corte já registrado: datas iguais ou posteriores ficam fora (só antecipação). */
+  dataLimite?: string | null
   erro: string | null
   isPending: boolean
   onClose: () => void
@@ -1706,6 +1719,7 @@ function DialogCancelamento({
   etapa,
   dias,
   dataInicioCancelamento,
+  dataLimite = null,
   erro,
   isPending,
   onClose,
@@ -1753,7 +1767,9 @@ function DialogCancelamento({
           </DialogTitle>
           <DialogDescription className="text-foreground/60">
             {etapa === "calendario"
-              ? "O cancelamento parcial vale da data escolhida até o fim da convocação."
+              ? dataLimite
+                ? `Corte atual em ${formatarDataNumerica(dataLimite)}. Escolha uma data anterior para antecipar o cancelamento.`
+                : "O cancelamento parcial vale da data escolhida até o fim da convocação."
               : etapa === "confirmar_total"
                 ? "Você selecionou todo o período da convocação."
                 : etapa === "confirmar_parcial"
@@ -1810,6 +1826,7 @@ function DialogCancelamento({
             dias={dias}
             selected={dataInicioCancelamento}
             disabled={isPending}
+            dataLimite={dataLimite}
             onSelect={onSelecionarData}
           />
         ) : null}
@@ -2133,11 +2150,14 @@ function CalendarioCancelamento({
   dias,
   selected,
   disabled,
+  dataLimite = null,
   onSelect,
 }: {
   dias: string[]
   selected: string | null
   disabled: boolean
+  /** Dias >= dataLimite não são selecionáveis (corte já registrado; só antecipação). */
+  dataLimite?: string | null
   onSelect: (data: string) => void
 }) {
   const primeiroDia = dias[0] ?? format(new Date(), "yyyy-MM-dd")
@@ -2193,7 +2213,8 @@ function CalendarioCancelamento({
         ))}
         {diasDoMes.map((dia) => {
           const iso = format(dia, "yyyy-MM-dd")
-          const permitido = diasPermitidos.has(iso)
+          const jaCortado = !!dataLimite && iso >= dataLimite
+          const permitido = diasPermitidos.has(iso) && !jaCortado
           const selecionado = selected && isSameDay(dia, parseISO(selected))
           const noMes = isSameMonth(dia, mesVisivel)
           const feriadoNome = nomeFeriado(iso)
@@ -2204,7 +2225,13 @@ function CalendarioCancelamento({
               type="button"
               disabled={!permitido || disabled || eFeriado}
               onClick={() => onSelect(iso)}
-              title={eFeriado ? `Feriado nacional: ${feriadoNome}` : undefined}
+              title={
+                eFeriado
+                  ? `Feriado nacional: ${feriadoNome}`
+                  : jaCortado && noMes
+                    ? "Já cancelado — só é possível antecipar o corte"
+                    : undefined
+              }
               className={`flex h-10 w-full items-center justify-center rounded-xl text-sm font-medium transition ${
                 selecionado
                   ? "bg-orange-300 text-[#0a1224] shadow-[0_0_18px_rgba(251,146,60,0.45)]"

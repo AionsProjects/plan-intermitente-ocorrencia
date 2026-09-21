@@ -313,3 +313,20 @@ export function rangeCancelamento(p: {
   const dias = diasCancelaveis(inicio, p.dataFim, p.trabalhaSabado, p.sabadosExtras)
   return { inicio, fim: p.dataFim, dias }
 }
+
+/**
+ * Parcial sobre parcial só como ANTECIPAÇÃO do corte (decisão 21/09/2026).
+ *
+ * Postergar (nova data ≥ vigente) devolveria dias já cancelados — isso é "reverter", que o
+ * sistema não honra: o RM já foi encurtado e o desconto já nasceu. Antecipar é seguro: os dias
+ * novos entram no ledger pelo mesmo caminho e os já cancelados são ignorados pela dedupe por
+ * percentual em `aplicarCancelamento`. Sem data vigente legível não dá pra provar que é
+ * antecipação — e aí a resposta é recusar, não adivinhar.
+ */
+export function antecipaCancelamento(
+  vigente: string | null | undefined,
+  nova: string,
+): "antecipa" | "igual_ou_posterior" | "vigente_desconhecido" {
+  if (!vigente || !/^\d{4}-\d{2}-\d{2}$/.test(vigente)) return "vigente_desconhecido"
+  return nova < vigente ? "antecipa" : "igual_ou_posterior"
+}

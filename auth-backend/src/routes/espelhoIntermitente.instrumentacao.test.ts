@@ -110,6 +110,34 @@ test("registro: 409 de convocacao cancelada fecha 'erro' com o motivo", async ()
   } finally { await limpar(uuid) }
 })
 
+// O bug de 21/09/2026: a trava usava includes("cancelad") e barrava também "Cancelada
+// parcialmente", deixando toda convocação com corte parcial sem correção possível pelo link.
+test("registro: 'Cancelada parcialmente' NAO bloqueia — a parte viva ainda se registra", async () => {
+  const uuid = randomUUID()
+  try {
+    await semearConvocacao(uuid, { status: "Concluido", status_cancelamento: "Cancelada parcialmente" })
+    const r = await postar(`/api/intermitente-finalizar?uuid=${uuid}`, {
+      protocolo: "PROT-ABCD-2345",
+      eh_correcao: true,
+      respostas: [{ data: "2026-08-03", tipo: "sem_ocorrencia" }],
+      // Dias cancelados chegam como desativados (é assim que o front manda).
+      dias_desativados: ["2026-08-04", "2026-08-05"],
+      operador: { email: MARCA },
+    })
+    assert.equal(r.statusCode, 200, r.payload)
+
+    const ex = await execucaoDe(uuid)
+    assert.ok(ex, "nao abriu execucao")
+    assert.notEqual(ex!.estado, "erro")
+    // Finalizar não mexe no corte: o status de cancelamento permanece.
+    const { rows } = await query<{ status_cancelamento: string; status: string }>(
+      "SELECT status_cancelamento, status FROM convocacoes WHERE uuid=$1", [uuid],
+    )
+    assert.equal(rows[0]!.status_cancelamento, "Cancelada parcialmente")
+    assert.equal(rows[0]!.status, "Concluido")
+  } finally { await limpar(uuid) }
+})
+
 test("registro: 409 de ja_concluido tambem fecha 'erro'", async () => {
   const uuid = randomUUID()
   try {
