@@ -10,6 +10,7 @@ const {
   montarXmlHistorico, montarRegistrosHistorico, lotesHistorico, chapasEventosPix,
   montarXmlFopRotinas, montarSoapExecuteProcess, montarXmlIntegrarBackOffices,
   rotularIdfinanc, chapa6, codSecaoBase, filtrarJaGravados,
+  separarLancamentosDoMensal, emissaoDoFopRotinas,
 } = await import("./rmEfeitos.js")
 
 test("montarXmlHistorico: vírgula, mesRef, escape, TPBEN=1", () => {
@@ -143,4 +144,47 @@ test("filtrarJaGravados: RM vazio deixa o lote inteiro passar", () => {
   const { enviar, pulados } = filtrarJaGravados(registros, new Set())
   assert.equal(enviar.length, 1)
   assert.equal(pulados.length, 0)
+})
+
+test("separarLancamentosDoMensal: só integra o que o mensal gerou (caso real 31/08/2026, seção 01.01.0011)", () => {
+  // O que a IDFNAN devolveu pra 01.01.0011 em 2026-08-31 — mensal, pontual e CLT do n8n misturados.
+  const rows = rotularIdfinanc([
+    { IDFINANC: 24544, VALORORIGINAL: 98, HISTORICO: "CAJU VR  - INTERMITENTE - DIARIO - SEDUC - INTER" },
+    { IDFINANC: 24549, VALORORIGINAL: 63651, HISTORICO: "CAJU VR  - CLT - MENSAL - SEDUC - ESCOLA" },
+    { IDFINANC: 24557, VALORORIGINAL: 83937, HISTORICO: "CAJU VR  - CLT - MENSAL - SEDUC - INTERIOR" },
+    { IDFINANC: 24579, VALORORIGINAL: 294, HISTORICO: "CAJU VR  - INTERMITENTE - MENSAL - SEDUC - INT" },
+    { IDFINANC: 24580, VALORORIGINAL: 90, HISTORICO: "CAJU VT  - INTERMITENTE - MENSAL - SEDUC - INT" },
+    { IDFINANC: 24662, VALORORIGINAL: 5040, HISTORICO: "CAJU CESTA  - CLT - MENSAL -" },
+  ])
+  const { doMensal, alheios } = separarLancamentosDoMensal(rows)
+  assert.deepEqual(doMensal.map((r) => r.IDFINANC), [24579, 24580])
+  assert.deepEqual(alheios.map((r) => r.IDFINANC), [24544, 24549, 24557, 24662])
+})
+
+test("separarLancamentosDoMensal: sufixo de seção não importa, e sem nada do mensal devolve vazio", () => {
+  // CETAM 31/08: o RM divide por seção do funcionário — com e sem o nome do contrato no fim.
+  const cetam = separarLancamentosDoMensal(rotularIdfinanc([
+    { IDFINANC: 24551, VALORORIGINAL: 441, HISTORICO: "CAJU VR  - CLT - MENSAL - CETAM" },
+    { IDFINANC: 24581, VALORORIGINAL: 661.5, HISTORICO: "CAJU VR  - INTERMITENTE - MENSAL -" },
+    { IDFINANC: 24583, VALORORIGINAL: 3062.5, HISTORICO: "CAJU VR  - INTERMITENTE - MENSAL - CETAM" },
+  ]))
+  assert.deepEqual(cetam.doMensal.map((r) => r.IDFINANC), [24581, 24583])
+  assert.deepEqual(cetam.alheios.map((r) => r.IDFINANC), [24551])
+  const nada = separarLancamentosDoMensal(rotularIdfinanc([
+    { IDFINANC: 1, VALORORIGINAL: 10, HISTORICO: "CAJU VT  - INTERMITENTE - DIARIO -" },
+  ]))
+  assert.equal(nada.doMensal.length, 0)
+  assert.equal(nada.alheios.length, 1)
+})
+
+test("emissaoDoFopRotinas: lê da ref; ref antiga cai no criado_em; sem nada é null", () => {
+  assert.equal(emissaoDoFopRotinas("rm:foprotinas:35chapas:101+111:venc=2026-09-03:emissao=2026-08-31"), "2026-08-31")
+  // Ref gravada antes deste campo existir (o run de 31/08): vale o dia em que a chave nasceu.
+  assert.equal(
+    emissaoDoFopRotinas("rm:foprotinas:35chapas:101+111:venc=2026-09-03", new Date("2026-08-31T22:27:56Z")),
+    "2026-08-31",
+  )
+  // O vencimento NUNCA pode ser confundido com a emissão.
+  assert.equal(emissaoDoFopRotinas("rm:foprotinas:1chapas:101:venc=2026-09-03", null), null)
+  assert.equal(emissaoDoFopRotinas(null, null), null)
 })

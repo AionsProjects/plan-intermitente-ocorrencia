@@ -478,6 +478,46 @@ export function rotularIdfinanc(rows: RowIdfinanc[]): IdfinancRotulado[] {
     .sort((a, b) => a.IDFINANC - b.IDFINANC)
 }
 
+// O FopRotinas do mensal (eventos 101/111) grava HISTORICO "CAJU VR  - INTERMITENTE - MENSAL - …".
+// O pontual grava "… - INTERMITENTE - DIARIO", o CLT mensal do n8n "… - CLT - MENSAL", a cesta
+// "CAJU CESTA …" — todos podem cair na MESMA seção e no MESMO dia.
+const HISTORICO_MENSAL_INTERMITENTE = /INTERMITENTE\s*-\s*MENSAL/
+
+/**
+ * Separa, do que a IDFNAN devolveu pra seção/dia, o que é DESTE mensal do que é de outro processo.
+ *
+ * A IDFNAN é por seção+data, não por processo. Em 31/08/2026 a seção `01.01.0011` tinha, no mesmo
+ * dia do mensal, o diário do pontual (24544) e ~R$ 170 mil de CLT mensal do n8n (24549, 24557…); a
+ * `01.01.0074` tinha o CLT 24551. Sem este filtro o mensal integrava tudo como seu — e foi
+ * reservando exatamente esses que ele morreu quando o RM pendurou.
+ */
+export function separarLancamentosDoMensal<T extends IdfinancRotulado>(
+  rows: T[],
+): { doMensal: T[]; alheios: T[] } {
+  const doMensal: T[] = []
+  const alheios: T[] = []
+  for (const r of rows) {
+    const h = String(r.HISTORICO ?? "").toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+    if ((r.tipoEvento === "VR" || r.tipoEvento === "VT") && HISTORICO_MENSAL_INTERMITENTE.test(h)) doMensal.push(r)
+    else alheios.push(r)
+  }
+  return { doMensal, alheios }
+}
+
+/**
+ * Dia de emissão que o FopRotinas usou, lido de volta da ref do ledger (`…:emissao=AAAA-MM-DD`).
+ *
+ * O integrar TEM de procurar no dia em que o FopRotinas lançou, não no dia em que ele próprio
+ * roda: um retry que atravessa a meia-noite UTC (21h em Manaus) procuraria no dia seguinte, não
+ * acharia nada e seguiria calado. Ref anterior a este campo cai no `criado_em` da chave — reservada
+ * segundos antes do FopRotinas, no mesmo dia.
+ */
+export function emissaoDoFopRotinas(ref: string | null | undefined, criadoEm?: Date | null): string | null {
+  const m = /emissao=(\d{4}-\d{2}-\d{2})/.exec(ref ?? "")
+  if (m) return m[1]!
+  return criadoEm ? criadoEm.toISOString().slice(0, 10) : null
+}
+
 // ---------------------------------------------------------------------------
 // Executores (ESCRITA REAL no RM — GATED no workflow). `ambiente` explícito.
 // ---------------------------------------------------------------------------

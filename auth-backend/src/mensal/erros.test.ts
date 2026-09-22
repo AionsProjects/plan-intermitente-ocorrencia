@@ -61,3 +61,13 @@ test("ehFatal: mensagens do pontual — RM degrada, guarda de dinheiro não", ()
   }
 })
 
+
+test("rm_integrar sem lançamento do mensal DEGRADA em pendência — não derruba o contrato", () => {
+  // Como chega do outro lado do step: objeto serializado, name "Error".
+  const e = {
+    name: "Error",
+    message: "rm_integrar_sem_lancamento_do_mensal: nenhum lançamento INTERMITENTE-MENSAL novo em 01.01.0085 2026-08-31 (2 na seção/dia, 2 de outros processos)",
+  }
+  assert.equal(ehFatal(e), false)
+  assert.match(mensagemErro(e), /rm_integrar_sem_lancamento_do_mensal/)
+})

@@ -1,5 +1,5 @@
 import { FatalError, getStepMetadata, sleep } from "workflow"
-import { confirmarEfeito, detalheEfeito, reservarEfeito } from "../auth-backend/src/jobs/repo.js"
+import { confirmarEfeito, detalheEfeito, liberarEfeito, reservarEfeito } from "../auth-backend/src/jobs/repo.js"
 import {
   buscarEmployeeId,
   buscarPedido,
@@ -40,9 +40,11 @@ import {
   chapasEventosPix,
   codSecaoBase,
   consultarIdfinanc,
+  emissaoDoFopRotinas,
   enviarHistoricoRm,
   executarFopRotinas,
   filtrarJaGravados,
+  separarLancamentosDoMensal,
   integrarIdfinanc,
   lotesHistorico,
   montarRegistrosHistorico,
@@ -315,23 +317,27 @@ async function etapaRmFopRotinas(
   contrato: ContratoPreviaMensal,
   /** Vencimento escolhido na aprovação pra ESTE contrato ("YYYY-MM-DD"). Ausente = hoje. */
   dataVencimentoContrato?: string,
-): Promise<{ temFinanceiro: boolean }> {
+): Promise<{ temFinanceiro: boolean; dataEmissao: string | null }> {
   "use step"
   const etapa = "rm_gerar"
   const metadata = getStepMetadata()
   await registrarEvento({ runId, contrato: contrato.contrato, etapa, estado: "rodando", tentativa: metadata.attempt, metadados: { sub: "foprotinas" } })
   const { chapas, eventos } = chapasEventosPix(contrato.pessoas)
   const r = await reservarOuPular(runId, modo, competencia, contrato.contrato, etapa, metadata.attempt)
-  if (r.acao === "pular") return { temFinanceiro: chapas.length > 0 }
+  if (r.acao === "pular") {
+    // FopRotinas de run anterior: o dia dele está no ledger, não no relógio de agora.
+    const det = await detalheEfeito(r.chave)
+    return { temFinanceiro: chapas.length > 0, dataEmissao: emissaoDoFopRotinas(det?.refExterna, det?.criadoEm) }
+  }
   if (r.acao === "simular") {
     await simularEfeito(runId, contrato.contrato, etapa, r.chave, metadata.attempt)
-    return { temFinanceiro: false }
+    return { temFinanceiro: false, dataEmissao: null }
   }
   if (!chapas.length) {
     // contrato 100% crédito: sem lançamento financeiro (igual ao IF "Tem Boleto p/ Financeiro?" do n8n)
     await confirmarEfeito(r.chave, "rm:foprotinas:sem_boleto")
     await registrarEvento({ runId, contrato: contrato.contrato, etapa, estado: "concluido", tentativa: metadata.attempt, metadados: { pulado: "sem_boleto" } })
-    return { temFinanceiro: false }
+    return { temFinanceiro: false, dataEmissao: null }
   }
   const hoje = new Date().toISOString().slice(0, 10)
   const { mes, ano } = competenciaPartes(competencia)
@@ -346,13 +352,14 @@ async function etapaRmFopRotinas(
   })
   await confirmarEfeito(
     r.chave,
-    `rm:foprotinas:${chapas.length}chapas:${eventos.join("+")}:venc=${vencimento}`,
+    // `emissao=` volta pro integrar: é o único dia em que a IDFNAN acha estes lançamentos.
+    `rm:foprotinas:${chapas.length}chapas:${eventos.join("+")}:venc=${vencimento}:emissao=${hoje}`,
   )
   await registrarEvento({
     runId, contrato: contrato.contrato, etapa, estado: "concluido", tentativa: metadata.attempt,
     metadados: { chapas: chapas.length, eventos, dataVencimento: vencimento, dataEmissao: hoje },
   })
-  return { temFinanceiro: true }
+  return { temFinanceiro: true, dataEmissao: hoje }
 }
 etapaRmFopRotinas.maxRetries = 3
 
@@ -369,6 +376,8 @@ async function etapaRmIntegrar(
   competencia: string,
   contrato: ContratoPreviaMensal,
   temFinanceiro: boolean,
+  /** Dia em que o FopRotinas deste contrato lançou — devolvido por etapaRmFopRotinas. */
+  dataEmissao: string | null,
 ): Promise<{ idVR: string | null; idVT: string | null }> {
   "use step"
   const etapa = "rm_integrar"
@@ -385,7 +394,10 @@ async function etapaRmIntegrar(
     await registrarEvento({ runId, contrato: contrato.contrato, etapa, estado: "concluido", tentativa: metadata.attempt, metadados: { pulado: "sem_financeiro" } })
     return { idVR: null, idVT: null }
   }
-  const hoje = new Date().toISOString().slice(0, 10)
+  // O dia é o do FopRotinas, NUNCA o de agora: retry que atravessa a meia-noite UTC procuraria no
+  // dia seguinte e não acharia nada. Sem data só se o FopRotinas não a devolveu — não deveria ocorrer.
+  const emissaoInferida = !dataEmissao
+  const hoje = dataEmissao ?? new Date().toISOString().slice(0, 10)
   const secaoBase = codSecaoBase(codigoSecaoContrato(contrato.contrato))
   // Integra SÓ a seção-base do contrato — paridade estrita com o n8n (Consultar
   // IDFNAN usava um único CODSECAO). Lançamentos que o RM agrupa em sub-seções
@@ -398,14 +410,43 @@ async function etapaRmIntegrar(
   const idsVT: string[] = []
   let encontrados = 0
   let integrados = 0
+  const ignorados: string[] = []
   for (const secao of [secaoBase]) {
-    const rotulados = await consultarIdfinanc({
-      coligada: RM_COLIGADA,
-      codSecao: secao,
-      dataEmissao: `${hoje}T00:00:00`,
-    })
-    encontrados += rotulados.length
-    for (const row of rotulados) {
+    // A IDFNAN é por seção+dia, não por processo: só entra o que tem HISTORICO de mensal
+    // intermitente. Diário do pontual, CLT do n8n e cesta que caem no mesmo dia ficam de fora.
+    //
+    // "Nosso e ainda não integrado" é o que importa pra saber se o FopRotinas já materializou — o
+    // job é assíncrono no RM. Mensal intermitente JÁ confirmado na seção é de outro contrato com a
+    // mesma base (SEDUC ESCOLA e INTERIOR dividem a 0011) e não prova nada sobre este.
+    const ESPERAS_MS = [0, 10_000, 20_000]
+    let rotulados: Awaited<ReturnType<typeof consultarIdfinanc>> = []
+    let doMensal: typeof rotulados = []
+    let alheios: typeof rotulados = []
+    let novos = 0
+    for (const espera of ESPERAS_MS) {
+      if (espera) await new Promise((ok) => setTimeout(ok, espera))
+      rotulados = await consultarIdfinanc({ coligada: RM_COLIGADA, codSecao: secao, dataEmissao: `${hoje}T00:00:00` })
+      ;({ doMensal, alheios } = separarLancamentosDoMensal(rotulados))
+      novos = 0
+      for (const row of doMensal) {
+        if ((await detalheEfeito(`mensal:rm_idfinanc:${RM_COLIGADA}:${row.IDFINANC}`))?.status !== "confirmado") novos++
+      }
+      if (novos > 0) break
+    }
+    if (novos === 0) {
+      // Nada foi integrado nesta tentativa, então soltar a reserva é seguro — e é o que deixa o
+      // retry do step procurar de novo em vez de estourar `efeito_pendente`. Esgotados os retries,
+      // o erro chega ao processarContrato e vira PENDÊNCIA visível: antes isto confirmava
+      // `rm:integrar:0` e o contrato fechava "ok" com a Solicitação sem IDFINANC.
+      await liberarEfeito(r.chave)
+      throw new Error(
+        `rm_integrar_sem_lancamento_do_mensal: nenhum lançamento INTERMITENTE-MENSAL novo em ` +
+          `${secao} ${hoje} (${rotulados.length} na seção/dia, ${alheios.length} de outros processos)`,
+      )
+    }
+    encontrados += doMensal.length
+    ignorados.push(...alheios.map((a) => `${a.IDFINANC} ${String(a.HISTORICO ?? "").trim().slice(0, 40)}`))
+    for (const row of doMensal) {
       // Dedup FORTE por IDFINANC (entre runs e entre contratos).
       const chaveId = `mensal:rm_idfinanc:${RM_COLIGADA}:${row.IDFINANC}`
       const reservaId = await reservarEfeito(chaveId, "mensal_rm_idfinanc", { runId, contrato: contrato.contrato, historico: row.tipoEvento })
@@ -423,7 +464,12 @@ async function etapaRmIntegrar(
   await confirmarEfeito(r.chave, `rm:integrar:${integrados}:vr=${idVR ?? "-"}:vt=${idVT ?? "-"}`)
   await registrarEvento({
     runId, contrato: contrato.contrato, etapa, estado: "concluido", tentativa: metadata.attempt,
-    metadados: { encontrados, integrados, idVR, idVT },
+    metadados: {
+      encontrados, integrados, idVR, idVT, dataEmissao: hoje,
+      // Outros processos na mesma seção/dia: listados, nunca integrados por aqui.
+      ...(ignorados.length ? { ignorados: ignorados.length, ignoradosIds: ignorados.slice(0, 12) } : {}),
+      ...(emissaoInferida ? { emissaoInferida: true } : {}),
+    },
   })
   return { idVR, idVT }
 }
@@ -1125,7 +1171,7 @@ async function processarContrato(
         await etapaRmHistoricoLote(runId, modo, competencia, contrato, "pix", i)
         if (i < nLotesPix - 1 && esperaLoteMs > 0) await sleep(esperaLoteMs)
       }
-      const { temFinanceiro } = await etapaRmFopRotinas(
+      const { temFinanceiro, dataEmissao } = await etapaRmFopRotinas(
         runId, modo, competencia, contrato,
         snapshot.apoio.vencimentos?.[contrato.contrato],
       )
@@ -1133,7 +1179,7 @@ async function processarContrato(
       // materializa. Não cortar — a leitura direta encurtou a janela, então isso ficou mais crítico.
       if (modo !== "homologacao") await sleep("7s")
       await etapaRmAguardar(runId, contrato.contrato)
-      rmIds = await etapaRmIntegrar(runId, modo, competencia, contrato, temFinanceiro)
+      rmIds = await etapaRmIntegrar(runId, modo, competencia, contrato, temFinanceiro, dataEmissao)
       for (let i = 0; i < nLotesCredito; i++) {
         await etapaRmHistoricoLote(runId, modo, competencia, contrato, "credito", i)
         if (i < nLotesCredito - 1 && esperaLoteMs > 0) await sleep(esperaLoteMs)
