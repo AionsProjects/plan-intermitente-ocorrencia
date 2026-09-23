@@ -39,6 +39,7 @@ import {
   RM_COLIGADA,
   codSecaoBase,
   consultarIdfinanc,
+  emissaoDoFopRotinas,
   enviarHistoricoRm,
   executarFopRotinas,
   integrarIdfinanc,
@@ -56,8 +57,11 @@ import { montarPedidoCajuPontual } from "../auth-backend/src/pontual/cajuPontual
 import {
   classificarLancamentosIdfinanc,
   competenciaPontual,
+  escolherSecaoDoLancamento,
   eventosPontual,
   registrosHistoricoPontual,
+  secoesParaProcurar,
+  soLancamentosDoPontual,
 } from "../auth-backend/src/pontual/rmPontual.js"
 import {
   type AbatimentoBalao,
@@ -168,7 +172,8 @@ async function etapaValidacao(input: PontualWorkflowInput): Promise<PlanoPagamen
   "use step"
   const { itemOrigemId, execucaoId } = input
   await log(execucaoId, "validacao", "rodando")
-  const { lerPrePagamentoCompleto, reservarPrePagamento } = await import("../auth-backend/src/pontual/prepagamento.js")
+  const { lerPrePagamentoCompleto, reservarPrePagamento, ultimaSecaoRmConhecida } =
+    await import("../auth-backend/src/pontual/prepagamento.js")
 
   let snapshot = await lerPrePagamentoCompleto(itemOrigemId)
 
@@ -240,7 +245,9 @@ async function etapaValidacao(input: PontualWorkflowInput): Promise<PlanoPagamen
       cpf: val("CPF") || null,
       nome: val("Nome do Empregado") || item.name,
       contrato: val("Op - Contrato"),
-      codSecao: snapshot?.cod_secao ?? codigoSecaoContrato(val("Op - Contrato")),
+      // Seção REAL da pessoa antes da do contrato: quem está lotado fora do contrato (LINCON, SEMSA
+      // em ADMINISTRAÇÃO - INTERMITENTES) tem o lançamento criado na seção dele, não na do contrato.
+      codSecao: snapshot?.cod_secao ?? (await ultimaSecaoRmConhecida(itemVal.chapa)) ?? codigoSecaoContrato(val("Op - Contrato")),
       dataInicio: itemVal.dataInicio,
       dataFim: fim,
       pessoa: r.pessoa,
@@ -257,7 +264,8 @@ async function etapaValidacao(input: PontualWorkflowInput): Promise<PlanoPagamen
   // codSecao: fallback pela seção-base do contrato (linhas antigas da fase 1 têm NULL).
   if (!snapshot!.cod_secao?.trim()) {
     const { codigoSecaoContrato } = await import("../auth-backend/src/mensal/calculo.js")
-    snapshot!.cod_secao = codigoSecaoContrato(snapshot!.contrato ?? "") || null
+    snapshot!.cod_secao =
+      (await ultimaSecaoRmConhecida(snapshot!.chapa ?? "")) ?? (codigoSecaoContrato(snapshot!.contrato ?? "") || null)
   }
   const recusas = motivosRecusa(snapshot!)
   if (recusas.length) throw new FatalError(`validacao_recusou: ${recusas.join(", ")}`)
@@ -577,22 +585,29 @@ etapaRmHistorico.maxRetries = 3
 // Step 9 — FopRotinas. Eventos 100/110 derivados do VALOR FINAL (pix>0).
 // ---------------------------------------------------------------------------
 
-async function etapaRmFopRotinas(input: PontualWorkflowInput, plano: PlanoPagamento): Promise<{ temFinanceiro: boolean }> {
+async function etapaRmFopRotinas(
+  input: PontualWorkflowInput,
+  plano: PlanoPagamento,
+): Promise<{ temFinanceiro: boolean; dataEmissao: string | null }> {
   "use step"
   const { execucaoId, itemOrigemId } = input
   const etapa = "rm_gerar"
   const r = await reservarOuPular(input.modo, execucaoId, itemOrigemId, etapa)
   const eventos = eventosPontual(plano.pessoa)
-  if (r.acao === "pular") return { temFinanceiro: eventos.length > 0 }
+  if (r.acao === "pular") {
+    // FopRotinas de tentativa anterior: o dia dele está no ledger, não no relógio de agora.
+    const det = await detalheEfeito(r.chave)
+    return { temFinanceiro: eventos.length > 0, dataEmissao: emissaoDoFopRotinas(det?.refExterna, det?.criadoEm) }
+  }
   if (r.acao === "simular") {
     await simular(execucaoId, etapa, r.chave)
-    return { temFinanceiro: false }
+    return { temFinanceiro: false, dataEmissao: null }
   }
   if (!eventos.length) {
     // 100% crédito → sem lançamento financeiro (o IF "Tem Boleto p/ Financeiro?" do n8n).
     await confirmarEfeito(r.chave, "rm:foprotinas:sem_boleto")
     await log(execucaoId, etapa, "ok", { metadados: { pulado: "sem_boleto" } })
-    return { temFinanceiro: false }
+    return { temFinanceiro: false, dataEmissao: null }
   }
   const hoje = new Date().toISOString().slice(0, 10)
   const { anoComp, mesComp } = competenciaPontual(plano.snapshot.data_inicio)
@@ -607,9 +622,10 @@ async function etapaRmFopRotinas(input: PontualWorkflowInput, plano: PlanoPagame
     dataEmissao: `${hoje}T00:00:00`,
     dataVencimento: `${hoje}T00:00:00`,
   })
-  await confirmarEfeito(r.chave, `rm:foprotinas:1chapa:${eventos.join("+")}`)
-  await log(execucaoId, etapa, "ok", { metadados: { eventos } })
-  return { temFinanceiro: true }
+  // `emissao=` volta pro integrar: é o único dia em que a IDFNAN acha este lançamento.
+  await confirmarEfeito(r.chave, `rm:foprotinas:1chapa:${eventos.join("+")}:emissao=${hoje}`)
+  await log(execucaoId, etapa, "ok", { metadados: { eventos, dataEmissao: hoje } })
+  return { temFinanceiro: true, dataEmissao: hoje }
 }
 etapaRmFopRotinas.maxRetries = 3
 
@@ -621,6 +637,8 @@ async function etapaRmIntegrar(
   input: PontualWorkflowInput,
   plano: PlanoPagamento,
   temFinanceiro: boolean,
+  /** Dia em que o FopRotinas lançou — devolvido por etapaRmFopRotinas. */
+  dataEmissao: string | null,
 ): Promise<{ idVR: string | null; idVT: string | null }> {
   "use step"
   const { execucaoId, itemOrigemId } = input
@@ -636,16 +654,68 @@ async function etapaRmIntegrar(
     await log(execucaoId, etapa, "ok", { metadados: { pulado: "sem_financeiro" } })
     return { idVR: null, idVT: null }
   }
-  const hoje = new Date().toISOString().slice(0, 10)
-  const rotulados = await consultarIdfinanc({
-    coligada: RM_COLIGADA,
-    codSecao: codSecaoBase(plano.snapshot.cod_secao ?? ""),
-    dataEmissao: `${hoje}T00:00:00`,
-  })
+  // O dia é o do FopRotinas, NUNCA o de agora: retry que atravessa a meia-noite UTC procuraria no
+  // dia seguinte, não acharia nada e seguiria calado.
+  const hoje = dataEmissao ?? new Date().toISOString().slice(0, 10)
   // Mitigação de concorrência na mesma seção/dia (furo herdado do WF5): quando o RM devolve
   // VALORORIGINAL, só integramos lançamento cujo valor bate com o pix esperado (±0,05).
   const esperado = { VR: Number(plano.pessoa.pixVR) || 0, VT: Number(plano.pessoa.pixVT) || 0 }
-  const { integrar, divergentes } = classificarLancamentosIdfinanc(rotulados, esperado)
+  const secaoEsperada = codSecaoBase(plano.snapshot.cod_secao ?? "")
+  // Só lançamento do PONTUAL (histórico "INTERMITENTE - DIARIO"): mensal, CLT e cesta caem na mesma
+  // seção/dia. "Novo" = valor bate e ninguém integrou — é o que prova que o FopRotinas deste
+  // pagamento materializou.
+  const buscar = async (secao: string) => {
+    const rotulados = soLancamentosDoPontual(
+      await consultarIdfinanc({ coligada: RM_COLIGADA, codSecao: secao, dataEmissao: `${hoje}T00:00:00` }),
+    )
+    const { integrar, divergentes } = classificarLancamentosIdfinanc(rotulados, esperado)
+    const novos: typeof integrar = []
+    for (const row of integrar) {
+      if ((await estadoEfeito(`pontual:rm_idfinanc:${RM_COLIGADA}:${row.IDFINANC}`)) !== "confirmado") novos.push(row)
+    }
+    return { secao, rotulados, integrar, divergentes, novos }
+  }
+  // 1) Seção do snapshot, dando tempo ao job assíncrono do RM.
+  let alvo: Awaited<ReturnType<typeof buscar>> | null = null
+  for (const espera of [0, 10_000, 20_000]) {
+    if (espera) await new Promise((ok) => setTimeout(ok, espera))
+    const b = await buscar(secaoEsperada)
+    if (b.novos.length) {
+      alvo = b
+      break
+    }
+  }
+  // 2) Não apareceu: o RM arquiva o PFINANCEIRO na seção DO FUNCIONÁRIO. LINCON (15/09) é SEMSA por
+  //    contrato, lotado em 0007 — a run procurou em 0085, achou o dos outros e integrou zero, "ok".
+  //    Varre as demais seções-base exigindo o pagamento INTEIRO numa seção só.
+  if (!alvo) {
+    const outras: Array<Awaited<ReturnType<typeof buscar>>> = []
+    for (const secao of secoesParaProcurar(secaoEsperada).slice(1)) outras.push(await buscar(secao))
+    const escolha = escolherSecaoDoLancamento(outras.map((o) => ({ secao: o.secao, novos: o.novos })), esperado)
+    if (escolha && "ambiguo" in escolha) {
+      // Nada foi integrado nesta tentativa: soltar a reserva é seguro.
+      await liberarEfeito(r.chave)
+      throw new Error(
+        `rm_integrar_ambiguo: lançamento com o valor deste pagamento em ${escolha.ambiguo.join(" e ")} (${hoje}) — conferir à mão`,
+      )
+    }
+    if (escolha) alvo = outras.find((o) => o.secao === escolha.secao) ?? null
+  }
+  if (!alvo) {
+    // Antes isto confirmava `rm:integrar:0` e a execução fechava "ok" com a Solicitação sem
+    // IDFINANC. Agora solta a reserva (nada foi integrado) e o erro vira PENDÊNCIA visível.
+    await liberarEfeito(r.chave)
+    throw new Error(
+      `rm_integrar_sem_lancamento_do_pontual: nenhum lançamento INTERMITENTE-DIARIO novo com VR ${esperado.VR} / ` +
+        `VT ${esperado.VT} em ${hoje} (procurado em ${secaoEsperada} e nas demais seções-base)`,
+    )
+  }
+  if (alvo.secao !== secaoEsperada) {
+    await log(execucaoId, etapa, "aviso", {
+      mensagem: `lançamento nasceu em ${alvo.secao}, não na seção do snapshot (${secaoEsperada}) — pessoa lotada fora do contrato`,
+    })
+  }
+  const { rotulados, integrar, divergentes } = alvo
 
   // Divergente é o caso NORMAL, não um problema: do segundo pagamento do dia em diante, os
   // lançamentos dos anteriores da mesma seção sempre aparecem na consulta. O que separa ruído de
@@ -679,6 +749,9 @@ async function etapaRmIntegrar(
   await log(execucaoId, etapa, "ok", {
     metadados: {
       encontrados: rotulados.length,
+      secao: alvo.secao,
+      dataEmissao: hoje,
+      ...(alvo.secao !== secaoEsperada ? { secaoSnapshot: secaoEsperada } : {}),
       integrados,
       idVR,
       idVT,
@@ -1201,9 +1274,9 @@ export async function executarPontualWorkflow(input: PontualWorkflowInput): Prom
     let rmPendencia: string | null = null
     try {
       await etapaRmHistorico(input, plano, "pix")
-      const { temFinanceiro } = await etapaRmFopRotinas(input, plano)
+      const { temFinanceiro, dataEmissao } = await etapaRmFopRotinas(input, plano)
       if (temFinanceiro) await sleep("7s") // FopRotinas é assíncrono no RM
-      const ids = await etapaRmIntegrar(input, plano, temFinanceiro)
+      const ids = await etapaRmIntegrar(input, plano, temFinanceiro, dataEmissao)
       idVR = ids.idVR
       idVT = ids.idVT
       // A TRAVA: histórico do crédito SÓ depois do FopRotinas+integrar.

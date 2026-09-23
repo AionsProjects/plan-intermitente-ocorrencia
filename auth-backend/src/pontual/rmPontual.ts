@@ -113,3 +113,56 @@ export function classificarLancamentosIdfinanc<T extends LancamentoIdfinanc>(
   }
   return { integrar, divergentes }
 }
+
+// ---------------------------------------------------------------------------
+// Onde está o lançamento deste pagamento — o caso LINCON (15/09/2026).
+// ---------------------------------------------------------------------------
+
+// O FopRotinas do pontual (eventos 100/110) grava HISTORICO "CAJU VR  - INTERMITENTE - DIARIO - …".
+// O mensal grava "… - INTERMITENTE - MENSAL", o CLT "… - CLT - MENSAL" — e caem na mesma seção/dia.
+const HISTORICO_PONTUAL = /INTERMITENTE\s*-\s*DIARIO/
+
+/** Só o que o FopRotinas do PONTUAL gerou — o resto da seção/dia é de outro processo. */
+export function soLancamentosDoPontual<T extends { HISTORICO?: string }>(rows: T[]): T[] {
+  return rows.filter((r) =>
+    HISTORICO_PONTUAL.test(String(r.HISTORICO ?? "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")))
+}
+
+/**
+ * Seções-base onde o PFINANCEIRO de um intermitente pode nascer. O RM arquiva o lançamento na
+ * seção DO FUNCIONÁRIO, não na que o FopRotinas recebe: LINCON é SEMSA por contrato (0085) e está
+ * lotado em 0007 (ADMINISTRAÇÃO - INTERMITENTES); o lançamento dele nasceu em 0007. Contratos + 0007.
+ */
+export const SECOES_BASE_INTERMITENTE = [
+  "01.01.0085", "01.01.0011", "01.01.0074", "01.01.0004", "01.01.0010", "01.01.0079", "01.01.0007",
+]
+
+/** A seção esperada primeiro; depois as demais, sem repetir. */
+export function secoesParaProcurar(esperada: string): string[] {
+  const e = String(esperada ?? "").trim()
+  return [...new Set([e, ...SECOES_BASE_INTERMITENTE].filter(Boolean))]
+}
+
+export type EscolhaSecao = { secao: string } | { ambiguo: string[] } | null
+
+/**
+ * Fora da seção esperada, escolhe a seção cujo conjunto de lançamentos NOVOS (valor bate e ninguém
+ * integrou) cobre o pagamento INTEIRO — VR se houver VR, VT se houver VT.
+ *
+ * Exigir o par completo é o que torna a varredura segura: um valor solto coincidir em outra seção
+ * no mesmo dia acontece (R$ 30,00 tem dezenas de lançamentos); o PAR VR+VT do mesmo pagamento
+ * coincidir por acaso é muito mais raro. Duas seções cobrindo = ambíguo: não integra, vira pendência.
+ */
+export function escolherSecaoDoLancamento<T extends LancamentoIdfinanc>(
+  achados: Array<{ secao: string; novos: T[] }>,
+  esperado: { VR: number; VT: number },
+): EscolhaSecao {
+  const cobre = achados.filter(({ novos }) => {
+    const tem = (t: "VR" | "VT") => novos.some((n) => n.tipoEvento === t)
+    if (!(esperado.VR > 0) && !(esperado.VT > 0)) return false
+    return (!(esperado.VR > 0) || tem("VR")) && (!(esperado.VT > 0) || tem("VT"))
+  })
+  if (cobre.length === 1) return { secao: cobre[0]!.secao }
+  if (cobre.length > 1) return { ambiguo: cobre.map((c) => c.secao) }
+  return null
+}

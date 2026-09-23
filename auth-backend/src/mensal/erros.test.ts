@@ -71,3 +71,10 @@ test("rm_integrar sem lançamento do mensal DEGRADA em pendência — não derru
   assert.equal(ehFatal(e), false)
   assert.match(mensagemErro(e), /rm_integrar_sem_lancamento_do_mensal/)
 })
+
+test("pontual: sem lançamento ou ambíguo DEGRADA em pendência — o pagamento na Caju já saiu", () => {
+  for (const message of [
+    "rm_integrar_sem_lancamento_do_pontual: nenhum lançamento INTERMITENTE-DIARIO novo com VR 147 / VT 60 em 2026-09-15 (procurado em 01.01.0085 e nas demais seções-base)",
+    "rm_integrar_ambiguo: lançamento com o valor deste pagamento em 01.01.0011 e 01.01.0007 (2026-09-14) — conferir à mão",
+  ]) assert.equal(ehFatal({ name: "Error", message }), false)
+})

@@ -61,3 +61,58 @@ test("linha sem tipoEvento ou sem VALORORIGINAL", () => {
   assert.deepEqual(r.integrar.map((x) => x.IDFINANC), [21])
   assert.equal(r.divergentes.length, 0)
 })
+
+// ---------------------------------------------------------------------------
+// Onde está o lançamento — caso real LINCON, 15/09/2026
+// ---------------------------------------------------------------------------
+import { soLancamentosDoPontual, secoesParaProcurar, escolherSecaoDoLancamento } from "./rmPontual.js"
+
+test("soLancamentosDoPontual: só DIARIO — mensal, CLT e cesta da mesma seção/dia ficam de fora", () => {
+  const rows = [
+    { IDFINANC: 24544, HISTORICO: "CAJU VR  - INTERMITENTE - DIARIO - SEDUC - INTER" },
+    { IDFINANC: 24549, HISTORICO: "CAJU VR  - CLT - MENSAL - SEDUC - ESCOLA" },
+    { IDFINANC: 24579, HISTORICO: "CAJU VR  - INTERMITENTE - MENSAL - SEDUC - INT" },
+    { IDFINANC: 24662, HISTORICO: "CAJU CESTA  - CLT - MENSAL -" },
+    { IDFINANC: 24694, HISTORICO: "CAJU VR  - INTERMITENTE - DIARIO -" },
+  ]
+  assert.deepEqual(soLancamentosDoPontual(rows).map((r) => r.IDFINANC), [24544, 24694])
+})
+
+test("secoesParaProcurar: a esperada primeiro, sem repetir", () => {
+  const s = secoesParaProcurar("01.01.0007")
+  assert.equal(s[0], "01.01.0007")
+  assert.equal(s.filter((x) => x === "01.01.0007").length, 1)
+  assert.ok(s.includes("01.01.0085") && s.includes("01.01.0011"))
+  assert.equal(secoesParaProcurar("")[0], "01.01.0085")
+})
+
+test("escolherSecaoDoLancamento: LINCON — nada na 0085, par completo na 0007", () => {
+  // 15/09 15:08: a run procurou em 0085 (seção do contrato) e o lançamento nasceu em 0007.
+  const escolha = escolherSecaoDoLancamento([
+    { secao: "01.01.0011", novos: [] },
+    { secao: "01.01.0007", novos: [
+      { IDFINANC: 24694, VALORORIGINAL: 147, tipoEvento: "VR" },
+      { IDFINANC: 24695, VALORORIGINAL: 60, tipoEvento: "VT" },
+    ] },
+  ], { VR: 147, VT: 60 })
+  assert.deepEqual(escolha, { secao: "01.01.0007" })
+})
+
+test("escolherSecaoDoLancamento: valor solto em outra seção NÃO basta — precisa do par", () => {
+  // Um VT de R$ 60 qualquer numa seção, sem o VR do mesmo pagamento: coincidência, não o nosso.
+  assert.equal(escolherSecaoDoLancamento([
+    { secao: "01.01.0085", novos: [{ IDFINANC: 1, VALORORIGINAL: 60, tipoEvento: "VT" }] },
+  ], { VR: 147, VT: 60 }), null)
+  // Pagamento só de VT: um VT basta.
+  assert.deepEqual(escolherSecaoDoLancamento([
+    { secao: "01.01.0085", novos: [{ IDFINANC: 2, VALORORIGINAL: 10, tipoEvento: "VT" }] },
+  ], { VR: 0, VT: 10 }), { secao: "01.01.0085" })
+})
+
+test("escolherSecaoDoLancamento: duas seções cobrindo = ambíguo, nunca chuta", () => {
+  const par = (a: number, b: number) => [
+    { IDFINANC: a, VALORORIGINAL: 73.5, tipoEvento: "VR" }, { IDFINANC: b, VALORORIGINAL: 30, tipoEvento: "VT" }]
+  assert.deepEqual(escolherSecaoDoLancamento([
+    { secao: "01.01.0011", novos: par(1, 2) }, { secao: "01.01.0007", novos: par(3, 4) },
+  ], { VR: 73.5, VT: 30 }), { ambiguo: ["01.01.0011", "01.01.0007"] })
+})

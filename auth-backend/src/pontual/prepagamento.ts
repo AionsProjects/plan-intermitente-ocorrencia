@@ -292,3 +292,27 @@ export async function liberarPrePagamento(itemOrigemId: string, motivo: string):
   }
   return rows.length
 }
+
+/**
+ * Última seção REAL do RM que esta chapa já teve num snapshot.
+ *
+ * O caminho normal (`/convocar`) grava a seção que veio do RM (`01.01.0007.04.0001`); o recálculo
+ * da felipeta, sem snapshot, caía na seção-base do CONTRATO (`01.01.0085`, três níveis). Para quem
+ * está lotado fora do contrato — LINCON é SEMSA e fica em ADMINISTRAÇÃO - INTERMITENTES — isso
+ * mandava o FopRotinas e a IDFNAN para a seção errada. Só vale seção com sub-nível: é o sinal de
+ * que veio do RM, não do fallback.
+ */
+export async function ultimaSecaoRmConhecida(chapa: string): Promise<string | null> {
+  const c = String(chapa ?? "").replace(/\D/g, "").padStart(6, "0")
+  if (!c || c === "000000") return null
+  const { rows } = await query<{ cod_secao: string }>(
+    `SELECT cod_secao
+       FROM pontual_prepagamento
+      WHERE lpad(regexp_replace(chapa, '[^0-9]', '', 'g'), 6, '0') = $1
+        AND cod_secao ~ '^[0-9]{2}[.][0-9]{2}[.][0-9]{4}[.]'
+      ORDER BY criado_em DESC
+      LIMIT 1`,
+    [c],
+  )
+  return rows[0]?.cod_secao ?? null
+}
