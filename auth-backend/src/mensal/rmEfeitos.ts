@@ -512,6 +512,24 @@ export function separarLancamentosDoMensal<T extends IdfinancRotulado>(
  * acharia nada e seguiria calado. Ref anterior a este campo cai no `criado_em` da chave — reservada
  * segundos antes do FopRotinas, no mesmo dia.
  */
+/**
+ * Vencimento do título que o FopRotinas cria: o aprovado pro contrato, mas NUNCA antes da emissão.
+ *
+ * A emissão é sempre hoje (o integrar procura por ela). O vencimento vem da aprovação do run — e
+ * uma retomada feita depois dessa data emitiria um título vencido antes de existir. O Contas a
+ * Pagar recusa esse título calado: a integração volta sem erro e o lançamento fica `Pendente`.
+ * Medido em 22/09/2026 no IDFINANC 24859 (emissão 22/09, vencimento 03/09), único dos lançamentos
+ * do dia que não integrou.
+ */
+export function vencimentoEfetivo(
+  aprovado: string | null | undefined,
+  emissao: string,
+): { vencimento: string; ajustado: boolean } {
+  const a = String(aprovado ?? "").trim().slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(a)) return { vencimento: emissao, ajustado: false }
+  return a < emissao ? { vencimento: emissao, ajustado: true } : { vencimento: a, ajustado: false }
+}
+
 export function emissaoDoFopRotinas(ref: string | null | undefined, criadoEm?: Date | null): string | null {
   const m = /emissao=(\d{4}-\d{2}-\d{2})/.exec(ref ?? "")
   if (m) return m[1]!

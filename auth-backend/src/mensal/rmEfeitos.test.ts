@@ -10,7 +10,7 @@ const {
   montarXmlHistorico, montarRegistrosHistorico, lotesHistorico, chapasEventosPix,
   montarXmlFopRotinas, montarSoapExecuteProcess, montarXmlIntegrarBackOffices,
   rotularIdfinanc, chapa6, codSecaoBase, filtrarJaGravados,
-  separarLancamentosDoMensal, emissaoDoFopRotinas,
+  separarLancamentosDoMensal, emissaoDoFopRotinas, vencimentoEfetivo,
 } = await import("./rmEfeitos.js")
 
 test("montarXmlHistorico: vírgula, mesRef, escape, TPBEN=1", () => {
@@ -187,4 +187,19 @@ test("emissaoDoFopRotinas: lê da ref; ref antiga cai no criado_em; sem nada é 
   // O vencimento NUNCA pode ser confundido com a emissão.
   assert.equal(emissaoDoFopRotinas("rm:foprotinas:1chapas:101:venc=2026-09-03", null), null)
   assert.equal(emissaoDoFopRotinas(null, null), null)
+})
+
+test("vencimentoEfetivo: nunca antes da emissão (caso real do IDFINANC 24859)", () => {
+  // Retomada em 22/09 com o vencimento aprovado em 01/09 pra 03/09: o título venceria antes de existir.
+  assert.deepEqual(vencimentoEfetivo("2026-09-03", "2026-09-22"), { vencimento: "2026-09-22", ajustado: true })
+  // Run no dia: o aprovado vale como veio.
+  assert.deepEqual(vencimentoEfetivo("2026-09-03", "2026-08-31"), { vencimento: "2026-09-03", ajustado: false })
+  // Mesmo dia não é ajuste.
+  assert.deepEqual(vencimentoEfetivo("2026-09-22", "2026-09-22"), { vencimento: "2026-09-22", ajustado: false })
+  // Sem aprovado (ou lixo): vence na emissão, como antes (`?? hoje`) — sem marcar ajuste.
+  assert.deepEqual(vencimentoEfetivo(undefined, "2026-09-22"), { vencimento: "2026-09-22", ajustado: false })
+  assert.deepEqual(vencimentoEfetivo("", "2026-09-22"), { vencimento: "2026-09-22", ajustado: false })
+  assert.deepEqual(vencimentoEfetivo("03/09/2026", "2026-09-22"), { vencimento: "2026-09-22", ajustado: false })
+  // Aceita data com hora.
+  assert.deepEqual(vencimentoEfetivo("2026-09-30T00:00:00", "2026-09-22"), { vencimento: "2026-09-30", ajustado: false })
 })

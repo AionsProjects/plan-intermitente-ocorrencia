@@ -45,6 +45,7 @@ import {
   executarFopRotinas,
   filtrarJaGravados,
   separarLancamentosDoMensal,
+  vencimentoEfetivo,
   integrarIdfinanc,
   lotesHistorico,
   montarRegistrosHistorico,
@@ -343,7 +344,16 @@ async function etapaRmFopRotinas(
   const { mes, ano } = competenciaPartes(competencia)
   // Vencimento vem da aprovação, por contrato. `dataEmissao` NÃO acompanha: consultarIdfinanc
   // filtra por DATAEMISSAO pra achar os lançamentos recém-criados, e mudá-la cegaria a busca.
-  const vencimento = dataVencimentoContrato ?? hoje
+  // Retomada depois do vencimento aprovado: o título venceria antes de ser emitido e o Contas a
+  // Pagar o recusaria calado na integração — então o vencimento nunca fica antes de hoje.
+  const { vencimento, ajustado: vencimentoAjustado } = vencimentoEfetivo(dataVencimentoContrato, hoje)
+  if (vencimentoAjustado) {
+    await registrarEvento({
+      runId, contrato: contrato.contrato, etapa, estado: "aviso", tentativa: metadata.attempt,
+      mensagem: `vencimento aprovado ${dataVencimentoContrato} já passou — título emitido hoje vence ${vencimento}`,
+      metadados: { sub: "foprotinas", vencimentoAprovado: dataVencimentoContrato, vencimentoUsado: vencimento },
+    })
+  }
   await executarFopRotinas({
     coligada: RM_COLIGADA,
     codSecao: codSecaoBase(codigoSecaoContrato(contrato.contrato)),
@@ -357,7 +367,10 @@ async function etapaRmFopRotinas(
   )
   await registrarEvento({
     runId, contrato: contrato.contrato, etapa, estado: "concluido", tentativa: metadata.attempt,
-    metadados: { chapas: chapas.length, eventos, dataVencimento: vencimento, dataEmissao: hoje },
+    metadados: {
+      chapas: chapas.length, eventos, dataVencimento: vencimento, dataEmissao: hoje,
+      ...(vencimentoAjustado ? { vencimentoAprovado: dataVencimentoContrato } : {}),
+    },
   })
   return { temFinanceiro: true, dataEmissao: hoje }
 }
