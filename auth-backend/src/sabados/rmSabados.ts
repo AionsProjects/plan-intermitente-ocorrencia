@@ -1,18 +1,20 @@
 // Sábados extras — efeitos no RM, em builders PUROS.
 //
-// Porta dos nós `Montar SOAP ZMDHSTBENFUNC` e `Payload WF6 (VT)` do WF
-// `3TAyDuKFkWGvXTHT`. Reusa `montarXmlHistorico` do mensal em vez de repetir o XML: os
-// dois gravam a MESMA tabela (ZMDHSTBENFUNC) e ter dois montadores garante que um deles
-// fica velho.
+// Porta do nó `Montar SOAP ZMDHSTBENFUNC` do WF `3TAyDuKFkWGvXTHT`. Reusa `montarXmlHistorico`
+// do mensal em vez de repetir o XML: os dois gravam a MESMA tabela (ZMDHSTBENFUNC) e ter dois
+// montadores garante que um deles fica velho.
+//
+// O `Payload WF6 (VT)` do WF (lançamento financeiro, evento 110) NÃO tem mais porta: desde
+// 24/09/2026 o sábado é pago em CRÉDITO Caju, que sai do saldo da empresa e não vira conta a
+// pagar — o mesmo "100% crédito → sem lançamento financeiro" do pontual.
 import { montarXmlHistorico, chapa6, codSecaoBase } from "../mensal/rmEfeitos.js"
-import { EVENTO_PONTUAL_VT } from "../pontual/rmPontual.js"
 import type { PedidoSabados } from "./calculo.js"
 
 /**
- * Registro de histórico do sábado extra: VT (CODBENEFICIO=2) com TPBEN=0.
+ * Registro de histórico do sábado extra: VT (CODBENEFICIO=2) com TPBEN=1.
  *
- * TPBEN=0 é a mesma marca que o pontual usa no boleto — declara que este valor PODE virar
- * lançamento financeiro, ao contrário do crédito (TPBEN=1), que não pode.
+ * TPBEN=1 é a marca que o pontual usa no crédito — declara que este valor NÃO vira lançamento
+ * financeiro (o boleto, TPBEN=0, vira). Até 24/09/2026 o sábado era boleto e gravava 0.
  *
  * ⚠️ Divergência conhecida com o WF: o XML do WF não manda `CODSECAO` nem `DATAIMPORT`, e
  * usa ANOREF/MESREF iguais ao ANOCOMP/MESCOMP. `montarXmlHistorico` manda os dois campos e
@@ -37,37 +39,8 @@ export function montarHistoricoSabados(
       codBeneficio: 2,
       vlrTotal: p.valorTotal,
       dataImport: ctx.dataImport,
-      tpben: 0,
+      tpben: 1,
     }),
-  }
-}
-
-export interface LancamentoSabados {
-  tipo: "Diario"
-  coligada: 3
-  anoComp: number
-  mesComp: number
-  contrato: string
-  codSecao: string
-  chapas: string[]
-  /** Só 110 (VT). Sábado extra não paga VR. */
-  eventos: string[]
-}
-
-/** Payload do lançamento financeiro — o que o WF6 recebia, só evento 110. */
-export function montarLancamentoSabados(
-  p: PedidoSabados,
-  ctx: { codSecao: string },
-): LancamentoSabados {
-  return {
-    tipo: "Diario",
-    coligada: 3,
-    anoComp: p.anoComp,
-    mesComp: p.mesComp,
-    contrato: p.contrato,
-    codSecao: codSecaoBase(ctx.codSecao),
-    chapas: [chapa6(p.chapa)],
-    eventos: [EVENTO_PONTUAL_VT],
   }
 }
 
@@ -78,7 +51,7 @@ export function montarLancamentoSabados(
  * mesma convocação, e isso é um pagamento NOVO — mas refinalizar sem mexer nos sábados não
  * pode pagar de novo. A lista ordenada no meio da chave dá exatamente isso.
  */
-export type AlvoEfeitoSabados = "caju" | "rm_historico" | "rm_financeiro"
+export type AlvoEfeitoSabados = "caju" | "controle_caju" | "balao" | "rm_historico"
 
 export function chaveEfeitoSabados(p: PedidoSabados, alvo: AlvoEfeitoSabados): string {
   return `sabado_extra:${alvo}:${p.uuid ?? p.chapa}:${p.sabados.join("_")}`

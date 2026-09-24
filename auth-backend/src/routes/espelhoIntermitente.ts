@@ -539,7 +539,7 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
       // Sábado extra marcado no link chega AQUI, no corpo, e este é o único lugar que grava a
       // coluna — nada mais escreve `convocacoes.sabados_extras` desde que o WF3 saiu do ar.
       // Enquanto isso não era persistido, o sábado não entrava no ledger, não ia pro Histórico
-      // e o job do boleto de VT nunca via sábado nenhum (medido: 0 registro em 30 dias).
+      // e o job do VT nunca via sábado nenhum (medido: 0 registro em 30 dias).
       //
       // A lista do corpo é AUTORITATIVA (o front manda todos os tiles extras ativos, e o já
       // pago ele não deixa remover); corpo sem a chave = cliente velho, mantém o que está lá.
@@ -790,7 +790,7 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
         }
       }
 
-      // ── Sábado extra: boleto VT + lançamento no RM (job) ─────────────────────────
+      // ── Sábado extra: crédito VT na Caju + Controle Caju + balão + RM (job) ───────
       //
       // Enfileira, não executa: o operador não espera a Caju, e função serverless que morre
       // no meio de um pagamento não deixa retomada — a fila deixa. Idempotência real é a
@@ -802,16 +802,21 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
       const itemOrigemSabado = c.item_origem_id ?? (item ? parseItemOrigem(item).itemId : null)
       if (sabados.length > 0) {
         // cpf e cod_secao vêm do snapshot do pré-pagamento, criado pelo /convocar. É a única
-        // fonte que já tem os dois; `convocacoes` não guarda seção, e sem seção o lançamento
-        // financeiro do RM não tem onde cair.
+        // fonte que já tem os dois; `convocacoes` não guarda seção, e sem seção o histórico
+        // do RM não tem onde cair.
         //
         // Casa por ITEM DA ENTRADA, não por uuid: o snapshot nasce no /convocar, onde o UUID
         // da convocação ainda não existe (quem o cria é o preparar, depois). `uuid_convocacao`
         // está NULL nos 155 snapshots já gravados, então a busca por uuid nunca achava nada e
-        // o job do boleto de VT nunca era enfileirado. Cai no uuid só como segunda tentativa,
-        // pra quando o campo passar a ser preenchido.
-        const { rows: pre } = await query<{ cpf: string | null; cod_secao: string | null }>(
-          `SELECT cpf, cod_secao FROM pontual_prepagamento
+        // o job do VT nunca era enfileirado. Cai no uuid só como segunda tentativa, pra quando
+        // o campo passar a ser preenchido.
+        //
+        // O `OP - Interior?` do snapshot decide a carteira do VT na Caju (mobilidade × vale):
+        // sem ele o CETAM de interior receberia o crédito na categoria errada.
+        const { rows: pre } = await query<{ cpf: string | null; cod_secao: string | null; interior: string | null }>(
+          `SELECT cpf, cod_secao,
+                  COALESCE(calculo->'saida'->>'interior', calculo->'entrada'->>'interior') AS interior
+             FROM pontual_prepagamento
             WHERE cod_secao IS NOT NULL
               AND (($1::text IS NOT NULL AND item_origem_id::text = $1) OR uuid_convocacao = $2)
             ORDER BY criado_em DESC LIMIT 1`,
@@ -823,18 +828,19 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
           {
             uuid, nome: c.nome ?? "", chapa: c.chapa ?? "", contrato: c.contrato ?? "",
             sabados, optanteVT: c.optante_vt === true,
+            interior: normTxt(pre[0]?.interior) === "SIM",
             anoComp: Number(di.slice(0, 4)), mesComp: Number(di.slice(5, 7)),
           },
           linhas,
         )
         if (ehErroSabados(pedido)) {
           // Recusa de regra (não optante, VT/dia zero) não é falha: é informação. O registro
-          // já está concluído — o que não acontece é o boleto.
+          // já está concluído — o que não acontece é o crédito.
           await ex.etapa("sabado_extra", "pulado", { mensagem: pedido.mensagem, metadados: { erro: pedido.erro } })
         } else if (!cpf || !codSecao) {
           // Não enfileira job condenado. Fica visível e o DP lança à mão.
           await ex.etapa("sabado_extra", "aviso", {
-            mensagem: "sem cpf/cod_secao no pre-pagamento — boleto de VT nao enfileirado",
+            mensagem: "sem cpf/cod_secao no pre-pagamento — crédito de VT do sábado não enfileirado",
             metadados: { tem_cpf: !!cpf, tem_cod_secao: !!codSecao, sabados: sabados.length },
           })
         } else {

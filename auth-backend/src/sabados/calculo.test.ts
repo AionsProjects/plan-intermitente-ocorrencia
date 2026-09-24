@@ -5,7 +5,8 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { montarPedidoSabados, normalizarSabados, ehErroSabados, sabadosDentroDaConvocacao } from "./calculo.js"
-import { montarHistoricoSabados, montarLancamentoSabados, chaveEfeitoSabados } from "./rmSabados.js"
+import { montarHistoricoSabados, chaveEfeitoSabados } from "./rmSabados.js"
+import { montarNomeDebitoSabados, montarTextoBalaoSabados } from "./mondaySabados.js"
 import type { LinhaValores } from "../domain/desconto.js"
 
 const VALORES: LinhaValores[] = [
@@ -75,25 +76,41 @@ test("DETRAN RECEBE sabado extra — nao-desconto nao se aplica a credito", () =
   assert.equal(p.valorTotal, 19) // 9.5 x 2 — nada zerado
 })
 
-test("historico RM: VT com TPBEN=0 e valor em virgula", () => {
+test("historico RM: VT de CREDITO (TPBEN=1) e valor em virgula", () => {
   const p = montarPedidoSabados(BASE, VALORES)
   if (ehErroSabados(p)) throw new Error("pedido invalido")
   const h = montarHistoricoSabados(p, { codSecao: "01.01.0085.01.0002", dataImport: "2026-08-17" })
   assert.equal(h.chapa, "007406")
   assert.match(h.dadosXml, /<CODBENEFICIO>2<\/CODBENEFICIO>/)
-  assert.match(h.dadosXml, /<TPBEN>0<\/TPBEN>/)
+  // Crédito não vira lançamento financeiro — é o 1 do pontual, não o 0 do boleto.
+  assert.match(h.dadosXml, /<TPBEN>1<\/TPBEN>/)
   assert.match(h.dadosXml, /<VLRTOTAL>23,20<\/VLRTOTAL>/)
   assert.match(h.dadosXml, /<CODSECAO>01\.01\.0085<\/CODSECAO>/) // base de 3 octetos
 })
 
-test("lancamento financeiro: so evento 110", () => {
+test("Controle Caju: debito do sabado tem nome proprio, separado do pontual", () => {
+  assert.equal(
+    montarNomeDebitoSabados(" maria augusta ", "2026-09-24T10:00:00Z"),
+    "INTERMITENTE - MARIA AUGUSTA - SÁBADO EXTRA (2026-09-24)",
+  )
+})
+
+test("balao no item do Plano: datas, valor e o pedido que pagou", () => {
   const p = montarPedidoSabados(BASE, VALORES)
   if (ehErroSabados(p)) throw new Error("pedido invalido")
-  const l = montarLancamentoSabados(p, { codSecao: "01.01.0085.01.0002" })
-  assert.deepEqual(l.eventos, ["110"])
-  assert.deepEqual(l.chapas, ["007406"])
-  assert.equal(l.tipo, "Diario")
-  assert.equal(l.coligada, 3)
+  const texto = montarTextoBalaoSabados(p, { orderId: "ord-9", summaryUrl: "https://caju/ord-9" })
+  assert.equal(
+    texto,
+    [
+      "Sábado extra nesta convocação: 08/08/2026 e 15/08/2026 (2 sábados).",
+      "VT do sábado: R$ 11,60 por dia, total R$ 23,20, pago em crédito Caju.",
+      "Pedido Caju ord-9 (confirmado): https://caju/ord-9",
+    ].join("\n"),
+  )
+  // Um sábado só, e sem id de pedido (retomada que perdeu o id): não inventa linha de pedido.
+  const um = montarTextoBalaoSabados({ ...p, sabados: ["2026-08-08"], qtdSabados: 1, valorTotal: 11.6 }, { orderId: null })
+  assert.equal(um.split("\n").length, 2)
+  assert.match(um, /08\/08\/2026 \(1 sábado\)/)
 })
 
 test("nome do pedido Caju segue o formato do WF (o DP concilia por ele)", async () => {

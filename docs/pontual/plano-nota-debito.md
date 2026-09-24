@@ -6,6 +6,13 @@ débito** tem que ser salva na pasta da convocação no Drive, como o relatório
 Este documento é o plano. Ele **não** é executável ainda: duas decisões de negócio e uma medição
 estão abertas, e as três mudam qual arquitetura vale a pena.
 
+> **Atualização 24/09/2026 — Bloqueio A resolvido, decisão 1 tomada.** O Isaac decidiu que a
+> automação confirma o crédito: `etapaPedidoCaju` passou a chamar `confirmarPedido`
+> (`EXISTING_BALANCE`) também no crédito, e o sábado extra virou crédito confirmado. A nota de
+> débito passa a existir no fim da própria execução. Continua aberto: P1 (o que o GET do pedido
+> devolve) e `CAJU_NOTA_URL` em produção — a coluna `Nota de Débito` estava vazia nas 40 linhas
+> lidas em 24/09. O mensal **não** mudou: segue deixando o crédito em Rascunho.
+
 ---
 
 ## 1. O que já existe (e o que falta)
@@ -25,7 +32,7 @@ Ou seja: o encanamento inteiro está de pé. O que falta é **obter o arquivo**.
 
 ## 2. Os dois bloqueios reais
 
-### Bloqueio A — o pedido de crédito do pontual nunca é confirmado
+### Bloqueio A — o pedido de crédito do pontual nunca é confirmado (RESOLVIDO em 24/09/2026)
 
 `etapaPedidoCaju` (`workflows/pontual.ts`) só chama `confirmarPedido` quando `tipo === "boleto"`.
 O pedido de crédito é **criado e deixado em Rascunho, de propósito** — herança do `HTTP Request5`

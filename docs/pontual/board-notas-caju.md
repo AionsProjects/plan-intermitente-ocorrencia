@@ -94,9 +94,9 @@ curl -X POST .../api/pontual/notas/<item_id_da_convocacao> -b "pi_sess=<admin>"
 
 ## Nota de débito
 
-O link é **montado**, não buscado: a API da Caju não expõe o documento, e o pedido de crédito do
-pontual só é confirmado à mão no painel — a nota nasce depois que a automação terminou. Gravar o
-link na hora resolve isso sem varredura: ele fica de pé assim que o DP confirma.
+O link é **montado**, não buscado: a API da Caju não expõe o documento. Desde 24/09/2026 o
+pontual confirma o crédito na própria execução, então a nota já existe quando o link é gravado
+(antes o DP confirmava à mão no painel e o link só ficava de pé depois disso).
 
 Template em env (`CAJU_NOTA_URL`), com `{orderId}`:
 

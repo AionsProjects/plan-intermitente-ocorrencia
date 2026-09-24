@@ -302,9 +302,9 @@ export const summaryUrlCaju = (orderId: string | null): string =>
  * Link de download da NOTA DE DÉBITO do pedido, montado do template em env
  * (`CAJU_NOTA_URL`, com `{orderId}`).
  *
- * Montado, não buscado: a API não expõe o documento, e o pedido de CRÉDITO do pontual só é
- * confirmado à mão no painel — a nota nasce depois que a automação já terminou. Gravar o link na
- * hora resolve isso sem varredura: ele fica de pé assim que o DP confirma.
+ * Montado, não buscado: a API não expõe o documento. Desde 24/09/2026 o pontual (e o sábado
+ * extra) confirmam o crédito na própria execução, então a nota já existe quando o link é gravado;
+ * o mensal ainda deixa o crédito em Rascunho e o link só fica de pé depois que o DP confirma.
  *
  * Sem template configurado devolve "" — coluna vazia é honesta, link quebrado não.
  */
@@ -346,8 +346,9 @@ export function juntarSummariesCaju(ids: Array<string | null | undefined>): stri
 
 /**
  * Ids que vão para a coluna de pedido Caju do board de Solicitação: os de BOLETO (VR e VT).
- * São os que o DP efetivamente paga. O pedido de crédito nasce Rascunho e não é confirmado — o id
- * dele vive no board Controle Caju e no texto da DESCRIÇÃO, como antes do split.
+ * São os que o financeiro efetivamente paga. O crédito não passa pelo financeiro — sai do saldo da
+ * empresa na Caju (`EXISTING_BALANCE`) —, então o id dele vive no board Controle Caju e no texto
+ * da DESCRIÇÃO, como antes do split.
  */
 export function idsPedidoParaSolicitacao(p: PedidosCajuIds): string[] {
   return [p.pedidoPixVR, p.pedidoPixVT].filter((x): x is string => Boolean(x))

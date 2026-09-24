@@ -1,37 +1,54 @@
-// Job do SÁBADO EXTRA — pedido VT na Caju (boleto PIX) + histórico e lançamento no RM.
+// Job do SÁBADO EXTRA — crédito de VT na Caju, débito no Controle Caju, balãozinho no item do
+// Plano e histórico no RM.
 //
 // Substitui o WF `3TAyDuKFkWGvXTHT` (+ WF6). Roda como JOB e não dentro do request do
 // `/preencher` por dois motivos: o operador não pode ficar esperando a Caju, e função
 // serverless que morre no meio de um pagamento não deixa retomada — a fila deixa.
 //
+// CRÉDITO, não boleto (pedido do DP em 14/09/2026, decisão do Isaac em 24/09): é só VT e só dos
+// sábados, então sai inteiro do saldo da empresa na Caju — sem PIX, sem Solicitação de
+// Pagamento e sem lançamento financeiro no RM (o mesmo "100% crédito" do pontual). E o crédito é
+// CONFIRMADO aqui: Rascunho não chega na pessoa e não tem nota de débito.
+//
 // PASSOS, avançados um por tick. Cada um tem chave própria em `pi.efeitos_externos`, então
 // retomar nunca repete o que já confirmou:
 //
 //   0  employee na Caju (leitura)
-//   1  pedido VT + confirmar PIX        <- DINHEIRO
-//   2  histórico ZMDHSTBENFUNC (TPBEN=0)
-//   3  lançamento financeiro evento 110
+//   1  pedido de crédito VT + confirmar (EXISTING_BALANCE)   <- DINHEIRO
+//   2  débito no Controle Caju (o board de controle do saldo)
+//   3  balãozinho no item do Plano: houve sábado extra, quanto e qual pedido
+//   4  histórico ZMDHSTBENFUNC (TPBEN=1)
 //
-// A ORDEM importa e é a do WF: o histórico do boleto entra ANTES do FopRotinas, senão o
-// lançamento não encontra o valor. Diferente do crédito no pontual, que entra DEPOIS.
+// A ORDEM segue a lição do pontual (RAIMUNDA/NATALIA, 02/09): o que registra o dinheiro no
+// Monday vem logo depois do dinheiro, e o RM por último — RM fora do ar não pode deixar um
+// crédito pago sem rastro no board.
 //
 // SIMULADO x REAL é decidido UMA vez, no passo 0, e fica no cursor: mexer na flag no meio do
-// job não mistura pedido simulado com histórico real. A simulação grava em chave própria
+// job não mistura pedido simulado com efeito real. A simulação grava em chave própria
 // (`sabado_extra-sim:<job>:<alvo>`, o mesmo desenho do `pontual-sim:`) e nunca toca a chave
 // real. Até 24/09/2026 ela confirmava a chave REAL com "SIMULADO": o sábado registrado com a
 // flag desligada ficava "já pago" no ledger e, depois de ligar, nunca mais pagava.
 import { config } from "../config.js"
-import { avancar, reservarEfeito, confirmarEfeito, type Job } from "./repo.js"
-import { buscarEmployeeId, criarPedido, confirmarPedido, categoriaVT, centsCaju } from "../clients/caju.js"
+import { avancar, reservarEfeito, confirmarEfeito, detalheEfeito, type Job } from "./repo.js"
+import {
+  buscarEmployeeId,
+  criarPedido,
+  confirmarPedido,
+  categoriaVT,
+  centsCaju,
+  summaryUrlCaju,
+} from "../clients/caju.js"
 import { saveRecordDireto, contextoDataServer, temRmSoap } from "../clients/rmSoap.js"
 import { RM_DATA_SERVER_HISTORICO } from "../mensal/rmEfeitos.js"
+import { garantirGrupoCaixa, registrarDebitoControleCaju } from "../mensal/mondayEfeitos.js"
+import { criarUpdate } from "../monday.js"
 import {
   montarHistoricoSabados,
-  montarLancamentoSabados,
   chaveEfeitoSabados,
   chaveEfeitoSabadosSimulado,
   type AlvoEfeitoSabados,
 } from "../sabados/rmSabados.js"
+import { montarNomeDebitoSabados, montarTextoBalaoSabados } from "../sabados/mondaySabados.js"
 import type { PedidoSabados } from "../sabados/calculo.js"
 
 export const TIPO_JOB_SABADO_EXTRA = "sabado_extra"
@@ -41,7 +58,7 @@ export interface PayloadSabadoExtra {
   cpf: string
   codSecao: string
   dataImport: string
-  /** Só pra log/artefato — o pagamento não depende dele. */
+  /** Item da convocação no Plano — onde o balãozinho é escrito. Sem ele, o balão é pulado. */
   item_origem_id?: string | null
 }
 
@@ -50,13 +67,17 @@ export interface DepsSabadoExtra {
   criarPedido: typeof criarPedido
   confirmarPedido: typeof confirmarPedido
   saveRecord: typeof saveRecordDireto
-  lancarFinanceiro: (p: ReturnType<typeof montarLancamentoSabados>) => Promise<unknown>
+  /** Gaveta do mês de caixa no Controle Caju (acha por título, cria se faltar). */
+  garantirGrupoControle: () => Promise<string>
+  registrarDebitoControle: typeof registrarDebitoControleCaju
+  criarUpdate: typeof criarUpdate
   habilitado: () => boolean
   temRm: () => boolean
   /** Fila e ledger. Injetáveis pra o teste percorrer os passos sem Postgres. */
   avancar: typeof avancar
   reservarEfeito: typeof reservarEfeito
   confirmarEfeito: typeof confirmarEfeito
+  detalheEfeito: typeof detalheEfeito
 }
 
 const DEPS_PADRAO: DepsSabadoExtra = {
@@ -64,17 +85,20 @@ const DEPS_PADRAO: DepsSabadoExtra = {
   criarPedido,
   confirmarPedido,
   saveRecord: saveRecordDireto,
-  // O lançamento financeiro (FopRotinas + Integrar) é o mesmo do mensal/pontual. Fica como
-  // dep injetável porque é o passo mais caro de simular em teste.
-  lancarFinanceiro: async () => {
-    throw new Error("lancamento_financeiro_nao_ligado")
-  },
+  garantirGrupoControle: () => garantirGrupoCaixa("controle"),
+  registrarDebitoControle: registrarDebitoControleCaju,
+  criarUpdate,
   habilitado: () => config.sabadoExtraHabilitado,
   temRm: temRmSoap,
   avancar,
   reservarEfeito,
   confirmarEfeito,
+  detalheEfeito,
 }
+
+/** Rótulo do mês do Controle Caju — o mesmo `MESES_LABEL` do pontual. */
+const MESES_LABEL = ["JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO",
+  "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"]
 
 /**
  * Nome do pedido na Caju. Formato do WF (`INT-<nome>-SAB-<dd/mm/aaaa>`, cortado em 27), e não
@@ -84,6 +108,12 @@ const DEPS_PADRAO: DepsSabadoExtra = {
 export function montarNomePedidoSabados(nome: string, hojeIso: string): string {
   const [aaaa, mm, dd] = String(hojeIso).slice(0, 10).split("-")
   return `INT-${String(nome).trim().toUpperCase()}-SAB-${dd}/${mm}/${aaaa}`.slice(0, 27)
+}
+
+/** Id do pedido gravado no ledger pelo passo 1 (`confirmarEfeito(chave, orderId)`). */
+function orderIdDaRef(ref: string | null | undefined): string | null {
+  const id = String(ref ?? "").trim()
+  return id && id !== "SIMULADO" ? id : null
 }
 
 export function handlerSabadoExtra(deps: Partial<DepsSabadoExtra> = {}) {
@@ -101,11 +131,13 @@ export function handlerSabadoExtra(deps: Partial<DepsSabadoExtra> = {}) {
     const simulado = typeof cursor.simulado === "boolean" ? cursor.simulado : !d.habilitado()
     const chave = (alvo: AlvoEfeitoSabados) =>
       simulado ? chaveEfeitoSabadosSimulado(job.id, alvo) : chaveEfeitoSabados(pedido, alvo)
+    const hojeIso = String(p.dataImport || new Date().toISOString()).slice(0, 10)
 
     /**
      * Reserva do passo. Em modo REAL, `pendente` quer dizer que uma tentativa anterior reservou e
-     * morreu antes de confirmar: o pedido na Caju (ou o registro no RM) pode já existir, e refazer
-     * pagaria duas vezes. Para com erro nomeado e pede conciliação, como o pontual.
+     * morreu antes de confirmar: o pedido na Caju (ou o registro no board/RM) pode já existir, e
+     * refazer pagaria ou gravaria duas vezes. Para com erro nomeado e pede conciliação, como o
+     * pontual.
      */
     async function reservar(
       alvo: AlvoEfeitoSabados,
@@ -119,13 +151,6 @@ export function handlerSabadoExtra(deps: Partial<DepsSabadoExtra> = {}) {
         return "parar"
       }
       return "seguir"
-    }
-
-    /** RM sem SOAP com a flag LIGADA é erro de ambiente — nunca "feito" na chave real. */
-    async function exigirRm(oque: string): Promise<boolean> {
-      if (simulado || d.temRm()) return true
-      await d.avancar(job.id, { estado: "falhou", erro: `rm_soap_nao_configurado: ${oque} do sábado não gravado` })
-      return false
     }
 
     // ── passo 0: employeeId na Caju ────────────────────────────────────────
@@ -147,26 +172,28 @@ export function handlerSabadoExtra(deps: Partial<DepsSabadoExtra> = {}) {
       return
     }
 
-    // ── passo 1: pedido VT + confirmar PIX — DINHEIRO ──────────────────────
+    // ── passo 1: pedido de crédito VT + confirmar — DINHEIRO ───────────────
     if (job.passo === 1) {
-      const r = await reservar("caju", "caju_pix", {
+      const r = await reservar("caju", "caju_credito", {
         chapa: pedido.chapa, sabados: pedido.sabados, valor: pedido.valorTotal,
       })
       if (r === "parar") return
       if (r === "pular") {
-        await d.avancar(job.id, { estado: "pendente", passo: 2, cursor })
+        // Retomada depois de confirmar: o id do pedido só sobrevive no ledger.
+        const det = await d.detalheEfeito(chave("caju"))
+        const orderId = orderIdDaRef(det?.refExterna) ?? (cursor.orderId as string | undefined) ?? null
+        await d.avancar(job.id, { estado: "pendente", passo: 2, cursor: { ...cursor, orderId } })
         return
       }
       if (simulado) {
         await d.confirmarEfeito(chave("caju"), "SIMULADO", { nota: "flag SABADO_EXTRA_HABILITADO desligada" })
-        await d.avancar(job.id, { estado: "pendente", passo: 2, cursor: { ...cursor, orderId: "SIMULADO" } })
+        await d.avancar(job.id, { estado: "pendente", passo: 2, cursor: { ...cursor, orderId: null } })
         return
       }
-      const name = montarNomePedidoSabados(pedido.nome, p.dataImport)
       const centavos = centsCaju(pedido.valorTotal)
       const { orderId } = await d.criarPedido({
         sponsorId: config.caju.sponsorId,
-        name,
+        name: montarNomePedidoSabados(pedido.nome, hojeIso),
         allowances: [{
           employeeId: String(cursor.employeeId),
           // VT só. Sábado extra não paga VR — é o dia de transporte que ele não teria.
@@ -174,47 +201,80 @@ export function handlerSabadoExtra(deps: Partial<DepsSabadoExtra> = {}) {
         }],
       })
       if (!orderId) throw new Error("caju_sem_order_id")
-      await d.confirmarPedido(orderId, { paymentStrategies: [{ paymentType: "PIX_CODE", amount: centavos }] })
+      // Confirmar é o que paga: crédito sai do saldo da empresa (`EXISTING_BALANCE`).
+      await d.confirmarPedido(orderId, { paymentStrategies: [{ paymentType: "EXISTING_BALANCE", amount: centavos }] })
       await d.confirmarEfeito(chave("caju"), orderId)
       await d.avancar(job.id, { estado: "pendente", passo: 2, cursor: { ...cursor, orderId } })
       return
     }
 
-    // ── passo 2: histórico no RM (antes do FopRotinas) ─────────────────────
+    const orderId = (cursor.orderId as string | null | undefined) ?? null
+
+    // ── passo 2: débito no Controle Caju ───────────────────────────────────
     if (job.passo === 2) {
-      if (!(await exigirRm("histórico"))) return
-      const r = await reservar("rm_historico", "rm_soap", { chapa: pedido.chapa })
+      const r = await reservar("controle_caju", "monday_controle_caju", { chapa: pedido.chapa, valor: pedido.valorTotal })
       if (r === "parar") return
-      if (r === "pular") {
-        await d.avancar(job.id, { estado: "pendente", passo: 3, cursor })
-        return
+      if (r === "seguir") {
+        if (simulado) {
+          await d.confirmarEfeito(chave("controle_caju"), "SIMULADO", { nota: "flag desligada" })
+        } else {
+          const res = await d.registrarDebitoControle({
+            grupoControleCaju: await d.garantirGrupoControle(),
+            contrato: pedido.contrato,
+            competenciaLabel: MESES_LABEL[Number(hojeIso.slice(5, 7)) - 1]!,
+            anoComp: Number(hojeIso.slice(0, 4)),
+            totalCredito: pedido.valorTotal,
+            pedidoCreditoId: orderId,
+            dataIso: hojeIso,
+            nomeItem: montarNomeDebitoSabados(pedido.nome, hojeIso),
+          })
+          await d.confirmarEfeito(
+            chave("controle_caju"),
+            "id" in res ? `monday:controle_caju:${res.id}` : `monday:controle_caju:${res.motivo}`,
+          )
+        }
       }
-      const h = montarHistoricoSabados(pedido, { codSecao: p.codSecao, dataImport: p.dataImport })
+      await d.avancar(job.id, { estado: "pendente", passo: 3, cursor })
+      return
+    }
+
+    // ── passo 3: balãozinho no item do Plano ───────────────────────────────
+    if (job.passo === 3) {
+      const r = await reservar("balao", "monday_balao", { chapa: pedido.chapa, item: p.item_origem_id ?? null })
+      if (r === "parar") return
+      if (r === "seguir") {
+        if (simulado) {
+          await d.confirmarEfeito(chave("balao"), "SIMULADO", { nota: "flag desligada" })
+        } else if (!p.item_origem_id) {
+          // Sem o item não há onde escrever; o pagamento já está no Controle Caju.
+          await d.confirmarEfeito(chave("balao"), "monday:balao:sem_item")
+        } else {
+          const texto = montarTextoBalaoSabados(pedido, { orderId, summaryUrl: summaryUrlCaju(orderId) })
+          const updateId = await d.criarUpdate(String(p.item_origem_id), texto)
+          await d.confirmarEfeito(chave("balao"), `monday:balao:${updateId ?? "sem-id"}`)
+        }
+      }
+      await d.avancar(job.id, { estado: "pendente", passo: 4, cursor })
+      return
+    }
+
+    // ── passo 4: histórico no RM (TPBEN=1) ─────────────────────────────────
+    // RM sem SOAP com a flag LIGADA é erro de ambiente — nunca "feito" na chave real.
+    if (!simulado && !d.temRm()) {
+      await d.avancar(job.id, { estado: "falhou", erro: "rm_soap_nao_configurado: histórico do sábado não gravado" })
+      return
+    }
+    const r = await reservar("rm_historico", "rm_soap", { chapa: pedido.chapa })
+    if (r === "parar") return
+    if (r === "seguir") {
+      const h = montarHistoricoSabados(pedido, { codSecao: p.codSecao, dataImport: hojeIso })
       if (simulado) {
         await d.confirmarEfeito(chave("rm_historico"), "SIMULADO", { nota: "flag desligada" })
       } else {
         const res = await d.saveRecord(RM_DATA_SERVER_HISTORICO, h.dadosXml, contextoDataServer(3))
         await d.confirmarEfeito(chave("rm_historico"), res.chave)
       }
-      await d.avancar(job.id, { estado: "pendente", passo: 3, cursor })
-      return
     }
-
-    // ── passo 3: lançamento financeiro evento 110 ─────────────────────────
-    if (!(await exigirRm("lançamento financeiro"))) return
-    const r = await reservar("rm_financeiro", "rm_soap", { chapa: pedido.chapa, evento: "110" })
-    if (r === "parar") return
-    if (r === "pular") {
-      await d.avancar(job.id, { estado: "concluido" })
-      return
-    }
-    if (simulado) {
-      await d.confirmarEfeito(chave("rm_financeiro"), "SIMULADO", { nota: "flag desligada" })
-      await d.avancar(job.id, { estado: "concluido" })
-      return
-    }
-    await d.lancarFinanceiro(montarLancamentoSabados(pedido, { codSecao: p.codSecao }))
-    await d.confirmarEfeito(chave("rm_financeiro"))
     await d.avancar(job.id, { estado: "concluido" })
   }
 }

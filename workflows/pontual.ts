@@ -486,8 +486,12 @@ async function etapaPedidoCaju(
   const orderId = criado.orderId ?? extrairOrderId(criado.raw)
   let qr = ""
   let copiaECola = ""
+  // Confirmar é o que PAGA — boleto gera o PIX, crédito debita o saldo da empresa na Caju
+  // (`EXISTING_BALANCE`). Até 24/09/2026 o crédito nascia Rascunho (herança do HTTP Request5
+  // desligado no WF5) e o DP confirmava no painel; decisão do Isaac: a automação confirma os
+  // dois. Sem confirmação o crédito não chega na pessoa e a nota de débito nem existe.
+  if (orderId) await confirmarPedido(orderId, pedido.confirmPayload)
   if (tipo === "boleto" && orderId) {
-    await confirmarPedido(orderId, pedido.confirmPayload)
     let resp = await buscarPedido(orderId)
     qr = extrairQrBase64(resp)
     if (!qr) {
@@ -511,6 +515,7 @@ async function etapaPedidoCaju(
       centavosVT: grupo.includes("VT") ? Math.round((tipo === "credito" ? plano.pessoa.creditoVT : plano.pessoa.pixVT) ?? 0) * 100 : 0,
       temQr: qr.length > 0,
       temCopiaECola: copiaECola.length > 0,
+      confirmado: !!orderId,
       summary: summaryUrlCaju(orderId),
     },
   })
@@ -1254,7 +1259,8 @@ export async function executarPontualWorkflow(input: PontualWorkflowInput): Prom
     // Quantos pedidos por natureza depende da GAVETA (mês da DATA_INICIO da convocação, a mesma
     // que decide o grupo do board): até 08/2026 um só, com VR e VT juntos (formato WF5, decisão
     // do Isaac de 13/08); de 09/2026 em diante um por benefício, com boleto e conferência
-    // próprios. O crédito nunca é confirmado (fica DRAFT); o boleto é confirmado e devolve o QR.
+    // próprios. Os dois são confirmados (desde 24/09/2026 o crédito também); o boleto ainda
+    // devolve o QR.
     const grupos = gruposBeneficio(caixaPontual(plano.snapshot.data_inicio))
     const credito = await pedidosCajuDoTipo(input, plano, employeeId, "credito", grupos)
     const boleto = await pedidosCajuDoTipo(input, plano, employeeId, "boleto", grupos)

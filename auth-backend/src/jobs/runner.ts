@@ -37,7 +37,7 @@ const HANDLERS: Record<string, Handler> = {
   // e o job só acumula tentativa sem nunca rodar.
   [TIPO_JOB_CONVOCACAO_RM_REMOVER]: handlerConvocacaoRmRemover,
   [TIPO_JOB_CONVOCACAO_RM_SUBSTITUIR]: handlerConvocacaoRmSubstituir,
-  // Sábado extra: tipo PRÓPRIO. Sem registrar aqui cairia em "tipo desconhecido" e o boleto
+  // Sábado extra: tipo PRÓPRIO. Sem registrar aqui cairia em "tipo desconhecido" e o crédito
   // de VT simplesmente nunca sairia — calado, que é o pior desfecho pra dinheiro.
   // Percorre tudo em modo simulado enquanto SABADO_EXTRA_HABILITADO estiver desligada.
   [TIPO_JOB_SABADO_EXTRA]: handlerSabadoExtra(),

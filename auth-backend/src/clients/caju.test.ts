@@ -153,7 +153,7 @@ test("idsPedidoParaSolicitacao leva só os pedidos de boleto, na ordem VR->VT", 
   assert.deepEqual(idsPedidoParaSolicitacao({
     pedidoCreditoVR: "c-vr", pedidoCreditoVT: "c-vt", pedidoPixVR: "p-vr", pedidoPixVT: "p-vt",
   }), ["p-vr", "p-vt"])
-  // O crédito nasce Rascunho e não é confirmado — não vai pra coluna.
+  // O crédito sai do saldo da empresa, não passa pelo financeiro — não vai pra coluna.
   assert.deepEqual(idsPedidoParaSolicitacao({ pedidoCreditoVR: "c-vr" }), [])
 })
 
