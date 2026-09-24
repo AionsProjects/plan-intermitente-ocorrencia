@@ -52,6 +52,21 @@ export async function pegarDevidos(limite = 5, tipo?: string): Promise<Job[]> {
 }
 
 /**
+ * Claim de UM job pelo id, pra quem acabou de enfileirar e quer rodar já (o finalize, no sábado
+ * extra). Mesmo UPDATE atômico do `pegarDevidos`: se o tick pegou antes, devolve null e ninguém
+ * roda em dobro.
+ */
+export async function reivindicarJob(id: string): Promise<Job | null> {
+  const { rows } = await query<Job>(
+    `UPDATE jobs SET estado='rodando', atualizado_em=now()
+      WHERE id = $1 AND estado IN ('pendente','aguardando_externo') AND proximo_em <= now()
+     RETURNING id, tipo, estado, passo, payload, cursor, tentativas`,
+    [id],
+  )
+  return rows[0] ?? null
+}
+
+/**
  * Devolve à fila os jobs que ficaram presos em `rodando` — processo morto no meio, timeout da
  * função, deploy no meio do tick. `pegarDevidos` só enxerga `pendente`/`aguardando_externo`,
  * então sem isto o job fica invisível e nunca mais roda.

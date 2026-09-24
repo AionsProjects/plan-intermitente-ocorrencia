@@ -6,7 +6,7 @@ import { pegarDevidos, avancar, falhar, retomarPresos, type Job } from "./repo.j
 import { handlerConvocacaoRmPontual, TIPO_JOB_CONVOCACAO_RM } from "./convocacaoRmPontual.js"
 import { handlerConvocacaoRmRemover, TIPO_JOB_CONVOCACAO_RM_REMOVER } from "./convocacaoRmRemover.js"
 import { handlerConvocacaoRmSubstituir, TIPO_JOB_CONVOCACAO_RM_SUBSTITUIR } from "./convocacaoRmSubstituir.js"
-import { handlerSabadoExtra, TIPO_JOB_SABADO_EXTRA } from "./sabadoExtra.js"
+import { drenarSabadoExtra, TIPO_JOB_SABADO_EXTRA } from "./sabadoExtra.js"
 
 type Handler = (job: Job) => Promise<void>
 
@@ -40,7 +40,8 @@ const HANDLERS: Record<string, Handler> = {
   // Sábado extra: tipo PRÓPRIO. Sem registrar aqui cairia em "tipo desconhecido" e o crédito
   // de VT simplesmente nunca sairia — calado, que é o pior desfecho pra dinheiro.
   // Percorre tudo em modo simulado enquanto SABADO_EXTRA_HABILITADO estiver desligada.
-  [TIPO_JOB_SABADO_EXTRA]: handlerSabadoExtra(),
+  // DRENA em vez de dar um passo: o tick é diário, e um passo por dia atrasaria o crédito dias.
+  [TIPO_JOB_SABADO_EXTRA]: async (job) => { await drenarSabadoExtra()(job) },
   sync_monday: syncMonday,
   pontual: gated,
   mensal: gated,

@@ -278,3 +278,52 @@ export function handlerSabadoExtra(deps: Partial<DepsSabadoExtra> = {}) {
     await d.avancar(job.id, { estado: "concluido" })
   }
 }
+
+export interface EstadoDreno {
+  estado: string
+  passo: number
+  erro?: string | null
+}
+
+/**
+ * Roda o job até o fim (ou até `limiteMs`), um passo depois do outro. Cada passo continua
+ * gravando progresso na fila e no ledger, então morrer no meio retoma de onde parou — a mesma
+ * garantia do tick, só que sem esperar o próximo.
+ *
+ * Existe porque o tick é DIÁRIO (conta Hobby da Vercel): um passo por tick faria o crédito do
+ * sábado levar cinco dias. O finalize chama isto logo depois de enfileirar, e o tick usa o mesmo
+ * — o que sobrar sai inteiro na próxima passada.
+ *
+ * Enquanto drena, o job fica `rodando` (reivindicado): devolver `pendente` entre um passo e outro
+ * abriria a porta pra outro processo pegar o mesmo job. Parou antes do fim, volta a `pendente`.
+ */
+export function drenarSabadoExtra(deps: Partial<DepsSabadoExtra> = {}, limiteMs = 20_000) {
+  const avancarReal = deps.avancar ?? DEPS_PADRAO.avancar
+  return async function drenar(job: Job): Promise<EstadoDreno> {
+    // O job chega reivindicado (`rodando`); aqui `pendente` quer dizer "ainda não terminou".
+    let atual: Job & { erro?: string | null } = { ...job, estado: "pendente" }
+    const passo = handlerSabadoExtra({
+      ...deps,
+      avancar: async (id, patch) => {
+        const segue = patch.estado === "pendente"
+        await avancarReal(id, segue ? { ...patch, estado: "rodando" } : patch)
+        atual = {
+          ...atual,
+          ...(patch.estado !== undefined ? { estado: patch.estado } : {}),
+          ...(patch.passo !== undefined ? { passo: patch.passo } : {}),
+          ...("cursor" in patch ? { cursor: patch.cursor } : {}),
+          ...("erro" in patch ? { erro: patch.erro } : {}),
+        }
+      },
+    })
+    const fim = Date.now() + limiteMs
+    // 5 passos; o teto do laço é só rede contra passo que não anda.
+    for (let i = 0; i < 8 && atual.estado === "pendente"; i++) {
+      const antes = atual.passo
+      await passo(atual)
+      if (atual.estado !== "pendente" || atual.passo === antes || Date.now() >= fim) break
+    }
+    if (atual.estado === "pendente") await avancarReal(job.id, { estado: "pendente" })
+    return { estado: atual.estado, passo: atual.passo, erro: atual.erro ?? null }
+  }
+}

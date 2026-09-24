@@ -6,7 +6,7 @@
 // Roda: node --env-file=.env --import tsx --test src/jobs/sabadoExtra.test.ts
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { handlerSabadoExtra, TIPO_JOB_SABADO_EXTRA, type DepsSabadoExtra } from "./sabadoExtra.js"
+import { handlerSabadoExtra, drenarSabadoExtra, TIPO_JOB_SABADO_EXTRA, type DepsSabadoExtra } from "./sabadoExtra.js"
 import type { Job } from "./repo.js"
 import { montarPedidoSabados, ehErroSabados, type PedidoSabados } from "../sabados/calculo.js"
 import { chaveEfeitoSabados, type AlvoEfeitoSabados } from "../sabados/rmSabados.js"
@@ -54,6 +54,8 @@ function criarMundo(opts: Opcoes) {
   const confirmacoes: Array<Parameters<DepsSabadoExtra["confirmarPedido"]>[1]> = []
   const debitos: Array<Parameters<DepsSabadoExtra["registrarDebitoControle"]>[0]> = []
   const updates: Array<{ item: string; texto: string }> = []
+  /** Cada `estado` que o job gravou na fila, em ordem — é o que prova o claim do dreno. */
+  const estadosGravados: string[] = []
   let habilitado = opts.habilitado
   const pedido = opts.pedido ?? PEDIDO
   const itemOrigem = opts.itemOrigem === undefined ? "13000000001" : opts.itemOrigem
@@ -110,6 +112,7 @@ function criarMundo(opts: Opcoes) {
       return e ? { status: e.status, refExterna: e.ref ?? null, payload: null, criadoEm: null } : null
     },
     avancar: async (_id, patch) => {
+      if (patch.estado !== undefined) estadosGravados.push(patch.estado)
       atual = {
         ...atual,
         ...(patch.estado !== undefined ? { estado: patch.estado } : {}),
@@ -122,12 +125,14 @@ function criarMundo(opts: Opcoes) {
   const handler = handlerSabadoExtra(deps)
 
   return {
+    deps,
     efeitos,
     chamadas,
     pedidosCriados,
     confirmacoes,
     debitos,
     updates,
+    estadosGravados,
     ligarFlag: () => {
       habilitado = true
     },
@@ -271,4 +276,34 @@ test("modo real sem RM configurado: falha no historico, com o credito ja registr
   assert.equal(m.efeitos.get(chaveEfeitoSabados(PEDIDO, "caju"))?.status, "confirmado")
   assert.equal(m.efeitos.get(chaveEfeitoSabados(PEDIDO, "controle_caju"))?.status, "confirmado")
   assert.equal(m.efeitos.get(chaveEfeitoSabados(PEDIDO, "balao"))?.status, "confirmado")
+})
+
+test("dreno: uma chamada leva o job do passo 0 ao fim, sem soltar o claim no meio", async () => {
+  const m = criarMundo({ habilitado: true })
+  const r = await drenarSabadoExtra(m.deps)({ ...novoJob("job-dreno", PEDIDO, "13000000001"), estado: "rodando" })
+  assert.equal(r.estado, "concluido")
+  assert.deepEqual(m.chamadas, [
+    "buscarEmployeeId", "criarPedido", "confirmarPedido",
+    "garantirGrupoControle", "registrarDebitoControle", "criarUpdate", "saveRecord",
+  ])
+  // Entre um passo e outro o job segue `rodando`: `pendente` no meio deixaria outro processo
+  // (o tick) pegar o mesmo job.
+  assert.deepEqual(m.estadosGravados, ["rodando", "rodando", "rodando", "rodando", "concluido"])
+})
+
+test("dreno com o tempo esgotado: para no passo e devolve o job pra fila", async () => {
+  const m = criarMundo({ habilitado: true })
+  const r = await drenarSabadoExtra(m.deps, 0)({ ...novoJob("job-teto", PEDIDO, "13000000001"), estado: "rodando" })
+  assert.equal(r.estado, "pendente")
+  assert.equal(r.passo, 1)
+  assert.deepEqual(m.chamadas, ["buscarEmployeeId"])
+  assert.deepEqual(m.estadosGravados, ["rodando", "pendente"])
+})
+
+test("dreno: falha nomeada para o laço e volta como estado", async () => {
+  const m = criarMundo({ habilitado: true, efeitos: [[chaveEfeitoSabados(PEDIDO, "caju"), "pendente"]] })
+  const r = await drenarSabadoExtra(m.deps)({ ...novoJob("job-falha", PEDIDO, "13000000001"), estado: "rodando" })
+  assert.equal(r.estado, "falhou")
+  assert.match(r.erro ?? "", /^efeito_pendente_requer_conciliacao:/)
+  assert.equal(m.chamadas.includes("criarPedido"), false)
 })

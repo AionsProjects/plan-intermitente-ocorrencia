@@ -57,6 +57,28 @@ export function chaveEfeitoSabados(p: PedidoSabados, alvo: AlvoEfeitoSabados): s
   return `sabado_extra:${alvo}:${p.uuid ?? p.chapa}:${p.sabados.join("_")}`
 }
 
+/** Prefixo das chaves do pedido Caju dos sábados de UMA convocação. */
+export function prefixoChaveCajuSabados(uuid: string): string {
+  return `sabado_extra:caju:${uuid}:`
+}
+
+/**
+ * Sábados já cobrados de uma convocação, lidos das chaves do pedido Caju no ledger.
+ *
+ * A chave leva a LISTA de sábados do pedido. Uma correção que acrescenta um sábado muda a
+ * lista, muda a chave — e, sem esta leitura, o job pagava de novo os que já tinham sido pagos.
+ * Quem chama cobra só a diferença.
+ */
+export function sabadosDasChaves(chaves: readonly string[], uuid: string): Set<string> {
+  const prefixo = prefixoChaveCajuSabados(uuid)
+  const out = new Set<string>()
+  for (const c of chaves) {
+    if (!c.startsWith(prefixo)) continue
+    for (const d of c.slice(prefixo.length).split("_")) if (/^\d{4}-\d{2}-\d{2}$/.test(d)) out.add(d)
+  }
+  return out
+}
+
 /**
  * Chave do modo SIMULADO: namespace próprio, por job — o mesmo desenho do `pontual-sim:`.
  *

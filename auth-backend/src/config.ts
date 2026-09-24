@@ -78,10 +78,11 @@ export const config = {
   // Quebra da convocação por atestado (lê a consulta registrada abaixo). Desligada por default:
   // ligar sem a consulta registrada no RM faria TODA gravação falhar — o serviço falha fechado.
   atestadoQuebraConvocacao: process.env.ATESTADO_QUEBRA_CONVOCACAO === "1",
-  // Sábado extra: pedido na Caju (PIX real) + histórico e lançamento no RM. DESLIGADO por
-  // default, mesmo padrão de MENSAL_PRODUCTION_ENABLED — é dinheiro saindo. Com a flag
-  // desligada o job percorre todas as etapas e registra o que FARIA, sem chamar Caju/RM.
-  sabadoExtraHabilitado: process.env.SABADO_EXTRA_HABILITADO === "1",
+  // Sábado extra: crédito de VT confirmado na Caju + Controle Caju + balão + histórico no RM.
+  // LIGADO por default desde 24/09/2026 (decisão do Isaac: o sábado tem de pagar sem ninguém
+  // lembrar de ligar nada). `SABADO_EXTRA_HABILITADO=0` desliga: o job percorre as etapas e
+  // registra o que FARIA, em chave própria de simulação, sem chamar Caju/Monday/RM.
+  sabadoExtraHabilitado: process.env.SABADO_EXTRA_HABILITADO !== "0",
   // Código da consulta SQL registrada no RM. Env pra poder trocar sem deploy se o DP renomear.
   rmSqlAtestados: opt("RM_SQL_ATESTADOS", "ATESTADO_INTER"),
   // IntegrarBackOffices roda SyncExecution=true e segura a conexão — timeout próprio, maior.

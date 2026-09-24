@@ -5,7 +5,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { montarPedidoSabados, normalizarSabados, ehErroSabados, sabadosDentroDaConvocacao } from "./calculo.js"
-import { montarHistoricoSabados, chaveEfeitoSabados } from "./rmSabados.js"
+import { montarHistoricoSabados, chaveEfeitoSabados, sabadosDasChaves } from "./rmSabados.js"
 import { montarNomeDebitoSabados, montarTextoBalaoSabados } from "./mondaySabados.js"
 import type { LinhaValores } from "../domain/desconto.js"
 
@@ -172,4 +172,16 @@ test("lista do corpo: duplicata some, data com hora e cortada, lixo vai pro log"
   )
   assert.deepEqual(r.validos, ["2026-09-05", "2026-09-12"])
   assert.deepEqual(r.descartados, ["7", "sabado"])
+})
+
+test("sabados ja cobrados: lidos da chave do pedido Caju, so desta convocacao", () => {
+  const chaves = [
+    "sabado_extra:caju:u-1:2026-09-05_2026-09-12",
+    "sabado_extra:caju:u-1:2026-09-19",
+    "sabado_extra:controle_caju:u-1:2026-09-26", // outro alvo nao e cobranca
+    "sabado_extra:caju:u-2:2026-09-26", // outra convocacao
+    "sabado_extra-sim:job-9:caju", // simulacao nao e cobranca
+  ]
+  assert.deepEqual([...sabadosDasChaves(chaves, "u-1")].sort(), ["2026-09-05", "2026-09-12", "2026-09-19"])
+  assert.equal(sabadosDasChaves(chaves, "u-3").size, 0)
 })

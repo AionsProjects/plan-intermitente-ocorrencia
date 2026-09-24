@@ -48,9 +48,10 @@ import {
   type ResultadoBifurcacao,
 } from "../services/convocacaoBifurcar.js"
 import { ecoCodigosDoItem } from "../services/convocacaoPontual.js"
-import { enfileirar } from "../jobs/repo.js"
+import { enfileirar, reivindicarJob, falhar } from "../jobs/repo.js"
 import { montarPedidoSabados, ehErroSabados, sabadosDentroDaConvocacao } from "../sabados/calculo.js"
-import { TIPO_JOB_SABADO_EXTRA } from "../jobs/sabadoExtra.js"
+import { prefixoChaveCajuSabados, sabadosDasChaves } from "../sabados/rmSabados.js"
+import { TIPO_JOB_SABADO_EXTRA, drenarSabadoExtra, type EstadoDreno } from "../jobs/sabadoExtra.js"
 import { TIPO_JOB_CONVOCACAO_RM_REMOVER } from "../jobs/convocacaoRmRemover.js"
 import { TIPO_JOB_CONVOCACAO_RM_SUBSTITUIR } from "../jobs/convocacaoRmSubstituir.js"
 
@@ -797,6 +798,9 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
       // chave por conjunto de sábados (`chaveEfeitoSabados`), então job duplicado por
       // refinalização encontra 'confirmado' e não paga de novo.
       const sabados = sabadosExtras
+      // Crédito do sábado que não concluiu fecha o registro como `parcial`: dinheiro que não saiu
+      // precisa aparecer no /atividade, não só no pi.jobs.
+      let sabadoFalhou = false
       // Espelho PG primeiro: ele tem o id do item da Entrada sem depender do Histórico do Monday
       // estar lá e do link estar íntegro. O Histórico fica como segunda fonte.
       const itemOrigemSabado = c.item_origem_id ?? (item ? parseItemOrigem(item).itemId : null)
@@ -824,16 +828,32 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
         )
         const cpf = pre[0]?.cpf ?? ""
         const codSecao = pre[0]?.cod_secao ?? ""
+        // Cobra só o que ainda não foi cobrado. A chave do pedido leva a lista inteira de
+        // sábados: uma correção que acrescenta um mudaria a chave e, sem esta subtração, o job
+        // pagaria de novo os anteriores. `pendente` conta como cobrado — pedido em voo ou que
+        // morreu no meio é assunto de conciliação, não de pagar outra vez.
+        const { rows: cobradas } = await query<{ chave: string }>(
+          `SELECT chave FROM efeitos_externos
+            WHERE left(chave, length($1)) = $1 AND status IN ('confirmado','pendente')`,
+          [prefixoChaveCajuSabados(uuid)],
+        )
+        const jaCobrados = sabadosDasChaves(cobradas.map((r) => r.chave), uuid)
+        const sabadosACobrar = sabados.filter((s) => !jaCobrados.has(s))
         const pedido = montarPedidoSabados(
           {
             uuid, nome: c.nome ?? "", chapa: c.chapa ?? "", contrato: c.contrato ?? "",
-            sabados, optanteVT: c.optante_vt === true,
+            sabados: sabadosACobrar, optanteVT: c.optante_vt === true,
             interior: normTxt(pre[0]?.interior) === "SIM",
             anoComp: Number(di.slice(0, 4)), mesComp: Number(di.slice(5, 7)),
           },
           linhas,
         )
-        if (ehErroSabados(pedido)) {
+        if (sabadosACobrar.length === 0) {
+          await ex.etapa("sabado_extra", "pulado", {
+            mensagem: "sábados já cobrados em finalização anterior",
+            metadados: { ja_cobrados: [...jaCobrados] },
+          })
+        } else if (ehErroSabados(pedido)) {
           // Recusa de regra (não optante, VT/dia zero) não é falha: é informação. O registro
           // já está concluído — o que não acontece é o crédito.
           await ex.etapa("sabado_extra", "pulado", { mensagem: pedido.mensagem, metadados: { erro: pedido.erro } })
@@ -848,17 +868,36 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
             pedido, cpf, codSecao, dataImport: agoraIso.slice(0, 10),
             item_origem_id: itemOrigemSabado,
           }).catch((e) => { req.log.warn(e, "finalizar: enfileirar sabado extra falhou"); return null })
-          await ex.etapa("sabado_extra", jobId ? "ok" : "erro", {
+          // Roda JÁ, com teto de tempo — o tick é diário, e esperar por ele atrasaria o crédito.
+          // A fila continua sendo a rede: o que não terminar aqui o tick drena na próxima passada.
+          let dreno: EstadoDreno | null = null
+          if (jobId) {
+            const job = await reivindicarJob(jobId).catch(() => null)
+            if (job) {
+              try {
+                dreno = await drenarSabadoExtra({}, 20_000)(job)
+              } catch (e) {
+                const msg = (e as Error).message
+                await falhar(jobId, msg).catch(() => {})
+                dreno = { estado: "erro", passo: -1, erro: msg.slice(0, 160) }
+              }
+            }
+          }
+          sabadoFalhou = dreno?.estado === "falhou" || dreno?.estado === "erro"
+          await ex.etapa("sabado_extra", !jobId ? "erro" : sabadoFalhou ? "aviso" : "ok", {
+            mensagem: sabadoFalhou ? `crédito do sábado não concluiu: ${dreno?.erro ?? "?"}` : undefined,
             metadados: {
               job: jobId, qtd_sabados: pedido.qtdSabados, vt_dia: pedido.vtDia,
               valor_total: pedido.valorTotal, habilitado: config.sabadoExtraHabilitado,
+              sabados: pedido.sabados, ja_cobrados: jaCobrados.size ? [...jaCobrados] : undefined,
+              job_estado: dreno?.estado ?? null, job_passo: dreno?.passo ?? null,
             },
           })
           if (jobId) await ex.artefato({ tipo: "job", chave: jobId, rotulo: `Sábado extra — R$ ${pedido.valorTotal}` })
         }
       }
 
-      await ex.fechar(mondayFalhas.length ? "parcial" : "ok", {
+      await ex.fechar(mondayFalhas.length || sabadoFalhou ? "parcial" : "ok", {
         resumo: {
           protocolo, chapa: c.chapa, eh_correcao: ehCorrecao,
           qtd_faltas: ag.qtd_faltas, qtd_atrasos: ag.qtd_atrasos,
