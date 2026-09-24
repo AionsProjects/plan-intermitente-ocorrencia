@@ -14,12 +14,24 @@
 //
 // A ORDEM importa e é a do WF: o histórico do boleto entra ANTES do FopRotinas, senão o
 // lançamento não encontra o valor. Diferente do crédito no pontual, que entra DEPOIS.
+//
+// SIMULADO x REAL é decidido UMA vez, no passo 0, e fica no cursor: mexer na flag no meio do
+// job não mistura pedido simulado com histórico real. A simulação grava em chave própria
+// (`sabado_extra-sim:<job>:<alvo>`, o mesmo desenho do `pontual-sim:`) e nunca toca a chave
+// real. Até 24/09/2026 ela confirmava a chave REAL com "SIMULADO": o sábado registrado com a
+// flag desligada ficava "já pago" no ledger e, depois de ligar, nunca mais pagava.
 import { config } from "../config.js"
 import { avancar, reservarEfeito, confirmarEfeito, type Job } from "./repo.js"
 import { buscarEmployeeId, criarPedido, confirmarPedido, categoriaVT, centsCaju } from "../clients/caju.js"
 import { saveRecordDireto, contextoDataServer, temRmSoap } from "../clients/rmSoap.js"
 import { RM_DATA_SERVER_HISTORICO } from "../mensal/rmEfeitos.js"
-import { montarHistoricoSabados, montarLancamentoSabados, chaveEfeitoSabados } from "../sabados/rmSabados.js"
+import {
+  montarHistoricoSabados,
+  montarLancamentoSabados,
+  chaveEfeitoSabados,
+  chaveEfeitoSabadosSimulado,
+  type AlvoEfeitoSabados,
+} from "../sabados/rmSabados.js"
 import type { PedidoSabados } from "../sabados/calculo.js"
 
 export const TIPO_JOB_SABADO_EXTRA = "sabado_extra"
@@ -41,6 +53,10 @@ export interface DepsSabadoExtra {
   lancarFinanceiro: (p: ReturnType<typeof montarLancamentoSabados>) => Promise<unknown>
   habilitado: () => boolean
   temRm: () => boolean
+  /** Fila e ledger. Injetáveis pra o teste percorrer os passos sem Postgres. */
+  avancar: typeof avancar
+  reservarEfeito: typeof reservarEfeito
+  confirmarEfeito: typeof confirmarEfeito
 }
 
 const DEPS_PADRAO: DepsSabadoExtra = {
@@ -55,6 +71,9 @@ const DEPS_PADRAO: DepsSabadoExtra = {
   },
   habilitado: () => config.sabadoExtraHabilitado,
   temRm: temRmSoap,
+  avancar,
+  reservarEfeito,
+  confirmarEfeito,
 }
 
 /**
@@ -74,48 +93,77 @@ export function handlerSabadoExtra(deps: Partial<DepsSabadoExtra> = {}) {
     const p = job.payload as unknown as PayloadSabadoExtra
     const pedido = p?.pedido
     if (!pedido || !pedido.chapa || !(pedido.valorTotal > 0)) {
-      await avancar(job.id, { estado: "falhou", erro: "payload_invalido: pedido/chapa/valorTotal" })
+      await d.avancar(job.id, { estado: "falhou", erro: "payload_invalido: pedido/chapa/valorTotal" })
       return
     }
     const cursor = (job.cursor ?? {}) as Record<string, unknown>
-    const simulado = !d.habilitado()
+    // Congelado no passo 0. Job sem a marca (enfileirado antes dela) cai na flag de agora.
+    const simulado = typeof cursor.simulado === "boolean" ? cursor.simulado : !d.habilitado()
+    const chave = (alvo: AlvoEfeitoSabados) =>
+      simulado ? chaveEfeitoSabadosSimulado(job.id, alvo) : chaveEfeitoSabados(pedido, alvo)
+
+    /**
+     * Reserva do passo. Em modo REAL, `pendente` quer dizer que uma tentativa anterior reservou e
+     * morreu antes de confirmar: o pedido na Caju (ou o registro no RM) pode já existir, e refazer
+     * pagaria duas vezes. Para com erro nomeado e pede conciliação, como o pontual.
+     */
+    async function reservar(
+      alvo: AlvoEfeitoSabados,
+      tipo: string,
+      dados: Record<string, unknown>,
+    ): Promise<"seguir" | "pular" | "parar"> {
+      const reserva = await d.reservarEfeito(chave(alvo), tipo, { ...dados, simulado })
+      if (reserva === "confirmado") return "pular"
+      if (reserva === "pendente" && !simulado) {
+        await d.avancar(job.id, { estado: "falhou", erro: `efeito_pendente_requer_conciliacao: ${chave(alvo)}` })
+        return "parar"
+      }
+      return "seguir"
+    }
+
+    /** RM sem SOAP com a flag LIGADA é erro de ambiente — nunca "feito" na chave real. */
+    async function exigirRm(oque: string): Promise<boolean> {
+      if (simulado || d.temRm()) return true
+      await d.avancar(job.id, { estado: "falhou", erro: `rm_soap_nao_configurado: ${oque} do sábado não gravado` })
+      return false
+    }
 
     // ── passo 0: employeeId na Caju ────────────────────────────────────────
     if (job.passo <= 0) {
       if (!p.cpf) {
-        await avancar(job.id, { estado: "falhou", erro: "cpf_ausente: sem CPF não há como achar o employee na Caju" })
+        await d.avancar(job.id, { estado: "falhou", erro: "cpf_ausente: sem CPF não há como achar o employee na Caju" })
         return
       }
       const employeeId = simulado ? "SIMULADO" : await d.buscarEmployeeId(p.cpf)
       if (!employeeId) {
         // Erro NOMEADO, não genérico: foi o padrão de falha que custou execuções no WF5.
-        await avancar(job.id, {
+        await d.avancar(job.id, {
           estado: "falhou",
           erro: `pessoa_nao_cadastrada_na_caju: chapa=${pedido.chapa} nome=${pedido.nome}`,
         })
         return
       }
-      await avancar(job.id, { estado: "pendente", passo: 1, cursor: { ...cursor, employeeId } })
+      await d.avancar(job.id, { estado: "pendente", passo: 1, cursor: { ...cursor, employeeId, simulado } })
       return
     }
 
     // ── passo 1: pedido VT + confirmar PIX — DINHEIRO ──────────────────────
     if (job.passo === 1) {
-      const chave = chaveEfeitoSabados(pedido, "caju")
-      const centavos = centsCaju(pedido.valorTotal)
-      const reserva = await reservarEfeito(chave, "caju_pix", {
-        chapa: pedido.chapa, sabados: pedido.sabados, valor: pedido.valorTotal, simulado,
+      const r = await reservar("caju", "caju_pix", {
+        chapa: pedido.chapa, sabados: pedido.sabados, valor: pedido.valorTotal,
       })
-      if (reserva === "confirmado") {
-        await avancar(job.id, { estado: "pendente", passo: 2, cursor })
+      if (r === "parar") return
+      if (r === "pular") {
+        await d.avancar(job.id, { estado: "pendente", passo: 2, cursor })
         return
       }
       if (simulado) {
-        await confirmarEfeito(chave, "SIMULADO", { nota: "flag SABADO_EXTRA_HABILITADO desligada" })
-        await avancar(job.id, { estado: "pendente", passo: 2, cursor: { ...cursor, orderId: "SIMULADO" } })
+        await d.confirmarEfeito(chave("caju"), "SIMULADO", { nota: "flag SABADO_EXTRA_HABILITADO desligada" })
+        await d.avancar(job.id, { estado: "pendente", passo: 2, cursor: { ...cursor, orderId: "SIMULADO" } })
         return
       }
       const name = montarNomePedidoSabados(pedido.nome, p.dataImport)
+      const centavos = centsCaju(pedido.valorTotal)
       const { orderId } = await d.criarPedido({
         sponsorId: config.caju.sponsorId,
         name,
@@ -127,44 +175,46 @@ export function handlerSabadoExtra(deps: Partial<DepsSabadoExtra> = {}) {
       })
       if (!orderId) throw new Error("caju_sem_order_id")
       await d.confirmarPedido(orderId, { paymentStrategies: [{ paymentType: "PIX_CODE", amount: centavos }] })
-      await confirmarEfeito(chave, orderId)
-      await avancar(job.id, { estado: "pendente", passo: 2, cursor: { ...cursor, orderId } })
+      await d.confirmarEfeito(chave("caju"), orderId)
+      await d.avancar(job.id, { estado: "pendente", passo: 2, cursor: { ...cursor, orderId } })
       return
     }
 
     // ── passo 2: histórico no RM (antes do FopRotinas) ─────────────────────
     if (job.passo === 2) {
-      const chave = chaveEfeitoSabados(pedido, "rm_historico")
-      const reserva = await reservarEfeito(chave, "rm_soap", { chapa: pedido.chapa, simulado })
-      if (reserva === "confirmado") {
-        await avancar(job.id, { estado: "pendente", passo: 3, cursor })
+      if (!(await exigirRm("histórico"))) return
+      const r = await reservar("rm_historico", "rm_soap", { chapa: pedido.chapa })
+      if (r === "parar") return
+      if (r === "pular") {
+        await d.avancar(job.id, { estado: "pendente", passo: 3, cursor })
         return
       }
       const h = montarHistoricoSabados(pedido, { codSecao: p.codSecao, dataImport: p.dataImport })
-      if (simulado || !d.temRm()) {
-        await confirmarEfeito(chave, "SIMULADO", { nota: simulado ? "flag desligada" : "RM SOAP nao configurado" })
+      if (simulado) {
+        await d.confirmarEfeito(chave("rm_historico"), "SIMULADO", { nota: "flag desligada" })
       } else {
-        const r = await d.saveRecord(RM_DATA_SERVER_HISTORICO, h.dadosXml, contextoDataServer(3))
-        await confirmarEfeito(chave, r.chave)
+        const res = await d.saveRecord(RM_DATA_SERVER_HISTORICO, h.dadosXml, contextoDataServer(3))
+        await d.confirmarEfeito(chave("rm_historico"), res.chave)
       }
-      await avancar(job.id, { estado: "pendente", passo: 3, cursor })
+      await d.avancar(job.id, { estado: "pendente", passo: 3, cursor })
       return
     }
 
     // ── passo 3: lançamento financeiro evento 110 ─────────────────────────
-    const chave = chaveEfeitoSabados(pedido, "rm_financeiro")
-    const reserva = await reservarEfeito(chave, "rm_soap", { chapa: pedido.chapa, evento: "110", simulado })
-    if (reserva === "confirmado") {
-      await avancar(job.id, { estado: "concluido" })
+    if (!(await exigirRm("lançamento financeiro"))) return
+    const r = await reservar("rm_financeiro", "rm_soap", { chapa: pedido.chapa, evento: "110" })
+    if (r === "parar") return
+    if (r === "pular") {
+      await d.avancar(job.id, { estado: "concluido" })
       return
     }
-    if (simulado || !d.temRm()) {
-      await confirmarEfeito(chave, "SIMULADO", { nota: simulado ? "flag desligada" : "RM SOAP nao configurado" })
-      await avancar(job.id, { estado: "concluido" })
+    if (simulado) {
+      await d.confirmarEfeito(chave("rm_financeiro"), "SIMULADO", { nota: "flag desligada" })
+      await d.avancar(job.id, { estado: "concluido" })
       return
     }
     await d.lancarFinanceiro(montarLancamentoSabados(pedido, { codSecao: p.codSecao }))
-    await confirmarEfeito(chave)
-    await avancar(job.id, { estado: "concluido" })
+    await d.confirmarEfeito(chave("rm_financeiro"))
+    await d.avancar(job.id, { estado: "concluido" })
   }
 }

@@ -78,6 +78,19 @@ export function montarLancamentoSabados(
  * mesma convocação, e isso é um pagamento NOVO — mas refinalizar sem mexer nos sábados não
  * pode pagar de novo. A lista ordenada no meio da chave dá exatamente isso.
  */
-export function chaveEfeitoSabados(p: PedidoSabados, alvo: "caju" | "rm_historico" | "rm_financeiro"): string {
+export type AlvoEfeitoSabados = "caju" | "rm_historico" | "rm_financeiro"
+
+export function chaveEfeitoSabados(p: PedidoSabados, alvo: AlvoEfeitoSabados): string {
   return `sabado_extra:${alvo}:${p.uuid ?? p.chapa}:${p.sabados.join("_")}`
+}
+
+/**
+ * Chave do modo SIMULADO: namespace próprio, por job — o mesmo desenho do `pontual-sim:`.
+ *
+ * Simular nunca pode confirmar a chave REAL. Se confirmasse, o sábado registrado com a flag
+ * desligada ficaria "já pago" no ledger e, ao ligar a flag, refinalizar a mesma convocação
+ * pularia o pagamento — o VT daquele sábado nunca sairia, calado.
+ */
+export function chaveEfeitoSabadosSimulado(jobId: string, alvo: AlvoEfeitoSabados): string {
+  return `sabado_extra-sim:${jobId}:${alvo}`
 }
