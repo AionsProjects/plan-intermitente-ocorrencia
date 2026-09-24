@@ -54,6 +54,8 @@ import type {
 import { GlassSelect } from "@/features/convocar/GlassSelect"
 import { CONTRATOS } from "@/features/convocar/types"
 import { isFeriado, nomeFeriado, useFeriados } from "@/lib/feriadosBoard"
+import { finsDeSemanaDisponiveis } from "@/lib/fimDeSemanaFolha"
+import { DialogFinsDeSemanaFolha } from "./DialogFinsDeSemanaFolha"
 import {
   gerarProtocolo,
   salvarProtocolo,
@@ -262,6 +264,10 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
   >(null)
   const [etapaSabados, setEtapaSabados] = useState<EtapaSabados>("fechado")
   const [sabadoARemover, setSabadoARemover] = useState<string | null>(null)
+  // Fim de semana só pra folha (sem VR/VT): no envio, a convocação no RM é estendida até o
+  // último dia. O que já foi enviado volta do backend e fica fixo — a extensão só anda pra frente.
+  const [finsFolha, setFinsFolha] = useState<string[]>(() => dados.finsDeSemanaFolha ?? [])
+  const [finsFolhaAberto, setFinsFolhaAberto] = useState(false)
 
   // Feriado por board (contrato). Re-anota os dias quando os feriados
   // chegam (o init pode rodar antes do fetch). Só mexe no campo `feriado`,
@@ -447,6 +453,16 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
     return out
   }, [diasInfo, dados.dataInicio, dados.dataFim, dados.contrato, cancelamentoParcialEfetivo])
 
+  // Fim de semana só pra folha: o logo depois do fim, no mesmo mês. Com cancelamento (pendente
+  // ou registrado) não há o que estender — o fim no RM já foi cortado. O backend valida de novo.
+  const finsFolhaDisponiveis = useMemo(
+    () =>
+      cancelamentoParcialEfetivo || dados.statusCancelamento === "cancelada"
+        ? []
+        : finsDeSemanaDisponiveis(dados.dataFim),
+    [cancelamentoParcialEfetivo, dados.statusCancelamento, dados.dataFim],
+  )
+
   const adicionarSabadosExtras = useCallback((datas: string[]) => {
     if (datas.length === 0) return
     setDiasInfo((prev) => {
@@ -611,6 +627,7 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
       diasExtras: todasExtras,
       diasDesativados: diasDesativadosFinal,
       sabadosExtras,
+      finsDeSemanaFolha: finsFolha,
       ehCorrecao: !!ehCorrecao,
       // Split: se ativo, WF3 detecta e cria 2 subitems no item ENTRADA.
       split: dados.split ?? null,
@@ -949,6 +966,17 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
                     </span>
                   </button>
                 )}
+                {(finsFolhaDisponiveis.length > 0 || finsFolha.length > 0) && (
+                  <button
+                    type="button"
+                    className="btn-action-expand"
+                    onClick={() => setFinsFolhaAberto(true)}
+                    aria-label="Fim de semana (folha)"
+                  >
+                    <CalendarDays className="size-4" aria-hidden />
+                    <span className="btn-label">Fim de semana (folha)</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   className="btn-action-expand btn-dividir-convocacao"
@@ -1009,6 +1037,23 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
                   {cancelamentoParcialPendente
                     ? "Será enviado quando você clicar em Finalizar e enviar. Toque em um dia cancelado para reverter — depois do envio não dá mais."
                     : "Os dias a partir dessa data ficam bloqueados. Cancelamento registrado não volta atrás, mas dá para antecipar o corte em “Antecipar cancelamento”."}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {finsFolha.length > 0 && (
+            <div className="mt-4 flex items-start gap-3 rounded-2xl border border-[rgb(var(--ink)/0.14)] bg-[rgb(var(--ink)/0.04)] px-4 py-3 fade-up">
+              <CalendarDays className="mt-0.5 size-4 shrink-0 text-foreground/70" aria-hidden />
+              <div className="flex-1 text-sm text-foreground/85">
+                <p className="font-medium">
+                  Fim de semana para a folha: {finsFolha.map(formatarDataNumerica).join(" e ")}.
+                </p>
+                <p className="mt-1 text-xs text-foreground/60">
+                  Sem VR/VT.{" "}
+                  {finsFolha.every((d) => (dados.finsDeSemanaFolha ?? []).includes(d))
+                    ? "A convocação no RM já foi estendida."
+                    : "Ao enviar, a convocação no RM é estendida até o último dia."}
                 </p>
               </div>
             </div>
@@ -1114,6 +1159,19 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
           onConfirmar={(datas) => {
             adicionarSabadosExtras(datas)
             fecharSabados()
+          }}
+        />
+      )}
+      {finsFolhaAberto && (
+        <DialogFinsDeSemanaFolha
+          open
+          disponiveis={finsFolhaDisponiveis}
+          marcados={finsFolha}
+          fixos={dados.finsDeSemanaFolha ?? []}
+          onClose={() => setFinsFolhaAberto(false)}
+          onConfirmar={(dias) => {
+            setFinsFolha(dias)
+            setFinsFolhaAberto(false)
           }}
         />
       )}

@@ -1,0 +1,11 @@
+-- Fim de semana só para a FOLHA (24/09/2026).
+--
+-- Sábado/domingo logo DEPOIS do fim da convocação que o operacional adiciona pelo link, pra a
+-- FOPAG enxergar os dias sem ninguém mexer na data da convocação no board. Não gera VR/VT e não
+-- entra no ledger de desconto; o finalize estende a convocação no RM (DTFIMPRESTSERV) até o
+-- último dia da lista.
+--
+-- Coluna própria, fora de `sabados_extras` (que é crédito de VT) e de `dias_desativados`.
+-- Aditiva e nula: o código tolera a coluna ausente, então a ordem deploy × migration não quebra
+-- o finalize.
+ALTER TABLE pi.convocacoes ADD COLUMN IF NOT EXISTS fins_de_semana_folha text[];

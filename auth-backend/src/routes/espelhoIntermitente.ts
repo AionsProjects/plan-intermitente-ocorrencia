@@ -36,11 +36,13 @@ import { lerItem, lerItemComSubitems, criarSubitem, mudarColunas, moverParaGrupo
 import {
   particionarSplit, splitValido, nomeSubitem, colunasSubitem, acharSubitemExistente, COL_PAI_PROPAGA,
 } from "../split/subitems.js"
-import { changeColumnValues } from "../monday.js"
+import { changeColumnValues, criarUpdate } from "../monday.js"
 import { config } from "../config.js"
 import { temRmSoap } from "../clients/rmSoap.js"
 import { somarDias } from "../domain/convocacaoRm.js"
 import { encurtarConvocacoesDoItem, removerConvocacoesDoItem, TIMEOUT_REMOCAO_MS } from "../services/convocacaoRemover.js"
+import { estenderFimConvocacaoDoItem, type ResultadoExtensaoRm } from "../services/convocacaoEstender.js"
+import { validarFinsDeSemanaFolha, montarTextoBalaoFolha } from "../domain/fimDeSemanaFolha.js"
 import {
   bifurcacaoRmHabilitada,
   bifurcarConvocacoesDoItem,
@@ -134,6 +136,8 @@ interface LinhaConvocacao {
   atestados: unknown
   split: unknown
   sabados_extras: string[] | null
+  /** Fim de semana só pra folha (migration 030). Ausente antes da migration — tratar como vazio. */
+  fins_de_semana_folha?: string[] | null
   concluido_em: string | null
   editado: boolean | null
   editado_em: string | null
@@ -249,12 +253,39 @@ export async function lerConvocacaoPg(uuid: string): Promise<Record<string, unkn
     dias_desativados: arr(c.dias_desativados),
     trabalha_sabado: c.trabalha_sabado === true ? "SIM" : "NAO",
     sabados_extras: sabExtras,
+    fins_de_semana_folha: c.fins_de_semana_folha ?? [],
     atestados: arr(c.atestados),
     pontos_facultativos: [],
     data_inicio_cancelamento: soData(c.data_inicio_cancelamento),
     status_cancelamento: c.status_cancelamento ?? null,
     split: c.split ?? null,
   }
+}
+
+/**
+ * O que só o espelho Postgres tem, pra completar a leitura que o link faz pelo Histórico do
+ * Monday (`/api/intermitente/ler`).
+ *
+ * - `fins_de_semana_folha` não tem coluna no Histórico: sem isto, reabrir pelo protocolo perdia
+ *   o fim de semana — o mesmo sintoma que o sábado extra teve até 24/09/2026.
+ * - `sabados_extras` também é gravado no Histórico, mas se aquela escrita falhar (Monday fora
+ *   no finalize) o banco continua certo; ele vale quando o Monday voltou vazio.
+ *
+ * `to_jsonb(c)` em vez de nomear as colunas: antes da migration 030 a coluna nova não existe, e
+ * isto não pode derrubar a leitura do link.
+ */
+export async function complementoDoEspelhoPg(
+  uuid: string,
+): Promise<{ sabados_extras: string[]; fins_de_semana_folha: string[] } | null> {
+  const { rows } = await query<{ j: Record<string, unknown> }>(
+    `SELECT to_jsonb(c) AS j FROM convocacoes c WHERE uuid = $1`,
+    [uuid],
+  )
+  const j = rows[0]?.j
+  if (!j) return null
+  const lista = (v: unknown): string[] =>
+    Array.isArray(v) ? v.map((x) => String(x).slice(0, 10)).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x)) : []
+  return { sabados_extras: lista(j.sabados_extras), fins_de_semana_folha: lista(j.fins_de_semana_folha) }
 }
 
 export async function protocoloPg(protocolo: string): Promise<{ uuid: string; nome: string } | null> {
@@ -458,6 +489,8 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
           dias_extras?: string[]
           dias_desativados?: string[]
           sabados_extras?: string[]
+          /** Fim de semana só pra folha — logo depois do fim; estende a convocação no RM. */
+          fins_de_semana_folha?: string[]
           eh_correcao?: boolean
         }
       }>,
@@ -897,11 +930,77 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
         }
       }
 
-      await ex.fechar(mondayFalhas.length || sabadoFalhou ? "parcial" : "ok", {
+      // ── Fim de semana só pra folha: estende a convocação no RM, sem VR/VT ─────────────
+      //
+      // Pedido do DP (O.S. 13033746674, ponto 7): o fim de semana trabalhado logo depois do
+      // período entra pela folha sem ninguém mexer na data da convocação no board. Nada aqui
+      // toca benefício nem ledger — o dia só existe pro RM, de onde a FOPAG lê.
+      const fds = validarFinsDeSemanaFolha(
+        Array.isArray(b.fins_de_semana_folha) ? b.fins_de_semana_folha : [],
+        { dataFim: df, cancelada: statusCancel.includes("CANCELAD"), jaGravados: c.fins_de_semana_folha ?? [] },
+      )
+      let fdsFalhou = false
+      if (fds.descartados.length) {
+        await ex.etapa("fim_de_semana_folha", "aviso", {
+          mensagem: `Fora do fim de semana logo depois do fim da convocação, descartado: ${fds.descartados.join(", ")}`,
+          metadados: { descartados: fds.descartados, data_fim: df },
+        })
+      }
+      if (fds.validos.length) {
+        try {
+          await query(`UPDATE convocacoes SET fins_de_semana_folha = $2, atualizado_em = now() WHERE uuid = $1`, [
+            uuid, fds.validos,
+          ])
+        } catch (e) {
+          // Coluna nasce na migration 030; sem ela o registro segue, e isto aparece no /atividade.
+          fdsFalhou = true
+          await ex.etapa("fim_de_semana_folha", "erro", {
+            mensagem: `fim de semana não gravado no banco: ${(e as Error).message.slice(0, 160)}`,
+          })
+        }
+        const itemOrigemFds = c.item_origem_id ?? (item ? parseItemOrigem(item).itemId : null)
+        if (!config.convocacaoRmHabilitada) {
+          await ex.etapa("fim_de_semana_folha", "pulado", {
+            mensagem: "convocação no RM desligada (CONVOCACAO_RM_HABILITADA) — o DP estende à mão",
+            metadados: { dias: fds.validos, novo_fim: fds.novoFim },
+          })
+        } else if (!itemOrigemFds) {
+          fdsFalhou = true
+          await ex.etapa("fim_de_semana_folha", "aviso", {
+            mensagem: "sem item de origem — não há como achar a convocação no RM",
+            metadados: { dias: fds.validos },
+          })
+        } else {
+          const rm = await estenderFimConvocacaoDoItem(itemOrigemFds, {
+            dataFimConvocacao: df, novoFim: fds.novoFim!, timeoutMs: TIMEOUT_REMOCAO_MS,
+          }).catch((e): ResultadoExtensaoRm => ({ estado: "erro", erro: (e as Error).message.slice(0, 200) }))
+          const estendido = rm.estado === "editado" || rm.estado === "ja_no_periodo"
+          if (!estendido) fdsFalhou = true
+          await ex.etapa("fim_de_semana_folha", estendido ? "ok" : "aviso", {
+            mensagem: estendido
+              ? undefined
+              : `convocação no RM não estendida (${rm.estado})${rm.detalhe ? `: ${rm.detalhe}` : ""}${rm.erro ? `: ${rm.erro}` : ""}`,
+            metadados: { dias: fds.validos, novo_fim: fds.novoFim, rm },
+          })
+          // Balão só na extensão de verdade: refinalizar devolve `ja_no_periodo` e não repete.
+          if (rm.estado === "editado") {
+            try {
+              await criarUpdate(String(itemOrigemFds), montarTextoBalaoFolha(fds.validos, {
+                codConvocacao: rm.codConvocacao ?? null, de: rm.dataFimAnterior ?? df, ate: rm.dataFimNova ?? fds.novoFim!,
+              }))
+            } catch (e) {
+              await ex.etapa("fim_de_semana_folha_balao", "aviso", { mensagem: (e as Error).message.slice(0, 160) })
+            }
+          }
+        }
+      }
+
+      await ex.fechar(mondayFalhas.length || sabadoFalhou || fdsFalhou ? "parcial" : "ok", {
         resumo: {
           protocolo, chapa: c.chapa, eh_correcao: ehCorrecao,
           qtd_faltas: ag.qtd_faltas, qtd_atrasos: ag.qtd_atrasos,
           desconto_vr: desc.descontoVR, desconto_vt: desc.descontoVT,
+          fins_de_semana_folha: fds.validos.length || undefined,
           sabados_extras: sabados.length || undefined,
           monday_falhas: mondayFalhas.length ? mondayFalhas : undefined,
         },

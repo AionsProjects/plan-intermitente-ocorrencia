@@ -24,6 +24,8 @@ export type ProcessamentoDados = {
   diasDesativados?: string[]
   trabalhaSabado: boolean
   sabadosExtras?: string[]
+  /** Fim de semana só pra folha (sem VR/VT), logo depois do fim — estende a convocação no RM. */
+  finsDeSemanaFolha?: string[]
   atestados?: Atestado[]
   pontosFacultativos?: PontoFacultativo[]
   // Cancelamento parcial: dias >= dataInicioCancelamento ficam "queimados"
@@ -91,6 +93,7 @@ export type PayloadFinalizar = {
   diasExtras?: string[]
   diasDesativados?: string[]
   sabadosExtras?: string[]
+  finsDeSemanaFolha?: string[]
   ehCorrecao?: boolean
   /** Quando setado, backend cria 2 subitems no item ENTRADA (Parte 1 / Parte 2)
    *  com contratos distintos. Sem split = comportamento atual (1 item). */

@@ -321,6 +321,7 @@ function snapshot(m: MockState): ProcessamentoDados {
     diasDesativados: [...m.diasDesativados],
     trabalhaSabado: m.trabalhaSabado,
     sabadosExtras: [...m.sabadosExtras],
+    finsDeSemanaFolha: [...(m.finsDeSemanaFolha ?? [])],
     atestados: m.atestados.map((a) => ({ ...a })),
     pontosFacultativos: (m.pontosFacultativos ?? []).map((p) => ({ ...p })),
     dataInicioCancelamento: m.dataInicioCancelamento ?? null,
@@ -416,6 +417,7 @@ function payloadFinalizarSnake(
     dias_extras: payload.diasExtras ?? [],
     dias_desativados: payload.diasDesativados ?? [],
     sabados_extras: payload.sabadosExtras ?? [],
+    fins_de_semana_folha: payload.finsDeSemanaFolha ?? [],
     eh_correcao: payload.ehCorrecao ?? false,
     split: payload.split
       ? {
@@ -482,6 +484,7 @@ export async function buscarProcessamento(
       raw.trabalha_sabado === "SIM" ||
       raw.trabalha_sabado === "sim",
     sabadosExtras: raw.sabados_extras ?? [],
+    finsDeSemanaFolha: Array.isArray(raw.fins_de_semana_folha) ? raw.fins_de_semana_folha : [],
     atestados: Array.isArray(raw.atestados)
       ? raw.atestados.map(mapAtestado)
       : [],
@@ -540,6 +543,7 @@ export async function finalizarProcessamento(
       mock.diasExtras = payload.diasExtras ?? []
       mock.diasDesativados = payload.diasDesativados ?? []
       mock.sabadosExtras = payload.sabadosExtras ?? []
+      mock.finsDeSemanaFolha = payload.finsDeSemanaFolha ?? []
       if (ehReedicao || payload.ehCorrecao) {
         mock.editado = true
         mock.editadoEm = new Date().toISOString()

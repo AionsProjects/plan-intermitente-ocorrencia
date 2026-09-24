@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
 import { acharItensPorColuna, changeColumnValues, lerItem, type ItemMonday } from "../monday.js"
 import { usuarioDaSessao } from "../session.js"
-import { lerConvocacaoPg, protocoloPg, convocacoesEmpregadoPg } from "./espelhoIntermitente.js"
+import { lerConvocacaoPg, protocoloPg, convocacoesEmpregadoPg, complementoDoEspelhoPg } from "./espelhoIntermitente.js"
 
 // Leituras do board Histórico (Monday ao vivo) — substituem WFs n8n. Público
 // (correção/preencher/atestados usam). Histórico é FIXO (não duplica na virada).
@@ -169,7 +169,15 @@ export async function rotasIntermitente(app: FastifyInstance): Promise<void> {
         )
         const it = itens[0]
         if (!it) return reply.code(404).send({ erro: "nao_encontrado" })
-        return montarLeitura(it)
+        const leitura = montarLeitura(it)
+        // O Histórico não tem o fim de semana da folha, e o sábado pode ter ficado fora dele se a
+        // escrita do finalize falhou: o espelho completa. Espelho fora não derruba a leitura.
+        const pg = await complementoDoEspelhoPg(uuid).catch(() => null)
+        return {
+          ...leitura,
+          sabados_extras: leitura.sabados_extras.length ? leitura.sabados_extras : (pg?.sabados_extras ?? []),
+          fins_de_semana_folha: pg?.fins_de_semana_folha ?? [],
+        }
       } catch (e) {
         // Monday caiu → rota de fuga: serve do espelho Postgres (pi.convocacoes).
         req.log.error(e, "erro intermitente-ler (tentando espelho PG)")
