@@ -4,7 +4,7 @@
 // na Caju — não no encanamento.
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { montarPedidoSabados, normalizarSabados, ehErroSabados } from "./calculo.js"
+import { montarPedidoSabados, normalizarSabados, ehErroSabados, sabadosDentroDaConvocacao } from "./calculo.js"
 import { montarHistoricoSabados, montarLancamentoSabados, chaveEfeitoSabados } from "./rmSabados.js"
 import type { LinhaValores } from "../domain/desconto.js"
 
@@ -119,4 +119,40 @@ test("chave de efeito: muda se o conjunto de sabados muda, estavel se nao", () =
   assert.notEqual(chaveEfeitoSabados(a, "caju"), chaveEfeitoSabados(c, "caju"))
   // Alvos diferentes nao colidem entre si.
   assert.notEqual(chaveEfeitoSabados(a, "caju"), chaveEfeitoSabados(a, "rm_historico"))
+})
+
+// Convocacao da ELIANA (SEMSA): 01/09 a 30/09, cancelada parcialmente a partir de 23/09 — o RM
+// ficou com fim em 22/09. Sabados do mes: 05, 12, 19 e 26.
+const SETEMBRO = { inicio: "2026-09-01", fim: "2026-09-30" }
+
+test("sabado depois do corte do parcial fica de fora: o RM nao tem convocacao nele", () => {
+  const r = sabadosDentroDaConvocacao(["2026-09-19", "2026-09-26"], { ...SETEMBRO, corte: "2026-09-23" })
+  assert.deepEqual(r.validos, ["2026-09-19"])
+  assert.deepEqual(r.descartados, ["2026-09-26"])
+})
+
+test("o proprio dia do corte ja e cancelado; a vespera ainda vale", () => {
+  const r = sabadosDentroDaConvocacao(["2026-09-19", "2026-09-26"], { ...SETEMBRO, corte: "2026-09-19" })
+  assert.deepEqual(r.validos, [])
+  assert.deepEqual(r.descartados, ["2026-09-19", "2026-09-26"])
+  const vespera = sabadosDentroDaConvocacao(["2026-09-19"], { ...SETEMBRO, corte: "2026-09-20" })
+  assert.deepEqual(vespera.validos, ["2026-09-19"])
+})
+
+test("sem corte vale o periodo inteiro, bordas inclusive; fora dele e descartado", () => {
+  const r = sabadosDentroDaConvocacao(
+    ["2026-09-05", "2026-08-29", "2026-10-03", "2026-09-26"],
+    { inicio: "2026-09-05", fim: "2026-09-26", corte: null },
+  )
+  assert.deepEqual(r.validos, ["2026-09-05", "2026-09-26"])
+  assert.deepEqual(r.descartados, ["2026-08-29", "2026-10-03"])
+})
+
+test("lista do corpo: duplicata some, data com hora e cortada, lixo vai pro log", () => {
+  const r = sabadosDentroDaConvocacao(
+    ["2026-09-12", "2026-09-12T00:00:00", "2026-09-05", "sabado", 7],
+    { ...SETEMBRO, corte: null },
+  )
+  assert.deepEqual(r.validos, ["2026-09-05", "2026-09-12"])
+  assert.deepEqual(r.descartados, ["7", "sabado"])
 })

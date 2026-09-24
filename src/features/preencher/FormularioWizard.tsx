@@ -434,12 +434,18 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
         const iso = cursor.toISOString().slice(0, 10)
         // Sábado que cai em feriado nacional não é "extra" candidato —
         // backend já não conta como dia trabalhável.
-        if (!existentes.has(iso) && !isFeriado(iso, dados.contrato)) out.push(iso)
+        // A partir do corte do cancelamento parcial (pendente ou registrado) também não:
+        // o RM teve o fim da convocação editado pra véspera, e o sábado ficaria sem
+        // convocação por trás. O backend descarta do mesmo jeito.
+        const depoisDoCorte =
+          !!cancelamentoParcialEfetivo && iso >= cancelamentoParcialEfetivo
+        if (!existentes.has(iso) && !isFeriado(iso, dados.contrato) && !depoisDoCorte)
+          out.push(iso)
       }
       cursor.setUTCDate(cursor.getUTCDate() + 1)
     }
     return out
-  }, [diasInfo, dados.dataInicio, dados.dataFim])
+  }, [diasInfo, dados.dataInicio, dados.dataFim, dados.contrato, cancelamentoParcialEfetivo])
 
   const adicionarSabadosExtras = useCallback((datas: string[]) => {
     if (datas.length === 0) return
@@ -549,12 +555,18 @@ export function FormularioWizard({ dados, ehCorrecao, ehTeste, onFinalizado }: P
     // quando a coluna Protocolo do monday está vazia.
     const protocolo = dados.protocolo || gerarProtocolo()
     const datasOriginais = new Set(dados.dias)
-    const sabadosExtras = diasInfo
-      .filter((d) => d.tipo === "extra" && d.ativo)
+    const extrasAtivos = diasInfo.filter((d) => d.tipo === "extra" && d.ativo)
+    // Sábado extra adicionado ANTES de marcar o corte e que caiu depois dele não vai:
+    // sem convocação no RM por trás. Continua fora de `todasExtras` também — não pode
+    // voltar disfarçado de dia extra comum.
+    const sabadosExtras = extrasAtivos
+      .filter(
+        (d) => !(cancelamentoParcialEfetivo && d.data >= cancelamentoParcialEfetivo),
+      )
       .map((d) => d.data)
-    const sabadosExtrasSet = new Set(sabadosExtras)
+    const extrasAtivosSet = new Set(extrasAtivos.map((d) => d.data))
     const todasExtras = diasInfo
-      .filter((d) => !datasOriginais.has(d.data) && !sabadosExtrasSet.has(d.data))
+      .filter((d) => !datasOriginais.has(d.data) && !extrasAtivosSet.has(d.data))
       .map((d) => d.data)
     const cobertoPorAtestado = (data: string) =>
       atestados.some((a) => atestadoCobreDia(a, data))

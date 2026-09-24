@@ -67,6 +67,33 @@ export function normalizarSabados(v: unknown): string[] {
 }
 
 /**
+ * Separa os sábados que cabem na convocação do RM dos que não cabem.
+ *
+ * A convocação no RM é só período (`DTINIPRESTSERV`→`DTFIMPRESTSERV`), e o cancelamento
+ * parcial corta o fim para a véspera do `corte`. Sábado fora da janela `[inicio, fim]` ou a
+ * partir do corte não tem convocação por trás: pagar VT por ele, ou lançar no board, seria
+ * dia sem vínculo. Chega assim quando o link foi aberto antes do corte ou é um cliente velho.
+ *
+ * `corte` só se aplica ao cancelamento PARCIAL — quem chama resolve isso; nulo = sem corte.
+ * Data que não é `AAAA-MM-DD` também vai para `descartados`, pra aparecer no log em vez de sumir.
+ */
+export function sabadosDentroDaConvocacao(
+  sabados: readonly unknown[],
+  janela: { inicio: string; fim: string; corte?: string | null },
+): { validos: string[]; descartados: string[] } {
+  const inicio = String(janela.inicio).slice(0, 10)
+  const fim = String(janela.fim).slice(0, 10)
+  const corte = janela.corte ? String(janela.corte).slice(0, 10) : null
+  const validos: string[] = []
+  const descartados: string[] = []
+  for (const d of [...new Set(sabados.map((s) => String(s).slice(0, 10)))].sort()) {
+    const dentro = ISO.test(d) && d >= inicio && d <= fim && (!corte || d < corte)
+    ;(dentro ? validos : descartados).push(d)
+  }
+  return { validos, descartados }
+}
+
+/**
  * Valida e calcula o pedido de sábado extra.
  *
  * `optanteVT` falso é RECUSA, não zero: pagar boleto de R$ 0 criaria pedido vazio na Caju e

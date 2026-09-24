@@ -49,7 +49,7 @@ import {
 } from "../services/convocacaoBifurcar.js"
 import { ecoCodigosDoItem } from "../services/convocacaoPontual.js"
 import { enfileirar } from "../jobs/repo.js"
-import { montarPedidoSabados, ehErroSabados } from "../sabados/calculo.js"
+import { montarPedidoSabados, ehErroSabados, sabadosDentroDaConvocacao } from "../sabados/calculo.js"
 import { TIPO_JOB_SABADO_EXTRA } from "../jobs/sabadoExtra.js"
 import { TIPO_JOB_CONVOCACAO_RM_REMOVER } from "../jobs/convocacaoRmRemover.js"
 import { TIPO_JOB_CONVOCACAO_RM_SUBSTITUIR } from "../jobs/convocacaoRmSubstituir.js"
@@ -543,9 +543,22 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
       //
       // A lista do corpo é AUTORITATIVA (o front manda todos os tiles extras ativos, e o já
       // pago ele não deixa remover); corpo sem a chave = cliente velho, mantém o que está lá.
-      const sabadosExtras = Array.isArray(b.sabados_extras)
-        ? [...new Set(b.sabados_extras.map((d) => String(d).slice(0, 10)))].sort()
-        : (c.sabados_extras ?? [])
+      //
+      // E só vale o sábado que cabe na convocação do RM: dentro do período e antes do corte do
+      // cancelamento parcial (o RM teve o fim editado para a véspera dele). O link aberto antes
+      // do corte ainda oferecia e mandava sábado depois dele — sem convocação por trás, ele não
+      // entra no ledger, no board nem no job do VT.
+      const corteParcial = statusCancel.includes("PARCIAL") ? soData(c.data_inicio_cancelamento) : null
+      const sabadosCabem = sabadosDentroDaConvocacao(
+        Array.isArray(b.sabados_extras) ? b.sabados_extras : (c.sabados_extras ?? []),
+        { inicio: di, fim: df, corte: corteParcial },
+      )
+      const sabadosExtras = sabadosCabem.validos
+      if (sabadosCabem.descartados.length)
+        await ex.etapa("sabados_extras", "aviso", {
+          mensagem: `Sábado fora da convocação descartado: ${sabadosCabem.descartados.join(", ")}`,
+          metadados: { descartados: sabadosCabem.descartados, corte: corteParcial, periodo: [di, df] },
+        })
       const ledger = derivarDescontosPorDia({
         dataInicio: di, dataFim: df, trabalhaSabado: c.trabalha_sabado === true,
         sabadosExtras, diasExtras: b.dias_extras ?? [],
