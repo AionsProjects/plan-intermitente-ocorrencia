@@ -7,8 +7,13 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { randomUUID } from "node:crypto"
-import { construirApp } from "../app.js"
-import { query } from "../db.js"
+
+// Este arquivo bate no banco de verdade, e o finalize drena o job do sábado na hora. Com a flag
+// no padrão (ligada desde 24/09/2026) o job chamaria a Caju — crédito real pra CPF de teste.
+// Simulado aqui, sempre; e antes do import, porque `config` lê o env uma vez só.
+process.env.SABADO_EXTRA_HABILITADO = "0"
+const { construirApp } = await import("../app.js")
+const { query } = await import("../db.js")
 
 let app: Awaited<ReturnType<typeof construirApp>>
 
