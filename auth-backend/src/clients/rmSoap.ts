@@ -224,12 +224,34 @@ export async function existeRegistroRm(
 ): Promise<string | null> {
   try {
     const xml = desescaparXml(await readRecordDireto(dataServerName, chave, contexto))
-    // Resposta vazia/curta = sem registro. O 40 vem do script rm-delete, que é o uso que já
-    // apagou registro real em produção.
-    return /<\w+>[\s\S]*<\/\w+>/.test(xml) && xml.trim().length > 40 ? xml : null
+    return registroPresente(xml) ? xml : null
   } catch {
     return null
   }
+}
+
+/** Resposta vazia/curta = sem registro. O 40 vem do script rm-delete, que é o uso que já
+ *  apagou registro real em produção. */
+function registroPresente(xml: string): boolean {
+  return /<\w+>[\s\S]*<\/\w+>/.test(xml) && xml.trim().length > 40
+}
+
+/**
+ * O registro existe no RM? Igual a `existeRegistroRm`, mas SEM engolir falha: `true`/`false` só
+ * quando o RM respondeu; indisponibilidade LANÇA.
+ *
+ * Existe porque o `null` do `existeRegistroRm` junta "não existe" com "o RM não respondeu", e
+ * quem decide pelo "não existe" fechar rastro ou desistir de editar não pode confundir os dois:
+ * com o RM fora, o registro continua lá, e o rastro fechado passaria a mentir. Medido em
+ * 25/09/2026 no FopConvocacaoData: chave inexistente volta `<FopConvocacao  />`, HTTP 200, sem
+ * Fault — ausência é resposta vazia, e exceção aqui é indisponibilidade.
+ */
+export async function registroRmExiste(
+  dataServerName: string,
+  chave: string,
+  contexto: string,
+): Promise<boolean> {
+  return registroPresente(desescaparXml(await readRecordDireto(dataServerName, chave, contexto)))
 }
 
 export async function deleteRecordByKeyDireto(

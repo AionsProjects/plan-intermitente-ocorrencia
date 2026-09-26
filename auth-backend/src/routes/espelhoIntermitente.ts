@@ -979,7 +979,9 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
           await ex.etapa("fim_de_semana_folha", estendido ? "ok" : "aviso", {
             mensagem: estendido
               ? undefined
-              : `convocação no RM não estendida (${rm.estado})${rm.detalhe ? `: ${rm.detalhe}` : ""}${rm.erro ? `: ${rm.erro}` : ""}`,
+              : rm.estado === "ja_ausente"
+                ? `convocação ${rm.codConvocacao ?? ""} não existe mais no RM — não há o que estender; o DP precisa lançar a convocação`
+                : `convocação no RM não estendida (${rm.estado})${rm.detalhe ? `: ${rm.detalhe}` : ""}${rm.erro ? `: ${rm.erro}` : ""}`,
             metadados: { dias: fds.validos, novo_fim: fds.novoFim, rm },
           })
           // Balão só na extensão de verdade: refinalizar devolve `ja_no_periodo` e não repete.
@@ -1344,7 +1346,17 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
           existenteBoard,
         ), { metadados: { acao: existenteBoard ? "update" : "create" } })
       } else {
-        await ex.etapa("desconto_board", "pulado", { mensagem: "nada a descontar no período cancelado" })
+        // Dia já descontado no ledger não desconta de novo (dedupe por percentual). Pelo link isso
+        // é o normal: o front finaliza ANTES de cancelar e manda os dias cortados como
+        // desconsiderados, então o registro já lançou o desconto deles na Base, com o mesmo valor.
+        // Dizer só "nada a descontar" fazia parecer que o cancelamento não preencheu a Base.
+        const jaDescontados = new Set(calc.diasIgnoradosDuplicidade.map((x) => x.data)).size
+        await ex.etapa("desconto_board", "pulado", {
+          mensagem: jaDescontados
+            ? `dias cancelados já descontados pelo registro (${jaDescontados} dia(s)) — nada novo a lançar na Base de Desconto`
+            : "nada a descontar no período cancelado",
+          ...(jaDescontados ? { metadados: { dias_ja_descontados: jaDescontados } } : {}),
+        })
       }
 
       // ── RM: apagar a convocação (S-2260) ──
@@ -1358,6 +1370,9 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
       // faria o operador tentar de novo e bater no 409 da própria antifraude.
       let rmRemocao: Awaited<ReturnType<typeof removerConvocacoesDoItem>> | null = null
       let rmEncurta: Awaited<ReturnType<typeof encurtarConvocacoesDoItem>> | null = null
+      // Pedaço que devia ser ENCURTADO e não existe mais no RM: os dias antes do corte ficam sem
+      // convocação na folha. Não é pendência do cancelamento (não há o que refazer), é aviso ao DP.
+      let rmAusentes: string[] = []
 
       // PARCIAL: a convocação continua existindo, com o fim em `dataCancel - 1`. Editar (e não
       // apagar+recriar) preserva o C03S###### e o ato — recriar emitiria um segundo S-2260.
@@ -1371,21 +1386,38 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
           req.log.warn(e, "cancelar parcial: encurtar no RM falhou")
           return { edicoes: [], remocoes: [], temPendencia: true }
         })
+        rmAusentes = rmEncurta.edicoes
+          .filter((e) => e.estado === "ja_ausente")
+          .map((e) => e.codConvocacao ?? e.pk ?? "?")
+        const detalheRm = [...rmEncurta.edicoes, ...rmEncurta.remocoes]
+          .filter((r) => r.erro)
+          .map((r) => `${r.pk ?? r.lancamentoId}: ${r.erro}`)
         // 'aviso' e não 'erro' quando há pendência: o job vai reconciliar, então não é
         // falha — mas também não é 'ok', e o operador precisa ver a diferença.
-        await ex.etapa("encurtar_rm", rmEncurta.temPendencia ? "aviso" : "ok", {
+        await ex.etapa("encurtar_rm", rmEncurta.temPendencia || rmAusentes.length ? "aviso" : "ok", {
+          ...(rmAusentes.length
+            ? {
+                mensagem:
+                  `convocação ${rmAusentes.join(", ")} não existe mais no RM — nada a encurtar. ` +
+                  "Sem ela a folha não vê os dias trabalhados antes do corte: o DP precisa lançar a convocação.",
+              }
+            : {}),
           metadados: {
             novo_fim: novoFim,
             editados: rmEncurta.edicoes.filter((e) => e.estado === "editado").length,
+            removidos: rmEncurta.remocoes.filter((r) => r.estado === "removido").length,
+            ausentes: rmAusentes,
             pendencia: rmEncurta.temPendencia,
+            ...(detalheRm.length ? { detalhe: detalheRm } : {}),
           },
         })
         if (rmEncurta.temPendencia) {
-          // Mesma fila da remoção: o job relê o rastro e conclui o que ficou. Aqui ele resolve
-          // os pedaços que viraram remoção; a edição pendente fica visível na resposta.
+          // Mesma fila da remoção, mas o job refaz o ENCURTAMENTO até `novo_fim` (edita o que
+          // atravessa o corte, remove o que começa depois) — nunca a convocação inteira.
           const jobId = await enfileirar(TIPO_JOB_CONVOCACAO_RM_REMOVER, {
             item_id: String(origem.itemId),
             motivo: "cancelamento_parcial",
+            novo_fim: novoFim,
             removido_por: String((b as { operador?: { email?: string } })?.operador?.email ?? "cancelamento"),
           }).catch((e) => {
             req.log.warn(e, "cancelar parcial: enfileirar RM falhou")
@@ -1487,6 +1519,7 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
           desconto_vr: calc.descontoVR,
           desconto_vt: calc.descontoVT,
           rm_pendencia: rmPendente,
+          ...(rmAusentes.length ? { rm_ausentes: rmAusentes } : {}),
         },
       })
 
@@ -1507,6 +1540,7 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
             ? {
                 editados: rmEncurta.edicoes.filter((e) => e.estado === "editado").length,
                 removidos: rmEncurta.remocoes.filter((r) => r.estado === "removido").length,
+                ausentes: rmAusentes,
                 pendencia: rmEncurta.temPendencia,
                 detalhe: [...rmEncurta.edicoes, ...rmEncurta.remocoes]
                   .filter((r) => r.erro)

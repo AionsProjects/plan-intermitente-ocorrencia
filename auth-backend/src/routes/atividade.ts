@@ -4,6 +4,7 @@ import { query, type Papel } from "../db.js"
 import { usuarioDaSessao } from "../session.js"
 import { abrirExecucao, type EstadoEtapa, type EstadoFinal, type MotorExecucao, type TipoArtefato } from "../services/execucao.js"
 import { nomeLimpo } from "../domain/mensagemAlteracao.js"
+import { ehDonoDaExecucao } from "../domain/donoExecucao.js"
 import { gerarRelatorioPdf } from "../services/relatorioAtividade.js"
 
 // Histórico de execuções (Postgres). Uma linha por ação em audit_lancamentos
@@ -130,17 +131,18 @@ export async function rotasAtividade(app: FastifyInstance): Promise<void> {
         : null
       let idAceito: string | null = null
       if (idPedido) {
-        const { rows } = await query<{ user_id: string | null }>(
-          `SELECT user_id FROM audit_lancamentos WHERE id = $1::uuid`, [idPedido],
+        const { rows } = await query<{ user_id: string | null; operador_email: string | null }>(
+          `SELECT user_id, operador_email FROM audit_lancamentos WHERE id = $1::uuid`, [idPedido],
         )
         if (rows.length === 0) {
           idAceito = idPedido
-        } else if (rows[0]!.user_id === u.id) {
+        } else if (ehDonoDaExecucao(rows[0]!, u)) {
           // A linha JÁ existe e é desta pessoa: é a abertura chegando atrasada, depois de a
           // rota do processo ter criado a linha com o mesmo id. Não há o que abrir — e
           // reabrir custaria caro, porque o ON CONFLICT de `abrirExecucao` sobrescreve o
           // `motor` (relabelaria um run de `backend` como `app`) e mescla resumo pobre em
-          // cima do rico. Devolve o id e sai.
+          // cima do rico. Devolve o id e sai. Vale também para a linha da rota PÚBLICA,
+          // sem `user_id` — ver domain/donoExecucao.ts.
           return { ok: true, id: idPedido, jaExistia: true }
         }
         // Linha de outra pessoa: ignora o id e deixa o servidor cunhar o dele.
@@ -182,11 +184,11 @@ export async function rotasAtividade(app: FastifyInstance): Promise<void> {
       if (!estado || !ESTADOS_FINAIS.has(estado)) return reply.code(400).send({ erro: "estado_invalido" })
       // Só quem abriu (ou DP/admin) fecha — senão um operador fecharia a execução de
       // outro como 'ok' e escondería a falha.
-      const { rows } = await query<{ user_id: string | null; estado: string }>(
-        `SELECT user_id, estado FROM audit_lancamentos WHERE id = $1`, [req.params.id],
+      const { rows } = await query<{ user_id: string | null; operador_email: string | null; estado: string }>(
+        `SELECT user_id, operador_email, estado FROM audit_lancamentos WHERE id = $1`, [req.params.id],
       )
       if (!rows[0]) return reply.code(404).send({ erro: "execucao_nao_encontrada" })
-      if (rows[0].user_id !== u.id && !podeVerTodos(u.papel)) {
+      if (!ehDonoDaExecucao(rows[0], u) && !podeVerTodos(u.papel)) {
         return reply.code(403).send({ erro: "sem_permissao" })
       }
       // QUEM EXECUTOU TEM A ÚLTIMA PALAVRA. O front usa `comAtividade`, que fecha 'ok' ao

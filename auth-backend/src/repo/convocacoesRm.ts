@@ -339,6 +339,34 @@ export async function atualizarPeriodoLancamentoRm(
   return rows[0] ?? null
 }
 
+/**
+ * Fecha o rastro de um lançamento que o RM NÃO TEM mais — conferido por ReadRecord.
+ *
+ * Diferente de `marcarParaRemocaoRm` + `confirmarRemocaoRm` (o caminho do DeleteRecordByKey): não
+ * houve remoção nossa agora, o registro já tinha saído. Por isso preserva motivo, quem e quando,
+ * se o rastro já souber — a limpeza do run mensal b4a1f614 (31/08/2026) apagou 53 convocações no
+ * RM, carimbou `removido_em`/`removido_por` e deixou `estado='no_rm'` em 51 delas. Sobrescrever
+ * apagaria a única pista de quem tirou o registro de lá.
+ */
+export async function fecharRastroAusenteRm(
+  id: string,
+  p: { motivo: MotivoSaidaRm; removidoPor?: string | null },
+): Promise<LancamentoRm | null> {
+  const { rows } = await query<LancamentoRm>(
+    `UPDATE convocacoes_rm
+        SET estado='removido',
+            motivo_saida = coalesce(motivo_saida, $2),
+            removido_por = coalesce(removido_por, $3),
+            removido_em = coalesce(removido_em, now()),
+            payload = coalesce(payload,'{}'::jsonb)
+                      || jsonb_build_object('ausente_no_rm', true, 'ausencia_conferida_em', now()),
+            atualizado_em = now()
+      WHERE id=$1 AND estado IN ('no_rm','a_remover') RETURNING *`,
+    [id, p.motivo, p.removidoPor ?? null],
+  )
+  return rows[0] ?? null
+}
+
 /** Pós-DeleteRecordByKey CONFIRMADO por releitura (o rm-delete.ts faz isso; fazer igual aqui). */
 export async function confirmarRemocaoRm(id: string, payload?: unknown): Promise<void> {
   await query(

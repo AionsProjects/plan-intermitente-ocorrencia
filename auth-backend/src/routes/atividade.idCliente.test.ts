@@ -89,6 +89,30 @@ test("abertura ATRASADA no id que a rota ja usou nao cria segunda linha", async 
   assert.equal(rows[0]!.uuid_alvo, "12895813874")
 })
 
+// A MESMA fantasma pela rota PÚBLICA (cancelamento da KAREN, 25/09/2026). `/preencher` não exige
+// sessão, então a rota abre a linha com o operador do corpo e user_id NULL. A abertura atrasada
+// era tratada como "linha de outra pessoa": o servidor cunhava outro id e a linha nova ficava
+// 'aberta' pra sempre.
+test("abertura ATRASADA sobre linha da rota publica (sem user_id) nao cria segunda linha", async () => {
+  const id = randomUUID()
+  const alvo = `idcliente-publica-${id}`
+  const ex = await abrirExecucao({
+    id, acao: "cancelamento", motor: "backend",
+    operador: { userId: null, email: MARCA_A, nome: "TESTE ID" }, alvo,
+    pessoa: "PESSOA DO LINK PUBLICO",
+  })
+  await ex.fechar("parcial")
+  const r = await abrir({ id, acao: "cancelamento", alvo, pessoa: "PESSOA DO LINK PUBLICO" })
+  assert.equal(r.statusCode, 200)
+  assert.equal(r.json().id, id)
+  assert.equal(r.json().jaExistia, true)
+  const { rows } = await query<{ n: number }>(
+    "SELECT count(*)::int n FROM audit_lancamentos WHERE uuid_alvo = $1", [alvo],
+  )
+  assert.equal(rows[0]!.n, 1, "voltou a nascer a linha fantasma")
+  await query("DELETE FROM audit_lancamentos WHERE uuid_alvo = $1", [alvo])
+})
+
 test("id de OUTRA pessoa e recusado, e a linha dela fica intacta", async () => {
   const id = randomUUID()
   const ex = await abrirExecucao({
