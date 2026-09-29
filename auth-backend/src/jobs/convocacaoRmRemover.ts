@@ -16,6 +16,7 @@ import { config } from "../config.js"
 import { query } from "../db.js"
 import { somarDias } from "../domain/convocacaoRm.js"
 import { lancamentosDoItem } from "../repo/convocacoesRm.js"
+import { idsEquivalentes } from "../services/itemPlanoVigente.js"
 import {
   encurtarConvocacoesDoItem,
   removerLancamentoRm,
@@ -50,12 +51,14 @@ export interface DepsRemocaoRm {
 }
 
 async function cancelamentoDoItemPg(itemId: string): Promise<CancelamentoDoItem | null> {
+  // O job leva o item do Histórico, e o espelho PG pode estar na cópia da virada: busca nos dois.
+  const ids = await idsEquivalentes(itemId).catch(() => [itemId])
   const { rows } = await query<CancelamentoDoItem>(
     `SELECT to_char(data_inicio_cancelamento, 'YYYY-MM-DD') AS corte, status_cancelamento AS status
-       FROM convocacoes WHERE item_origem_id = $1::bigint
+       FROM convocacoes WHERE item_origem_id::text = ANY($1::text[])
       ORDER BY (data_inicio_cancelamento IS NOT NULL) DESC, atualizado_em DESC NULLS LAST
       LIMIT 1`,
-    [itemId],
+    [ids],
   )
   return rows[0] ?? null
 }

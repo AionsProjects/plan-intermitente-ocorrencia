@@ -4,6 +4,7 @@ import { config } from "../config.js"
 import { query } from "../db.js"
 import { changeColumnValues, createItem, lerItem } from "../monday.js"
 import { usuarioDaSessao } from "../session.js"
+import { idsEquivalentes } from "../services/itemPlanoVigente.js"
 
 // WF1 (ativar→link) replicado no código. Webhook do Monday na coluna "ativar" do board
 // Entrada (qualquer mês) chama aqui. Cria item no Histórico (FIXO) + patcha Link na Entrada.
@@ -83,9 +84,11 @@ export async function ativarConvocacaoEntrada(boardId: string, itemId: string) {
   if (!origem) {
     return { status: 404 as const, body: { erro: "item_origem_nao_encontrado" } }
   }
+  // A convocação pode estar gravada no item de antes da virada, e o clique vir da cópia (ou o
+  // contrário): sem isto, ativar a cópia criaria uma SEGUNDA convocação para a mesma pessoa.
   const existente = await query<{ uuid: string; protocolo: string | null; monday_item_id: string | null }>(
-    `SELECT uuid, protocolo, monday_item_id FROM convocacoes WHERE item_origem_id=$1 LIMIT 1`,
-    [itemId],
+    `SELECT uuid, protocolo, monday_item_id FROM convocacoes WHERE item_origem_id::text = ANY($1::text[]) LIMIT 1`,
+    [await idsEquivalentes(itemId).catch(() => [String(itemId)])],
   )
   if (existente.rows[0]) {
     const row = existente.rows[0]
@@ -215,8 +218,8 @@ export async function rotasGatilhos(app: FastifyInstance): Promise<void> {
       const itemId = String(ev.pulseId)
       try {
         const existente = await query<{ uuid: string; protocolo: string | null; monday_item_id: string | null }>(
-          `SELECT uuid, protocolo, monday_item_id FROM convocacoes WHERE item_origem_id=$1 LIMIT 1`,
-          [itemId],
+          `SELECT uuid, protocolo, monday_item_id FROM convocacoes WHERE item_origem_id::text = ANY($1::text[]) LIMIT 1`,
+          [await idsEquivalentes(itemId).catch(() => [itemId])],
         )
         if (existente.rows[0]) {
           const row = existente.rows[0]

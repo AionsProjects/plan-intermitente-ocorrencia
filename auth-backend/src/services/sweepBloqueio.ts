@@ -15,6 +15,7 @@ import {
   type AlteracaoClassificada, type AuditMatch, type ConfigClassificacao,
 } from "../domain/alteracaoBoard.js"
 import { resolverVarios, fontesReais } from "./resolverItemPlano.js"
+import { equivalentesVirada } from "./itemPlanoVigente.js"
 import {
   bloqueiosAbertos, boardsDoBloqueio, gravarAlteracoes, avancarCursor, colunasCriticas,
   boardsDaCompetencia, vigiarBoards,
@@ -87,15 +88,21 @@ async function indiceAudit(de: Date, ate: Date) {
     [new Date(de.getTime() - 10 * 60_000), ate],
   )
   const itens = await resolverVarios(rows.map((r) => r.uuid_alvo), fontesReais)
+  // Depois da virada a ação resolve pro item arquivado (link do Histórico), mas o app escreve na
+  // CÓPIA (services/itemPlanoVigente.ts). Indexar só um dos dois faria a escrita do app parecer
+  // alteração sem autor na janela de fechamento.
+  const equivalentes = await equivalentesVirada([...itens.values()].map((a) => String(a.itemId)))
+    .catch(() => new Map<string, string[]>())
   const porItem = new Map<number, Array<{ t: number; m: AuditMatch }>>()
   for (const r of rows) {
     const alvo = itens.get(r.uuid_alvo)
     if (!alvo) continue
-    if (!porItem.has(alvo.itemId)) porItem.set(alvo.itemId, [])
-    porItem.get(alvo.itemId)!.push({
-      t: new Date(r.criado_em).getTime(),
-      m: { operadorNome: r.operador_nome, operadorEmail: r.operador_email, auditId: r.id },
-    })
+    const m = { operadorNome: r.operador_nome, operadorEmail: r.operador_email, auditId: r.id }
+    for (const id of equivalentes.get(String(alvo.itemId)) ?? [String(alvo.itemId)]) {
+      const n = Number(id)
+      if (!porItem.has(n)) porItem.set(n, [])
+      porItem.get(n)!.push({ t: new Date(r.criado_em).getTime(), m })
+    }
   }
   // Janela de casamento medida: audit 19:23:59 x activity_log 19:24:11 = 12,5 s.
   // -1min/+5min cobre a escrita em lote de uma convocação inteira.

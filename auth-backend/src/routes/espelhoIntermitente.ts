@@ -50,6 +50,7 @@ import {
   type ResultadoBifurcacao,
 } from "../services/convocacaoBifurcar.js"
 import { ecoCodigosDoItem } from "../services/convocacaoPontual.js"
+import { idsEquivalentes, itemPlanoVigente } from "../services/itemPlanoVigente.js"
 import { enfileirar, reivindicarJob, falhar } from "../jobs/repo.js"
 import { montarPedidoSabados, ehErroSabados, sabadosDentroDaConvocacao } from "../sabados/calculo.js"
 import { prefixoChaveCajuSabados, sabadosDasChaves } from "../sabados/rmSabados.js"
@@ -398,10 +399,12 @@ async function efeitoSplitNoRm(
   })
 
   // A célula do board mostrava o código que acabou de ser apagado — reescreve com o que vive.
-  const colCodRm = origem.boardId ? await colunaCodigoRm(String(origem.boardId)) : null
-  if (colCodRm && origem.boardId) {
+  // No item VIGENTE: depois da virada o do Histórico está arquivado (o rastro acha os dois).
+  const plano = await itemPlanoVigente(origem)
+  const colCodRm = plano.boardId ? await colunaCodigoRm(String(plano.boardId)) : null
+  if (colCodRm && plano.boardId) {
     await ecoCodigosDoItem(
-      { itemId: String(origem.itemId), boardId: String(origem.boardId), colCodRm },
+      { itemId: String(plano.itemId), boardId: String(plano.boardId), colCodRm },
       { mudarColunas: changeColumnValues },
     ).catch((e) => req.log.warn(e, "split: eco do codigo RM falhou"))
   }
@@ -681,6 +684,9 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
         })
       } else {
         const origem = parseItemOrigem(item)
+        // Escrita no Plano vai pro item VIGENTE: depois da virada o link do Histórico aponta pro
+        // item arquivado (ver services/itemPlanoVigente.ts).
+        const plano = await itemPlanoVigente(origem)
         await ex.artefato({
           tipo: "monday_item",
           chave: item.id,
@@ -764,9 +770,9 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
         // por race condition (é o mesmo fallback que o WF3 faz). Idempotente por prefixo
         // `Parte N` — refinalizar atualiza os dois subitems em vez de criar mais.
         const split = jsonCol<unknown>(item, COL_HIST.split, null)
-        if (origem.itemId && splitValido(split)) {
+        if (plano.itemId && splitValido(split)) {
           try {
-            const pai = await lerItemComSubitems(Number(origem.itemId))
+            const pai = await lerItemComSubitems(Number(plano.itemId))
             const partes = particionarSplit({
               dataInicio: di, dataFim: df, split,
               respostas, diasExtras: b.dias_extras ?? [],
@@ -785,7 +791,7 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
               } else {
                 // `create_subitem` não recebe board — o Monday resolve pelo item pai. Foi o
                 // board chumbado no WF (18413180938, de junho) que virou lixo na virada.
-                await criarSubitem(Number(origem.itemId), nomeSubitem(p), cols)
+                await criarSubitem(Number(plano.itemId), nomeSubitem(p), cols)
               }
             }
             await ex.etapa("subitems_split", "ok", {
@@ -804,20 +810,20 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
 
         // 3) Espelho no item do Plano — faltas, minutos e protocolo (WF3 "Atualizar Plan
         //    Falta/Atraso"). SOBRESCREVE com o total calculado; nunca incrementa.
-        if (origem.itemId && origem.boardId) {
+        if (plano.itemId && plano.boardId) {
           // Sábado extra vai JUNTO: é o board que o operacional e o DP abrem, e o dia trabalhado
           // fora da escala não aparecia em lugar nenhum aqui. A convocação no RM já cobre o dia
           // (FopConvocacao é PERÍODO, `DTINIPRESTSERV`→`DTFIMPRESTSERV`, e o sábado extra é
           // sempre dentro do período), então o que faltava era mesmo a vista.
-          const colSab = await colunasSabadoDoPlano(origem.boardId).catch(() => null)
-          await comEtapa(ex, "monday_plano", () => mudarColunas(Number(origem.boardId), Number(origem.itemId), {
+          const colSab = await colunasSabadoDoPlano(plano.boardId).catch(() => null)
+          await comEtapa(ex, "monday_plano", () => mudarColunas(Number(plano.boardId), Number(plano.itemId), {
             numeric: String(ag.qtd_faltas),
             texto5: String(ag.total_minutos),
             text_mm3zezw: protocolo,
             ...(colSab
               ? { [colSab.qtd]: String(sabadosExtras.length), [colSab.datas]: sabadosExtras.join(", ") }
               : {}),
-          })).catch((e) => {
+          }), plano.arquivado ? { metadados: { item_vigente: plano.itemId, item_arquivado: plano.arquivado } } : undefined).catch((e) => {
             mondayFalhas.push("plano")
             req.log.warn(e, "finalizar: espelho no Plano falhou")
           })
@@ -837,6 +843,14 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
       // Espelho PG primeiro: ele tem o id do item da Entrada sem depender do Histórico do Monday
       // estar lá e do link estar íntegro. O Histórico fica como segunda fonte.
       const itemOrigemSabado = c.item_origem_id ?? (item ? parseItemOrigem(item).itemId : null)
+      // O snapshot do pré-pagamento guarda o item em que a convocação NASCEU; depois da virada o
+      // espelho PG pode estar na cópia. Busca pelos dois lados (ver services/itemPlanoVigente.ts).
+      const itensDoSabado = [
+        ...new Set([
+          ...(await idsEquivalentes(itemOrigemSabado).catch(() => (itemOrigemSabado ? [String(itemOrigemSabado)] : []))),
+          ...(item ? [parseItemOrigem(item).itemId].filter((x): x is string => !!x) : []),
+        ]),
+      ]
       if (sabados.length > 0) {
         // cpf e cod_secao vêm do snapshot do pré-pagamento, criado pelo /convocar. É a única
         // fonte que já tem os dois; `convocacoes` não guarda seção, e sem seção o histórico
@@ -855,9 +869,9 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
                   COALESCE(calculo->'saida'->>'interior', calculo->'entrada'->>'interior') AS interior
              FROM pontual_prepagamento
             WHERE cod_secao IS NOT NULL
-              AND (($1::text IS NOT NULL AND item_origem_id::text = $1) OR uuid_convocacao = $2)
+              AND (item_origem_id::text = ANY($1::text[]) OR uuid_convocacao = $2)
             ORDER BY criado_em DESC LIMIT 1`,
-          [itemOrigemSabado, uuid],
+          [itensDoSabado, uuid],
         )
         const cpf = pre[0]?.cpf ?? ""
         const codSecao = pre[0]?.cod_secao ?? ""
@@ -897,9 +911,11 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
             metadados: { tem_cpf: !!cpf, tem_cod_secao: !!codSecao, sabados: sabados.length },
           })
         } else {
+          // No job o item só serve pro balão — então vai o VIGENTE, não o arquivado da virada.
+          const itemBalaoSabado = (await itemPlanoVigente({ itemId: itemOrigemSabado, boardId: null })).itemId
           const jobId = await enfileirar(TIPO_JOB_SABADO_EXTRA, {
             pedido, cpf, codSecao, dataImport: agoraIso.slice(0, 10),
-            item_origem_id: itemOrigemSabado,
+            item_origem_id: itemBalaoSabado,
           }).catch((e) => { req.log.warn(e, "finalizar: enfileirar sabado extra falhou"); return null })
           // Roda JÁ, com teto de tempo — o tick é diário, e esperar por ele atrasaria o crédito.
           // A fila continua sendo a rede: o que não terminar aqui o tick drena na próxima passada.
@@ -987,7 +1003,8 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
           // Balão só na extensão de verdade: refinalizar devolve `ja_no_periodo` e não repete.
           if (rm.estado === "editado") {
             try {
-              await criarUpdate(String(itemOrigemFds), montarTextoBalaoFolha(fds.validos, {
+              const itemBalao = (await itemPlanoVigente({ itemId: itemOrigemFds, boardId: null })).itemId
+              await criarUpdate(String(itemBalao), montarTextoBalaoFolha(fds.validos, {
                 codConvocacao: rm.codConvocacao ?? null, de: rm.dataFimAnterior ?? df, ate: rm.dataFimNova ?? fds.novoFim!,
               }))
             } catch (e) {
@@ -1192,10 +1209,14 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
       const origem = parseItemOrigem(item)
       if (!origem.itemId)
         return recusar(ex, reply, 400, { erro: "item_origem_ausente" }, "validacao")
+      // Onde ESCREVER no Plano: depois da virada o `Item Origem` do Histórico aponta pro item
+      // arquivado, e a escrita lá falha (ELIANA, 28/09/2026). RM, pré-pagamento e job seguem
+      // em `origem`, que é a chave com que eles foram criados.
+      const plano = await itemPlanoVigente(origem)
 
       // Item origem (Entrada): cpf/função/optante — mais atual que o Histórico. Lido aqui
       // porque a data do corte vigente também mora nele (`date_mm3b88ta`).
-      const origemItem = await lerItem(Number(origem.itemId))
+      const origemItem = await lerItem(Number(plano.itemId))
 
       // Parcial sobre parcial: só ANTECIPAÇÃO (21/09/2026). O caso real: corte em 23/09 já
       // registrado, a pessoa parou em 09/09 e o operador precisa puxar o cancelamento pra trás.
@@ -1306,16 +1327,17 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
       }))
       const updateEntrada: Record<string, unknown> = { [COL_ENTRADA_STATUS]: { label } }
       if (tipo === "parcial") updateEntrada[COL_ENTRADA_DATA_CANCEL] = { date: dataCancel }
-      const boardOrigem = Number(origem.boardId || 0)
+      const boardOrigem = Number(plano.boardId || 0)
       if (boardOrigem) {
         await ex.artefato({
           tipo: "monday_item",
-          chave: String(origem.itemId),
+          chave: String(plano.itemId),
           rotulo: "Item no Plano",
-          url: `https://contato-serv.monday.com/boards/${boardOrigem}/pulses/${origem.itemId}`,
+          url: `https://contato-serv.monday.com/boards/${boardOrigem}/pulses/${plano.itemId}`,
         })
         await comEtapa(ex, "monday_entrada", () =>
-          mudarColunas(boardOrigem, Number(origem.itemId), updateEntrada),
+          mudarColunas(boardOrigem, Number(plano.itemId), updateEntrada),
+          plano.arquivado ? { metadados: { item_vigente: plano.itemId, item_arquivado: plano.arquivado } } : undefined,
         ).catch((e) => req.log.warn(e, "cancelar: update entrada falhou"))
         // Move o item da Entrada pro grupo CANCELADOS / CANCELADOS PARCIAL do board de origem.
         const { rows: grps } = await query<{ titulo: string; group_id: string }>(
@@ -1325,7 +1347,7 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
         const alvo = tipo === "total" ? "CANCELADOS" : "CANCELADOS PARCIAL"
         const grupo = grps.find((g) => normTxt(g.titulo) === alvo)?.group_id
         if (grupo)
-          await moverParaGrupo(Number(origem.itemId), grupo).catch((e) =>
+          await moverParaGrupo(Number(plano.itemId), grupo).catch((e) =>
             req.log.warn(e, "cancelar: mover grupo falhou"),
           )
       }
@@ -1465,7 +1487,7 @@ export async function rotasEspelhoIntermitente(app: FastifyInstance): Promise<vo
         // existe mais. Só limpa se TODOS saíram — com pendência, o que sobrou ainda está no RM.
         const colCodRm = boardOrigem ? await colunaCodigoRm(String(boardOrigem)) : null
         if (colCodRm && !rmRemocao.temPendencia && rmRemocao.removidos.length) {
-          await mudarColunas(boardOrigem, Number(origem.itemId), { [colCodRm]: "" }).catch((e) =>
+          await mudarColunas(boardOrigem, Number(plano.itemId), { [colCodRm]: "" }).catch((e) =>
             req.log.warn(e, "cancelar: limpar codigo RM no board falhou"),
           )
         }
