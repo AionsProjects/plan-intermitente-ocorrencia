@@ -13,6 +13,19 @@ estão abertas, e as três mudam qual arquitetura vale a pena.
 > devolve) e `CAJU_NOTA_URL` em produção — a coluna `Nota de Débito` estava vazia nas 40 linhas
 > lidas em 24/09. O mensal **não** mudou: segue deixando o crédito em Rascunho.
 
+> **Atualização 29/09/2026 — P2 medido, escopo decidido.** O Isaac mediu no painel: a nota baixa
+> em `https://empresa.caju.com.br/classic/#/debit_note/<id do pedido>`. Virou o padrão de
+> `CAJU_NOTA_URL` no código (env continua vencendo; vazio desliga), então o link `Nota de Débito`
+> do board de Notas e o relatório de pagamento passam a sair preenchidos.
+>
+> Decisão: o Plano ganhou as colunas de texto `CREDITO VR NOTA` (`nota_credito_vr`) e
+> `CREDITO VT NOTA` (`nota_credito_vt`) nos boards 09/26, 10/26 (central — a virada copia) e
+> teste. O sistema grava nelas o **id do pedido de crédito** de cada benefício, sempre que um é
+> feito: o pagamento pontual no passo `monday_plano` (no formato junto, até 08/2026, o mesmo id
+> vale pras duas) e o job do sábado extra no passo 3, acrescentando na de VT. Baixar o PDF e
+> arquivar fica com outra frente — por isso os caminhos A/B/C abaixo deixam de ser trabalho
+> deste app.
+
 ---
 
 ## 1. O que já existe (e o que falta)

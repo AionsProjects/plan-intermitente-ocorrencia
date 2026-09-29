@@ -157,10 +157,10 @@ export const config = {
     sponsorId: opt("CAJU_SPONSOR_ID", ""),
     integrationId: opt("CAJU_INTEGRATION_ID", ""),
     // Link de download da NOTA DE DÉBITO do pedido. Template com `{orderId}` (ou `{id}`).
-    // Vive em env, não no código, porque o padrão foi descoberto no painel da Caju e pode
-    // mudar sem aviso — trocar env não exige deploy, e sem valor a coluna nasce vazia em
-    // vez de gravar link quebrado.
-    notaUrlTemplate: opt("CAJU_NOTA_URL", ""),
+    // O padrão é o medido pelo Isaac no painel em 29/09/2026; env continua vencendo, porque o
+    // painel pode mudar sem aviso e trocar env não exige deploy. `CAJU_NOTA_URL=` (vazio)
+    // desliga: sem template a coluna nasce vazia em vez de gravar link quebrado.
+    notaUrlTemplate: opt("CAJU_NOTA_URL", "https://empresa.caju.com.br/classic/#/debit_note/{orderId}"),
   },
   // Orquestração mensal nova. O default é deliberadamente seguro: homologação
   // e workflow desligado até migration/env/deploy serem validados.

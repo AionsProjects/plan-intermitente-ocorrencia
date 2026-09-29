@@ -36,6 +36,9 @@ export const COLUNAS_MOTOR = new Set(
     "PROTOCOLO", "Link", "Nome do Empregado",
     // Convocação no RM (FopConvocacaoData) — automação nova, achada na homologação.
     "Lançar no RM", "Código Convocação RM", "OP - LIBERADO",
+    // Nota de débito do crédito (29/09/2026): o pagamento e o job do sábado extra gravam o id do
+    // pedido — o do sábado pode rodar no tick, longe da ação que o originou.
+    "CREDITO VR NOTA", "CREDITO VT NOTA",
   ].map(normalizar),
 )
 

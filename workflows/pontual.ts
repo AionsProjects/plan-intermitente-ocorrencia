@@ -46,6 +46,12 @@ import {
 } from "../auth-backend/src/mensal/rmEfeitos.js"
 import { criarUpdate, mondayGraphql } from "../auth-backend/src/monday.js"
 import {
+  colunasNotaDoBoard,
+  idsNotaCredito,
+  lerNotasDoItem,
+  valoresNota,
+} from "../auth-backend/src/services/notaDebitoPlano.js"
+import {
   montarDescontoUpdatesPontual,
   montarPessoaPagamento,
   motivosRecusa,
@@ -820,7 +826,11 @@ etapaControleCaju.maxRetries = 5
 // Step 13 — Plano: DESCONTO - VR/VT (+ 7 colunas se recalculado).
 // ---------------------------------------------------------------------------
 
-async function etapaMondayPlano(input: PontualWorkflowInput, plano: PlanoPagamento): Promise<void> {
+async function etapaMondayPlano(
+  input: PontualWorkflowInput,
+  plano: PlanoPagamento,
+  creditos: { vr: string | null; vt: string | null; junto: boolean } = { vr: null, vt: null, junto: false },
+): Promise<void> {
   "use step"
   const { execucaoId, itemOrigemId } = input
   const etapa = "monday_plano"
@@ -849,12 +859,35 @@ async function etapaMondayPlano(input: PontualWorkflowInput, plano: PlanoPagamen
       Object.assign(cv, montarValuesPlanUpdate(planUpdate as never, colunas))
     }
   }
+  // Nota de débito: id do pedido de crédito em "CREDITO VR NOTA" / "CREDITO VT NOTA" (decisão do
+  // Isaac, 29/09/2026). Acrescenta, não sobrescreve — o sábado extra grava na mesma coluna depois.
+  // Board sem as colunas (mês antigo) só não grava a nota; o resto do passo segue.
+  const notas = idsNotaCredito({
+    pedidoVR: creditos.vr,
+    pedidoVT: creditos.vt,
+    creditoVR: Number(plano.pessoa.creditoVR) || 0,
+    creditoVT: Number(plano.pessoa.creditoVT) || 0,
+    junto: creditos.junto,
+  })
+  let notasGravadas: Record<string, string> = {}
+  if (notas.vr || notas.vt) {
+    const colunasNota = await colunasNotaDoBoard(String(boardId), porNome)
+    const atuais = await lerNotasDoItem(String(itemOrigemId), colunasNota)
+    notasGravadas = valoresNota(colunasNota, notas, atuais)
+    Object.assign(cv, notasGravadas)
+  }
   await mondayGraphql(
     `mutation($b:ID!,$i:ID!,$v:JSON!){ change_multiple_column_values(board_id:$b, item_id:$i, column_values:$v, create_labels_if_missing:true){ id } }`,
     { b: boardId, i: itemOrigemId, v: JSON.stringify(cv) },
   )
   await confirmarEfeito(r.chave, `monday:plano:${Object.keys(cv).length}cols`)
-  await log(execucaoId, etapa, "ok", { metadados: { colunas: Object.keys(cv).length, recalculado: plano.recalculado } })
+  await log(execucaoId, etapa, "ok", {
+    metadados: {
+      colunas: Object.keys(cv).length,
+      recalculado: plano.recalculado,
+      notas_credito: { vr: notas.vr, vt: notas.vt, gravadas: Object.keys(notasGravadas).length },
+    },
+  })
 }
 etapaMondayPlano.maxRetries = 5
 
@@ -1300,7 +1333,11 @@ export async function executarPontualWorkflow(input: PontualWorkflowInput): Prom
     }
 
     await etapaControleCaju(input, plano, { vr: credito.vr.orderId, vt: credito.vt.orderId })
-    await etapaMondayPlano(input, plano)
+    await etapaMondayPlano(input, plano, {
+      vr: credito.vr.orderId,
+      vt: credito.vt.orderId,
+      junto: grupos.length === 1,
+    })
     // No formato junto o id fica só no campo VR e o VT null; quem consome junta os não-nulos
     // (idsPedidoParaSolicitacao). No separado cada slot leva o seu.
     const refsSemSolicitacao = {

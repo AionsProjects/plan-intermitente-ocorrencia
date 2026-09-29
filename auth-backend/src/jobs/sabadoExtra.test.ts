@@ -42,6 +42,8 @@ interface Opcoes {
   efeitos?: Array<[string, StatusEfeito, string?]>
   pedido?: PedidoSabados
   itemOrigem?: string | null
+  /** A gravação da nota de débito no Plano lança (Monday fora, coluna sumida…). */
+  notaFalha?: boolean
 }
 
 /** Fila + ledger em memória, e as chamadas externas que o job fez (em ordem). */
@@ -54,6 +56,7 @@ function criarMundo(opts: Opcoes) {
   const confirmacoes: Array<Parameters<DepsSabadoExtra["confirmarPedido"]>[1]> = []
   const debitos: Array<Parameters<DepsSabadoExtra["registrarDebitoControle"]>[0]> = []
   const updates: Array<{ item: string; texto: string }> = []
+  const notas: Array<{ item: string; beneficio: string; orderId: string }> = []
   /** Cada `estado` que o job gravou na fila, em ordem — é o que prova o claim do dreno. */
   const estadosGravados: string[] = []
   let habilitado = opts.habilitado
@@ -91,6 +94,12 @@ function criarMundo(opts: Opcoes) {
       chamadas.push("criarUpdate")
       updates.push({ item, texto })
       return "upd-1"
+    },
+    gravarNotaCredito: async (item, beneficio, orderId) => {
+      chamadas.push("gravarNotaCredito")
+      notas.push({ item, beneficio, orderId })
+      if (opts.notaFalha) throw new Error("Monday GraphQL falhou (HTTP 200)")
+      return { gravado: orderId }
     },
     saveRecord: (async () => {
       chamadas.push("saveRecord")
@@ -132,6 +141,7 @@ function criarMundo(opts: Opcoes) {
     confirmacoes,
     debitos,
     updates,
+    notas,
     estadosGravados,
     ligarFlag: () => {
       habilitado = true
@@ -182,7 +192,7 @@ test("flag ligada: credito confirmado do saldo, debito no Controle Caju, balao n
   assert.equal(fim.estado, "concluido")
   assert.deepEqual(m.chamadas, [
     "buscarEmployeeId", "criarPedido", "confirmarPedido",
-    "garantirGrupoControle", "registrarDebitoControle", "criarUpdate", "saveRecord",
+    "garantirGrupoControle", "registrarDebitoControle", "criarUpdate", "gravarNotaCredito", "saveRecord",
   ])
   // Pedido de VT só, no nome que o DP busca no painel.
   const criado = m.pedidosCriados[0]!
@@ -284,7 +294,7 @@ test("dreno: uma chamada leva o job do passo 0 ao fim, sem soltar o claim no mei
   assert.equal(r.estado, "concluido")
   assert.deepEqual(m.chamadas, [
     "buscarEmployeeId", "criarPedido", "confirmarPedido",
-    "garantirGrupoControle", "registrarDebitoControle", "criarUpdate", "saveRecord",
+    "garantirGrupoControle", "registrarDebitoControle", "criarUpdate", "gravarNotaCredito", "saveRecord",
   ])
   // Entre um passo e outro o job segue `rodando`: `pendente` no meio deixaria outro processo
   // (o tick) pegar o mesmo job.
@@ -306,4 +316,40 @@ test("dreno: falha nomeada para o laço e volta como estado", async () => {
   assert.equal(r.estado, "falhou")
   assert.match(r.erro ?? "", /^efeito_pendente_requer_conciliacao:/)
   assert.equal(m.chamadas.includes("criarPedido"), false)
+})
+
+// ── nota de débito do crédito (29/09/2026) ─────────────────────────────────
+
+test("nota de débito: o id do crédito vai pra coluna de VT do item, depois do balão", async () => {
+  const m = criarMundo({ habilitado: true })
+  const fim = await m.rodar("job-nota")
+  assert.equal(fim.estado, "concluido")
+  assert.deepEqual(m.notas, [{ item: "13000000001", beneficio: "vt", orderId: "ord-1" }])
+  // Depois do balão confirmado: falhar aqui não pode repetir o balão.
+  assert.ok(m.chamadas.indexOf("gravarNotaCredito") > m.chamadas.indexOf("criarUpdate"))
+  assert.deepEqual((fim.cursor as { nota?: unknown }).nota, { gravado: "ord-1" })
+})
+
+test("nota que falha não trava o pagamento: o RM sai e o erro fica no cursor", async () => {
+  const m = criarMundo({ habilitado: true, notaFalha: true })
+  const fim = await m.rodar("job-nota-falha")
+  assert.equal(fim.estado, "concluido")
+  assert.ok(m.chamadas.includes("saveRecord"), "o histórico do RM tinha que sair mesmo assim")
+  assert.match(String((fim.cursor as { nota?: { erro?: string } }).nota?.erro), /Monday GraphQL falhou/)
+  assert.equal(m.updates.length, 1, "balão uma vez só")
+})
+
+test("retomada: a nota leva o id do pedido que veio do ledger", async () => {
+  const m = criarMundo({ habilitado: true, efeitos: [[chaveEfeitoSabados(PEDIDO, "caju"), "confirmado", "ord-antigo"]] })
+  await m.rodar("job-nota-retomada")
+  assert.equal(m.notas[0]?.orderId, "ord-antigo")
+})
+
+test("sem item do Plano ou simulado: não grava nota", async () => {
+  const semItem = criarMundo({ habilitado: true, itemOrigem: null })
+  await semItem.rodar("job-nota-sem-item")
+  assert.deepEqual(semItem.notas, [])
+  const simulado = criarMundo({ habilitado: false })
+  await simulado.rodar("job-nota-sim")
+  assert.deepEqual(simulado.notas, [])
 })

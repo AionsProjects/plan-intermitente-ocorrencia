@@ -16,7 +16,8 @@
 //   0  employee na Caju (leitura)
 //   1  pedido de crédito VT + confirmar (EXISTING_BALANCE)   <- DINHEIRO
 //   2  débito no Controle Caju (o board de controle do saldo)
-//   3  balãozinho no item do Plano: houve sábado extra, quanto e qual pedido
+//   3  balãozinho no item do Plano: houve sábado extra, quanto e qual pedido — e o id do pedido
+//      na coluna "CREDITO VT NOTA" (nota de débito, 29/09/2026; melhor esforço, não trava)
 //   4  histórico ZMDHSTBENFUNC (TPBEN=1)
 //
 // A ORDEM segue a lição do pontual (RAIMUNDA/NATALIA, 02/09): o que registra o dinheiro no
@@ -50,6 +51,7 @@ import {
 } from "../sabados/rmSabados.js"
 import { montarNomeDebitoSabados, montarTextoBalaoSabados } from "../sabados/mondaySabados.js"
 import type { PedidoSabados } from "../sabados/calculo.js"
+import { gravarNotaCreditoNoItem } from "../services/notaDebitoPlano.js"
 
 export const TIPO_JOB_SABADO_EXTRA = "sabado_extra"
 
@@ -71,6 +73,8 @@ export interface DepsSabadoExtra {
   garantirGrupoControle: () => Promise<string>
   registrarDebitoControle: typeof registrarDebitoControleCaju
   criarUpdate: typeof criarUpdate
+  /** Id do pedido de crédito na coluna de nota de débito do Plano. */
+  gravarNotaCredito: typeof gravarNotaCreditoNoItem
   habilitado: () => boolean
   temRm: () => boolean
   /** Fila e ledger. Injetáveis pra o teste percorrer os passos sem Postgres. */
@@ -88,6 +92,7 @@ const DEPS_PADRAO: DepsSabadoExtra = {
   garantirGrupoControle: () => garantirGrupoCaixa("controle"),
   registrarDebitoControle: registrarDebitoControleCaju,
   criarUpdate,
+  gravarNotaCredito: gravarNotaCreditoNoItem,
   habilitado: () => config.sabadoExtraHabilitado,
   temRm: temRmSoap,
   avancar,
@@ -252,6 +257,16 @@ export function handlerSabadoExtra(deps: Partial<DepsSabadoExtra> = {}) {
           const texto = montarTextoBalaoSabados(pedido, { orderId, summaryUrl: summaryUrlCaju(orderId) })
           const updateId = await d.criarUpdate(String(p.item_origem_id), texto)
           await d.confirmarEfeito(chave("balao"), `monday:balao:${updateId ?? "sem-id"}`)
+          // Nota de débito do crédito: o id vai pra "CREDITO VT NOTA", junto do que o pontual já
+          // gravou. Depois do balão confirmado, e sem derrubar nada: a coluna é informação, e
+          // falhar aqui não pode repetir o balão nem segurar o histórico do RM. O desfecho fica
+          // no cursor pra quem precisar conferir.
+          if (orderId) {
+            const nota = await d.gravarNotaCredito(String(p.item_origem_id), "vt", orderId)
+              .catch((e: unknown) => ({ erro: (e as Error)?.message?.slice(0, 160) ?? String(e) }))
+            await d.avancar(job.id, { estado: "pendente", passo: 4, cursor: { ...cursor, nota } })
+            return
+          }
         }
       }
       await d.avancar(job.id, { estado: "pendente", passo: 4, cursor })
