@@ -35,6 +35,8 @@ export const config = {
   // Sessao
   sessionCookieName: opt("SESSION_COOKIE_NAME", "pi_sess"),
   sessionTtlDias: Number(opt("SESSION_TTL_DIAS", "10")),
+  // Sessão deslizante: cada uso renova o TTL, mas nunca além deste teto desde o login.
+  sessionMaxDias: Number(opt("SESSION_MAX_DIAS", "30")),
   // Cookie Secure: VM intranet e HTTP puro -> default false. Ligar quando tiver TLS.
   cookieSecure: process.env.COOKIE_SECURE === "1",
   // SSL no Postgres (remoto/cloudfy costuma exigir). DB_SSL=1 -> ssl sem verificar CA.
