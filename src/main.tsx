@@ -6,9 +6,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import App from "./App.tsx"
 import "./index.css"
 import { initTheme } from "./lib/theme"
+import { instalarDeteccaoDeSessaoRejeitada } from "./lib/sessaoRejeitada"
 import { AuthProvider } from "@/components/AuthContext"
 
 initTheme()
+instalarDeteccaoDeSessaoRejeitada()
 
 const queryClient = new QueryClient({
   defaultOptions: {

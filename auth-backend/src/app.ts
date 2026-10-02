@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance } from "fastify"
 import cookie from "@fastify/cookie"
 import multipart from "@fastify/multipart"
+import { reemitirCookieDeSessao } from "./session.js"
 import { rotasAuth } from "./routes/auth.js"
 import { rotasUsuarios } from "./routes/usuarios.js"
 import { rotasAtividade } from "./routes/atividade.js"
@@ -33,6 +34,11 @@ export async function construirApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: true })
 
   await app.register(cookie)
+  // Sessão deslizante: quem renovou a sessão no banco reemite o cookie (session.ts).
+  app.addHook("onSend", async (req, reply, payload) => {
+    reemitirCookieDeSessao(req, reply)
+    return payload
+  })
   await app.register(multipart, { limits: { fileSize: 15 * 1024 * 1024 } })
   await app.register(rotasAuth)
   await app.register(rotasUsuarios)

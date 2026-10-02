@@ -634,6 +634,16 @@ Login SSO + identidade do operador. n8n NAO foi tocado nesta etapa.
 - **Login**: SSO Google Workspace (Authorization Code server-side). So
   `@contatoserv.com.br` (`AUTH_ALLOWED_DOMAIN`). Sessao = cookie httpOnly opaco
   (`pi_sess`) com registro no Postgres (revogavel). `COOKIE_SECURE=0` na VM HTTP.
+  **Sessao deslizante (02/10/2026)**: cada uso renova o vencimento (`SESSION_TTL_DIAS`=10),
+  ate o teto `SESSION_MAX_DIAS`=30 desde o login. Decisao pura em `domain/sessao.ts`
+  (renova no max. 1x/dia); `usuarioDaSessao` grava no banco e o hook `onSend` (app.ts)
+  reemite o cookie — renovar so o banco nao basta, o navegador descarta o cookie no
+  vencimento antigo. No front, `lib/sessaoRejeitada.ts` envolve `window.fetch` e avisa
+  401 em `/api/*`; o `AuthProvider` confirma no `/auth/me` e abre `SessaoExpiradaDialog`
+  por cima da tela (sem navegar, rascunho preservado; Google em popup que NUNCA cai em
+  pagina inteira, CPF em outra aba). Origem: 02/10 08:44-08:59 (Manaus), sessao de 22/09
+  venceu e a tela aberta levou ~12 401 em `/api/intermitente-convocar` sem registro no
+  `audit_lancamentos` (o guard barra antes da rota).
 - **Papeis**: `admin > dp > rh/op` (enum `papel`). Auto-cadastro: dominio loga e no
   **1o acesso preenche onboarding** (nome, sobrenome, CPF validado+unico, escolhe
   **RH ou Operacional**). DP/Admin NAO sao auto-escolhiveis — Admin promove pelo painel
