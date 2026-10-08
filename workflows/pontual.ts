@@ -1027,7 +1027,7 @@ function dadosDoRelatorio(
 async function etapaDrive(
   input: PontualWorkflowInput,
   plano: PlanoPagamento,
-  refs: RefsPagamento & { qrVR: string; qrVT: string; copiaECola: string },
+  refs: RefsPagamento & { qrVR: string; qrVT: string; copiaECola: string; solicitacaoIds?: string[] },
   abatimentos: AbatimentoBalao[],
 ): Promise<{ relatorioUrl: string | null }> {
   "use step"
@@ -1056,6 +1056,7 @@ async function etapaDrive(
     qrBoletoVTBase64: refs.qrVT,
     pixCopiaECola: refs.copiaECola,
     solicitacaoId: refs.solicitacaoId,
+    solicitacaoIds: refs.solicitacaoIds ?? [],
     relatorio: dados,
   })
   const uploads = resultados.flatMap((x) => x.resultado.uploads.map((u) => u.id))
@@ -1352,10 +1353,13 @@ export async function executarPontualWorkflow(input: PontualWorkflowInput): Prom
     // Drive e notas linkam UM item — a linha do VR quando existe, senão a do VT. São as duas
     // linhas do mesmo pagamento, então o rastro não se perde.
     const solicitacaoId = solicitacoes[0]?.id ?? null
+    // A pasta do Drive vai nas DUAS linhas da Solicitação (08/10/2026: a do VT ficava sem o link).
+    const solicitacaoIds = solicitacoes.map((s) => s.id).filter((id): id is string => !!id)
     const refs = { ...refsSemSolicitacao, solicitacaoId }
     // O Drive vem antes das notas: a linha do board carrega o link do PDF que sobe aqui.
     const { relatorioUrl } = await etapaDrive(input, plano, {
       ...refs,
+      solicitacaoIds,
       // Um QR por boleto: no formato junto só o slot VR vem preenchido.
       qrVR: boleto.vr.qr,
       qrVT: boleto.vt.qr,

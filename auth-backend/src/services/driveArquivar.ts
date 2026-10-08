@@ -89,6 +89,12 @@ export interface ArquivarInput {
   board_entrada_id?: string
   item_controle_id?: string
   item_solicitacao_id?: string
+  /**
+   * Todas as linhas da Solicitação de Pagamento que levam o link da pasta (08/10/2026). O pontual
+   * cria UMA POR BENEFÍCIO (VR e VT) e só a primeira recebia o link: a do VT ficava sem Drive.
+   * Somado ao `item_solicitacao_id`, sem repetir.
+   */
+  itens_solicitacao_ids?: string[]
   board_solicitacao_id?: string
   gerar_planilha_conferencia?: boolean
   atualizar_monday?: boolean
@@ -199,6 +205,14 @@ export interface ArquivarResultado {
   pasta_caminho: string
   uploads: Array<{ id: string; name: string; url?: string }>
   planilha?: { id: string; name: string; url?: string }
+  /** Itens do Monday que NÃO receberam o link (antes a falha era engolida em silêncio). */
+  monday_falhas?: string[]
+}
+
+/** As linhas da Solicitação que levam o link da pasta: a única de antes e as da lista, sem repetir. */
+export function itensSolicitacaoDoArquivamento(input: Pick<ArquivarInput, "item_solicitacao_id" | "itens_solicitacao_ids">): string[] {
+  const todos = [input.item_solicitacao_id, ...(input.itens_solicitacao_ids ?? [])]
+  return [...new Set(todos.map((v) => String(v ?? "").trim()).filter(Boolean))]
 }
 
 function parseIso(iso: string): { ano: number; mes: number; dia: number } {
@@ -371,10 +385,13 @@ export async function arquivarDrive(input: ArquivarInput): Promise<ArquivarResul
     }).catch(() => undefined)
   }
 
-  if (input.atualizar_monday && input.item_solicitacao_id) {
-    await changeColumnValues(input.board_solicitacao_id || BOARD_SOLICITACAO_PGTO, input.item_solicitacao_id, {
-      [COL_SOLICITACAO_LINK_CONVOCACAO]: { url: pastaConvUrl, text: "Pasta convocacao" },
-    }).catch(() => undefined)
+  const mondayFalhas: string[] = []
+  if (input.atualizar_monday) {
+    for (const item of itensSolicitacaoDoArquivamento(input)) {
+      await changeColumnValues(input.board_solicitacao_id || BOARD_SOLICITACAO_PGTO, item, {
+        [COL_SOLICITACAO_LINK_CONVOCACAO]: { url: pastaConvUrl, text: "Pasta convocacao" },
+      }).catch(() => { mondayFalhas.push(`solicitacao:${item}`) })
+    }
   }
 
   return {
@@ -387,5 +404,6 @@ export async function arquivarDrive(input: ArquivarInput): Promise<ArquivarResul
     pasta_caminho: [ano, mes, "CONTATO", contrato, natureza, pessoa, ...(comPeriodo ? [periodo] : [])].join("/"),
     uploads: uploads.map((u) => ({ id: u.id, name: u.name, url: u.webViewLink })),
     planilha: planilha ? { id: planilha.id, name: planilha.name, url: planilha.webViewLink } : undefined,
+    ...(mondayFalhas.length ? { monday_falhas: mondayFalhas } : {}),
   }
 }

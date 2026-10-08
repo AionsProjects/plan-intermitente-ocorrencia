@@ -24,6 +24,8 @@ export interface RefsDrivePontual extends PedidosCajuIds {
   pixCopiaECola?: string
   resumoSolicitacao?: string
   solicitacaoId?: string | null
+  /** Todas as linhas da Solicitação (VR e VT): todas recebem o link da pasta (08/10/2026). */
+  solicitacaoIds?: readonly string[]
   /** Dados do relatório. Presente = o PDF vai junto, em OUTROS/. */
   relatorio?: DadosRelatorioPagamento
 }
@@ -131,6 +133,8 @@ export async function arquivarDrivePontual(
     item_entrada_id: snapshot.item_origem_id,
     board_entrada_id: snapshot.monday_board_id ?? undefined,
     item_solicitacao_id: refs.solicitacaoId ?? undefined,
+    // As duas linhas do pagamento (VR e VT) levam a pasta (08/10/2026: a do VT ficava sem Drive).
+    itens_solicitacao_ids: [...(refs.solicitacaoIds ?? [])],
     atualizar_monday: true,
     pastas_resolvidas: pastasResolvidas,
     // As três pastas mesmo que este pagamento não use todas (sem boleto não haveria `CAJU`):
